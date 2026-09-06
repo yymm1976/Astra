@@ -1,0 +1,9 @@
+Astra Shader v1 — License (interim)
+
+Interim status: PERSONAL USE ONLY (per .specs/astra-shader/design.md §9).
+This pack borrows code from third-party shaderpacks under licenses that do not
+yet permit redistribution; see THIRD-PARTY.md for the per-module ledger.
+
+Before any public release, the publication gate (design.md §9.3) must be run:
+rewrite/replace GPL or all-rights-reserved derived modules, then re-decide the
+final license here.

@@ -1,0 +1,152 @@
+# Astra v1 - English (US)
+# 1:1 with lib/settings.glsl options (Z2); do not rename keys without Z2.
+
+option.SUNLIGHT_STRENGTH=Direct Sunlight
+option.MOONLIGHT_STRENGTH=Moonlight
+option.SKYLIGHT_STRENGTH=Skylight Ambient
+option.MIN_AMBIENT=Cave Minimum Light
+option.BLOCKLIGHT_STRENGTH=Blocklight
+option.BLOCKLIGHT_SUPPRESSION=Daylight Blocklight Suppression
+option.HANDHELD_LIGHTING=Handheld Light
+option.HANDHELD_LIGHT_STRENGTH=Handheld Light Strength
+option.LIGHTNING_FLASH=Lightning Flash
+option.EMISSIVE_STRENGTH=Emissive Boost
+option.SHADOWS=Shadows
+option.SHADOW_RESOLUTION=Shadow Resolution
+option.SHADOW_DISTANCE=Shadow Distance
+option.ENTITY_SHADOW_DISTANCE=Entity Shadow Distance
+option.SHADOW_SOFTNESS=Shadow Softness
+option.COLORED_SHADOWS=Colored Shadows
+option.STATIC_SHADOW_FALLBACK=Static Shadow Fallback
+option.SSS_FOLIAGE=Foliage Translucency
+option.SSS_STRENGTH=Foliage Translucency Strength
+option.SKY_MODE=Sky Model
+option.SUN_MOON_MODE=Sun & Moon
+option.STARS=Stars
+option.CLOUD_MODE=Clouds
+option.CLOUD_COVERAGE=Cloud Coverage
+option.AIR_PERSPECTIVE=Aerial Perspective
+option.BIOME_TINT=Biome Tint
+option.BIOME_TINT_STRENGTH=Biome Tint Strength
+option.END_NEBULA=End Nebula
+option.WATER_WAVES=Water Waves
+option.WATER_WAVE_HEIGHT=Wave Height
+option.WATER_WAVE_SPEED=Wave Speed
+option.SCREENSPACE_REFLECTIONS=Screen Space Reflections
+option.SCREENSPACE_REFRACTION=Screen Space Refraction
+option.REFRACTION_STRENGTH=Refraction Strength
+option.WATER_ABSORPTION=Underwater Absorption
+option.WATER_CHARACTER=Water Character
+option.WATER_CAUSTICS=Caustics
+option.UNDERWATER_PARTICLES=Underwater Particles
+option.FANCY_TRANSLUCENTS=Fancy Translucents
+option.FOG_DENSITY=Atmospheric Fog
+option.SKY_FOG_STRENGTH=Sky Fog Blend
+option.BORDER_FOG=Border Fog
+option.CAVE_FOG=Cave Fog
+option.UNDERWATER_FOG_DENSITY=Underwater Fog
+option.NETHER_FOG_DENSITY=Nether Fog
+option.END_FOG_DENSITY=End Void Fog
+option.TONEMAP_OPERATOR=Tone Mapping
+option.EXPOSURE=Exposure
+option.SATURATION=Saturation
+option.VIBRANCE=Vibrance
+option.CONTRAST=Contrast
+option.COLOR_TEMPERATURE=Color Temperature
+option.BLOOM=Bloom
+option.BLOOM_STRENGTH=Bloom Strength
+option.GODRAYS=Godrays
+option.GODRAYS_STRENGTH=Godrays Strength
+option.DITHERING=Output Dithering
+option.VIGNETTE=Vignette
+option.WAVING_FOLIAGE=Waving Foliage
+option.WAVING_FOLIAGE_STRENGTH=Waving Strength
+option.VOXY_SUPPORT=Voxy Support (Experimental)
+
+option.SUNLIGHT_STRENGTH.comment=Strength of direct sunlight. 100 = vanilla-like.
+option.MOONLIGHT_STRENGTH.comment=Strength of moonlight at night. 100 = default.
+option.SKYLIGHT_STRENGTH.comment=Strength of directional ambient (skylight-based) lighting.
+option.MIN_AMBIENT.comment=Floor value for ambient light in dark areas, so caves never turn pitch black.
+option.BLOCKLIGHT_STRENGTH.comment=Strength of light emitted by torches, lava, glowstone etc.
+option.BLOCKLIGHT_SUPPRESSION.comment=Blocklight fades as daylight gets stronger; replaces auto exposure without flicker.
+option.HANDHELD_LIGHTING.comment=Dynamic light around the player while holding a light-emitting block.
+option.HANDHELD_LIGHT_STRENGTH.comment=Intensity of the handheld dynamic light.
+option.LIGHTNING_FLASH.comment=Lightning bolts light up the surroundings and the sky.
+option.EMISSIVE_STRENGTH.comment=Boost for emissive surfaces (glowstone, lava, portals...).
+option.SHADOWS.comment=Master switch for the shadow map. (Performance: high impact overall)
+option.SHADOW_RESOLUTION.comment=Shadow map resolution. (Performance: high)
+option.SHADOW_DISTANCE.comment=How far shadows are rendered, in blocks. (Performance: high)
+option.ENTITY_SHADOW_DISTANCE.comment=Distance at which entities cast shadows. (Performance: medium)
+option.SHADOW_SOFTNESS.comment=Edge softening radius of the shadow filter, in texels (max 16). (Performance: medium)
+option.COLORED_SHADOWS.comment=Stained glass and water cast tinted shadows; clear glass casts none.
+option.STATIC_SHADOW_FALLBACK.comment=Skylight-based shadow approximation beyond the shadow distance, blended over 5-10 blocks.
+option.SSS_FOLIAGE.comment=Leaves and plants let some light through from behind.
+option.SSS_STRENGTH.comment=Intensity of the foliage translucency effect.
+option.SKY_MODE.comment=0 = Minishita mini physical atmosphere (recommended), 1 = simple gradient (fastest).
+option.SUN_MOON_MODE.comment=0 = vanilla sun/moon textures, 1 = procedural discs.
+option.STARS.comment=Night star field with subtle twinkle.
+option.CLOUD_MODE.comment=0 = vanilla clouds (retinted), 1 = planar wispy clouds, 2 = off. (Planar: low cost)
+option.CLOUD_COVERAGE.comment=Coverage of the planar cloud layer (Clouds = Planar only).
+option.AIR_PERSPECTIVE.comment=Horizon picks up a warm tint toward the sun at sunrise/sunset.
+option.BIOME_TINT.comment=Fog and ambient light get a subtle tint from biome temperature/humidity.
+option.BIOME_TINT_STRENGTH.comment=Intensity of the biome tint.
+option.END_NEBULA.comment=Faint nebula layer in the End sky.
+option.WATER_WAVES.comment=Animated water surface normals.
+option.WATER_WAVE_HEIGHT.comment=Amplitude of water waves. (Performance: low)
+option.WATER_WAVE_SPEED.comment=Flow speed of the water surface.
+option.SCREENSPACE_REFLECTIONS.comment=SSR on water and ice top faces; falls back to sky reflection. (Performance: high)
+option.SCREENSPACE_REFRACTION.comment=Single-jump refraction under the water surface with depth rejection. (Performance: medium)
+option.REFRACTION_STRENGTH.comment=Distortion strength of the refraction.
+option.WATER_ABSORPTION.comment=Exponential color absorption underwater; 0 = off. (Performance: low)
+option.WATER_CHARACTER.comment=Water palette: 0 = Cold, 1 = Balanced, 2 = Tropical.
+option.WATER_CAUSTICS.comment=Light patterns on the seafloor, cast along with shadows.
+option.UNDERWATER_PARTICLES.comment=Suspended particles while underwater. (Performance: medium)
+option.FANCY_TRANSLUCENTS.comment=Premultiplied-alpha blending for water/translucents; enables free reflection/refraction mixing. (Performance: low)
+option.FOG_DENSITY.comment=Density of distance fog. (Performance: negligible)
+option.SKY_FOG_STRENGTH.comment=How much fog blends into the sky; low values also skip sky fog color work.
+option.BORDER_FOG.comment=Fog at the render-distance border.
+option.CAVE_FOG.comment=Fog inside caves.
+option.UNDERWATER_FOG_DENSITY.comment=Density of underwater fog. (Performance: negligible)
+option.NETHER_FOG_DENSITY.comment=Nether fog density with its own height/density curve. (Performance: negligible)
+option.END_FOG_DENSITY.comment=End void fog gradient density. (Performance: negligible)
+option.TONEMAP_OPERATOR.comment=0 = Uchimura (default), 1 = AgX, 2 = ACES, 3 = Reinhard-Jodie.
+option.EXPOSURE.comment=Color grading: overall exposure. (Performance: negligible)
+option.SATURATION.comment=Color grading: saturation (factory default 112, Refrax-style target).
+option.VIBRANCE.comment=Color grading: vibrance - saturation weighted toward less-saturated colors (factory 115).
+option.CONTRAST.comment=Color grading: contrast (factory default 104).
+option.COLOR_TEMPERATURE.comment=Color grading: warm/cool shift. Negative = cooler.
+option.BLOOM.comment=Soft glow around bright areas. (Performance: low)
+option.BLOOM_STRENGTH.comment=Intensity of the bloom.
+option.GODRAYS.comment=Volumetric light shafts when looking at the sun/moon through gaps. (Performance: medium; off by default)
+option.GODRAYS_STRENGTH.comment=Intensity of the godrays.
+option.DITHERING.comment=Interleaved gradient noise on output; removes banding. Keep on without AA.
+option.VIGNETTE.comment=Darkened screen corners. Off by default (clean look).
+option.WAVING_FOLIAGE.comment=Gentle vertex-animated sway for leaves and plants. (Performance: low)
+option.WAVING_FOLIAGE_STRENGTH.comment=Intensity of the foliage sway.
+option.VOXY_SUPPORT.comment=Render Voxy distant chunks with Astra lighting. Experimental on 26.x.
+
+value.SKY_MODE.0=Minishita
+value.SKY_MODE.1=Gradient
+value.SUN_MOON_MODE.0=Vanilla Textures
+value.SUN_MOON_MODE.1=Procedural Discs
+value.CLOUD_MODE.0=Vanilla
+value.CLOUD_MODE.1=Planar
+value.CLOUD_MODE.2=Off
+value.WATER_CHARACTER.0=Cold
+value.WATER_CHARACTER.1=Balanced
+value.WATER_CHARACTER.2=Tropical
+value.TONEMAP_OPERATOR.0=Uchimura
+value.TONEMAP_OPERATOR.1=AgX
+value.TONEMAP_OPERATOR.2=ACES
+value.TONEMAP_OPERATOR.3=Reinhard-Jodie
+
+value.TRUE=ON
+value.FALSE=OFF
+
+screen.LIGHTING=Lighting
+screen.SHADOWS=Shadows
+screen.SKY=Sky & Clouds
+screen.WATER=Water
+screen.FOG=Fog
+screen.POST=Post Processing
+screen.PERFORMANCE=Performance & Advanced

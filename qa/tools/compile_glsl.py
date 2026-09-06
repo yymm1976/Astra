@@ -1,0 +1,342 @@
+#!/usr/bin/env python3
+"""Compile and link Astra shader entry pairs in a hidden OpenGL 4.0 context.
+
+This is intentionally separate from check_pack.py. It expands Iris-style absolute
+includes, applies one shaders.properties profile at a time, injects only the Iris
+preprocessor constants needed by Astra, then asks the installed OpenGL driver to
+compile and link each vertex/fragment pair. It never starts or edits Minecraft.
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+DEFAULT_MC_ROOT = Path(r"D:\zhenhebao\.minecraft")
+PROFILE_RE = re.compile(r"^profile\.([A-Za-z0-9_]+)=(.*)$")
+INCLUDE_RE = re.compile(r'^\s*#include\s+["<]([^">]+)[">]\s*(?://.*)?$')
+DEFINE_RE = re.compile(r"^(\s*)(//\s*)?#define\s+([A-Z][A-Z0-9_]*)(?:\s+(.*?))?\s*$")
+
+IRIS_PREAMBLE = """\
+#define MC_VERSION 260200
+#define MC_RENDER_STAGE_NONE 0
+#define MC_RENDER_STAGE_SKY 1
+#define MC_RENDER_STAGE_SUNSET 2
+#define MC_RENDER_STAGE_SUN 3
+#define MC_RENDER_STAGE_MOON 4
+#define MC_RENDER_STAGE_STARS 5
+#define MC_RENDER_STAGE_VOID 6
+#define MC_RENDER_STAGE_CUSTOM_SKY 7
+#define MC_HAND_DEPTH 0.125
+#define R11F_G11F_B10F 35898
+#define R8 33321
+#define RGBA16 32859
+"""
+
+JAVA_SOURCE = r"""
+import java.nio.file.Files;
+import java.nio.file.Path;
+import static org.lwjgl.glfw.GLFW.*;
+import org.lwjgl.glfw.GLFWErrorCallback;
+import org.lwjgl.opengl.GL;
+import static org.lwjgl.opengl.GL20.*;
+import static org.lwjgl.opengl.GL11.*;
+
+public final class AstraShaderCompiler {
+    private static String sourceMap(String path) {
+        try { return Files.readString(Path.of(path)); }
+        catch (Exception e) { return "(source map unavailable: " + e + ")"; }
+    }
+
+    private static int compile(int type, String sourcePath, String mapPath,
+                               String label, String stage) throws Exception {
+        int shader = glCreateShader(type);
+        glShaderSource(shader, Files.readString(Path.of(sourcePath)));
+        glCompileShader(shader);
+        String log = glGetShaderInfoLog(shader);
+        if (glGetShaderi(shader, GL_COMPILE_STATUS) == GL_FALSE) {
+            System.err.println("COMPILE_FAIL\t" + label + "\t" + stage);
+            System.err.print(log);
+            System.err.println("SOURCE_MAP\t" + label + "\t" + stage);
+            System.err.print(sourceMap(mapPath));
+            glDeleteShader(shader);
+            return 0;
+        }
+        if (!log.isBlank()) {
+            System.out.println("COMPILE_LOG\t" + label + "\t" + stage);
+            System.out.print(log);
+        }
+        return shader;
+    }
+
+    public static void main(String[] args) throws Exception {
+        GLFWErrorCallback.createPrint(System.err).set();
+        if (!glfwInit()) throw new IllegalStateException("glfwInit failed");
+        glfwDefaultWindowHints();
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
+        long window = glfwCreateWindow(32, 32, "Astra GLSL compiler", 0L, 0L);
+        if (window == 0L) throw new IllegalStateException("OpenGL 4.0 compatibility context failed");
+        glfwMakeContextCurrent(window);
+        GL.createCapabilities();
+        System.out.println("OPENGL_VENDOR\t" + glGetString(GL_VENDOR));
+        System.out.println("OPENGL_RENDERER\t" + glGetString(GL_RENDERER));
+        System.out.println("OPENGL_VERSION\t" + glGetString(GL_VERSION));
+
+        int failed = 0;
+        int linked = 0;
+        for (String row : Files.readAllLines(Path.of(args[0]))) {
+            if (row.isBlank()) continue;
+            String[] p = row.split("\t", -1);
+            String label = p[0];
+            int vs = compile(GL_VERTEX_SHADER, p[1], p[2], label, "vertex");
+            int fs = compile(GL_FRAGMENT_SHADER, p[3], p[4], label, "fragment");
+            if (vs == 0 || fs == 0) {
+                if (vs != 0) glDeleteShader(vs);
+                if (fs != 0) glDeleteShader(fs);
+                failed++;
+                continue;
+            }
+            int program = glCreateProgram();
+            glAttachShader(program, vs);
+            glAttachShader(program, fs);
+            glLinkProgram(program);
+            String log = glGetProgramInfoLog(program);
+            if (glGetProgrami(program, GL_LINK_STATUS) == GL_FALSE) {
+                System.err.println("LINK_FAIL\t" + label);
+                System.err.print(log);
+                failed++;
+            } else {
+                if (!log.isBlank()) {
+                    System.out.println("LINK_LOG\t" + label);
+                    System.out.print(log);
+                }
+                linked++;
+            }
+            glDeleteProgram(program);
+            glDeleteShader(vs);
+            glDeleteShader(fs);
+        }
+        System.out.println("RESULT\tlinked=" + linked + "\tfailed=" + failed);
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        if (failed != 0) System.exit(1);
+    }
+}
+"""
+
+
+def parse_profiles(properties: Path) -> dict[str, dict[str, str | None]]:
+    profiles: dict[str, dict[str, str | None]] = {}
+    for raw in properties.read_text(encoding="utf-8").splitlines():
+        match = PROFILE_RE.match(raw.strip())
+        if not match:
+            continue
+        values: dict[str, str | None] = {}
+        for token in match.group(2).split():
+            if token.startswith("!"):
+                values[token[1:]] = None
+            elif "=" in token:
+                name, value = token.split("=", 1)
+                values[name] = value
+            else:
+                values[token] = ""
+        profiles[match.group(1).upper()] = values
+    return profiles
+
+
+def apply_profile_settings(text: str, values: dict[str, str | None]) -> str:
+    output: list[str] = []
+    seen: set[str] = set()
+    for line in text.splitlines():
+        match = DEFINE_RE.match(line)
+        if not match or match.group(3) not in values:
+            output.append(line)
+            continue
+        indent, _, name, old_value = match.groups()
+        seen.add(name)
+        value = values[name]
+        if value is None:
+            output.append(f"{indent}// profile disables {name}")
+        elif value == "":
+            output.append(f"{indent}#define {name}")
+        else:
+            suffix = ""
+            if old_value and "//" in old_value:
+                suffix = " //" + old_value.split("//", 1)[1]
+            output.append(f"{indent}#define {name} {value}{suffix}")
+    missing = sorted(set(values) - seen)
+    if missing:
+        raise ValueError("profile options not found in settings.glsl: " + ", ".join(missing))
+    return "\n".join(output) + "\n"
+
+
+class Expander:
+    def __init__(self, shader_root: Path, profile: dict[str, str | None]):
+        self.shader_root = shader_root
+        self.profile = profile
+        self.ids: dict[Path, int] = {}
+
+    def source_id(self, path: Path) -> int:
+        path = path.resolve()
+        if path not in self.ids:
+            self.ids[path] = len(self.ids) + 1
+        return self.ids[path]
+
+    def expand(self, path: Path, root: bool = False, stack: tuple[Path, ...] = ()) -> str:
+        path = path.resolve()
+        if path in stack:
+            raise ValueError("recursive include: " + " -> ".join(map(str, stack + (path,))))
+        text = path.read_text(encoding="utf-8-sig")
+        if path.name == "settings.glsl":
+            text = apply_profile_settings(text, self.profile)
+        parent_id = self.source_id(path)
+        output: list[str] = []
+        injected = False
+        for line_number, line in enumerate(text.splitlines(), 1):
+            if root and line.startswith("#version"):
+                output.append(line)
+                output.append(IRIS_PREAMBLE.rstrip())
+                output.append(f"#line {line_number + 1} {parent_id}")
+                injected = True
+                continue
+            match = INCLUDE_RE.match(line)
+            if not match:
+                output.append(line)
+                continue
+            include = match.group(1)
+            child = (self.shader_root / include.lstrip("/")) if include.startswith("/") else (path.parent / include)
+            if not child.is_file():
+                raise FileNotFoundError(f"{path}:{line_number}: include not found: {include}")
+            child_id = self.source_id(child)
+            output.append(f"#line 1 {child_id}")
+            output.append(self.expand(child, stack=stack + (path,)).rstrip())
+            output.append(f"#line {line_number + 1} {parent_id}")
+        if root and not injected:
+            raise ValueError(f"entry has no #version: {path}")
+        return "\n".join(output) + "\n"
+
+    def write_map(self, path: Path) -> None:
+        inverse = sorted((number, source) for source, number in self.ids.items())
+        path.write_text("".join(f"{number}\t{source}\n" for number, source in inverse), encoding="utf-8")
+
+
+def entry_pairs(shader_root: Path) -> list[tuple[str, Path, Path]]:
+    pairs: list[tuple[str, Path, Path]] = []
+    for directory in (shader_root, shader_root / "world-1", shader_root / "world1"):
+        for fragment in sorted(directory.glob("*.fsh")):
+            vertex = fragment.with_suffix(".vsh")
+            if vertex.is_file():
+                pairs.append((fragment.relative_to(shader_root).as_posix(), vertex, fragment))
+    return pairs
+
+
+def lwjgl_classpath(mc_root: Path) -> str:
+    base = mc_root / "libraries" / "org" / "lwjgl"
+    jars = [
+        base / "lwjgl" / "3.3.3" / "lwjgl-3.3.3.jar",
+        base / "lwjgl" / "3.3.3" / "lwjgl-3.3.3-natives-windows.jar",
+        base / "lwjgl-glfw" / "3.3.3" / "lwjgl-glfw-3.3.3.jar",
+        base / "lwjgl-glfw" / "3.3.3" / "lwjgl-glfw-3.3.3-natives-windows.jar",
+        base / "lwjgl-opengl" / "3.3.3" / "lwjgl-opengl-3.3.3.jar",
+        base / "lwjgl-opengl" / "3.3.3" / "lwjgl-opengl-3.3.3-natives-windows.jar",
+    ]
+    missing = [str(path) for path in jars if not path.is_file()]
+    if missing:
+        raise FileNotFoundError("missing LWJGL files:\n" + "\n".join(missing))
+    return ";".join(map(str, jars))
+
+
+def main() -> int:
+    repo_root = Path(__file__).resolve().parents[2]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--shaders", type=Path, default=repo_root / "Astra" / "shaders")
+    parser.add_argument("--minecraft-root", type=Path, default=DEFAULT_MC_ROOT)
+    parser.add_argument("--profiles", nargs="+", default=["PERFORMANCE", "BALANCED", "ULTRA"])
+    parser.add_argument("--match", help="compile only entries whose relative path contains this text")
+    parser.add_argument("--undef", nargs="*", default=[], metavar="MACRO",
+                        help="compile-time profile override: remove these option defines")
+    parser.add_argument("--set", action="append", default=[], metavar="MACRO=VALUE",
+                        help="compile-time profile override; may be repeated")
+    parser.add_argument("--log", type=Path, help="write the driver output to this UTF-8 log")
+    args = parser.parse_args()
+
+    shader_root = args.shaders.resolve()
+    profiles = parse_profiles(shader_root / "shaders.properties")
+    selected = [name.upper() for name in args.profiles]
+    unknown = [name for name in selected if name not in profiles]
+    if unknown:
+        raise ValueError("unknown profiles: " + ", ".join(unknown))
+    overrides: dict[str, str | None] = {name: None for name in args.undef}
+    for item in args.set:
+        if "=" not in item:
+            raise ValueError("--set requires MACRO=VALUE: " + item)
+        name, value = item.split("=", 1)
+        overrides[name] = value
+    pairs = entry_pairs(shader_root)
+    if args.match:
+        pairs = [pair for pair in pairs if args.match in pair[0]]
+    if not pairs:
+        raise ValueError("no shader entry pairs selected")
+
+    javac = shutil.which("javac")
+    java = shutil.which("java")
+    if not javac or not java:
+        raise FileNotFoundError("java and javac must be on PATH")
+    classpath = lwjgl_classpath(args.minecraft_root)
+
+    with tempfile.TemporaryDirectory(prefix="astra-glsl-") as temp_name:
+        temp = Path(temp_name)
+        java_file = temp / "AstraShaderCompiler.java"
+        java_file.write_text(JAVA_SOURCE, encoding="utf-8")
+        subprocess.run([javac, "-cp", classpath, str(java_file)], check=True)
+
+        manifest_rows: list[str] = []
+        for profile_name in selected:
+            profile_values = dict(profiles[profile_name])
+            profile_values.update(overrides)
+            for label, vertex, fragment in pairs:
+                expander = Expander(shader_root, profile_values)
+                safe = re.sub(r"[^A-Za-z0-9_.-]", "_", profile_name + "_" + label)
+                vertex_out = temp / (safe + ".vsh")
+                fragment_out = temp / (safe + ".fsh")
+                vertex_map = temp / (safe + ".vmap")
+                fragment_map = temp / (safe + ".fmap")
+                vertex_out.write_text(expander.expand(vertex, root=True), encoding="utf-8")
+                expander.write_map(vertex_map)
+                expander = Expander(shader_root, profile_values)
+                fragment_out.write_text(expander.expand(fragment, root=True), encoding="utf-8")
+                expander.write_map(fragment_map)
+                full_label = profile_name + ":" + label
+                manifest_rows.append("\t".join(map(str, (
+                    full_label, vertex_out, vertex_map, fragment_out, fragment_map))))
+        manifest = temp / "manifest.tsv"
+        manifest.write_text("\n".join(manifest_rows) + "\n", encoding="utf-8")
+        result = subprocess.run(
+            [java, "-Dfile.encoding=UTF-8", "-cp", classpath + ";" + str(temp),
+             "AstraShaderCompiler", str(manifest)],
+            text=True, encoding="utf-8", errors="replace", capture_output=True,
+        )
+        output = result.stdout + result.stderr
+        sys.stdout.write(output)
+        if args.log:
+            log_path = args.log if args.log.is_absolute() else repo_root / args.log
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.write_text(output, encoding="utf-8")
+        return result.returncode
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        print(f"compile_glsl.py: {error}", file=sys.stderr)
+        raise SystemExit(2)

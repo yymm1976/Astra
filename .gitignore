@@ -1,0 +1,10 @@
+# Astra shaderpack repo — reference material stays out of version control
+/_analysis/
+/*.zip
+
+# Python bytecode (qa/tools/check_pack.py imports provenance_steadfast)
+__pycache__/
+
+# OS junk
+Thumbs.db
+.DS_Store

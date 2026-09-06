@@ -1,0 +1,26 @@
+// Astra v1 - program/composite1.fsh (bloom capture, half resolution -> colortex2)
+// Uniforms: colortex0 (sampler, declared here); colortex2 is 0.5x per shaders.properties.
+//
+// Stage 1 of the two-pass bloom (design.md 4.4). Stage 2 - reading the mip levels and
+// adding them to the scene - is in the final chain and belongs to E1/C6, since the
+// pass order and the buffers final reads are E1's resolution (design.md 2.2,
+// tasks-advanced-1.md cooperative rule 2).
+//
+// The mip levels are the multi-scale bloom source: Iris regenerates them after this
+// pass, and bloom_composite() in global/post/bloom.glsl reads four of them. That is
+// what lets two passes do the work of Mellow's 6-pass pyramid.
+// design.md 3.2 layer 2: program/* is the only lib entry
+#include "/lib/settings.glsl"
+#include "/lib/uniforms.glsl"
+#include "/global/post/bloom.glsl"
+in vec2 texcoord;
+
+uniform sampler2D colortex0;
+
+const bool colortex2MipmapEnabled = true;
+
+/* RENDERTARGETS: 2 */
+
+void main() {
+	gl_FragData[0] = vec4(bloom_capture(colortex0, texcoord), 1.0);
+}
