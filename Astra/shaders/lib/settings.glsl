@@ -4,7 +4,7 @@
 // ============================================================
 //  Astra v1 - lib/settings.glsl
 //  Single source of truth for ALL user options (design.md 3.3).
-//  61 options / 7 GUI categories / 3 profiles (profile values live in shaders.properties).
+//  7 GUI categories / 3 profiles (profile values live in shaders.properties).
 //  Conventions (design.md 3.2):
 //    - macros UPPER_SNAKE_CASE
 //    - booleans use #ifdef (bare define = on, commented-out define = off)
@@ -35,8 +35,9 @@
 // Moonlight strength, %
 #define SKYLIGHT_STRENGTH 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Directional ambient (skylight) strength, %
-#define MIN_AMBIENT 5 // [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20]
-// Cave floor minimum ambient, % (5 = 0.05)
+#define MIN_AMBIENT 8 // [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20]
+// Cave floor minimum ambient, % (8 = 0.08; 2026-09-07 visual round: 5 -> 8 so shadow
+// areas keep a soft blue floor instead of cutting to the material albedo)
 #define BLOCKLIGHT_STRENGTH 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Blocklight strength, %
 #define BLOCKLIGHT_SUPPRESSION // [false true]
@@ -111,20 +112,32 @@
 // 6-layer crest caustics from shadow-encoded water height
 #define UNDERWATER_PARTICLES // [false true]
 // Underwater suspended particles
+#define UNDERWATER_LIGHT_SHAFTS // [false true]
+// Shadowed underwater sunlight, independent of the air GODRAYS option
+#define UNDERWATER_SHAFT_STRENGTH 100 // [0 25 50 75 100 125 150 175 200]
+// Underwater light shaft brightness, %
+#define UNDERWATER_SHAFT_SAMPLES 24 // [16 24 32]
+// Shadow samples along each full-resolution water view ray
 #define FANCY_TRANSLUCENTS // [false true]
 // Premultiplied alpha blending for translucents (blend ONE, ONE_MINUS_SRC_ALPHA)
 
 // --- FOG ---
-#define FOG_DENSITY 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define FOG_DENSITY 50 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Atmospheric fog density, % (pow3 coefficient precomputed on CPU)
-#define SKY_FOG_STRENGTH 50 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
+// 2026-09-06 second visual round: factory default 100 → 65（清爽风格收尾）
+// 2026-09-07 third visual round: 65 → 50（大幅减雾）
+#define SKY_FOG_STRENGTH 15 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
 // Fog blending into sky, % (low values skip sky color computation)
+// 2026-09-06 second visual round: factory default 50 → 25；远端仍强制收敛天空色。
+// 2026-09-07 third visual round: 25 → 15（雾是点缀不是滤镜）
 #define BORDER_FOG // [false true]
 // Render-distance border fog
 #define CAVE_FOG // [false true]
 // Cave fog
-#define UNDERWATER_FOG_DENSITY 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define UNDERWATER_FOG_DENSITY 40 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Underwater fog density, %
+// 2026-09-06 second visual round: factory 100 -> 55 (25-40 block visibility target)
+// 2026-09-07 visual round: 55 -> 42 (toward Steadfast/Solas clean-through look; visibility >32 blocks)
 #define NETHER_FOG_DENSITY 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Nether fog density, % (independent curve, design 4.5)
 #define END_FOG_DENSITY 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
@@ -135,12 +148,12 @@
 // 0 = Uchimura (default), 1 = AgX, 2 = ACES, 3 = Reinhard-Jodie
 #define EXPOSURE 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Color grading: exposure, %
-#define SATURATION 112 // [50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150]
-// Color grading: saturation (factory 112 per Refrax target)
-#define VIBRANCE 115 // [50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150]
-// Color grading: vibrance (factory 115 per Refrax target)
-#define CONTRAST 104 // [50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150]
-// Color grading: contrast (factory 104 per Refrax target)
+#define SATURATION 100 // [50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150]
+// Color grading: saturation (factory 105 after second visual round; 2026-09-07 -> 100)
+#define VIBRANCE 100 // [50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150]
+// Color grading: vibrance (factory 108 after second visual round; 2026-09-07 -> 100)
+#define CONTRAST 102 // [50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150]
+// Color grading: contrast (factory 104 per Refrax target; 2026-09-07 -> 102 弱化阴影对比)
 #define COLOR_TEMPERATURE 0 // [-50 -45 -40 -35 -30 -25 -20 -15 -10 -5 0 5 10 15 20 25 30 35 40 45 50]
 // Color grading: temperature shift (-cool / +warm)
 #define BLOOM // [false true]
@@ -171,8 +184,8 @@
 // ------------------------------------------------------------
 const int   shadowMapResolution  = SHADOW_RESOLUTION;  // shadow map is square
 const float shadowDistance       = SHADOW_DISTANCE;    // blocks
-const float shadowDistanceRenderMul = 1.0;             // box culling, no overscan (design 5)
-const int   noiseTextureResolution = 256;              // matches texture.noisetex
+const float shadowDistanceRenderMul = 1.5;             // retain upstream casters beyond the receiver range
+const int   noiseTextureResolution = 256;              // matches textures/noise.png
 
 // --- SC-13 (design.md 4.1): the three shadow engine knobs, semantics frozen there ---
 // Entity shadow distance is a RATIO of the terrain shadow distance, not a block count.
@@ -184,32 +197,33 @@ const int   noiseTextureResolution = 256;              // matches texture.noiset
 // diverge, this must become a per-profile literal again.
 const float entityShadowDistanceMul = 0.5;
 
-// Hardware PCF is the precondition of the 4-tap kernel in
-// global/lighting/shadowmap.glsl (design.md 4.1), not a user choice. Unsuffixed form
-// is what Mellow ships on Iris (global/configurations.glsl:17).
-const bool shadowHardwareFiltering = true;
+// Raw depths are paired with exact caster texels before filtering illumination.
+// Hardware PCF would discard that correspondence and cannot be enabled here.
+const bool shadowHardwareFiltering = false;
 
 // --- buffer formats (design.md 2.3) ---
-// SC-25 (4th real-hardware round): Iris does NOT rewrite format tokens inside lib
-// includes - `R11F_G11F_B10F` reached the GLSL driver as an undefined identifier
-// (C1503 in deferred.vsh). Every reference pack declares format consts in program
-// files (Refrax program/composite0, Solas program/final, Steadfast program/shadow
-// + program/post; Mellow's release ships its lib declarations commented out and
-// runs on Iris defaults). Formats therefore live with their writer programs:
-//   all six -> ENTRY final.fsh shells (root / world-1 / world1), one set per dimension
-// SC-26 refinement: Iris rewrites format tokens solely in the file it compiles
-// directly (the entry shell) - program/lib includes are never rewritten even when
-// their consts are READ for directive collection. Entry files only; do NOT move
-// back into this single-point file.
+// SC-27 supersedes SC-25/26: this Iris build rejects active format consts even
+// in entry files. Keep Iris default formats; the design table is a future budget,
+// not the current allocation. Do not restore declarations in any include layer.
 
 // E1/E2 internal scheduling predicate; not a user option.
-#if defined SCREENSPACE_REFLECTIONS || defined SCREENSPACE_REFRACTION || WATER_ABSORPTION > 0
-    #define ASTRA_SCENE_COPY
+#ifdef UNDERWATER_LIGHT_SHAFTS
+#ifdef SHADOWS
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && UNDERWATER_SHAFT_STRENGTH > 0
+    #define ASTRA_UNDERWATER_SHAFTS
 #endif
+#endif
+#endif
+// Water still scatters when absorption/reflection options are off. Its background
+// copy is part of the optical composition, independent of those optional effects.
+#define ASTRA_SCENE_COPY
 // SC-23: clear colors must be 4-arg constructors with plain literal components
 // (Iris parses each argument with Float.parseFloat - no expressions, no 1-arg splat).
 const vec4 colortex0ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
 const vec4 colortex3ClearColor = vec4(0.498, 0.0, 0.0, 1.0);  // 127/255 skylight marker
 const vec4 shadowcolor0ClearColor = vec4(1.0, 1.0, 1.0, 1.0);
+const vec4 colortex5ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
+const vec4 colortex6ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
+const bool colortex6Clear = false;
 
 #endif

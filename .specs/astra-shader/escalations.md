@@ -15,6 +15,8 @@
 
 ## 台账
 
+> 当前执行（2026-09-07，SC-33）：用户禁止下放/子代理并取消逐项重载，当前模型独立完成本次修复。SC-31/32 既有修改保留，SC-33 补齐水下分束实现。SC-6 环境阻断已由实际加载与两轮画面解除；SC-20 的视觉材料现有第一、二轮，仍缺本次修改后的材料。下方早期暂停与派工状态仅为历史。SC-14（未来发布）、C5/D1 的既有里程碑事项不因本次源码审查而标完成。
+
 > 当前更新（2026-09-06）：SC-15/16/17/18已由E1/E2认领并给结论；SC-19局部缺陷下放并修复，SC-20是E4材料退回。SC-6原“无实例”结论已更正；下列2026-09-05统计为历史记录，不代表当前未决数量。
 
 > 本轮闭环说明（2026-09-05）：用户指令要求按本流程跑完"登记→认领→结论下放→闭环"，本轮 12 项待认领已处理完——E 系架构项落 design.md 决议行，B/D 档项为追认或指令下放，其中 SC-2/3/4/10 的 Z 档机械部分**已在磁盘执行完毕**（删 `world0/`、根层默认壳、§3.2 分层接线、§2.3 格式声明激活）。"✅ 结论已定"表示**该问题有可执行结论并已写进归属任务行**，不等于结论中的实施动作已完成：SC-9/10 的真接线与最小 final 链在 E1、SC-11 在 D1、SC-12 在 D2、SC-13 在 B1，判据仍走各档验收。
@@ -48,7 +50,42 @@
 | SC-21 | 2026-09-06 | Z7（实机冒烟发现） | Iris 1.11.2 的 #include 解析把行尾注释一并当路径，Windows 路径校验在闭引号处抛 InvalidPathException，整包加载失败回退原版（latest.log:1576-1578）。包内 10 行 include 带行尾注释 | 日志异常串与源码逐一比对；全包扫描确认共 10 行该写法，均在 program/ | A) 注释移到 include 上一行（推荐，零语义变更）；B) 删注释 | 已执行候选 A（标准模型）：9 文件 10 行修复，引号后残留全包清零，工作区与实例已同步 | ✅ 源码已修复；待用户重载光影包实测 |
 | SC-22 | 2026-09-06 | Z7（实机第二轮） | shaders.properties:109 单段式 texture.noisetex 在 Iris 1.11.2 按 handleTwoArgDirective 两段式解析崩溃（Range [8,-1) length 16，三特征逐一吻合），发生在 properties 解析阶段、早于 GLSL 编译 | 日志堆栈 + 键长/前缀/无第二点三特征推理；参照 Mellow:48-49 分段式写法 | A) 改六个阶段组绑定 shadow/gbuffers/deferred/composite/composite1/final（推荐，参照包同形）；B) 删绑定改代码内硬编码采样（改动面大不采纳） | 已执行候选 A（标准模型）：1→6 行，工作区与实例已同步 | ✅ 已执行；实机验证归 SC-6。完整诊断与防回归建议见 docs/2026-09-06-iris-load-failures-and-fixes.md |
 | SC-23 | 2026-09-06 | Z7（实机第三轮） | Iris const 解析器只认字面量：lib/settings.glsl 的 entityShadowDistanceMul 宏展开为 64 * (1.0 / 128) 抛 NumberFormatException；colortex0ClearColor vec4(0.0) 单参被拒（expected 4 arguments）；随后 ArrayIndexOutOfBounds 致整包失败。潜伏雷：colortex3ClearColor 的 127.0/255.0 表达式、shadowcolor0ClearColor 单参 | 日志 1773/1805/1808 行；全包 const 扫描确认仅 settings.glsl 4 处会被 Iris 解析且不合规（其余为函数内 const，引擎不读） | A) 全部改字面量（推荐）；B) 保留表达式（Iris 无算术求值，不可行） | 已执行候选 A（标准模型）：186 行→0.5（SC-13 预判的退化路径），三个 ClearColor→4 参字面量；工作区与实例已同步 | ✅ 已执行；实机验证归 SC-6 |
-| SC-24 | 2026-09-06 | 用户更正（前提修正） | 水效果对标方向记反：应为 水面=Steadfast、水下=Solas（design.md §0/§1.1/§4.3/§8.3 原为反向） | 用户 2026-09-06 主动澄清 | A) C2/C7 换源重写模块本体、接口与 E2 总成不变（推荐）；B) 仅改文档不重写（观感不达标，否） | 决议=候选 A：C2（水下三件套换 Solas waterFog/waterCaustics 参考）、C7（surface 换 Steadfast environment/water 参考）均已回 🔶 待高级Ⅱ执行；SSR/预乘 alpha 为管线件不动；§8.3 判据对调 | 🔶 重写待高级Ⅱ；详见 docs/2026-09-06-iris-load-failures-and-fixes.md 与 design.md §4.3 决议块 |
+| SC-24 | 2026-09-06 | 用户更正（前提修正） | 水效果对标方向记反：应为 水面=Steadfast、水下=Solas（design.md §0/§1.1/§4.3/§8.3 原为反向） | 用户 2026-09-06 主动澄清 | A) C2/C7 换源重写模块本体、接口与 E2 总成不变（推荐）；B) 仅改文档不重写（观感不达标，否） | 决议=候选 A：C2（水下三件套换 Solas waterFog/waterCaustics 参考）、C7（surface 换 Steadfast environment/water 参考）已完成换源重写并进入 E2 实机微调；SSR/预乘 alpha 为管线件不动；§8.3 判据对调 | ✅ 换源重写已执行；实机微调见 SC-30/31；详见 docs/2026-09-06-iris-load-failures-and-fixes.md 与 design.md §4.3 决议块 |
 | SC-25 | 2026-09-06 | Z7（实机第四轮） | 格式 const（colortexNFormat 等）写在 lib/settings.glsl 内，Iris 读取 include 展开源但只在程序文件自身源上改写格式令牌，R11F_G11F_B10F 原样漏到驱动 → deferred.vsh C1503 undefined variable，首次进入 GLSL 编译层 | 参照包全查：Refrax/Solas/Steadfast 均在 program 文件内声明格式；唯一 lib 声明的 Mellow 发布版已整块注释掉靠默认格式 | A) 格式 const 移至各写入方 program 文件（参照包同形，推荐）；B) 留在 lib 等 Iris 修复（不可控） | 已执行候选 A（标准模型）：settings.glsl 移除 6 行，lit/composite/composite1/deferred/shadow 各落 1-2 行（无行尾注释），工作区与实例已同步 | ✅ 已执行；实机验证归 SC-6。规约与四条防回归约束见 docs/2026-09-06-iris-load-failures-and-fixes.md |
 | SC-26 | 2026-09-06 | Z7（实机第五轮） | 两根因：① 格式 const 改写只发生在入口文件——program/deferred.fsh 内的 colortex3/4（展开源 457/458 行）依旧漏到驱动，SC-25 的"程序文件"层级不成立，实为入口壳；② 实例装有 Voxy → Iris 定义 VOXY 宏 → transforms.glsl 的 #ifdef VOXY 分支激活但 vxModelView/vxModelViewInv 从未声明（E1 留注未落地） | 日志 36088-36096（deferred.fsh 0(97)/0(457)/0(458)）；Mellow 先例 all_the_uniforms.glsl:104 正常声明 vx 系 uniform | A) 格式 const 收敛到每维度 final.fsh 入口壳 + uniforms 补 #ifdef VOXY 声明（推荐）；B) 75 个入口壳全铺（冗余）；C) 撤 Voxy 分支（丢失 Voxy 路径） | 已执行候选 A（标准模型）：6 条 const 落 root/world-1/world1 final.fsh，program 5 文件撤除，uniforms.glsl 补声明；工作区与实例已同步 | ✅ 已执行；实机验证归 SC-6。规约升级为五条防回归约束，见 docs |
 | SC-27 | 2026-09-06 | Z7（实机第六轮·决定性） | final.fsh 入口内格式 const 仍 C1503——推翻 SC-25/26 全部位置假设。决定性对照：本 Iris 上可用的 Complementary r5.8.1 其 pipelineSettings.glsl 格式声明整块被 /* */ 注释；Mellow 发布版同样。结论：Iris 1.11.2 不支持（或不改写）任何位置的格式 const 令牌 | 五参照包零反例 + 六轮递进证据（lib/program/入口三层全试） | A) 撤全部格式声明、用 Iris 默认格式（Complementary/Mellow 同路线，推荐）；B) 继续找声明机制（阻塞加载，不可取） | 已执行候选 A（标准模型）：3 个 final.fsh 的格式块注释化；顺带删除 6 条 noisetex 绑定指令（Unknown texture stage 警告源），noise.png 移至 textures/ 自动绑定路径；工作区与实例已同步 | ✅ 已执行；实机验证归 SC-6。格式带宽优化退化为默认格式，恢复机制列入后续调查 |
+| SC-28 | 2026-09-06 | Z7（选项未注册警告排查） | 选项注册规则实证：Iris 1.11.2 的 OptionAnnotatedSource 只解析 #define/const/#ifdef/#ifndef——布尔选项必须存在 #ifdef/#ifndef 引用才注册，#if defined NAME 不可见，孤儿选项被丢弃（GODRAYS 被默认 true 强开、UNDERWATER_PARTICLES/VOXY_SUPPORT 未注册） | 反编译常量池（OptionAnnotatedSource 关键字集合）+ 五选项对照（同形式同文件而注册结果不同，唯一差异是引用形式） | A) final.fsh 两处 #if defined GODRAYS 重构为嵌套 #ifdef/#ifndef（语义等价）；UNDERWATER_PARTICLES/VOXY_SUPPORT 为孤儿选项，登记待 C2/C5 接线后自然注册；规则 f 落 check_pack #11 | 已执行候选 A（标准模型）：final.fsh 已同步实例；check #11 新增 SC-28 检查（GODRAYS 通过，两条预期 WARN） | ✅ 已执行；实机验证归 SC-6 |
+| SC-29 | 2026-09-06 | Z7（首轮实机目视裁决材料） | 首批实机截图三张（qa/screenshots/2026-09-06/ 10-12 号）：Astra 水面 132fps（均值140，跳动）天空错误阴暗+远山半透明+水深青显脏；水下阴暗+粒子突兀；对照 Steadfast 159fps（均值166）明显更好。五项问题清单与修复顺序已成文 | 三张截图 + 用户目视结论 + 模块归属分析 | P0 天空→P0 远山→P1 水→P1 水下/粒子→P2 帧率，逐项修后用户重拍验收 | 已成文 docs/2026-09-06-first-visual-round-fix-order.md，修复由顶级Ⅰ 主导（E 档停用期代行，架构决议仍报用户） | 🔶 修复进行中（顶级Ⅰ） |
+| SC-29 进度 | 顶级Ⅰ 修复交付（14 文件 + 诊断工具）；Z 验证：check_pack 0 FAIL / compile 225 linked 0 failed；实例已由 Z 同步一致 | 🔶 待用户按修复顺序逐项重载验收（P0 天空起步），截图续编 13 号起 |
+| SC-30 | 2026-09-06 | Z7（第二轮实机目视裁决材料） | 顶级Ⅰ 修复后二轮实测：天空/远山/水色/水下亮度/粒子均已大幅改善，帧率143-170；遗留五项——①水面仍不及Steadfast ②玩家影子周围白光环（14号jpg存证） ③水下雾厚无光束 ④远景泛灰+地平线黄绿雾带（19号） ⑤风格不清爽（雾多饱和高）。五项诊断与修复顺序成文移交顶级Ⅱ | 四张截图（17-20号）+ 一会话存证（13-15号jpg）+ 用户目视结论 | 修复顺序：4远景→1水面→2影子→3水下→5风格收尾；每项用户重载验收 | 🔶 已成文 docs/2026-09-06-second-visual-round-top2-handoff.md，待顶级Ⅱ 执行 |
+| SC-30 问题4进度 | 2026-09-06 | E1/B2 | 19号图的黄绿暗带来自两条同源曲线：`BIOME_TINT` 把 Iris `fogColor` 持续带到远端；完全雾化时雾色仍只取 `SKY_FOG_STRENGTH` 比例的天空亮度。 | `program/scene.glsl` 已将群系染色限制在近中距薄雾，并在户外 `fog.a=0.68→0.98` 区间连续收敛到未染色、未压暗的天空色；洞穴、水下、熔岩、失明与其他维度保持原分支。未改接口、缓冲或 pass。 | 用户在 19/20 同机位重载 Astra：确认远山为蓝色大气透视、黄绿带消失且近中景不被洗白；并与其余四项一并集中复核。 | 🔶 已修源码，纳入 SC-31 集中实测 |
+| SC-31 | 2026-09-06 | E2/E4（第二轮五项集中修复） | SC-30 五项已按 4→1→2→3→5 完成源码处置：远景雾收敛天空；水面梯度/粗糙度/远距 SSR 收敛；焦散半影与折射亮边抑制；水下雾/吸收放缓并增强单向散射；三档雾量与 SAT/VIB 收尾。 | visual-verdicts.md 已逐项列出第二轮差距、责任与新参数；全部为模块常量或 E2 局部合成，不增 varying、缓冲、pass，不改 E1 冻结接口。 | 用户按 17/18/19/20 与 14 号机位做一次第三轮集中实测；E4 据新画面裁决三对标，E3 同轮补三档与下界/末地数据。 | 🔶 源码已整合并同步实例，集中实测就绪 |
+| SC-32 | 2026-09-07 | E1/E2/E4（整体审查，当前模型独立执行） | SC-31参数调整仍留有跨模块缺陷：原生VOXY矩阵误选、低仰角天空缺蓝、PCF半影重复提亮、折射RGB与水程错配、视差高度/足迹不一致、颗粒被水面覆盖、光束角度/投影/离屏边界错误 | 两张PCF图同为0.5且染色1时旧式结果为0.75；deferred颗粒后接alpha=1水面会被覆盖；粗糙反射色不等于背景天空；其余对应源码与处置见visual-verdicts.md“整体审查”表 | A) 按真实入口和合成顺序修正这些缺陷，沿用现有pass/缓冲（推荐）；B) 继续只调FOG/roughness/亮度，仍保留错配与无效开销 | E1/E2认领并执行A。决议见design.md §2.3、§3.2、§4.2–4.4；水面、水下、色调三对标仍退回原模块责任，当前不派工。水下角向亮晕不等于Solas分束效果，归E2/C2继续视觉裁决；E3等待画面定稿。 | 🔶 源码修复与决议已落，修改后视觉待用户集中反馈 |
+| SC-33 | 2026-09-07 | E2/E4（长会话续作，独立执行） | 磁盘只保留 SC-32 角向亮晕，缺 Solas 类遮挡分束；默认 GODRAYS 关闭且旧屏幕光束需太阳在屏内 | 五份交接、Git 当前改动、scene/composite/final 与本地 Solas volumetricLight 源码共同确认缺口；未发现已完成的分束实现 | A) 复用半分辨率 composite 做水下视线阴影累计（采用）；B) final 全分辨率累计（显卡开销更大）；C) 继续增强角向亮晕（不能表达遮挡分束） | 当前模型执行 A；design.md §2.3/4.3/4.4 已落档，新增独立开关/强度/精细度、三档 16/24/32 段、RGBA 散射与距离、深度约束合成；保留 SC-31/32 其余修改。 | 🔶 实现及驱动编译已完成；实例同步与画面状态见最新交接，视觉仍未放行 |
+
+## SC-34-F1 新截图后续裁决（2026-09-07）
+
+用户四张新图已归档 `qa/screenshots/2026-09-07-sc34-followup/`；此前 SC-33/34 的完成记录仅描述代码，不再支持视觉通过。磁盘实际另有 SC-35/36 修改及 SC-37 日志，本轮从当前代码续修，没有重新实施已有坐标改动。
+
+| 项目 | 源码定位与处理 | 当前状态 |
+|---|---|---|
+| 水下水面消失 | water 分支丢弃 SSR 命中、折射拒绝天空、Fresnel 乘 skylight；已恢复两段光路和物理界面 | 源码与受控渲染已处置，待用户场景 |
+| 水深/层次/光束 | diffuse、scene、composite 的日光来源重复，整色焦散，固定步距使浅水欠采样；已共享太阳源、分离 directRadiance、按实际水程积分 | 不提高光束强度，先实测界面/介质 |
+| 密集暗纹 | 波面导数在不均匀流程内、反射穿过几何界面、SSR 细分残差产生空洞；已修正导数、方向约束、局部平面求交 | 动态稳定性仍需游戏材料 |
+| 沙地 halo | 逐点 RGB/深度错配、SSR 跨物体过滤、bloom 从 0.5 提取普通沙色；分别修正 | 明确 Bug，游戏中必须消失后才能通过 |
+| 阴影/暖色火把 | 现有 SC-34 点变换和光源谱保留；焦散不再放大 blocklight | 固定太阳只移动玩家、洞穴灰石仍为必测项 |
+
+详细数据流、600 组编译和离屏诊断见 `docs/2026-09-07-water-path-followup.md`。下一步为重新加载同步后的 Astra 并集中实测，不继续无画面调参。SC-14 仍仅针对将来发布；本轮保留已有来源声明。
+
+## SC-35 P0 根因闭环（2026-09-08）
+
+用户已按游戏行为与参考源码核实前三条根因；本轮从 SC-34 当前结构继续修复，没有回滚或重启旧实现。
+
+| 现象 | 根因 | 首次出现的 pass | 为什么随玩家/视角变化 | 具体修复 | 防止复发的机制 |
+|---|---|---|---|---|---|
+| 跟玩家移动的亮斑 | SC-34 将 lit 顶点从旋转变换改为全仿射点变换，使 `playerPos` 携带 render-origin T；手持光以 `length(playerPos)` 求距离，光球中心偏到 `-T` | opaque `gbuffers_* / lit`，不是 shadow map | T 随玩家在 render section 内滑动并跨边界跳变 | `view_camera_relative`/逆变换恢复 mat3；绝对世界只加 `cameraPosition`；shadow 投影单点显式加同一 gbuffer T | 类型契约写入 transforms 与 design；波浪、焦散、雾、手持光、粒子均消费 T-free 坐标 |
+| 跟俯仰移动的明暗断层 | 折射命中岸线时 ±0.02 格二元 side check 将整条路径直接切到深水 fallback；磁盘中的未完成修复还误把 opaque 场景深度换成 `depthtex0` | translucent `gbuffers_water / water.glsl` | 命中 UV 和界面侧距离由视线决定，俯仰使二元切换边界在屏幕移动 | 场景色/深度重新配对为 `colortex4 + depthtex1`；side 带连续化；失效折射只回退到未偏移完整光路，不覆盖有效折射 | 每个 RGB tap 与自身深度/水程绑定；错误侧和天空仍拒绝，回退不再跳到统一深蓝 |
+| 浅水方块白 halo | Solas 差分焦散峰值过热，且旧深度包络在界面处最大；T 污染使图案爬动并进入 bloom | opaque `lit` 的 directRadiance 焦散调制 | 浅水边界始终取最大包络，T 又改变世界采样相位 | 原始焦散软肩压缩；在水面下 0.15–0.75 格建立，再于 1.5–8 格衰减；坐标恢复世界锚定 | 界面处焦散为零且峰值有界，不靠 final 压暗或模糊隐藏 |
+| 植株/阴影边缘白 halo | 焦散只放大受光侧，天然描出植株/阴影边；另查出水下太阳遮罩用 `opaque*(1-all)`，两张 PCF 图同为半覆盖时会制造假透光 | opaque `lit` 焦散；以及 half-res `composite` 水下太阳源 | 焦散相位曾随 T 漂移；half-res 假透光边随投影/重建位置变化 | 同上焦散修复；水面透光覆盖改为 `max(opaque-all,0)`，final 仍做深度拒绝重建 | 相同不透明 PCF 边缘差值严格为零；跨深度邻域不参与上采样 |
+
+状态：源码根因与修复已落档；视觉通过仍必须由用户按 A–J 机位复测裁决。

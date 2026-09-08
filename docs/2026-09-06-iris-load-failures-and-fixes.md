@@ -4,7 +4,7 @@
 **环境：** RTX 4050 Laptop / MC 26.2 / Iris 1.11.2 / Fabric 生电优化整合包（PCL）
 **现象：** 选择 Astra 后整包加载失败，Iris 回退原版渲染。共两轮失败、两类根因，**均已源码级修复并双向同步**，待逐轮重载验证。
 
-> 给顶级Ⅱ：本文记录两轮实机失败的完整诊断链、修复明细与防回归建议。台账对应 SC-21 / SC-22。第二轮修复动的是 shaders.properties（Z3 底座文件），性质是格式合规而非设计变更，未触碰任何架构决议。
+> 给顶级Ⅱ：本文记录实机加载排障的完整诊断链（六轮，SC-21~SC-28）、修复明细与六条防回归约束。第二轮修复动的是 shaders.properties（Z3 底座文件），性质是格式合规而非设计变更，未触碰任何架构决议。
 
 ---
 
@@ -82,12 +82,13 @@
 
 ## 给顶级Ⅱ的行动建议
 
-1. **防回归**：把五条 Iris 解析器约束写进 `qa/tools/check_pack.py` 静态检查——
+1. **防回归**：把六条 Iris 解析器约束写进 `qa/tools/check_pack.py` 静态检查（a–e 已随 SC-25/26 落地，f 随 SC-28 落地）——
    a. 所有 `#include` 行必须匹配 `^#include\s+"[^"]+"\s*$`；
    b. 所有 `texture.*` 指令的键必须为两段式（`texture.` 后必须再含一个点）；
    c. 所有 Iris 引擎旋钮 const 的初始化值必须是纯字面量（FLOAT/INT 单值；ClearColor 必须 4 参字面量 vec4）；
    d. 所有 `*Format` const 必须位于入口壳（root/world-1/world1 的 final.fsh），program/lib/global 任何层级出现格式令牌 = 违规；
-   e. `#ifdef VOXY` 分支引用的 uniform 必须在 lib/uniforms.glsl 有对应声明（Voxy 装机时 Iris 必定义该宏）。
+   e. `#ifdef VOXY` 分支引用的 uniform 必须在 lib/uniforms.glsl 有对应声明（Voxy 装机时 Iris 必定义该宏）；
+   f. 布尔选项必须在着色器源中存在 `#ifdef/#ifndef NAME` 引用才会被注册——`#if defined NAME` 对扫描器不可见（SC-28，OptionAnnotatedSource 仅解析 #define/const/#ifdef/#ifndef）；孤儿选项在归属任务接线前持续 WARN。
 2. **双份同步纪律**：工作区 `Astra/` 与实例 `shaderpacks/Astra/` 是两份活代码。三轮修复均已 diff 校验完全一致；后续任何一方改动必须立即同步另一方。
 3. **git 仍零提交**：建议本档会话结束前做首次提交，把"驱动编译零错 + 三轮 Iris 解析修复"钉进历史，此前所有交付均无版本锚点。
 

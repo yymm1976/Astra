@@ -11,230 +11,127 @@
 // license including Steadfast's Section 7 additional terms.
 // Publish gate: design.md 9.3 + escalations.md SC-14 (⏸ pending user decision).
 //
-// Adaptations for Astra (all naming per design.md 3.2):
-//   - shadowMapResolution / shadowDistance / entityShadowDistanceMul /
-//     shadowHardwareFiltering live in lib/settings.glsl ENGINE KNOBS, not here
-//     (design.md 2.3 + SC-13), so they are NOT redeclared.
-//   - distortion comes from lib/distort.glsl (Mellow port), not Steadfast's.
-//   - water-height encode/decode is pulled out of the shadow pass into this module so
-//     producer and consumer share one definition (Steadfast's "TODO: Make this a
-//     common function" in shadow.fsh).
-//   - caustics are NOT sampled here: C2's global/water/caustics.glsl consumes
-//     decode_water_height() + shadow_map_fade() and owns WATER_CAUSTICS.
-//
-// Uniforms: shadowModelView, shadowProjection, gbufferModelViewInverse (lib/uniforms.glsl);
-//           shadowDistance, shadowMapResolution, SHADOW_SOFTNESS (lib/settings.glsl).
-// Consts:   none local.
-// Owner: B1. Consumer: program/lit.fsh (E1 owns the varying that carries shadowPos).
-
+// Producer reconstructs depth on the inverse-warped surface plane. Consumers
+// compare raw depths at the same texel as the caster data and filter illumination.
 #include "/lib/distort.glsl"
+#include "/lib/transforms.glsl"
 
-// Fixed part of the adaptive normal-offset bias. Steadfast exposes this as a user
-// option (default 0.20); Astra keeps it a compile-time constant because it interacts
-// with the distortion shape and is not something a user can tune meaningfully.
-#ifndef SHADOW_DISTORT_FACTOR
-#define SHADOW_DISTORT_FACTOR 0.20
-#endif
-
-// ---------------------------------------------------------------------------
-// Water surface height in shadowcolor0.R (design.md 2.3)
-//
-// The shadow map stores, per texel, the Y of the topmost water surface along the
-// light ray. C2's caustics subtract the fragment Y from it to get water depth, which
-// is why this has to be readable from both the pass that writes it and the pass that
-// samples it. Range is ±1024 blocks around Y=0; caustics are distance-limited far
-// below that (WATER_CAUSTICS_DISTANCE), so the clamp never bites in practice.
-// ---------------------------------------------------------------------------
-const float SHADOW_WATER_HEIGHT_RANGE = 1024.0;
-
-// Sentinel written by every non-water caster: decodes to -1024, i.e. "the water
-// surface is 1024 blocks below you", which the caustics smoothstep zeroes out.
 const float WATER_HEIGHT_NONE = 1.0;
 
+// R8 has only 256 codes. Reserve 255 for non-water, and use exact half-block
+// increments over a nearby 127-block window. The old +/-1024 encoding lost eight
+// blocks per code, putting surface anchors above/below the actual riverbed.
+float water_height_origin() {
+    return floor(cameraPosition.y / 16.0) * 16.0;
+}
 float encode_water_height(float worldY) {
-	return 0.5 - 0.5 * clamp(worldY / SHADOW_WATER_HEIGHT_RANGE, -1.0, 1.0);
+    float localY = worldY - water_height_origin();
+    if (localY < -64.0 || localY > 63.0) return WATER_HEIGHT_NONE;
+    return (localY + 64.0) / 127.5;
 }
-
 float decode_water_height(float encoded) {
-	return (1.0 - 2.0 * encoded) * SHADOW_WATER_HEIGHT_RANGE;
+    return encoded * 127.5 - 64.0 + water_height_origin();
 }
 
-// ---------------------------------------------------------------------------
-// Samplers (design.md 4.1: sampler2DShadow + hardware PCF)
-//
-// Iris convention: shadowtex0 holds every shadow caster, shadowtex1 holds opaque
-// casters only. Colored shadows need both, because the difference between them is
-// exactly "how much of the blocking is done by translucent geometry".
-// ---------------------------------------------------------------------------
 #ifdef SHADOWS
-uniform sampler2DShadow shadowtex0;
-
-#ifdef COLORED_SHADOWS
-uniform sampler2DShadow shadowtex1;
+uniform sampler2D shadowtex0;
+uniform sampler2D shadowtex1;
 #endif
+#if defined SHADOWS || defined WATER_CAUSTICS
+uniform sampler2D shadowcolor0; // R: water height, GBA: transparent-caster tint
+vec4 shadow_caster_data(vec2 uv) {
+    ivec2 size = textureSize(shadowcolor0, 0);
+    return texelFetch(shadowcolor0, clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1), 0);
+}
 #endif
 
-#if defined(COLORED_SHADOWS) || defined(WATER_CAUSTICS)
-uniform sampler2D shadowcolor0;      // R = water height, GBA = translucent tint
-#endif
-
-// Four taps, each one a hardware 2x2 PCF tap, so a single kernel touches up to 16
-// texels. SHADOW_SOFTNESS widens the kernel (texels); it never adds taps — that is
-// what keeps the cost flat across the three profiles (design.md 4.1, SC-13).
-//
-// Written as a macro because GLSL sampler function parameters are legal but have a
-// long history of driver bugs; the macro keeps one kernel definition per sampler.
-#define SHADOW_PCF4(TEX, SPREAD) ( \
-	    0.25 * texture(TEX, vec3(shadowPos.xy + vec2( SPREAD,  SPREAD), shadowPos.z)) \
-	  + 0.25 * texture(TEX, vec3(shadowPos.xy + vec2(-SPREAD,  SPREAD), shadowPos.z)) \
-	  + 0.25 * texture(TEX, vec3(shadowPos.xy + vec2( SPREAD, -SPREAD), shadowPos.z)) \
-	  + 0.25 * texture(TEX, vec3(shadowPos.xy + vec2(-SPREAD, -SPREAD), shadowPos.z)))
-
-// Kernel radius in shadow-map UV. Written with a reciprocal because a bare
-// SHADOW_SOFTNESS / shadowMapResolution is integer division for every value in the
-// slider's list and would collapse the kernel to zero width.
 const float shadowTexelSpread = SHADOW_SOFTNESS * (1.0 / shadowMapResolution);
 
-#ifdef SHADOWS
-// 1.0 = fully lit, 0.0 = fully shadowed. Every caster counts.
-float sample_shadows(vec3 shadowPos) {
-	return SHADOW_PCF4(shadowtex0, shadowTexelSpread);
-}
-
-#ifdef COLORED_SHADOWS
-// Same, but the light that had to cross a translucent caster comes out tinted.
-//   nothing blocking:  all=1, opaque=1 -> 1          (no tint applied)
-//   opaque blocking:   all=0, opaque=0 -> 0          (opaque transmits nothing)
-//   translucent only:  all=0, opaque=1 -> tint       (stained glass colors the shadow)
-vec3 sample_shadows_tinted(vec3 shadowPos) {
-	float visibilityAll    = SHADOW_PCF4(shadowtex0, shadowTexelSpread);
-	float visibilityOpaque = SHADOW_PCF4(shadowtex1, shadowTexelSpread);
-	vec3 tint = texture(shadowcolor0, shadowPos.xy).gba;
-	return visibilityAll + tint * visibilityOpaque * (1.0 - visibilityAll);
-}
-#endif
-#endif
-
-// ---------------------------------------------------------------------------
-// Vertex stage: shadow-map sample position with an adaptive normal-offset bias.
-//
-// Bias method after Complementary Reimagined (Emin) and Photon (SixthSurge); the
-// "vary the offset along the normal in proportion to the distortion" observation is
-// Steadfast's, and their 1.5 multiplier exists to kill acne on distant mountaintops.
-// ---------------------------------------------------------------------------
-vec3 shadow_map_position(vec3 playerPos, vec3 worldNormal, float ndotl) {
-	// playerPos is camera-relative. Iris' shadowModelView expects the translated
-	// player-space origin represented by the inverse gbuffer view matrix; absolute
-	// cameraPosition must never enter this transform.
-	vec3 shadowPlayerPos = playerPos + gbufferModelViewInverse[3].xyz;
-
-	// Variable term: grows with distance from the shadow-map centre, because
-	// distortion stretches texels there and a constant offset stops covering them.
-	vec4 shadowViewPosDistort = shadowModelView * vec4(shadowPlayerPos, 1.0);
-	vec3 shadowPosDistort = (shadowProjection * shadowViewPosDistort).xyz;
-	float distanceFactor = 1.5 * length(shadowPosDistort.xy);
-
-	// Fixed term, dialled down on faces turned towards the light: at close range a
-	// full fixed offset makes the shadow pop in and out at block edges.
-	distanceFactor += SHADOW_DISTORT_FACTOR * (1.0 - max(ndotl, 0.0));
-
-	vec4 shadowViewPos = shadowModelView * vec4(shadowPlayerPos + worldNormal * distanceFactor, 1.0);
-	vec3 shadowPos = (shadowProjection * shadowViewPos).xyz;
-
-	shadowPos = distort(shadowPos);
-	shadowPos = shadowPos * 0.5 + 0.5;   // NDC -> texture space
-
-	// Very small constant depth bias; the normal-offset term above does the real work.
-	shadowPos.z -= 0.00001;
-
-	return shadowPos;
-}
-
-// ---------------------------------------------------------------------------
-// Fragment stage: distance bookkeeping + the full direct-light multiplier.
-// ---------------------------------------------------------------------------
-
-// shadowDistanceRenderMul culls with an axis-aligned box centred on the camera, so
-// the metric that keeps us inside that box is the max per-axis distance.
 float shadow_box_distance(vec3 playerPos) {
-	return max(abs(playerPos.x), max(abs(playerPos.y), abs(playerPos.z)));
+    return max(abs(playerPos.x), max(abs(playerPos.y), abs(playerPos.z)));
 }
-
-// 1 inside the shadow map, 0 at the edge and beyond. Exported for C2's caustics,
-// which need water depth from the shadow map and are meaningless without coverage.
 float shadow_map_fade(vec3 playerPos) {
-	return 1.0 - smoothstep(
-		shadowDistance - 5.0,
-		shadowDistance,
-		shadow_box_distance(playerPos));
+    return 1.0 - smoothstep(shadowDistance - 16.0, shadowDistance - 4.0,
+                            shadow_box_distance(playerPos));
+}
+float shadow_uv_coverage(vec3 shadowPos) {
+    float border = min(min(shadowPos.x, 1.0 - shadowPos.x),
+                       min(shadowPos.y, 1.0 - shadowPos.y));
+    float margin = shadowTexelSpread + 1.5 / float(shadowMapResolution);
+    if (shadowPos.z <= 0.0 || shadowPos.z >= 1.0) return 0.0;
+    return smoothstep(margin, margin * 2.0, border);
+}
+float shadow_coverage(vec3 playerPos, vec3 shadowPos) {
+    return shadow_map_fade(playerPos) * shadow_uv_coverage(shadowPos);
 }
 
-// Skylight stand-in for real shadows past the shadow distance (design.md 4.1).
-// A light level of 13.5–14.5 out of 15 is where vanilla terrain is effectively
-// unoccluded, which is what makes this read as "probably in sunlight".
+#ifdef SHADOWS
+struct ShadowTap {
+    float allVisibility;
+    float opaqueVisibility;
+    vec4 caster;
+};
+ShadowTap shadow_read_tap(vec2 uv, float referenceDepth) {
+    ivec2 size = textureSize(shadowtex0, 0);
+    ivec2 pixel = clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1);
+    ShadowTap tap;
+    tap.allVisibility = step(referenceDepth, texelFetch(shadowtex0, pixel, 0).r);
+    tap.opaqueVisibility = step(referenceDepth, texelFetch(shadowtex1, pixel, 0).r);
+    tap.caster = texelFetch(shadowcolor0, pixel, 0);
+    return tap;
+}
+// Four bilinear lobes, expanded to sixteen exact texels. Every consumer filters
+// the completed lighting at these texels, never a material ID or depth code.
+vec2 shadow_filter_uv(vec3 shadowPos, int index, out float weight) {
+    int lobe = index / 4;
+    int corner = index - lobe * 4;
+    vec2 offset = vec2((lobe & 1) == 0 ? -1.0 : 1.0,
+                       (lobe & 2) == 0 ? -1.0 : 1.0) * (float(SHADOW_SOFTNESS) * 0.5);
+    vec2 location = shadowPos.xy * float(shadowMapResolution) - 0.5 + offset;
+    vec2 f = fract(location);
+    vec2 c = vec2(corner & 1, (corner >> 1) & 1);
+    vec2 w = mix(1.0 - f, f, c);
+    weight = w.x * w.y * 0.25;
+    return (floor(location) + c + 0.5) / float(shadowMapResolution);
+}
+float shadow_receiver_depth(vec3 shadowPos, vec2 tapUV, vec3 worldNormal) {
+    vec3 planeNormal = mat3(shadowModelView) * worldNormal;
+    planeNormal /= vec3(shadowProjection[0][0], shadowProjection[1][1], shadowProjection[2][2]);
+    vec3 center = undistort(shadowPos * 2.0 - 1.0);
+    vec2 point = undistort(vec3(tapUV * 2.0 - 1.0, 0.0)).xy;
+    if (abs(planeNormal.z) < 1e-5) return shadowPos.z;
+    float correction = -dot(planeNormal.xy, point - center.xy) / planeNormal.z * 0.1;
+    return shadowPos.z + clamp(correction, -0.002, 0.002);
+}
+#endif
+
+vec3 shadow_map_position(vec3 playerPos, vec3 worldNormal, float ndotl) {
+    vec3 raw = player_shadow(playerPos);
+    float factor = get_distort_factor(raw.xy);
+    // Radial derivative of x/(b*r + a) is a/(b*r+a)^2. Convert a
+    // distorted texel back to a conservative world-space footprint.
+    float stretch = factor * factor / max(1.0 - shadow_map_bias, 0.05);
+    float texelWorld = (2.0 * shadowDistance / float(shadowMapResolution)) * stretch;
+    float bias = clamp(texelWorld * (0.30 + 0.45 * (1.0 - max(ndotl, 0.0))), 0.008, 0.12);
+    vec3 shadowPos = distort(player_shadow(playerPos + worldNormal * bias)) * 0.5 + 0.5;
+    shadowPos.z -= 0.00001;
+    return shadowPos;
+}
+
+// The texture contains a water surface only when its first caster is water.
+// Quantization is half a block, hence the small surface tolerance here.
+float shadow_water_depth(vec3 playerPos, vec3 shadowPos) {
+    #ifdef SHADOWS
+        if (shadow_coverage(playerPos, shadowPos) <= 0.0) return 0.0;
+        float encoded = shadow_caster_data(shadowPos.xy).r;
+        if (encoded >= 0.999) return 0.0;
+        return max(decode_water_height(encoded) - (playerPos.y + cameraPosition.y), 0.0);
+    #else
+        return 0.0;
+    #endif
+}
+
 float static_shadow(float skyLight) {
-	return smoothstep(13.5 / 15.0, 14.5 / 15.0, skyLight);
+    return smoothstep(13.5 / 15.0, 14.5 / 15.0, skyLight);
 }
-
-// Returns the multiplier to apply to the direct light colour.
-//
-// Caller contract (E1 / C1):
-//   - skip the call entirely when NdotL <= 0 (design.md 5 early-out) — this function
-//     does not see NdotL and must not be the thing that pays for the samples;
-//   - playerPos is camera-relative world space (Mellow convention, matches
-//     lib/transforms.glsl which adds the camera translation itself);
-//   - shadowPos is shadow_map_position() carried through a varying;
-//   - skyLight is 0..1 where 1 is light level 15;
-//   - subsurfaceScatter is C1's SSS classification for this material.
-vec3 shadow_mapping(
-	vec3 playerPos,
-	vec3 shadowPos,
-	float skyLight,
-	bool subsurfaceScatter
-) {
-	float boxDistance = shadow_box_distance(playerPos);
-
-	#ifdef STATIC_SHADOW_FALLBACK
-		float staticShadow = static_shadow(skyLight);
-	#else
-		// Without the fallback, everything past the shadow distance stays fully lit;
-		// the real-time fade below then has nothing to hand over to.
-		float staticShadow = 1.0;
-	#endif
-
-	#ifndef SHADOWS
-		return vec3(staticShadow);
-	#else
-
-	// Static shadows fade in first (10 -> 5 blocks from the edge)...
-	float staticStrength = smoothstep(shadowDistance - 10.0, shadowDistance - 5.0, boxDistance);
-	vec3 shadow = vec3(1.0 - staticStrength * (1.0 - staticShadow));
-
-	// ...then real-time shadows fade out (5 -> 0 blocks). The 5-block overlap is the
-	// whole point: it is what keeps the hand-off from showing a hard edge.
-	float withinShadowMap = shadow_map_fade(playerPos);
-	if (withinShadowMap < 0.0001) {
-		return shadow;
-	}
-
-	#ifdef COLORED_SHADOWS
-		vec3 sampled = sample_shadows_tinted(shadowPos);
-	#else
-		vec3 sampled = vec3(sample_shadows(shadowPos));
-	#endif
-	shadow = min(shadow, mix(vec3(1.0), sampled, withinShadowMap));
-
-	// SSS: foliage in shadow behaves as if it were permanently turned ~45 degrees
-	// away from the light (cos(pi/4) ~= 0.7071). Foliage fully facing the light reads
-	// as far too bright. The forward-scatter boost on top of this is C1's
-	// global/lighting/sss.glsl, scaled by SSS_STRENGTH.
-	float directLightStrength = 1.0;
-	if (subsurfaceScatter) {
-		directLightStrength = mix(directLightStrength, 0.7071, withinShadowMap);
-	}
-
-	return directLightStrength * shadow;
-	#endif
-}
-
 #endif

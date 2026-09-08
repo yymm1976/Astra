@@ -60,10 +60,12 @@ vec3 bloom_prefilter(vec3 color) {
 		return vec3(0.0);
 	}
 
-	float soft = clamp(brightness - BLOOM_THRESHOLD + BLOOM_KNEE, 0.0, 2.0 * BLOOM_KNEE);
+	// The knee starts at the threshold. The former +/- knee began at 0.5,
+    // making ordinary sand a bloom emitter and spreading a white fringe.
+    float soft = clamp(brightness - BLOOM_THRESHOLD, 0.0, 2.0 * BLOOM_KNEE);
 	soft = soft * soft / (4.0 * BLOOM_KNEE + 1e-4);
 
-	float excess = min(max(soft, brightness - BLOOM_THRESHOLD), BLOOM_SOURCE_CLAMP);
+	float excess = min(max(soft, brightness - BLOOM_THRESHOLD - BLOOM_KNEE), BLOOM_SOURCE_CLAMP);
 	return color * (excess / brightness);
 }
 

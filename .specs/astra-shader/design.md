@@ -1,5 +1,7 @@
 # Astra Shader 设计方案（兼 Goal 计划）
 
+> 当前实现更新至 **SC-34-F1（2026-09-07）**。本文旧 SC-24/33 的接口、光束增益和副本条件以文末新决议为准；详细光路及新截图裁决见 `docs/2026-09-07-water-path-followup.md`。
+
 **版本：** v1.1（设计稿，2026-09-05）
 **状态：** 待用户复查
 **参考分析副本：** `_analysis/`（Mellow Shader v3.4 / Refrax_v1.3.1 / Solas Shader V2.2b / Steadfast-0.8.0）
@@ -61,10 +63,10 @@ shadow ──► gbuffers_*（前向光照，单一 lit 入口）──► compo
 |---|---|---|
 | `shadow` | 单级 shadow map；`shadowcolor0` 的 R 通道编码水面高度（供水下焦散反推水深），GBA 通道存半透明染色 | 常驻 |
 | `gbuffers_*` | 全部受光几何，include 统一实现（见 §3.2）；天空/云/无光体独立入口 | 常驻 |
-| `composite` | 半分辨率 godray 密度图（GPU Gems 3 改良，8 深度采样 + Bayer8 起步抖动） | `program.enabled=GODRAYS` |
+| `composite` | 半分辨率空气 godray 密度；水下沿视线累计阴影散射（SC-33） | `GODRAYS` 或 `UNDERWATER_LIGHT_SHAFTS && SHADOWS && UNDERWATER_SHAFT_STRENGTH > 0` |
 | `deferred` | 复制未施加介质的 colortex0→colortex4（作 SSR/折射背景源），对 colortex0 不透明场景施加吸收与雾 | `SCREENSPACE_REFLECTIONS \|\| SCREENSPACE_REFRACTION \|\| WATER_ABSORPTION > 0` |
 | `composite1` | bloom 采集：半分辨率缓冲 + mipmap 多级采样 | `program.enabled=BLOOM` |
-| `final` | godray 平滑 + 上采样、bloom 合成、tonemap、色彩分级、sRGB、输出抖动 | 常驻 |
+| `final` | godray 平滑 + 上采样、bloom 合成、水下颗粒、exposure、tonemap、sRGB、色彩分级、输出抖动 | 常驻 |
 
 下界/末地走同一套 `program/` 实现（维度壳注入宏），裁剪日光相关特性（见 §4.5）。
 
@@ -72,7 +74,18 @@ shadow ──► gbuffers_*（前向光照，单一 lit 入口）──► compo
 > **决议（SC-3，E 系，2026-09-05）：v1 不引入 `world_modded/` 与 `dimension.properties`。** 模组/自定义维度继承根层链、按主世界语义渲染（Refrax、Solas 的实际行为即如此，无需额外目录）。"模组维度专用壳"移入 §11 v2 候选；M4 的 README 须把这条边界写成一行已知限制。
 > **决议（SC-9，E 系，2026-09-05）：占位期"可编译"不等于"可显示"。** 见 §7 M1 注。
 
-### 2.3 缓冲区布局（带宽纪律，全部显式声明格式）
+### 2.3 缓冲区布局（格式目标受 SC-27 默认格式决议约束）
+
+**最新四图续修更正（2026-09-08）：下文历史中“shadow 前恢复 gbufferModelViewInverse[3] 的 T”全部作废。** 实例 Iris ShadowRenderer 直接给 Sodium 独立的 shadow MODELVIEW；Sodium region offset 已减完整相机位置。shadow 生成端还原的点、所有接收端输入均为真正相机相对世界坐标，禁止再混入主相机逆矩阵平移。主相机视空间还原继续只用旋转。水色当前分工为：空气侧界面到床面的艺术化透射负责青色，入水照明/水下相机体积负责较清澈的偏蓝传播；水中散射与床面焦散共用 water_sun_focus。详见 `docs/2026-09-08-four-image-coordinate-repair.md`。
+
+**2026-09-08 最新六图退回后的实际路径（优先于下方历史记录）：** shadow → opaque gbuffers → deferred → translucent gbuffers → composite（水体状态）→ composite1（可选 bloom）→ composite2（可选散射）→ final。水下散射开启时 colortex1 为全分辨率，编码距离上限 96 格，final 精确读取对应像素。水体状态也被地形照明与焦散消费，因此不随光束选项关闭。主世界新增以下两项，继续使用 Iris 默认 RGBA8：
+
+| 缓冲 | 尺寸 | 写入 / 读取约定 |
+|---|---|---|
+| colortex5 | 全分辨率 | gbuffers_water 写水平水面的世界高度 RG（16-bit，1/16 格）、B 天空光、A 有效性；每帧清零，非水片元 A=0 保留已有水面标记。 |
+| colortex6 | **1×1 像素** | composite 从可见水面选最近局部界面；RG/B/A 同上。不逐帧清除；看不到界面时保留已观察到的水高。composite2 读本帧状态，opaque 照明/焦散读上一帧。整数尺寸已用实例 Iris TextureScaleOverride 类确认。 |
+
+阴影投影物改用 `shadow.culling=false` 的距离裁剪，`shadowDistanceRenderMul=1.5`；接收端 SHADOW_DISTANCE 与原有渐隐保持。状态尚无有效界面时保留阴影水高回退；首帧在水下且两个来源均不可见时仍无法确定水柱高度。这是已知限制，不能据源码与编译认定视觉通过。
 
 **决议：E1/E2（2026-09-05）冻结实际顺序为 shadow → opaque gbuffers → deferred（可选）→ translucent gbuffers → composite（可选）→ composite1（可选）→ final。** deferred 在半透明之前运行，不可在它里面读取本帧水面法线或水面深度。开启副本时，不透明 lit 输出未施加介质的 HDR，deferred 同时写 colortex4 原色副本与 colortex0 已吸收/雾化场景；半透明 lit 随后自行施加一次介质。关闭副本时，lit 直接施加介质。防止水面采样已雾化背景后再雾化一次。水面在后续 gbuffers_water 采副本与 depthtex1；禁止采正在写入的 colortex0。启用条件为 `SCREENSPACE_REFLECTIONS || SCREENSPACE_REFRACTION || WATER_ABSORPTION > 0`，各维度分别声明。新增 `gbuffers_block_translucent` 与 `gbuffers_particles_translucent` 两对几何壳保证这些几何在副本之后绘制；其余后处理 pass 数不变。依据：[Iris deferred](https://shaders.properties/current/reference/programs/deferred/)、[Iris gbuffers](https://shaders.properties/current/reference/programs/gbuffers/)。旧图仅表示依赖，执行时序以本条为准。
 
@@ -81,7 +94,7 @@ shadow ──► gbuffers_*（前向光照，单一 lit 入口）──► compo
 | 缓冲 | 格式 | 尺寸 | 用途 |
 |---|---|---|---|
 | colortex0 | R11F_G11F_B10F | 1x | 主 HDR 场景色（32-bit，无 alpha——前向混合永远画在不透明背景上） |
-| colortex1 | R8 | 0.5x | godray 密度 |
+| colortex1 | RGBA8（沿用 Iris 默认，SC-33） | 0.5x | 空气：R 为 godray 密度；水下：RGB 为平方根编码散射色，A 为 0–48 格视线距离 |
 | colortex2 | R11F_G11F_B10F | 0.5x | bloom 采集缓冲（靠 mipmap 提供多级亮度） |
 | colortex3 | R8 | 1x | skylight 存储（水下吸收启发式 + 静态阴影回退用） |
 | colortex4 | R11F_G11F_B10F | 1x | 不透明场景副本（SSR/折射背景源，仅水效果开启时存在） |
@@ -92,6 +105,10 @@ shadow ──► gbuffers_*（前向光照，单一 lit 入口）──► compo
 > **决议（随 SC-25/SC-26，推翻 SC-10 的实施位置，2026-09-06）：格式 const 必须声明在入口壳内，禁止放 lib/program 等任何 include 层。** 实机四、五轮实证：Iris 1.11.2 会从 include 展开源**读取** const（ClearColor 等已生效）但**只改写它直接编译的入口壳文本**中的格式令牌——lib（第四轮 C1503）与 program（第五轮 C1503）层级均原样漏到驱动。关键反证：唯一采用 lib 集中式的 Mellow，其发布版把格式声明整块注释掉、靠 Iris 默认格式运行。现 6 条格式声明位于 root/world-1/world1 的 final.fsh 入口壳（final 永远参与编译），无行尾注释。附带（SC-26）：实例装有 Voxy 时 Iris 定义 `VOXY` 宏，`lib/uniforms.glsl` 已补 `vxModelView/vxModelViewInv` 声明。
 
 > **决议（随 SC-27，再推翻上两条，2026-09-06）：v1 全线使用 Iris 默认缓冲格式，格式 const 一律注释。** 决定性对照：本 Iris（1.11.2+mc26.2）上实际可用的 Complementary r5.8.1，其格式声明整块被注释；Mellow 发布版同样——五个参照包零反例，任何位置的活跃格式 const 都会 C1503。§2.3 表格保留为设计意图（带宽目标），恢复格式声明的机制待查（roadmap）；短期代价：HDR 精度与带宽回归默认，`shadowcolor0` 水面高度编码精度下降待实机确认。noise 纹理改走 `textures/noise.png` 自动绑定（删除全部 `texture.*.noisetex` 指令——本版 Iris 对 composite1/final 等阶段名报 Unknown texture stage）。
+
+**决议：E1/E2（SC-32，2026-09-07）水下颗粒从 deferred 移到 final 的显示合成。** 半透明水面在背景重建分支输出 alpha=1，会覆盖 deferred 内的颗粒；颗粒因此必须在半透明完成后、tonemap 前叠加。final 用现有 depthtex0 的最近可见表面约束颗粒距离，不写 colortex4；deferred 启用条件与 ASTRA_SCENE_COPY 保持一致，仅由 SSR/折射/吸收决定，UNDERWATER_PARTICLES 不强开副本。不增加 pass、缓冲、varying，默认格式仍按 SC-27；显示端新增一次水下深度读取，三层颗粒计算移位而非重复执行。
+
+**决议：E1/E2（SC-33，2026-09-07）水下光束复用 composite 与 colortex1。** 根层 composite 由空气光束或有效的水下光束选项启用，条件在 shaders.properties 预处理后写成 true/false；下界/末地仍禁用。水下输出 RGB=`sqrt(scatter/4)`、A=`min(rayLength,48)/48`；final 以四邻域、距离权重重建，解码后加到 HDR，再叠颗粒与既有显示链。colortex1 不再可降为 R8，必须保留 RGBA；SC-27 默认格式路线保持，不增加活跃格式 const、pass 或几何 varying。关闭彩色阴影和焦散不影响水下光束独立读取 shadowtex1/shadowcolor0。
 
 ### 2.4 抗锯齿决定：无 AA pass（架构级）
 
@@ -191,6 +208,8 @@ Astra/
 
 **决议：E1 的 program 组合顺序冻结为 settings→uniforms→lib 工具→shadowmap/blocklight/sss/diffuse→维度模块→大气模块→水模块。** 新增 program/scene.glsl 作为 program 内共用组合器，global 不 include 其他 global；对外函数 `astra_light(albedo, normal, playerPos, skylight, blocklight, material)`、`astra_fog(playerPos, skylight)`（RGB 雾色，A 雾量）、`astra_sky(worldDir)`（线性 HDR）。D2 提供 `astra_sky_radiance(vec3 worldDir)`、`astra_sky_reflection(vec3 worldDir,float roughness)`、`astra_sky_ambient()`、`astra_direct_light()`，均线性 HDR、无 tonemap、无 varying；天空反射接口不含太阳/月亮圆盘，避免 SSR 失败时高亮点闪烁。E1 先交可显示接线，D2 在此接口上替换主世界临时天空，不改 varying/pass。
 
+**决议：E1（SC-32，2026-09-07）原生几何与 Voxy 的变换宏分离。** Iris 的 VOXY 表示模组可用，不表示当前程序属于 Voxy。只有显式 ASTRA_VOXY_PASS 入口可声明并消费 vxModelView/vxModelViewInv；所有原生 gbuffers/deferred/final 固定使用 gbufferModelView 体系，即使 VOXY 已定义。C5 后续实际入口按此协议接入；本次不注册尚未实现的 Voxy patch，VOXY_SUPPORT 的未接线状态不靠空引用掩盖。
+
 ### 3.3 设置系统
 
 - 规模目标：**60–80 个用户选项**（清爽哲学：少而精；对比 Mellow 205 / Refrax 542）
@@ -238,6 +257,8 @@ Astra/
 
 **决议（SC-12，E 系，2026-09-05）：平面 wispy 云实现归 D2。** 云与 Minishita 天空/日月/星星共用同一条大气链（视向、太阳角、雾混合全在同一处），拆给两档会产出两套接口；`global/atmosphere/clouds_planar.glsl` 与 `program/clouds.fsh` 的消费者由 D2 任务行确立。`CLOUD_MODE` 保持 0/1/2 三档不砍。
 
+**决议：E1/D2（SC-32，2026-09-07）主世界远端户外雾直接消费 astra_sky_radiance 的同视向颜色。** 不再用混入环境色的粗糙反射接口代替天空背景。两采样 Minishita 在掠射/负仰角的积分会过度消耗蓝色，最低积分仰角固定为 sin(elevation)=0.10，保留方位角向地平线及下半球延伸；这是低采样大气近似，不是新加一道染色。群系色仅保留在薄雾，完全雾化端回归该天空色；反射也共享修正后的大气源。保留两次视路径采样，不增加大气 pass。
+
 ### 4.3 水（global/water/）——v1 视觉核心
 
 | 项 | 设计 | 来源 |
@@ -262,6 +283,14 @@ Astra/
 
 **决议：E2（2026-09-06）焦散同属无TAA约束。** C2保留crest算法，接受E1在alpha拒绝前计算的world blocks/pixel足迹，按最短波长连续衰减高频贡献，未解析时回到中性；48–64格连续退出。shadow VS逆变换后的点先减gbufferModelViewInverse[3].xyz转换到统一camera-relative坐标，再取绝对水高和风场；重新进入shadowModelView前加回该偏移。不得把脚部相对点和相机相对点混用。
 
+**决议：E2（SC-32，2026-09-07）折射边缘回接必须混合完整光路。** 未偏移与折射背景分别按各自深度计算吸收/雾色，再按相对亮度连续权重混合；禁止只恢复 RGB 却沿用另一条光路的水程。水面视差与法线共用 0.15×WATER_WAVE_HEIGHT 的高度尺度，掠射夹取使用单位视向，最终波层足迹包含视差放大。SSR 的 28–96 格与 roughness 0.10–0.28 淡出保持连续，权重已为零时不再执行追踪。公开五模块接口与既有 20+4 追踪预算不变。
+
+**决议：E2（SC-32，2026-09-07）水下颗粒采用世界坐标晶格，final 为唯一消费者。** 三个视距壳层（3/6/12 格）仍是稀疏近似；每个颗粒的完整柔边限制在 cell 内，几何遮挡边缘连续淡出，时间由参数传入。该改动减少随镜头漂移和 cell 边缘跳变，不据此宣称动态无闪烁已通过。
+
+SC-32 水面细节补充：未解析波层的 roughness 采用与波相位无关的平均坡度估计；禁止把被 Nyquist 过滤掉的高频梯度幅值重新混入粗糙度，否则会经反射把同一高频变化带回画面。该估计是源头抑制措施，不构成实机稳定性结论。
+
+**决议：E2（SC-33，2026-09-07）以有遮挡的水下散射替换 scene.glsl 的角向亮晕。** 新增 global/water/light_shafts.glsl，参考本地 Solas volumetricLight 的视线累计阴影思路，积分权重、宽尺度水面聚光与深度重建由 Astra 自写。每条视线只积分至最近 depthtex0 表面或 48 格，三档为 16/24/32 段；shadowtex1 阻止实体漏光，shadowtex0 与 shadowcolor0.R 确认光线经过水面，沿光线投影的低频水面图案调制强度。水高只用于图案锚点与光程衰减，不作精确水面裁剪；默认格式的量化误差仍需画面确认。固定空间 Bayer 起点，无帧号抖动；光源离屏仍可散射，日落、雨天与失明连续减弱。默认三档开启水下阳光束，新增独立开关、强度与精细度，沿用 WATER_CHARACTER 和既有水下雾量，不靠加厚雾制造亮度。此为有限步数、单次散射近似，游戏观感与动态稳定性尚待第三轮材料。
+
 ### 4.4 后处理（global/post/ + final）
 
 **决议：E1（SC-16，2026-09-05）全部 tonemap 算子返回 display-linear RGB；final 唯一顺序为 HDR+bloom+godrays → exposure → tonemap → srgb_encode → grading → vignette → 输出抖动 → clamp。** C6 参数保持原值。更正 SC-16 的数学前提：AgX 末尾 pow(2.2) 是 EOTF，输出是线性显示值，不是 sRGB 编码；不得移除。Uchimura 与 Reinhard-Jodie 也按线性输出消费。ACES 保留矩阵/RRT fit，去掉输入 pow(1/2.2) 与尾部 to_linear 两个不相容变换；AgX CDL pow 输入钳为非负。Z5 按指令修正算子适配；C6 接入位置已解除，用户目视裁决仍待实机。依据：[Filament AgX 实现](https://github.com/google/filament/blob/main/filament/src/ToneMapper.cpp)、[ACES fitted 原实现](https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl)。
@@ -275,6 +304,10 @@ Astra/
 | 风格层 | 所有风格参数集中在 `global/post/grading.glsl` 单一预设块——整包"观感"只调这一个文件 | 设计约定 |
 | 抖动 | IGN 输出抖动（无 AA 下防 banding 的必需品） | Steadfast |
 | 明确不做 | 自动曝光、暗角（默认）、色差、胶片颗粒、DOF、运动模糊、描边 | 清爽哲学 |
+
+**决议：E1（SC-32，2026-09-07）final 在既有 HDR+bloom+godrays 后追加水下颗粒，再执行 SC-16 单次 sRGB 链。** 颗粒不参与 bloom 采集，避免微尘被再次扩成光斑。godrays 保持 8 次深度采样，取消额外起点采样；60°视角阈值为0.5，曝光因子夹0..1，离屏深度不采样。该项修复屏幕空间光束边缘，不将 scene.glsl 的水下角向亮晕表述为有遮挡的体积光束。
+
+SC-33 覆盖上述水下部分：空气 godrays 只在 isEyeInWater=0 合成；水下散射单独解码且仅在主世界水中合成，均衡档无需开启 GODRAYS。不透明手部沿用 colortex3 的 HAND 位修正压深，并确认 depthtex0 仍等于对应 depthtex1 后才应用，避免将其后标记错用到更近的半透明表面。
 
 ### 4.5 下界与末地特调（一等公民，非主世界的参数回退）
 
@@ -375,7 +408,7 @@ Astra/
 | # | 里程碑 | 内容 | 验收标准 |
 |---|---|---|---|
 | **M1** | 骨架 | git init（`.gitignore` 排除 `_analysis/`）、§3.1 目录、空 program、缓冲声明、最小 final 链（tonemap+sRGB，否则看不到正确画面）、THIRD-PARTY.md 台账 | Iris 在 1.21.x 与 26.1 加载零报错，三维度显示原版画面 |
-| **M2** | 主世界 | 阴影→光照→天空→雾→水（水面/SSR/折射/吸收/焦散）依序接入，对照"参考截图三连"（Steadfast 水下 / Solas 水面 / Refrax 色调）校准 | 水/天空/雾目视达标（§8.3 对应项） |
+| **M2** | 主世界 | 阴影→光照→天空→雾→水（水面/SSR/折射/吸收/焦散）依序接入，对照"参考截图三连"（Steadfast 水面 / Solas 水下 / Refrax 色调）校准 | 水/天空/雾目视达标（§8.3 对应项） |
 | **M3** | 维度与 Voxy | 下界/末地特调（§4.5）、Voxy 接入实测 | 两维度达到 §4.5 专属设计目标且帧率同主世界标准；Voxy 可用 |
 | **M4** | 收尾 | bloom/godrays、风格层校准、三档 profile、zh_CN/en_US 文案、README | §8 全项通过 = v1 完成 |
 
@@ -438,17 +471,39 @@ Astra/
 
 ---
 
-## 12. 计划状态（2026-09-06 E 系更新）
+## 12. 计划状态（2026-09-07 E 系更新）
 
-本轮只由 E 系处理决策/集成；壳和算子适配归Z1/Z5、水面SSR与局部水/影修复归C7/C2/B1、天空与驱动编译归D2/D1、带宽账归Z7。既有B/C模块没有重新移植。用户后续要求尽量避免并发，已改为串行收口。
+用户最新指令覆盖早期分工流程：本次对话禁止下放及子代理，由当前模型独立完成修改；所有问题集中交付后用户再看画面，不再逐项中断。任务编号保留为模块责任记录，不表示本轮另行派工。SC-32 为整体审查后的集成决议与细节修复；SC-33 为续作补齐的水下阴影分束。
 
 | 里程碑 | 当前状态与剩余责任 |
 |---|---|
-| M1 | 🔶 E1架构冻结且lit/final真实现已落；225组RTX4050驱动编译链接零错。Iris实际加载与三维度画面仍待D1/Z7；不能把独立GLSL编译当作Iris加载证据。 |
-| M2 | 🔶 B/C模块已由E1/E2消费，D2天空和C7水面SSR新增实现已交付；水程单位/阴影坐标/透明链已定。无TAA数学记录已有，实际动态画面与水下FPS待Z7/E2。 |
+| M1 | 🔶 E1统一入口已交付；MC26.2/Iris1.11.2 主世界已由用户确认加载与出图。SC-32 修正 VOXY 可用宏误选原生矩阵。1.21.x 与其他维度运行证据仍待补。 |
+| M2 | 🔶 五模块与 SC-24 换源已接入；第二轮截图暴露的差距经 SC-31/32 源码处置，SC-33 接入水下阴影分束；水面、水下与动态稳定性尚未获得修改后的画面裁决。 |
 | M3 | 🔶 C3/C4几何入口可达；SC-17交还C5/D1继续Voxy适配。两维度视觉/FPS待实机；原有专属模块不重写。 |
-| M4 | 🔶 C6分级已在单次sRGB后接通；profile维持待测参数，E3账目已交付但无FPS；E4九项书面裁决均未放行，详见visual-verdicts.md。 |
+| M4 | 🔶 三档当前 FOG=65、SKY_FOG=25、UNDERWATER_FOG=55、SAT=105、VIB=108；第二轮截图瞬时 FPS=143–170，不能代替三档及下界硬指标数据。E4 三对标维持退回，详见 visual-verdicts.md。 |
 
-SC-6 的“找不到实例”已由用户提供路径解除，确认MC26.2/Iris1.11.2/Voxy0.2.18-beta及RTX4050；目前没有可归属于本轮Astra代码的游戏场景截图/帧率。SC-14继续仅约束未来发布，不为本次私人实例开发重复索要许可决定。
+SC-6 的环境阻断已经解除，第一、二轮运行材料见 qa/screenshots/2026-09-06。尚缺的是本次修改后的画面，不是实例路径。SC-14 继续仅约束未来发布；C5 Voxy 完整映射仍属 M3，当前宏修复不代表 Voxy 已完成。
 
-**当前暂停（2026-09-06）：SC-6/SC-20 ⏸ 待用户拍板。** 已请用户启动已安装Astra的实例（推荐）或决定暂缓运行部分；本轮未收到可供裁决的游戏运行材料。此处暂停不等于E1–E4全部完成，源码交付与运行验收分开记录。
+E1–E4 不整体标完成：本次完成可由源码确认的修复与书面裁决，最终观感及帧率仍以用户后续集中提供的运行材料为准。
+
+## SC-34-F1 当前光路决议（2026-09-07）
+
+**决议：E1/E2，当前模型独立执行。** 保留磁盘上已完成的 SC-34 坐标/水高/光照工作；新增变更属于用户新截图要求的光路续修。旧 SC-35/36 注释和 SC-37 日志不作为画面通过依据。
+
+- 现有实际时序为 shadow → opaque lit → deferred → translucent water/lit → composite → composite1 → final。`ASTRA_SCENE_COPY` 与三维度 deferred 已在接手时常开，当前继续如此；旧“由三个水效果开关决定副本”的文字不再描述实际行为。colortex4 保留未施加视线介质的 opaque 色，水面不得采正在写入的 colortex0。
+- 光学接口新增 `global/water/optics.glsl`：IOR=1.333、完整 Fresnel/全反射、Snell 日光方向、归一化 HG 相函数。水面只构造一份有效界面法线并据此产生光线；Fresnel 不随 skylight 改变。
+- `water_raytrace` 现在接收已求好的射线并返回 UV/depth/confidence，不返回与深度脱离的 RGB；20+4 步后增加同面局部平面求交和命中位置读取。`refract_trace` 返回折射射线投影位置，由调用方逐点取得颜色和深度；原 Solas 屏幕偏移与最远深度策略已替换，历史出处保留。
+- `astra_light` / `diffuse_lighting` 新增 `out directRadiance`，仅供同一 fragment 的焦散调制使用，不新增 varying。环境光、方块光不参与焦散放大；入水直射包含入口透射与光源至物体的水程，不对 air-side 物体因相机入水而强行套水下照明。
+- 水面另一段逐点先传播再过滤；眼睛到界面的介质只作用一次。眼睛段散射源取眼部环境天光，避免远处受光方块的低 lightmap 使整个水体变黑。太阳散射与环境散射分开；界面与 composite 共用 `astra_water_sun_source`，相同 sigma 与相函数。移除旧角向增亮、独立聚光图案和额外 gain。
+- composite 仍为半尺寸，colortex1 RGB 仍是 sqrt(scatter/4)，A 记录 0–96 格距离；16/24/32 段按实际可见水程分配。final 重建重新读取对应位置的完整尺寸深度，不用量化距离的宽阈值混入背景。
+- bloom 软阈值从现有 1.0 起算，普通沙地不作为外溢光源；保留沙地本色和最终色彩链。继续使用 SC-27 默认格式，其高值裁剪限制尚未解除。
+
+无新增 pass、缓冲、用户选项或 varying；新采样开销和视觉效果都需实际运行材料。屏幕外几何、水中折射后的完整遮挡仍受单层场景副本及单张直线 shadow map 限制。E2/E4 维持待实测，不把光束或固定场景移动玩家的阴影稳定性标为通过。
+
+## SC-35 坐标、折射边缘与水下遮罩决议（2026-09-08）
+
+**决议：E1/E2。** 所有 `playerPos` 一律表示不含 render-origin translation T 的相机相对世界坐标；view/player 互转只使用 `mat3(gbufferModelView[Inverse])`。绝对世界锚点只能写成 `playerPos + cameraPosition`。只有 shadow 投影入口显式加 `gbufferModelViewInverse[3].xyz`，shadow 顶点生产端也以同一个量减/加 T；不得以 `shadowModelViewInverse[3]` 代替 T。
+
+水面在 translucent pass 中以 `depthtex1`（排除透明几何的 opaque depth）配对 deferred 的 `colortex4`；`depthtex0` 保留给透明绘制完成后的最近深度、final 粒子和水下光束边界。折射界面侧判断在 ±0.02 格内连续化；折射路径失效时混合到未偏移的完整 opaque 光路，再由该路径自己的有效度退到深水/天空，不允许未偏移路径以更高置信度无条件覆盖有效折射。
+
+透明水面阴影覆盖定义为 `max(opaqueVisibility - allVisibility, 0)`。禁止 `opaqueVisibility * (1 - allVisibility)`：两张 PCF 图在同一不透明边缘均为 0.5 时，乘积会凭空产生 0.25 的水面透光。焦散在水面下 0.15–0.75 格建立后再衰减，避免量化水高边界成为最亮处；波层距离 LOD 只衰减相对均值的变化，不得改变视差高度的 DC 分量。

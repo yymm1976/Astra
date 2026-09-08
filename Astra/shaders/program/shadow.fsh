@@ -22,13 +22,23 @@
 in vec2 texcoord;
 in vec4 tint;
 in float waterHeight;
+in vec3 shadowPlanePosition;
 
 /* RENDERTARGETS: 0 */
 
 void main() {
+	// A nonlinear XY warp invalidates interpolated Z, even on a flat block.
+	// Reconstruct the original light-space plane at the inverse-warped pixel.
+	// Derivatives are evaluated before alpha rejection.
+	vec3 planeNormal = cross(dFdx(shadowPlanePosition), dFdy(shadowPlanePosition));
+	vec2 rawXY = undistort(vec3(gl_FragCoord.xy / float(shadowMapResolution) * 2.0 - 1.0, 0.0)).xy;
+	float rawZ = shadowPlanePosition.z;
+	if (abs(planeNormal.z) > 1e-12)
+		rawZ -= dot(planeNormal.xy, rawXY - shadowPlanePosition.xy) / planeNormal.z;
+	gl_FragDepth = clamp(rawZ * 0.1 + 0.5, 0.0, 1.0);
 	vec4 albedo = texture(gtexture, texcoord) * tint;
 
-	if (albedo.a < alphaTestRef) {
+	if (waterHeight >= WATER_HEIGHT_NONE && albedo.a < alphaTestRef) {
 		discard;
 	}
 
@@ -38,6 +48,9 @@ void main() {
 	// tinted water) contribute colour.
 	float translucency = 1.0 - smoothstep(0.9, 1.0, albedo.a);
 	vec3 shadowTint = mix(vec3(1.0), srgb_decode(albedo.rgb), translucency);
+	// Water albedo is a surface texture, not a light-transmission coefficient.
+	// Its absorption is evaluated over the water column by the lighting consumer.
+	if (waterHeight < WATER_HEIGHT_NONE) shadowTint = vec3(1.0);
 #else
 	vec3 shadowTint = vec3(1.0);
 #endif

@@ -1,0 +1,246 @@
+
+
+
+
+
+
+
+
+size.buffer.colortex1=1.0 1.0
+
+
+
+size.buffer.colortex2=0.5 0.5
+size.buffer.colortex6=1 1
+
+
+
+particles.ordering=mixed
+
+program.composite2.enabled=true
+
+
+
+program.composite1.enabled=1
+program.composite.enabled=true
+program.shadow.enabled=1
+
+
+shadow.culling=false
+shadowTerrain=true
+shadowTranslucent=true
+blend.shadow=off
+blend.gbuffers_water.colortex5=SRC_ALPHA ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world-1/gbuffers_water.colortex5=SRC_ALPHA ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world1/gbuffers_water.colortex5=SRC_ALPHA ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+program.world-1/composite.enabled=false
+program.world-1/composite2.enabled=false
+program.world-1/composite1.enabled=1
+program.world-1/shadow.enabled=false
+blend.world-1/shadow=off
+program.world1/composite.enabled=false
+program.world1/composite2.enabled=false
+program.world1/composite1.enabled=1
+program.world1/shadow.enabled=false
+blend.world1/shadow=off
+
+program.deferred.enabled=true
+program.world-1/deferred.enabled=true
+program.world1/deferred.enabled=true
+
+blend.gbuffers_water=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.gbuffers_entities_translucent=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.gbuffers_block_translucent=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.gbuffers_hand_water=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.gbuffers_particles_translucent=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.gbuffers_weather=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.gbuffers_beaconbeam=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.gbuffers_clouds=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world-1/gbuffers_water=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world-1/gbuffers_entities_translucent=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world-1/gbuffers_block_translucent=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world-1/gbuffers_hand_water=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world-1/gbuffers_particles_translucent=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world-1/gbuffers_weather=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world-1/gbuffers_beaconbeam=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world-1/gbuffers_clouds=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world1/gbuffers_water=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world1/gbuffers_entities_translucent=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world1/gbuffers_block_translucent=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world1/gbuffers_hand_water=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world1/gbuffers_particles_translucent=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world1/gbuffers_weather=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world1/gbuffers_beaconbeam=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+blend.world1/gbuffers_clouds=ONE ONE_MINUS_SRC_ALPHA ONE ONE_MINUS_SRC_ALPHA
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+blend.gbuffers_terrain.colortex3=off
+blend.gbuffers_entities.colortex3=off
+blend.gbuffers_block.colortex3=off
+blend.gbuffers_hand.colortex3=off
+blend.gbuffers_textured_lit.colortex3=off
+blend.world-1/gbuffers_terrain.colortex3=off
+blend.world-1/gbuffers_entities.colortex3=off
+blend.world-1/gbuffers_block.colortex3=off
+blend.world-1/gbuffers_hand.colortex3=off
+blend.world-1/gbuffers_textured_lit.colortex3=off
+blend.world1/gbuffers_terrain.colortex3=off
+blend.world1/gbuffers_entities.colortex3=off
+blend.world1/gbuffers_block.colortex3=off
+blend.world1/gbuffers_hand.colortex3=off
+blend.world1/gbuffers_textured_lit.colortex3=off
+
+
+
+
+screen=<profile> <empty> [LIGHTING] [1] [SKY] <empty> [WATER] [FOG] <empty> [POST] [PERFORMANCE]
+screen.LIGHTING=100 100 100 8 <empty> 100 1 <empty> 1 100 <empty> 1 100
+screen.1=1 2048 128 64 4 <empty> 1 1 <empty> 1 100
+screen.SKY=0 0 1 <empty> 0 50 <empty> 1 <empty> 1 50 <empty> 1
+screen.WATER=1 100 100 <empty> 1 1 100 <empty> 100 1 1 <empty> 1 1 <empty> 1 100 24
+screen.FOG=50 15 <empty> 1 1 <empty> 40 <empty> 100 100
+screen.POST=0 100 100 100 102 0 <empty> 1 100 <empty> GODRAYS 100 <empty> 1 VIGNETTE
+screen.PERFORMANCE=1 100 <empty> VOXY_SUPPORT
+
+
+
+
+profile.PERFORMANCE=100=100 100=100 100=100 8=8 100=100 1 1 100=100 1 100=100 1 2048=1024 128=96 64=48 4=2 1 1 1 100=60 0=0 0=0 1 0=0 50=50 1 1 50=50 1 1 100=100 100=100 !1 !1 100=100 100=100 1=1 1 !1 !1 50=50 15=15 1 1 40=40 100=100 100=100 0=0 100=100 100=100 100=100 102=102 0=0 !1 100=100 !GODRAYS 100=100 1 !VIGNETTE 1 100=100 !VOXY_SUPPORT 1 100=100 24=16
+profile.BALANCED=100=100 100=100 100=100 8=8 100=100 1 1 100=100 1 100=100 1 2048=2048 128=128 64=64 4=4 1 1 1 100=60 0=0 0=0 1 0=0 50=50 1 1 50=50 1 1 100=100 100=100 1 1 100=100 100=100 1=1 1 1 1 50=50 15=15 1 1 40=40 100=100 100=100 0=0 100=100 100=100 100=100 102=102 0=0 1 100=100 !GODRAYS 100=100 1 !VIGNETTE 1 100=100 !VOXY_SUPPORT 1 100=100 24=24
+profile.ULTRA=100=100 100=100 100=100 8=8 100=100 1 1 100=100 1 100=100 1 2048=4096 128=192 64=96 4=16 1 1 1 100=60 0=0 0=0 1 0=1 50=50 1 1 50=50 1 1 100=100 100=100 1 1 100=100 100=100 1=1 1 1 1 50=50 15=15 1 1 40=40 100=100 100=100 0=0 100=100 100=100 100=100 102=102 0=0 1 100=100 GODRAYS 100=100 1 !VIGNETTE 1 100=100 !VOXY_SUPPORT 1 100=100 24=32
+
+
+
+sliders=100 100 100 8 100 100 100 2048 128 64 4 100 50 50 100 100 100 100 50 15 40 100 100 100 100 100 102 0 100 100 100 100 24
+
+
+
+
+
+
+
+
+
+variable.vec3.sunVector=vec3( \
+sunPosition.x / 100.0, \
+sunPosition.y / 100.0, \
+sunPosition.z / 100.0)
+uniform.vec3.lightVector=vec3( \
+shadowLightPosition.x / 100.0, \
+shadowLightPosition.y / 100.0, \
+shadowLightPosition.z / 100.0)
+
+
+
+uniform.vec3.worldSunVector=vec3( \
+gbufferModelViewInverse.x.0 * sunVector.x \
++ gbufferModelViewInverse.y.0 * sunVector.y \
++ gbufferModelViewInverse.z.0 * sunVector.z, \
+gbufferModelViewInverse.x.1 * sunVector.x \
++ gbufferModelViewInverse.y.1 * sunVector.y \
++ gbufferModelViewInverse.z.1 * sunVector.z, \
+gbufferModelViewInverse.x.2 * sunVector.x \
++ gbufferModelViewInverse.y.2 * sunVector.y \
++ gbufferModelViewInverse.z.2 * sunVector.z)
+
+
+uniform.float.sunProgress=1.0 - pow(1.0 - clamp(worldSunVector.y / 0.75, 0.0, 1.0), 2.0)
+
+uniform.float.moonProgress=1.0 - pow(1.0 - clamp(-worldSunVector.y / 0.75, 0.0, 1.0), 2.0)
+
+uniform.float.sunrise=if(isEyeInWater == 1, 0.0, pow(clamp(1.0 - 15.0 * pow(abs(worldSunVector.y), 6.0), 0.0, 1.0), 2.0))
+uniform.float.moonrise=if(isEyeInWater == 1, 0.0, pow(clamp(1.0 - 15.0 * pow(abs(-worldSunVector.y), 6.0), 0.0, 1.0), 2.0))
+
+uniform.float.skyVisibilityDay=pow(clamp(0.90 + worldSunVector.y / 0.15, 0.0, 1.0), 4.0)
+
+
+
+uniform.float.astraHeldLightBase=clamp(max(heldBlockLightValue, heldBlockLightValue2) / 15.0, 0.0, 1.0)
+uniform.float.astraBlocklightSuppression=0.75 * skyVisibilityDay * (1.0 - 0.5 * rainStrength)
+uniform.float.astraHeldLightSuppression=clamp(eyeBrightnessSmooth.y / 240.0, 0.0, 1.0)
+
+uniform.float.borderFogDistance=far
+
+
+
+variable.float.renderDistanceFogTweak=1.0 + 0.01 * max(0.0, borderFogDistance - 200.0)
+uniform.float.atmosphereFogCoefficient=renderDistanceFogTweak * pow(0.60 / borderFogDistance, 3.0)
+
+uniform.float.dayUnderwaterFogFade=pow(clamp(0.90 + worldSunVector.y / 0.05, 0.0, 1.0), 4.0)
+
+
+uniform.float.windStrength=0.09 * ((1.0 + 0.5 * rainStrength) / 2.0)
+
+variable.vec4.windChaos=vec4( \
+sin(0.14 * frameTimeCounter * 3.141), \
+sin(0.15 * frameTimeCounter * 3.141), \
+sin(0.16 * frameTimeCounter * 3.141), \
+sin(0.17 * frameTimeCounter * 3.141))
+
+uniform.vec4.windTheta=vec4( \
+3.141 * ((frameTimeCounter * 1.1) + (1.6 * (windChaos.x + windChaos.y))), \
+3.141 * ((frameTimeCounter * 1.8) + (1.0 * (windChaos.x + windChaos.w))), \
+3.141 * ((frameTimeCounter * 1.2) + (1.6 * (windChaos.z + windChaos.w))), \
+3.141 * ((frameTimeCounter * 0.7)))
+
+
+variable.float.LdotF=-lightVector.z
+variable.float.godraysMaxAngle=0.5
+
+variable.float.godraysViewAngleFade=pow(clamp((LdotF - godraysMaxAngle) / (1.0 - godraysMaxAngle), 0.0, 1.0), 2.0)
+
+variable.vec4.clipLightVector=vec4( \
+gbufferProjection.x.0 * lightVector.x \
++ gbufferProjection.y.0 * lightVector.y \
++ gbufferProjection.z.0 * lightVector.z, \
+gbufferProjection.x.1 * lightVector.x \
++ gbufferProjection.y.1 * lightVector.y \
++ gbufferProjection.z.1 * lightVector.z, \
+gbufferProjection.x.2 * lightVector.x \
++ gbufferProjection.y.2 * lightVector.y \
++ gbufferProjection.z.2 * lightVector.z, \
+gbufferProjection.x.3 * lightVector.x \
++ gbufferProjection.y.3 * lightVector.y \
++ gbufferProjection.z.3 * lightVector.z)
+variable.vec3.ndcLightVector=vec3( \
+clipLightVector.x / max(abs(clipLightVector.w), 0.0001), \
+clipLightVector.y / max(abs(clipLightVector.w), 0.0001), \
+clipLightVector.z / max(abs(clipLightVector.w), 0.0001))
+variable.float.godraysOffscreenFade=if(clipLightVector.w > 0.0, \
+clamp((1.0 - max(abs(ndcLightVector.x), abs(ndcLightVector.y))) / 0.1, 0.0, 1.0), \
+0.0)
+
+variable.float.godraysDayExposureMorning=0.24
+variable.float.godraysDayExposureNoon=0.10
+variable.float.godraysNightExposure=0.16
+variable.float.godraysBaseExposure=if(worldSunVector.y > 0.0, \
+mix(godraysDayExposureMorning, godraysDayExposureNoon, sunProgress), \
+godraysNightExposure)
+uniform.float.godraysExposure=godraysBaseExposure * godraysViewAngleFade * godraysOffscreenFade
+
+uniform.float.biomeTemperatureSmooth=smooth(temperature, 30, 30)
+uniform.float.biomeHumiditySmooth=smooth(rainfall, 30, 30)

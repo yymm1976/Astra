@@ -2,6 +2,7 @@
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
 #include "/lib/encoding.glsl"
+#include "/lib/transforms.glsl"
 #include "/global/lighting/wind.glsl"
 #ifdef ASTRA_TERRAIN
 in vec4 mc_Entity;
@@ -10,6 +11,7 @@ in vec3 at_midBlock;
 out vec2 texcoord;
 out vec2 lightcoord;
 out vec4 tint;
+out vec3 cameraRelativePosition;
 flat out uint faceData;
 uint astra_material(int id) {
     if (id >= 10001 && id <= 10007) return uint(id - 10000);
@@ -37,12 +39,13 @@ void main() {
     normal = dot(normal, normal) > 1e-8 ? normalize(normal) : vec3(0.0, 1.0, 0.0);
     faceData = pack_octahedral(normal, 9) | (material << 18);
     vec4 viewPos = gl_ModelViewMatrix * gl_Vertex;
+    vec3 playerPos = view_camera_relative(viewPos.xyz);
     #if defined ASTRA_TERRAIN && defined WAVING_FOLIAGE
-        vec3 playerPos = mat3(gbufferModelViewInverse) * viewPos.xyz;
         bool ground = material == 4u || material == 5u || material == 6u;
         bool top = material == 6u || ((material == 4u || material == 5u) && at_midBlock.y < 0.0);
         wave_foliage(material == 2u, ground, top, playerPos);
-        viewPos.xyz = mat3(gbufferModelView) * playerPos;
+        viewPos.xyz = camera_relative_view(playerPos);
     #endif
+    cameraRelativePosition = playerPos;
     gl_Position = gl_ProjectionMatrix * viewPos;
 }

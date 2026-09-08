@@ -1,0 +1,7 @@
+GPU: NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2
+Shadow plane: pixels=53824, max depth error=2.7287390924612964E-7
+Solar source: opaque max=0.0, open-water max=13.216415405273438
+Opaque/water edge: lighting overshoot=0.0
+Independent water volume, no water caster: opaque max=0.0, open max=13.216415405273438
+Fixed receiver under 33 main-camera moves/rotations: max world error=0.0
+PASS: actual shadow producer plane and occluded/transmitted solar source

@@ -1,0 +1,38 @@
+{
+  "scope": "Actual GLSL functions; synthetic depth/colour; no Iris injection or game-world visibility",
+  "finite": true,
+  "tir_grazing": [
+    1.0,
+    1.0,
+    0.0,
+    1.0
+  ],
+  "fresnel_near_normal": [
+    0.020375337451696396,
+    0.0,
+    0.9796246886253357,
+    1.0
+  ],
+  "bloom_max_below_white": 0.0,
+  "bloom_above_white": 0.49219340085983276,
+  "sand_edge_near": [
+    0.7615122199058533,
+    0.8200843930244446,
+    0.740739643573761,
+    1.0
+  ],
+  "sand_edge_far": [
+    0.05282648280262947,
+    0.18336181342601776,
+    0.3070598542690277,
+    1.0
+  ],
+  "towards_camera_reflection": [
+    0.5,
+    0.23222145438194275,
+    1.0,
+    1.0
+  ],
+  "medium_split_max_error": 1.6391277313232422e-07,
+  "underside_temporal_mean_difference": 0.05870186870214682
+}

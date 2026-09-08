@@ -12,20 +12,21 @@ in vec2 texcoord;
 in vec2 lightcoord;
 in vec4 tint;
 flat in uint faceData;
-#ifdef ASTRA_TRANSLUCENT
+#ifdef ASTRA_WATER_PASS
+    /* RENDERTARGETS: 0,5 */
+#elif defined ASTRA_TRANSLUCENT
     /* RENDERTARGETS: 0 */
 #else
     /* RENDERTARGETS: 0,3 */
 #endif
 
+in vec3 cameraRelativePosition;
+
 void main() {
-    vec2 uv = gl_FragCoord.xy / vec2(viewWidth, viewHeight);
-    float depth = gl_FragCoord.z;
-    #ifdef ASTRA_HAND
-        depth = ((depth * 2.0 - 1.0) / MC_HAND_DEPTH) * 0.5 + 0.5;
-    #endif
-    vec3 viewPos = screen_view(vec3(uv, depth));
-    vec3 playerPos = view_player(viewPos);
+    // Use the rasterized surface itself for lighting and waves. A depth-buffer
+    // reconstruction is unnecessary here and can disagree with per-pass projection.
+    vec3 playerPos = cameraRelativePosition;
+    vec3 viewPos = camera_relative_view(playerPos);
     float pixelFootprint = max(length(dFdx(playerPos)), length(dFdy(playerPos)));
     vec3 normal = unpack_octahedral(faceData, 9);
     uint material = (faceData >> 18) & 15u;
@@ -36,7 +37,15 @@ void main() {
         WaterSurface waves = water_surface(playerPos + cameraPosition, normal, frameTimeCounter);
         if (water) normal = waves.normal;
     #endif
-    if (!gl_FrontFacing) normal = -normal;
+    // Sodium/fluid underside vertices can retain an upward attribute normal.
+    // Orient the geometric side from the actual ray, independent of winding.
+    vec3 geometricNormal = unpack_octahedral(faceData, 9);
+    #ifdef ASTRA_WATER_PASS
+        if (water) {
+            if (dot(geometricNormal, playerPos) > 0.0) geometricNormal = -geometricNormal;
+            if (dot(normal, geometricNormal) < 0.0) normal = -normal;
+        }
+    #endif
     vec4 albedo = texture(gtexture, texcoord) * tint;
     if (albedo.a < alphaTestRef) discard;
     albedo.rgb = srgb_decode(max(albedo.rgb, vec3(0.0)));
@@ -48,19 +57,22 @@ void main() {
     #if defined ASTRA_WEATHER && (defined DIMENSION_NETHER || defined DIMENSION_END)
         discard;
     #endif
-    vec3 color = astra_light(albedo.rgb, normal, playerPos, lightLevel.y, lightLevel.x, material);
+    vec3 directRadiance;
+    vec3 color = astra_light(albedo.rgb, normal, playerPos, lightLevel.y, lightLevel.x, material, directRadiance);
     #if defined WATER_CAUSTICS && defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END
         if (!water && lightLevel.y > 0.0) {
             vec3 shadowPos = shadow_map_position(playerPos, normal, dot(normal, view_player(lightVector)));
             float caustics = water_caustics(playerPos, shadowPos, frameTimeCounter, pixelFootprint);
-            color *= 1.0 + caustics * lightLevel.y * max(dot(normal, view_player(lightVector)), 0.0);
+            // Caustics focus incoming direct light, never ambient, torch light or
+            // the already composed scene. Direct radiance already carries visibility.
+            color += directRadiance * caustics;
         }
     #endif
     #ifdef ASTRA_WATER_PASS
         if (water || iceTop) {
             float roughness = water ? waves.roughness : 0.08;
             vec4 surface = astra_water(color, albedo.a, playerPos, viewPos, normal,
-                                       roughness, lightLevel.y, water);
+                                       roughness, lightLevel.y, water, geometricNormal);
             color = surface.rgb;
             albedo.a = surface.a;
         } else {
@@ -81,6 +93,11 @@ void main() {
         color *= albedo.a;
     #endif
     gl_FragData[0] = vec4(max(color, vec3(0.0)), albedo.a);
+    #ifdef ASTRA_WATER_PASS
+        gl_FragData[1] = water && abs(geometricNormal.y) > 0.9
+            ? vec4(water_pack_surface_height(playerPos.y + cameraPosition.y), lightLevel.y, 1.0)
+            : vec4(0.0);
+    #endif
     #ifndef ASTRA_TRANSLUCENT
         // Seven light bits retain more precision than the 16 Minecraft light levels.
         // The high bit carries the projection override across the deferred boundary.

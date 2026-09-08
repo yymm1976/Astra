@@ -30,6 +30,9 @@ const float SKY_DEPTH = 1.0;
 // Depth comparison done by hand: Iris gives us depthtex0 as a plain sampler, so we
 // reproduce GL_LEQUAL against the stored depth instead of using a shadow sampler.
 float depth_compare_sample(vec3 texCoord) {
+	if (any(lessThan(texCoord.xy, vec2(0.0))) || any(greaterThan(texCoord.xy, vec2(1.0)))) {
+		return 0.0;
+	}
 	return float(texCoord.z <= texture(depthtex0, texCoord.xy).r);
 }
 
@@ -60,7 +63,7 @@ float godrays_density(vec2 screenCoord, vec2 lightScreenPos) {
 
 	texCoord += deltaTexCoord * 1.5 * bayer8(gl_FragCoord.xy);
 
-	float accumulated = depth_compare_sample(vec3(texCoord, SKY_DEPTH));
+	float accumulated = 0.0;
 	float illuminationDecay = 1.0;
 
 	for (uint i = uint(0); i < uint(NUM_SAMPLES); i++) {

@@ -1,0 +1,26 @@
+{
+  "scope": "Real pack GLSL, synthetic geometry; SHADOWS/SHAFTS off; no Iris injection",
+  "heldlight_com_offset_px_T0": [
+    -0.5,
+    -71.46
+  ],
+  "heldlight_com_offset_px_T": [
+    -0.5,
+    -71.46
+  ],
+  "heldlight_peak_hdr_T": 0.324,
+  "wave_anchor_mean_delta": 0.01644,
+  "caustics_p50": 0.0421,
+  "caustics_p90": 0.2357,
+  "caustics_p99": 0.4915,
+  "caustics_max": 1.0242,
+  "caustics_fraction_over_bloom": 0.0,
+  "shore_pitch20": {
+    "transition_rows": 15,
+    "darkest_transition_luma": 0.09762859856151045
+  },
+  "shore_pitch42": {
+    "transition_rows": 7,
+    "darkest_transition_luma": 0.1266340801499784
+  }
+}

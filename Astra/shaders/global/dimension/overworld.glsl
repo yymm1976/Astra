@@ -25,10 +25,18 @@ vec3 astra_sky_ambient() {
 
 // Reflection deliberately omits sun/moon discs and the star field. Roughness raises the
 // effective horizon and blends toward ambient, suppressing distant high-frequency contrast.
+// 2026-09-07 visual round: ambient mix 0.58 -> 0.22 so the reflected sky reads as the
+//   sky itself (matching Steadfast/Solas), only the roughest ripples drift toward ambient.
+//   The earlier 0.58 turned the water surface into flat grey at distance ("水面偏灰").
+// SC-35: distant water kept dense parallel stripes because the wave-perturbed sky
+//   direction stayed contrasty at any range. Roughness grows with distance
+//   (screen-space slope variance), so convergence now scales with it: near-mirror
+//   keeps the sky, distant/rough water converges to the smooth ambient dome.
 vec3 astra_sky_reflection(vec3 worldDir, float roughness) {
 	float r = clamp(roughness, 0.0, 1.0);
 	vec3 safeDir = normalize(vec3(worldDir.x, max(worldDir.y, mix(-0.03, 0.10, r)), worldDir.z));
-	return mix(astra_sky_radiance(safeDir), astra_sky_ambient(), r * r * 0.58);
+	float convergence = r * r * mix(0.22, 1.0, smoothstep(0.10, 0.40, r));
+	return mix(astra_sky_radiance(safeDir), astra_sky_ambient(), convergence);
 }
 
 vec3 astra_direct_light() {

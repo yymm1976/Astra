@@ -44,7 +44,7 @@ uniform mat4  gbufferProjection;
 uniform mat4  gbufferProjectionInverse;
 uniform mat4  shadowModelView;         // global/lighting/shadowmap.glsl
 uniform mat4  shadowProjection;
-uniform mat4  shadowModelViewInverse;  // program/shadow.vsh: world-space Y for the water-height encoding
+uniform mat4  shadowModelViewInverse;  // program/shadow.vsh: undo the shadow view before removing render-origin T
 uniform float blindness;               // global/atmosphere/fog.glsl (0..1, vanilla darkness effect)
 
 // ------------------------------------------------------------
@@ -52,11 +52,11 @@ uniform float blindness;               // global/atmosphere/fog.glsl (0..1, vani
 // uses them so a module never depends on which pass happens to declare it first;
 // Iris binds only what the linked program actually references.
 // ------------------------------------------------------------
-uniform sampler2D depthtex0;           // global/post/godrays.glsl (main depth)
+uniform sampler2D depthtex0;           // nearest depth including translucent geometry
 
 // E1 built-ins and CPU values; Voxy must provide the complete set when overriding.
 uniform sampler2D gtexture;
-uniform sampler2D depthtex1;
+uniform sampler2D depthtex1;           // opaque scene depth paired with deferred colortex4
 uniform float viewWidth;
 uniform float viewHeight;
 uniform float alphaTestRef;
@@ -75,10 +75,9 @@ uniform float astraHeldLightBase;
 uniform float astraBlocklightSuppression;
 uniform float astraHeldLightSuppression;
 
-// SC-26: Iris defines the VOXY macro whenever the Voxy mod is loaded; the LOD
-// transforms in lib/transforms.glsl then need these in the normal pipeline.
-// Iris supplies the values; voxy.json injection is only for voxy_* entry files.
-#ifdef VOXY
+// Mod availability does not select a coordinate system. Only C5's actual LOD
+// entry may request these; native geometry and post passes keep gbuffer matrices.
+#ifdef ASTRA_VOXY_PASS
 uniform mat4 vxModelView;
 uniform mat4 vxModelViewInv;
 #endif

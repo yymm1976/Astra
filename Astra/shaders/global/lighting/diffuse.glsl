@@ -113,7 +113,8 @@ vec3 direct_lighting(
 	float skyLight,
 	bool  subsurfaceScatter,
 	bool  isLeaves,
-	bool  isGlass
+	bool  isGlass,
+	vec3  visibility
 ) {
 	float ndotl = dot(worldNormal, worldLightVector);
 	float directLightStrength;
@@ -126,21 +127,86 @@ vec3 direct_lighting(
 		// (Steadfast's glass model, 0.2071 = 0.7071*0.33/1.13 tuned constant).
 		directLightStrength = worldNormal.y * 0.2071 + 0.5;
 	} else {
-		directLightStrength = max(ndotl, 0.0);
+		// Steadfast's stylized lighting model (DirectLighting, the
+		// non-DIRECTIONAL_SKYLIGHT_SHADING branch): faces turned toward the light
+		// in nearly any way receive full intensity, and only faces at or past 90
+		// degrees fade out. Astra used plain Lambert ("max(ndotl, 0.0)") here.
+		//
+		// That single difference caused two reported defects at once:
+		//   1. "晴天变成阴天" — Lambert leaves every partially lit face dim, so
+		//      the whole scene reads as overcast even at noon.
+		//   2. "方块边缘的白光" — SSS foliage keeps a 0.65 floor
+		//      (ndotl * 0.35 + 0.65). At a grazing angle (ndotl = 0.1) the ground
+		//      gets 0.10 under Lambert while the grass beside it gets 0.685:
+		//      6.9x brighter. With Steadfast's curve the ground gets 1.0, so the
+		//      grass is no longer the brightest thing on screen.
+		directLightStrength = smoothstep(-0.05, 0.05, ndotl);
 		// Turned away from the light -> no direct light and no shadow sample (design.md 5).
 		if (directLightStrength < 0.0001) {
 			return vec3(0.0);
 		}
 	}
 
-	// Fade direct light with sky exposure so deep water / caves are not lit like open sky.
-	// A tiny floor (0.125/16) keeps a faint shadow possible even at zero skylight.
-	directLightStrength *= max(skyLight, 0.125 / 16.0);
+	// Visibility already comes from the shadow map (and skylight outside its
+	// coverage). Multiplying by vanilla skylight here attenuates open water twice.
 
 	// B1 returns the combined static-fallback + real-time + in-shadow-SSS multiplier as a
 	// vec3 (colored shadows tint per channel).
-	vec3 shadow = shadow_mapping(playerPos, shadowPos, skyLight, subsurfaceScatter);
-	return directLightStrength * shadow;
+	return directLightStrength * visibility;
+}
+
+// Resolve transmission, water ambient and occlusion together, at the SAME texel.
+// An opaque/water boundary is a convex blend of complete lighting results.
+// It cannot briefly combine unattenuated sunlight with the water ambient boost.
+void surface_shadow_light(vec3 playerPos, vec3 shadowPos, vec3 normal, float skyLight,
+                          out vec3 visibility, out vec3 ambientT, out float wet) {
+    #ifdef STATIC_SHADOW_FALLBACK
+        float fallback = static_shadow(skyLight);
+    #else
+        float fallback = 1.0;
+    #endif
+    visibility = vec3(fallback);
+    ambientT = vec3(0.0);
+    wet = 0.0;
+    #ifdef SHADOWS
+        float coverage = shadow_coverage(playerPos, shadowPos);
+        if (coverage <= 0.0) return;
+        vec3 filtered = vec3(0.0);
+        vec3 lightDir = normalize(view_player(lightVector));
+        vec3 waterDir = water_light_direction(lightDir);
+        vec4 volume = water_volume_state();
+        bool knownWater = isEyeInWater == 1 && volume.a > 0.5;
+        float volumeHeight = water_unpack_surface_height(volume.rg);
+        for (int i = 0; i < 16; ++i) {
+            float weight;
+            vec2 uv = shadow_filter_uv(shadowPos, i, weight);
+            ShadowTap tap = shadow_read_tap(uv, shadow_receiver_depth(shadowPos, uv, normal));
+            float through = max(tap.opaqueVisibility - tap.allVisibility, 0.0);
+            vec3 transmitted = vec3(0.0);
+            #ifdef COLORED_SHADOWS
+                transmitted = clamp(tap.caster.gba, 0.0, 1.0);
+            #endif
+            if (knownWater || tap.caster.r < 0.999) {
+                float surfaceHeight = knownWater ? volumeHeight : decode_water_height(tap.caster.r);
+                float depth = max(surfaceHeight - playerPos.y - cameraPosition.y, 0.0);
+                float submerged = smoothstep(0.0, 0.5, depth);
+                transmitted = mix(vec3(1.0), water_light_entry(lightDir)
+                            * water_transmission(depth / max(waterDir.y, 1e-4)), submerged);
+                ambientT += water_transmission(depth / 0.75) * (weight * submerged);
+                wet += weight * submerged;
+                if (knownWater && depth > 0.0) {
+                    // Water identity survives tree shadows and missing translucent
+                    // casters. Its ambient is continuous across the solar boundary.
+                    filtered += transmitted * tap.opaqueVisibility * weight;
+                    continue;
+                }
+            }
+            filtered += (vec3(tap.allVisibility) + transmitted * through) * weight;
+        }
+        visibility = mix(vec3(fallback), filtered, coverage);
+        ambientT *= coverage;
+        wet *= coverage;
+    #endif
 }
 
 // The composer. Returns surfaceColor * (ambient + local + direct), linear HDR.
@@ -161,7 +227,8 @@ vec3 diffuse_lighting(
 	bool  subsurfaceScatter,
 	bool  isLeaves,
 	bool  isGlass,
-	LightParams params
+	LightParams params,
+	out vec3 directRadiance
 ) {
 	// lightVector is view-space (frozen uniform); the lighting math is world-space.
 	vec3 worldLightVector = normalize(view_player(lightVector));
@@ -170,6 +237,16 @@ vec3 diffuse_lighting(
 	//    too, matching how it is treated for direct light (Steadfast).
 	float ambientStr = ambient_strength(subsurfaceScatter ? 0.7071 : worldNormal.y);
 	vec3 lighting = ambient_sky_lighting(max(skyLight, params.nightVision), ambientStr, params.skyAmbient);
+	vec3 visibility, ambientT;
+	float submerged;
+	surface_shadow_light(playerPos, shadowPos, worldNormal, skyLight, visibility, ambientT, submerged);
+	if (submerged > 0.0) {
+		// The water caster establishes outdoor access. Vanilla light levels already
+		// lose a level per water block; do not attenuate that column a second time.
+		vec3 waterAmbient = ambientStr * (MIN_AMBIENT_COLOR * submerged + params.skyAmbient
+		    * ambientT * (SKYLIGHT_STRENGTH * 0.01));
+		lighting = lighting * (1.0 - submerged) + waterAmbient;
+	}
 
 	// 2. Local light: block light + handheld (held is purely camera-distance based).
 	float heldLight = held_light_strength(params.heldLightBase, playerPos);
@@ -186,12 +263,18 @@ vec3 diffuse_lighting(
 	#endif
 
 	// 4. Direct sun/moon, shadow-mapped.
+	vec3 underwaterLight = water_light_direction(worldLightVector);
+	vec3 diffuseLightDirection = normalize(mix(worldLightVector, underwaterLight, submerged));
 	vec3 direct = direct_lighting(
-		worldNormal, worldLightVector, playerPos, shadowPos,
-		skyLight, subsurfaceScatter, isLeaves, isGlass);
-	lighting += direct * params.directLightSurface;
+		worldNormal, diffuseLightDirection, playerPos, shadowPos,
+		skyLight, subsurfaceScatter, isLeaves, isGlass,
+		visibility * (subsurfaceScatter ? 0.7071 : 1.0));
+	// Refraction bends the incident sun ray toward the surface normal. The light
+	// path in the column is distinct from the camera-to-surface path in scene.glsl.
+	// Incoming water transmission is already part of each visibility tap.
+	directRadiance = surfaceColor * direct * params.directLightSurface;
 
-	return surfaceColor * lighting;
+	return surfaceColor * lighting + directRadiance;
 }
 
 #endif

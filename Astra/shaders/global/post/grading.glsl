@@ -49,26 +49,16 @@
 // `colorGrade(applyTonemap(hdr))`, and its applyTonemap returns display space).
 // Grading in linear space would make those three sliders mean something else.
 //
-// --- OPEN ARCHITECTURE QUESTION (escalated as SC-16, NOT decided here) ------
-// Astra's four tonemap operators do not agree on their own output space:
-// uchimura_tonemap() and agx_tonemap() return DISPLAY-referred (AgX carries a
-// pow(..., 2.2) inside itself), while aces_tonemap() ends in to_linear() and
-// reinhard_jodie() has no encode at all, so those two return LINEAR. No single
-// insertion point for apply_grading is correct for all four - the order above
-// double-encodes AgX/Uchimura, and grading-in-linear would quietly be the default
-// for ACES/Reinhard-Jodie. Settling it means editing lib/tonemap.glsl (M1) and/or
-// program/final.fsh (E1), both outside C6's remit (tasks-advanced-2: "C6 只调参数
-// 与预设；需要动管线/插入点属架构问题，报 E 系裁决"). Until SC-16 closes: the
-// parameter VALUES below are C6's deliverable, the CHAIN ORDER above is E1's to
-// confirm.
+// SC-16 is resolved: apply_tonemap returns display-linear RGB for every operator.
+// AgX's internal power is its output linearisation, not a second sRGB transfer.
+// final performs exactly one srgb_encode before display-space grading.
 // ============================================================
 
 // ------------------------------------------------------------
 // PRESET - the look of the pack in one block.
-// Every value is a starting point taken from Refrax v1.3.1's calibration and is
-// UNVERIFIED on real hardware (SC-6: no runnable Iris instance). C6's acceptance
-// is a user visual pass against Refrax reference screenshots, which has not
-// happened yet; do not read these numbers as settled taste.
+// Factory values began with Refrax v1.3.1's calibration and were adjusted after
+// the first two Iris visual rounds. Matching Refrax still needs the user's
+// visual verdict; source-level adjustments do not settle the final look.
 //
 // All three GUI profiles currently ship IDENTICAL grading values, and they do it
 // in shaders.properties (profile.PERFORMANCE/BALANCED/ULTRA set the slider macros

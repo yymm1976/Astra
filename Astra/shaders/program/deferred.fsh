@@ -13,7 +13,7 @@ void main() {
     if (depth < 0.999999) {
         uint lightData = uint(round(texelFetch(colortex3, ivec2(gl_FragCoord.xy), 0).r * 255.0));
         if ((lightData & 128u) != 0u) depth = ((depth * 2.0 - 1.0) / MC_HAND_DEPTH) * 0.5 + 0.5;
-        vec3 playerPos = view_player(screen_view(vec3(texcoord, depth)));
+        vec3 playerPos = view_camera_relative(screen_view(vec3(texcoord, depth)));
         float skylight = float(lightData & 127u) / 127.0;
         displayed = astra_apply_medium(source, playerPos, skylight);
     }

@@ -26,6 +26,6 @@ void main() {
 	// Behind the camera the projection flips sign. godraysExposure already folds in an
 	// offscreen / behind-camera fade and the pass early-outs before this varying is
 	// read, but keep it finite so the varying is never NaN.
-	vec2 ndcLight = clipLight.w > 0.0 ? clipLight.xy / clipLight.w : vec2(0.0);
+	vec2 ndcLight = clipLight.w > 0.0 ? clipLight.xy / max(clipLight.w, 0.0001) : vec2(0.0);
 	lightScreenPos = ndcLight * 0.5 + 0.5;
 }

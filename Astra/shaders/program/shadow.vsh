@@ -25,16 +25,14 @@ in vec3 at_midBlock;
 out vec2 texcoord;
 out vec4 tint;                  // vertex colour, feeds the coloured-shadow tint
 out float waterHeight;
+out vec3 shadowPlanePosition;
 
 void main() {
 	vec4 viewPos = gl_ModelViewMatrix * gl_Vertex;
-	// Undoing the shadow view yields player space, which still contains the same
-	// render-origin translation held in gbufferModelViewInverse[3]. The lit vertex
-	// path uses mat3(gbufferModelViewInverse), so remove that translation before
-	// sharing its eye-relative foliage displacement and absolute-water-Y formulas.
-	vec3 playerSpacePos = (shadowModelViewInverse * viewPos).xyz;
-	vec3 playerOriginOffset = gbufferModelViewInverse[3].xyz;
-	vec3 eyeRelativePos = playerSpacePos - playerOriginOffset;
+	// Sodium's region offset already subtracts cameraPosition. Undo only this
+	// pass's shadow view: the result is camera-relative, exactly as in lit.vsh.
+	// The main camera's inverse-view translation is unrelated to this transform.
+	vec3 eyeRelativePos = (shadowModelViewInverse * viewPos).xyz;
 
 	// Raw block.properties IDs - see block.properties for the allocation table.
 	bool isWater = abs(mc_Entity.x - 10001.0) < 0.5;
@@ -59,15 +57,15 @@ void main() {
 
 #ifdef WAVING_FOLIAGE
 	wave_foliage(isLeaves, isGroundFoliage, topOfFoliage, eyeRelativePos);
-	vec3 displacedPlayerSpacePos = eyeRelativePos + playerOriginOffset;
-	viewPos = shadowModelView * vec4(displacedPlayerSpacePos, 1.0);
+	viewPos = shadowModelView * vec4(eyeRelativePos, 1.0);
 #endif
 
 	texcoord = gl_MultiTexCoord0.xy;
 	tint = gl_Color;
 
 	gl_Position = gl_ProjectionMatrix * viewPos;
-	gl_Position.xyz = distort(gl_Position.xyz);
+	shadowPlanePosition = gl_Position.xyz / gl_Position.w;
+	gl_Position.xyz = distort(gl_Position.xyz / gl_Position.w) * gl_Position.w;
 
 	// Shadow-transparent glass casts nothing (design.md 4.1). Steadfast writes
 	// vec4(-1.0), which lands on the far-plane corner with w = -1 and is not reliably

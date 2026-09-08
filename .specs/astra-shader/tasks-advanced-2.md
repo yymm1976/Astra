@@ -8,13 +8,13 @@
 | # | 里程碑 | 任务 | 内容 | 验收标准 | 依赖 | 状态 |
 |---|---|---|---|---|---|---|
 | C1 | M2 | 光照模块 | `diffuse.glsl`、`blocklight.glsl`（含日光压制）、`sss.glsl`（植被经验近似）、手持光、闪电点光 | 仿原版方向性环境光 + skylight 立方衰减；日光压制生效无跳变；洞底 minAmbient 正确；"清爽"观感基线成立 | E1、B1 | ✅（模块本体；lit 接线归 E1，实机验收待 SC-6） |
-| C2 | M2 | 水下子模块 | **SC-24 重定向（2026-09-06，用户更正：水下对标 Solas）**：`absorption.glsl`/`refraction.glsl`/`caustics.glsl` 参考源由 Steadfast 换为 **Solas**（`_analysis/Solas Shader V2.2b/shaders/lib/water/` 的 waterFog / waterCaustics 等），观感重写为 Solas 水下；接口与签名冻结不变，E2 总成接线不动 | 水下 ≈ **Solas** 单项对标通过；焦散随阴影投射且随深度衰减 | E1、B1 | 🔶 SC-24 换源重写待执行（原 Steadfast 版本体 ✅，见完成记录） |
+| C2 | M2 | 水下子模块 | **SC-24 重定向（2026-09-06，用户更正：水下对标 Solas）**：`absorption.glsl`/`refraction.glsl`/`caustics.glsl` 参考源由 Steadfast 换为 **Solas**（`_analysis/Solas Shader V2.2b/shaders/lib/water/` 的 waterFog / waterCaustics、`program/composite4.glsl` 的 REFRACTION 段），观感重写为 Solas 水下；接口与签名冻结不变，E2 总成接线不动 | 水下 ≈ **Solas** 单项对标通过；焦散随阴影投射且随深度衰减 | E1、B1 | ✅ SC-24 换源已执行（2026-09-06：三件套 Solas 化，225 组驱动编译零错；实机目视对标待 SC-6/E4） |
 | C3 | M3 | 下界特调 | `dimension/nether.glsl`：无日光光照路径（环境光=方块光+熔岩辉光+红底）、熔岩辉光雾（随高度/深度）、独立大气与雾曲线、发光体/传送门增亮 | design.md §4.5 下界条目逐项达成；帧率同主世界标准 | E1、C1 | ✅（模块本体；`fogColor` 与维度覆盖壳归 E1（SC-18），实机验收待 SC-6） |
 | C4 | M3 | 末地特调 | `dimension/end.glsl`：真空暗天空 + 稠密星野（缓慢旋转）、褪色环境光、void 雾渐变、微星云（默认开低强度） | §4.5 末地条目逐项达成；截图可独立辨识为"设计过" | E1、D2 | ✅（模块本体；维度覆盖壳归 E1（SC-18）、天空消费归 D2，实机验收待 SC-6） |
 | C5 | M3 | Voxy 接入 | `voxy.json`、`voxy_opaque/translucent.glsl`、`lit_voxy.fsh`（`EXTERNALLY_DEFINED_UNIFORMS` 模式，参照 Mellow/Steadfast 现成实现） | Voxy LOD 地形光照/水面与主世界一致；不兼容则出实验特性说明 | E1、D1 | 🔶 SC-17已下放：E1接口已冻结；26.2/Voxy0.2.18-beta实例已找到，C5调用映射与D1实际加载待续 |
 | C6 | M4 | 色彩与风格层 | `grading.glsl` 预设定稿（原 T5 下放）：tonemap 选型执行、出厂参数校准（对 Refrax 参考图迭代，起始 饱和 1.12/自然饱和 1.15/对比 1.04）、IGN 抖动配合 | 色调对标 Refrax（用户目视确认）；风格参数 100% 集中在 grading.glsl | M2 完成 | 🔶 SC-16已解决并接入final（单次sRGB后分级）；预设不重写，色调对标待运行素材与用户目视 |
 
-| C7 | M2 | 水面与SSR（SC-15指令下放） | **SC-24 重定向（2026-09-06，用户更正：水面对标 Steadfast）**：surface.glsl 参考源由 Solas 换为 **Steadfast**（`_analysis/Steadfast-0.8.0/shaders/environment/water/`——解析导数程序波浪、Nyquist 比率受限、4 步自适应视差），观感重写为 Steadfast 水面；raytrace.glsl（SSR 基础设施）不动；接口与签名冻结不变 | 水面 ≈ **Steadfast** 单项对标通过；接口符合 design §4.3；E2 集成后另作实机视觉裁决 | E1 | 🔶 SC-24 换源重写待执行（surface 原版 ✅；raytrace 不动） |
+| C7 | M2 | 水面与SSR（SC-15指令下放） | **SC-24 重定向（2026-09-06，用户更正：水面对标 Steadfast）**：surface.glsl 参考源由 Solas 换为 **Steadfast**（`_analysis/Steadfast-0.8.0/shaders/environment/water/`——解析导数程序波浪、Nyquist 比率受限、4 步自适应视差），观感重写为 Steadfast 水面；raytrace.glsl（SSR 基础设施）不动；接口与签名冻结不变 | 水面 ≈ **Steadfast** 单项对标通过；接口符合 design §4.3；E2 集成后另作实机视觉裁决 | E1 | ✅ SC-24 换源已执行（2026-09-06：Steadfast 噪声波场 + 解析导数 + 视差；raytrace 未动；225 组驱动编译零错；实机目视对标待 SC-6/E4） |
 
 ## 协作规则
 
@@ -38,11 +38,29 @@
   + `blocklight.glsl`（133 行：`block_lighting()` 含日光压制、`held_light_strength()` 手持光衰减、
   `lightning_point_light()` 闪电点光）+ `sss.glsl`（60 行：`sss_wrap()` 植被经验近似 + `SSS_STRENGTH`
   滑条化）。日光压制"生效无跳变"与洞底 minAmbient 为静态推演结论，实机未证。
-- **C2 ✅**：`global/water/absorption.glsl`（56 行，exp 深度模型 + 三档 `WATER_CHARACTER`）、
-  `refraction.glsl`（112 行，单跳 + `textureGather` 边界拒绝 + 外 10% 混回背景）、
-  `caustics.glsl`（328 行，`CAUSTICS[6]` crest 表 + `water_caustics()` 经 B1 的 shadowcolor0 高度解码反推水深）。
-  按 §4.3 与"不越界做集成"的指令，`surface.glsl`/`raytrace.glsl` 两个 Z1 空壳**未动**——它们的归属缺口已登记为 SC-15。
-  **SC-24 更正（2026-09-06）**：用户澄清水下对标应为 Solas（原表述记反），C2 三个模块换源重写为 Solas 观感，状态回 🔶。
+- **C2 ✅（SC-24 换源重写，2026-09-06）**：三个模块参考源由 Steadfast 换成 Solas 并重写本体——
+  `absorption.glsl`（Solas waterFog：标量指数雾 1-exp(-6·d) 反解为逐通道 sigma = -ln(waterColor)，归一后红通道对齐 Solas 的 32 格 ≈0.85 雾浓度；三档 WATER_CHARACTER 只改水色）＋
+  `refraction.glsl`（Solas composite4 屏幕空间扰动：剔沿视线分量 → vec2(1/aspect,1)·(proj[1][1]/1.37)/max(len,8)；textureGather min/max 深度拒绝保留）＋
+  `caustics.glsl`（Solas waterCaustics：双层漂移噪声 5 点差分交叉相乘，替代六层 crest 表；Astra 的水深门控/48–64 淡出/footprint 抑制三包络保留）。
+  签名全部未动：`water_absorption(float)`、`refract_trace(...)`、`water_caustics(playerPos, shadowPos, time, footprint)`——E2 接线（lit.fsh/scene.glsl/water.glsl）零改动。
+  `check_pack.py` 与 `compile_glsl.py`（225 组三档）双通过。出处台账 3 行改 Solas + REWRITE REQUIRED 标记；
+  §4.3 与 SC-19 的"焦散保留 crest 算法"表述已冲突，见下方提示。目视对标待 SC-6/E4。
+  **悬浮颗粒接线（同日追加）**：`global/water/particles.glsl`（自写，四包均无屏幕空间悬浮颗粒实现，
+  观感对标 Solas：三层壳距 3/6/12 格 + 3D cell 整型 hash motes + 慢闪烁 + 水吸收距离衰减 + 天光门控），
+  接入 `program/deferred.fsh`（加进显示缓冲、不进 colortex4 的 SSR 背景）；deferred 启用条件加
+  `|| defined UNDERWATER_PARTICLES`（E2 条件的一项同语法扩展，非新 pass/buffer）。SC-28 的
+  UNDERWATER_PARTICLES 孤儿 WARN 已消（72/25 wired）；§4.3 水下氛围"悬浮颗粒"缺项补齐。
+- **C7 ✅（SC-24 换源重写，2026-09-06）**：`surface.glsl` 由"自写正弦解析波"重写为 Steadfast 方案——
+  `WATER_RIPPLES[4] + WATER_CRESTS[2]` 噪声波场（值噪声内联、surface_ 前缀防与 Solas caustics 冲突）、
+  `surface_noise_gradient()` 一次 textureGather 解析梯度、`surface_antialias()` Nyquist 比率受限
+  （固定 BALANCED 档）、`surface_parallax()` 4 步自适应视差（切线视线由 worldPos - cameraPosition 现算，
+  Z 取 -abs(y) 使上下表面共用 Steadfast 约定）；roughness = 被 Nyquist 滤掉的坡度能量（对 Steadfast 的增补，
+  供 E2 反射/SSR 消费）。签名未动：`water_surface(vec3, vec3, float) -> WaterSurface{normal, roughness}`。
+  `raytrace.glsl` 未动（SSR 基础设施）。出处台账 surface 行由"自写"改为 Steadfast GPL 派生 + 文件头声明。
+  225 组驱动编译零错。目视对标待 SC-6/E4。
+  ⚠ **规格冲突提示（P2，已在最终报告中上报用户）**：design.md §4.3 决议行（SC-19/E2，2026-09-06）
+  写"焦散 C2 保留 crest 算法"，而 SC-24（同日晚些）要求焦散换 Solas 高度差分——本批按 SC-24 执行
+  （用户本次指令即换源），§4.3 该行文字待 E 系复核更新。
 - **C3 ✅**：`global/dimension/nether.glsl`（481 行：`nether_lighting()` 无日光路径=方块光+熔岩辉光+红底、
   `nether_fog()` 熔岩辉光雾随高度/深度、`NetherParams` struct 传值避开冻结的 uniform 集、发光体/传送门增亮）。
   唯一需要 E1 供给的输入是 `uniform vec3 fogColor`，已在文件头标 ⚠ REQUIRED FROM E1。

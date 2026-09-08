@@ -1,57 +1,60 @@
 #ifndef ASTRA_GLOBAL_WATER_ABSORPTION_GLSL
 #define ASTRA_GLOBAL_WATER_ABSORPTION_GLSL
-
-// Astra v1 — global/water/absorption.glsl
-// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
-//   source: _analysis/Steadfast-0.8.0/shaders/environment/water/absorption.glsl
-// This file is a derivative of Steadfast and is licensed under the GNU General
-// Public License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
-// _analysis/Steadfast-0.8.0/LICENSE.md. Redistribution is permitted only under that
-// license including Steadfast's Section 7 additional terms.
-// Publish gate: design.md 9.3 + escalations.md SC-14 (⏸ pending user decision).
+// Historical references: Solas waterFog.glsl and Steadfast water absorption
+// presets. The current block-distance transport and spectral values are written
+// for Astra; prior source history remains documented in THIRD-PARTY.md.
+// SC-34, written for Astra. Beer-Lambert extinction in inverse blocks. All
+// consumers use distance in blocks, with no 32-block plateau and no second fog
+// multiplier. Absorption and scattering have independent user controls.
 //
-// Beer-Lambert transmission through water: each channel decays as exp(depth * coeff),
-// red fastest, which is what makes water read blue-green with depth (design.md 4.3).
-//
-// Adaptations for Astra (design.md 3.2 / 4.3 / SC-1):
-//   - Steadfast picks the palette with `#define WATER_CHARACTER BALANCED` (a token
-//     macro pasted into the exponent). Astra's WATER_CHARACTER is a NUMERIC enum
-//     (0/1/2 = WATER_COLD/WATER_BALANCED/WATER_TROPICAL, settings.glsl), so the three
-//     verbatim -vec3 coefficients are selected with #if on the numeric value.
-//   - WATER_ABSORPTION (0-100 slider; SC-1: 0 = OFF) scales the optical depth.
-//     At 0 the exponent is 0 -> exp(0) = vec3(1) -> unity transmission, which IS the
-//     "off" semantics SC-1 asks for, with no separate branch and no discontinuity.
-//   - Steadfast's DARK_UNDERWATER brightness-reduction option is not in Astra's option
-//     set; its shipped default (1.0) makes the term a multiply-by-one no-op, so it is
-//     dropped rather than carried as dead code.
-//   - Renamed to snake_case (design.md 3.2).
-//
-// Uniforms: none — pure function of the caller-supplied depth.
-// Requires lib/settings.glsl (WATER_CHARACTER, WATER_ABSORPTION) included first — program/*
-//   guarantees the order (design.md 3.2 layer 2), matching lib/colors.glsl. Includes no lib/*.
-// Consts:   none local (the coefficient is function-scoped, selected by WATER_CHARACTER).
-// Owner: C2. Consumer: E2 (water-surface integration) and the deferred underwater fog.
-//   C2 delivers the UNDERWATER BODY ONLY (task directive 不越界): computing `depth`
-//   (from the refraction hit or the colortex3 skylight heuristic, design.md 4.3) and
-//   applying the transmission to the scene both belong to E2, not here.
-
-// Transmission through normalized optical depth.
-//   depth: caller-supplied water path in [0, 1]. E2 maps physical blocks to
-//          clamp(pathBlocks / 32, 0, 1) before this call.
-// Returns a per-channel factor in [0, 1]: vec3(1) = clear, -> vec3(0) = fully absorbed.
-vec3 water_absorption(float depth) {
-	// Coefficient magnitudes are Steadfast's verbatim COLD/BALANCED/TROPICAL triples.
-	// Negative so exp() decays; red (x) is largest = absorbed first.
-	#if WATER_CHARACTER == WATER_COLD
-		const vec3 character = -vec3(16.0, 5.0, 1.0);
-	#elif WATER_CHARACTER == WATER_TROPICAL
-		const vec3 character = -vec3(32.0, 2.0, 0.5);
-	#else
-		const vec3 character = -vec3(16.0, 3.0, 1.0);   // BALANCED (default)
-	#endif
-
-	float absorptionDepth = clamp(depth, 0.0, 1.0) * (WATER_ABSORPTION * 0.01);
-	return exp(absorptionDepth * character);
+// Water character is the ABOVE-water appearance of the transmitted bed. It must
+// not turn the submerged camera's entire medium green. Separate this artistic
+// interface-path spectrum from the clearer blue volume and incoming illumination.
+vec3 water_absorption_coefficient() {
+    return vec3(0.055, 0.028, 0.010) * (WATER_ABSORPTION * 0.01);
 }
-
+vec3 water_surface_absorption() {
+    #if WATER_CHARACTER == WATER_COLD
+        // Colder water retains relatively more blue than the other types.
+        vec3 coefficient = vec3(0.200, 0.032, 0.020);
+    #elif WATER_CHARACTER == WATER_TROPICAL
+        // Strongest red removal and longest green transport length.
+        vec3 coefficient = vec3(0.320, 0.018, 0.032);
+    #else
+        // Default: clear cyan shallows, teal middle depths, dark deep water.
+        vec3 coefficient = vec3(0.260, 0.022, 0.026);
+    #endif
+    return coefficient * (WATER_ABSORPTION * 0.01);
+}
+// Spectral single-scattering coefficient (100% fog-density reference point).
+// Kept small in red so the teal selectivity bought above is not diluted.
+vec3 water_scattering_coefficient() {
+    return vec3(0.008, 0.023, 0.055) * (UNDERWATER_FOG_DENSITY * 0.01);
+}
+vec3 water_extinction() {
+    return water_absorption_coefficient() + water_scattering_coefficient();
+}
+vec3 water_transmission(float distanceInWater) {
+    return exp(-max(distanceInWater, 0.0) * water_extinction());
+}
+vec3 water_transport(vec3 radiance, float distanceInWater, vec3 incidentLight, vec3 extinction) {
+    vec3 transmission = exp(-max(distanceInWater, 0.0) * extinction);
+    // Single-scattering source term: sigma_s / sigma_t * (1 - T). At density
+    // zero this adds nothing; at zero total extinction it returns the input.
+    vec3 scatteringAlbedo = vec3(water_scattering_coefficient()) / max(extinction, vec3(1e-6));
+    return radiance * transmission + incidentLight * scatteringAlbedo * (1.0 - transmission);
+}
+vec3 water_medium(vec3 radiance, float distanceInWater, vec3 incidentLight) {
+    return water_transport(radiance, distanceInWater, incidentLight, water_extinction());
+}
+// This is called only for an interface-to-bed/reflected-terrain leg, never for
+// the eye-to-interface volume. It preserves zero-distance transparency and the
+// bed's texture; it does not tint reflections or the complete screen.
+vec3 water_interface_extinction() {
+    return isEyeInWater == 0
+        ? water_surface_absorption() + water_scattering_coefficient() : water_extinction();
+}
+vec3 water_interface_medium(vec3 radiance, float distanceInWater, vec3 incidentLight) {
+    return water_transport(radiance, distanceInWater, incidentLight, water_interface_extinction());
+}
 #endif

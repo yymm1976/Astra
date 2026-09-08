@@ -11,9 +11,18 @@ const float ASTRA_PLANET_RADIUS = 1.0;
 const float ASTRA_ATMOS_RADIUS = 1.035;
 const float ASTRA_RAYLEIGH_HEIGHT = 0.010;
 const float ASTRA_MIE_HEIGHT = 0.0040;
-const vec3 ASTRA_BETA_R = vec3(5.6, 12.8, 30.0);
+// 2026-09-06 P0-1 calibration (first visual round, docs/2026-09-06-first-visual-round-fix-order.md):
+// the raw model output was ~11-23x below the pack's own gradient palette at noon
+// (zenith display (0.007,0.047,0.102) vs Steadfast reference ~(0.36,0.51,0.77), and the
+// 2-sample light-path estimate over-extincts blue on long horizon paths -> green horizon.
+// BETA_R x0.7 and DAY_GAIN 22 were the first-round adjustment. The second-round
+// horizon still needed the angular continuation below (SC-32); the historical
+// diagnosis script does not model all subsequent changes.
+const vec3 ASTRA_BETA_R = vec3(3.92, 8.96, 21.0);
 const float ASTRA_BETA_M = 3.4;
 const float ASTRA_MIE_G = 0.76;
+const float ASTRA_SKY_DAY_GAIN = 22.0;
+const float ASTRA_SKY_HORIZON_ELEVATION = 0.10;
 
 float astra_atmos_exit(vec3 origin, vec3 direction, float radius) {
 	float b = dot(origin, direction);
@@ -39,7 +48,17 @@ float astra_phase_mie(float cosineTheta) {
 }
 
 vec3 astra_minishita_sky(vec3 worldDir) {
-	vec3 viewDir = normalize(vec3(worldDir.x, max(worldDir.y, -0.045), worldDir.z));
+	// Two view samples cannot resolve the long grazing optical path, and negative
+	// rays can enter the solid planet. Continue the stable lower sky into the
+	// horizon instead of amplifying its erroneous olive extinction.
+	vec3 viewDir = normalize(worldDir);
+	if (viewDir.y < ASTRA_SKY_HORIZON_ELEVATION) {
+		float horizontalLength = length(viewDir.xz);
+		vec2 azimuth = horizontalLength > 1e-5 ? viewDir.xz / horizontalLength : vec2(0.0, 1.0);
+		// sqrt(1 - 0.10^2): preserve a fixed elevation, including downward reflections.
+		viewDir = vec3(azimuth.x * 0.9949874371, ASTRA_SKY_HORIZON_ELEVATION,
+		               azimuth.y * 0.9949874371);
+	}
 	vec3 observer = vec3(0.0, ASTRA_PLANET_RADIUS + 0.0008, 0.0);
 	float distanceToTop = astra_atmos_exit(observer, viewDir, ASTRA_ATMOS_RADIUS);
 
@@ -47,7 +66,11 @@ vec3 astra_minishita_sky(vec3 worldDir) {
 	// a much lower irradiance, avoiding a second integration and keeping this below the D2 budget.
 	float daylight = step(0.0, worldSunVector.y);
 	vec3 sourceDir = normalize(mix(-worldSunVector, worldSunVector, daylight));
-	float sourceStrength = mix(0.055 + 0.025 * moonProgress, 1.0, daylight);
+	// Dusk/dawn rolloff on the day gain (2026-09-06 visual round): the P0-1 calibration
+	// is sized for noon; without the rolloff the low sun's long-path olive radiance was
+	// also amplified 22x and read as yellow foil on the water surface from below.
+	float sourceStrength = mix(0.055 + 0.025 * moonProgress,
+		ASTRA_SKY_DAY_GAIN * mix(0.40, 1.0, sunProgress), daylight);
 	float mu = dot(viewDir, sourceDir);
 	float phaseR = astra_phase_rayleigh(mu);
 	float phaseM = astra_phase_mie(mu);
@@ -78,10 +101,8 @@ vec3 astra_minishita_sky(vec3 worldDir) {
 	radiance += vec3(0.0035, 0.0065, 0.014) * night * (0.35 + 0.65 * max(viewDir.y, 0.0));
 	radiance *= mix(1.0, 0.58, rainStrength);
 
-	// The spherical approximation has no terrain occluder. Fade its small negative-y safety band
-	// to a ground haze so rays below the horizon never expose the far side of the atmosphere.
-	vec3 groundHaze = mix(vec3(0.008, 0.011, 0.016), radiance, 0.32);
-	return max(vec3(0.0), mix(groundHaze, radiance, smoothstep(-0.045, 0.018, worldDir.y)));
+	// Sky, reflections and fully fogged terrain share this continuation.
+	return max(vec3(0.0), radiance);
 }
 
 #endif

@@ -96,10 +96,15 @@ vec4 fog_v2(
 		fogColor = vec3(0.0);
 		skyFogStrength = 0.0;
 	} else if (isEyeInWater == 1) {
-		// Underwater fog is far denser than air; this is roughly exp2 fog from the
-		// fixed-function pipeline. No sky colour: you cannot see the sky through it.
+		// Underwater fog: curve re-based on Solas getWaterFog (2026-09-06 visual round,
+		// issue "水下太黑"; design 4.3 says the underwater look targets Solas).
+		// Solas uses 1-exp(-6 * 0.01 * d * density) — the linear exponent fogs far
+		// faster than the old squared one (32 blocks: 0.85 vs 0.34), which is what
+		// makes Solas' underwater read as bright teal instead of murky dark terrain.
+		// From Solas V2.2b lib/water/waterFog.glsl (licence undeclared) — constant-level.
+		// No sky colour: you cannot see the sky through it.
 		atmosphereFog = 1.0 - exp(
-			-pow(fragDistance * 0.02 * (UNDERWATER_FOG_DENSITY * 0.01), 2.0));
+			-fragDistance * 0.06 * (UNDERWATER_FOG_DENSITY * 0.01));
 		fogColor = params.underwaterColor;
 		skyFogStrength = 0.0;
 	} else if (isEyeInWater == 2) {

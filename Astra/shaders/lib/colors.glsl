@@ -29,11 +29,15 @@
 // value exceeds 1.0 and is folded back by the tonemap operator (lib/tonemap.glsl) in the
 // final pass chain (program/final.fsh); global/post/grading.glsl (C6) owns the exposure and
 // display-space grading wrapped around it.
-// This is Steadfast's ORANGER_BLOCKLIGHT default — the profile Steadfast ships for
-// MINISHITA / PARAGON / SEMI_NATURAL, i.e. the "warm orange" look, not the paler
-// non-oranger vec3(6.4, 2.88, 0.768). BLOCKLIGHT_STRENGTH scales the *intensity* that
-// fills this colour (see blocklight.glsl), not the colour itself.
-const vec3 BLOCKLIGHT_COLOR = vec3(8.0, 2.0, 0.2);
+// BLOCKLIGHT_STRENGTH scales intensity. The SC-34 palette replaces the previously
+// selected Steadfast ORANGER_BLOCKLIGHT (8, 2, 0.2), which overwhelmed grey stone.
+// SC-34: warm white, with approximately the same luminance as the old orange
+// source. Correct the emitter spectrum instead of desaturating all cave materials.
+// 2026-09-07 visual round: small red/yellow nudge toward a slightly warmer torch glow.
+//   Direction matches Steadfast's ORANGER_BLOCKLIGHT lean without its overwhelming
+//   magnitude: gain (R) and back off (B) by the same fraction so the average luminance
+//   stays within ~5% of the prior value (cave materials keep their current tonemap fold).
+const vec3 BLOCKLIGHT_COLOR = vec3(4.4, 2.9, 1.7);
 
 // Cave-floor minimum ambient. Two parts:
 //   MIN_AMBIENT_TINT  — the cool blue-ish direction of "darkness that is not pure black"

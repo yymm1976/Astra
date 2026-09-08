@@ -1,0 +1,24 @@
+{
+  "source": "C:\\Users\\杨铭\\Desktop\\MC模组开发\\Astra光影开发\\Astra",
+  "target": "D:\\zhenhebao\\.minecraft\\versions\\生电优化整合包 (Fabric)\\shaderpacks\\Astra",
+  "source_files": 214,
+  "instance_files": 214,
+  "copied_files": [
+    "THIRD-PARTY.md",
+    "shaders/global/lighting/diffuse.glsl",
+    "shaders/global/post/bloom.glsl",
+    "shaders/global/water/caustics.glsl",
+    "shaders/global/water/light_shafts.glsl",
+    "shaders/global/water/optics.glsl",
+    "shaders/global/water/raytrace.glsl",
+    "shaders/global/water/refraction.glsl",
+    "shaders/global/water/surface.glsl",
+    "shaders/program/lit.fsh",
+    "shaders/program/scene.glsl",
+    "shaders/program/water.glsl"
+  ],
+  "missing": [],
+  "extra": [],
+  "content_differences": [],
+  "comparison": "Every file compared by full byte content."
+}

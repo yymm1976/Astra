@@ -102,17 +102,17 @@ option.WATER_CHARACTER.comment=Water palette: 0 = Cold, 1 = Balanced, 2 = Tropic
 option.WATER_CAUSTICS.comment=Light patterns on the seafloor, cast along with shadows.
 option.UNDERWATER_PARTICLES.comment=Suspended particles while underwater. (Performance: medium)
 option.FANCY_TRANSLUCENTS.comment=Premultiplied-alpha blending for water/translucents; enables free reflection/refraction mixing. (Performance: low)
-option.FOG_DENSITY.comment=Density of distance fog. (Performance: negligible)
-option.SKY_FOG_STRENGTH.comment=How much fog blends into the sky; low values also skip sky fog color work.
+option.FOG_DENSITY.comment=Distance fog density (factory 65%, tuned for clear aerial perspective).
+option.SKY_FOG_STRENGTH.comment=Near/mid fog sky blend (factory 25%; the far horizon always converges to sky).
 option.BORDER_FOG.comment=Fog at the render-distance border.
 option.CAVE_FOG.comment=Fog inside caves.
-option.UNDERWATER_FOG_DENSITY.comment=Density of underwater fog. (Performance: negligible)
+option.UNDERWATER_FOG_DENSITY.comment=Underwater fog density (factory 55%, targeting 25-40 block visibility).
 option.NETHER_FOG_DENSITY.comment=Nether fog density with its own height/density curve. (Performance: negligible)
 option.END_FOG_DENSITY.comment=End void fog gradient density. (Performance: negligible)
 option.TONEMAP_OPERATOR.comment=0 = Uchimura (default), 1 = AgX, 2 = ACES, 3 = Reinhard-Jodie.
 option.EXPOSURE.comment=Color grading: overall exposure. (Performance: negligible)
-option.SATURATION.comment=Color grading: saturation (factory default 112, Refrax-style target).
-option.VIBRANCE.comment=Color grading: vibrance - saturation weighted toward less-saturated colors (factory 115).
+option.SATURATION.comment=Color grading: saturation (factory 105, Refrax-style target).
+option.VIBRANCE.comment=Color grading: vibrance weighted toward less-saturated colors (factory 108).
 option.CONTRAST.comment=Color grading: contrast (factory default 104).
 option.COLOR_TEMPERATURE.comment=Color grading: warm/cool shift. Negative = cooler.
 option.BLOOM.comment=Soft glow around bright areas. (Performance: low)
@@ -150,3 +150,13 @@ screen.WATER=Water
 screen.FOG=Fog
 screen.POST=Post Processing
 screen.PERFORMANCE=Performance & Advanced
+
+option.UNDERWATER_LIGHT_SHAFTS=Underwater Sun Shafts
+option.UNDERWATER_LIGHT_SHAFTS.comment=Sunlight passing through water and gaps in shadows. Requires Shadows; independent of air Godrays.
+option.UNDERWATER_SHAFT_STRENGTH=Underwater Shaft Strength
+option.UNDERWATER_SHAFT_STRENGTH.comment=Brightness of underwater sun shafts without increasing water fog density.
+option.UNDERWATER_SHAFT_SAMPLES=Underwater Shaft Detail
+option.UNDERWATER_SHAFT_SAMPLES.comment=Higher values preserve narrower shafts at a greater GPU cost.
+value.UNDERWATER_SHAFT_SAMPLES.16=Fast
+value.UNDERWATER_SHAFT_SAMPLES.24=Balanced
+value.UNDERWATER_SHAFT_SAMPLES.32=Fine

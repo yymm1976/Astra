@@ -354,6 +354,7 @@ PENDING_CONSUMERS = {
     "global/water/refraction.glsl": "C2",
     "global/water/absorption.glsl": "C2",
     "global/water/caustics.glsl": "C2",
+    "global/water/particles.glsl": "C2",
     "global/post/godrays.glsl": "B4",
     "global/post/bloom.glsl": "B5",
     "global/post/grading.glsl": "C6",
@@ -614,6 +615,10 @@ def check_provenance():
             c.fail(f"{path}: has provenance header ('From {src[:40]}') but no ledger row")
     for row in rows:
         joined = " ".join(row)
+        # Self-written ledger rows (Astra组合/Astra自写/D2自写/...) record provenance of
+        # NON-borrowed files; the body-naming check below only applies to borrow rows.
+        if "自写" in joined or "self-written" in joined:
+            continue
         m = re.search(r"([A-Za-z0-9_./-]+\.(?:glsl|fsh|vsh|properties|lang|png|json|md))", joined)
         if m:
             fname = m.group(1)
@@ -725,32 +730,131 @@ def check_final_chain():
 FORMAT_NAMES = ["colortex0Format", "colortex1Format", "colortex2Format",
                  "colortex3Format", "colortex4Format", "shadowcolor0Format"]
 
+ENGINE_CONST_NAMES = {
+    "shadowMapResolution", "shadowDistance", "shadowDistanceRenderMul",
+    "entityShadowDistanceMul", "noiseTextureResolution", "sunPathRotation",
+    "shadowHardwareFiltering",
+}
 
-def check_buffer_formats():
-    c = Check(11, "design 2.3: all buffer formats declared as LIVE const int inside a compiled closure")
-    graph, _ = build_include_graph()
-    entries = [p for p in graph if is_entry(p)]
-    reach = closure(entries, graph)
-    live = set()
-    for p in reach:
+
+def _numeric_literal(value):
+    return bool(re.fullmatch(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?[fF]?", value.strip()))
+
+
+def check_iris_parser_contracts():
+    """Parser constraints learned from SC-21..SC-27 on Iris 1.11.2."""
+    c = Check(11, "Iris 1.11.2 parser contracts (SC-21..SC-27)")
+
+    shader_files = list(walk_shader_files())
+
+    # SC-21: Iris treats anything after the closing quote as part of the path.
+    for p in shader_files:
+        for lineno, line in enumerate(read(p).splitlines(), 1):
+            if re.match(r"^\s*#include\b", line) and not re.fullmatch(
+                    r'\s*#include\s+"[^"]+"\s*', line):
+                c.fail(f"{pk(p)}:{lineno}: include must end at the closing quote")
+
+    # SC-22: texture directives require texture.<stage>.<sampler>. SC-27 currently
+    # uses the conventional textures/noise.png auto-binding route, so zero entries is valid.
+    _, properties_text = parse_properties()
+    texture_count = 0
+    for lineno, line in enumerate(logical_lines(properties_text), 1):
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key = line.split("=", 1)[0].strip()
+        if not key.startswith("texture."):
+            continue
+        texture_count += 1
+        if "." not in key[len("texture."):]:
+            c.fail(f"shaders.properties logical line {lineno}: single-segment texture key '{key}'")
+
+    # SC-23: Iris engine const directives must reduce to literals. Simple option
+    # macros are accepted only when their current default is itself one numeric literal.
+    settings_macros = {}
+    settings_text = read(PACK / "lib" / "settings.glsl")
+    for m in re.finditer(r"^\s*#define\s+([A-Z][A-Z0-9_]*)\s+([^\s/]+)",
+                         settings_text, flags=re.M):
+        settings_macros[m.group(1)] = m.group(2)
+    engine_consts = 0
+    for p in shader_files:
         body = strip_comments(read(p))
-        for n in FORMAT_NAMES:
-            if re.search(r"\bconst\s+int\s+" + n + r"\s*=", body):
-                live.add(n)
-    for p in sorted(walk_shader_files()):
-        raw = read(p)
-        for n in FORMAT_NAMES:
-            if n in raw and n not in live and p not in reach:
-                c.warn(f"{pk(p)}: {n} mentioned in a file nobody compiles")
-    inert = [n for n in FORMAT_NAMES
-             if n not in live and any(n in read(p) for p in walk_shader_files())]
-    if inert:
-        c.fail("declared only inside a comment (Iris never sees it, design 2.3 not in force): "
-               + ", ".join(inert))
-    missing = [n for n in FORMAT_NAMES if n not in live]
-    if missing:
-        c.fail("no live const int in any compiled closure: " + ", ".join(missing))
-    c.note(f"{len(live)}/{len(FORMAT_NAMES)} buffer formats live in the compiled closure")
+        for m in re.finditer(r"\bconst\s+(bool|int|float|vec4)\s+(\w+)\s*=\s*([^;]+);", body):
+            ctype, name, value = m.groups()
+            if name not in ENGINE_CONST_NAMES and not name.endswith("ClearColor"):
+                continue
+            engine_consts += 1
+            value = settings_macros.get(value.strip(), value.strip())
+            if ctype == "bool":
+                valid = value in ("true", "false")
+            elif ctype in ("int", "float"):
+                valid = _numeric_literal(value)
+            else:
+                vm = re.fullmatch(r"vec4\s*\((.*)\)", value)
+                args = [x.strip() for x in vm.group(1).split(",")] if vm else []
+                valid = len(args) == 4 and all(_numeric_literal(x) for x in args)
+            if not valid:
+                c.fail(f"{pk(p)}: engine const {name} must use literal initializer, got '{value}'")
+
+    # SC-27 supersedes the older entry-shell placement rule: this Iris build rejects
+    # every active *Format const, regardless of its location.
+    active_formats = []
+    for p in shader_files:
+        body = strip_comments(read(p))
+        for m in re.finditer(r"\bconst\s+int\s+(\w+Format)\s*=", body):
+            active_formats.append(f"{pk(p)}:{m.group(1)}")
+    if active_formats:
+        c.fail("active *Format const forbidden by SC-27: " + ", ".join(active_formats))
+
+    # SC-26: when Voxy activates #ifdef VOXY, every vx* symbol used by shader code
+    # must have a declaration in the shared uniform layer.
+    uniform_path = PACK / "lib" / "uniforms.glsl"
+    uniform_body = strip_comments(read(uniform_path))
+    declared_vx = set(re.findall(r"\buniform\s+\w+\s+(vx[A-Z]\w*)\s*;", uniform_body))
+    used_vx = set()
+    for p in shader_files:
+        body = strip_comments(read(p))
+        body = re.sub(r"\buniform\s+\w+\s+vx[A-Z]\w*\s*;", " ", body)
+        used_vx |= set(re.findall(r"\b(vx[A-Z]\w*)\b", body))
+    missing_vx = sorted(used_vx - declared_vx)
+    if missing_vx:
+        c.fail("Voxy symbol(s) used without lib/uniforms.glsl declaration: "
+               + ", ".join(missing_vx))
+
+    # SC-28: Iris registers a boolean option ONLY when shader source references it
+    # via #ifdef/#ifndef (OptionAnnotatedSource parses just #define/const/#ifdef/
+    #ifndef - "#if defined NAME" is invisible to the scanner). Unreferenced booleans
+    # are dropped -> "Invalid pack option" warnings and profile toggles ignored.
+    boolean_options = {}
+    for m in re.finditer(r"^\s*(//?)?\s*#define\s+([A-Z][A-Z0-9_]*)\s*(//[^\n]*)?",
+                         settings_text, flags=re.M):
+        name, tail = m.group(2), m.group(3) or ""
+        if re.search(r"\[\s*(?:false true|true false)\s*\]", tail):
+            boolean_options[name] = m.group(1) != "//"
+    references = {}
+    defined_only = {}
+    for p in shader_files:
+        if Path(p).name == "settings.glsl":
+            continue
+        body = strip_comments(read(p))
+        for m in re.finditer(r"^\s*#if(?:def|ndef)\s+([A-Z][A-Z0-9_]*)", body, flags=re.M):
+            references.setdefault(m.group(1), set()).add(pk(p))
+        for m in re.finditer(r"\bdefined\s+([A-Z][A-Z0-9_]*)", body):
+            defined_only.setdefault(m.group(1), set()).add(pk(p))
+    for name in sorted(boolean_options):
+        if name in references:
+            continue
+        where = sorted(defined_only.get(name, set()))
+        if where:
+            c.warn(f"boolean option {name} referenced only via defined() in "
+                   f"{', '.join(where)} - Iris cannot see it; add an "
+                   f"#ifdef {name} reference (SC-28)")
+        else:
+            c.warn(f"boolean option {name} has no #ifdef/#ifndef reference in any "
+                   f"shader - Iris drops it until its owning task wires it (SC-28)")
+
+    c.note(f"{texture_count} staged texture directive(s); {engine_consts} engine const(s); "
+           f"{len(declared_vx)} Voxy uniform declaration(s); Iris default buffer formats; "
+           f"{len(references)}/{len(boolean_options)} boolean option(s) wired")
     return c
 
 
@@ -767,7 +871,7 @@ def main():
     check_provenance()
     check_bayer()
     check_final_chain()
-    check_buffer_formats()
+    check_iris_parser_contracts()
     for c in CHECKS:
         c.render()
     print("=" * 72)

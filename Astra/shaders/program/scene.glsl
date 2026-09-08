@@ -8,9 +8,11 @@
 #include "/global/lighting/shadowmap.glsl"
 #include "/global/lighting/blocklight.glsl"
 #include "/global/lighting/sss.glsl"
+#include "/global/water/absorption.glsl"
+#include "/global/water/optics.glsl"
+#include "/global/water/medium_state.glsl"
 #include "/global/lighting/diffuse.glsl"
 #include "/global/atmosphere/fog.glsl"
-#include "/global/water/absorption.glsl"
 #if defined DIMENSION_NETHER
     #include "/global/dimension/nether.glsl"
 #elif defined DIMENSION_END
@@ -47,16 +49,101 @@ vec3 astra_reflection_sky(vec3 worldDir, float roughness) {
         return astra_sky_reflection(worldDir, roughness);
     #endif
 }
-vec3 astra_underwater_color() {
-    #if WATER_CHARACTER == WATER_COLD
-        vec3 waterTint = vec3(0.015, 0.10, 0.16);
-    #elif WATER_CHARACTER == WATER_TROPICAL
-        vec3 waterTint = vec3(0.01, 0.22, 0.18);
+// Ambient incident radiance only. Direct sunlight belongs to the spatial source
+// below; putting it here also would scatter an unoccluded sun for a second time.
+vec3 astra_water_incident(float skylight) {
+    float access = smoothstep(0.0, 0.40, skylight);
+    #if defined DIMENSION_NETHER || defined DIMENSION_END
+        vec3 outdoor = max(fogColor, vec3(0.0)) * 0.25;
     #else
-        vec3 waterTint = vec3(0.015, 0.14, 0.17);
+        vec3 outdoor = astra_sky_ambient() * (SKYLIGHT_STRENGTH * 0.01);
     #endif
-    float skylight = clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0);
-    return waterTint * mix(0.10, 1.0, skylight * mix(0.15, 1.0, dayUnderwaterFogFade));
+    return mix(MIN_AMBIENT_COLOR, outdoor, access);
+}
+vec3 astra_underwater_color(vec3 viewDir) {
+    float eyeSky = clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0);
+    return astra_water_incident(eyeSky) * water_scattering_coefficient()
+         / max(water_extinction(), vec3(1e-6));
+}
+// Incoming solar radiance at a point in the water. Shared by surface paths and
+// the camera-ray integral. Shadow visibility, entry loss and light-path loss
+// occur here; view-path extinction is supplied by the integrator, never here.
+vec3 astra_water_sun_source(vec3 playerPos, vec3 viewRay, float surfaceHeight) {
+    #if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+        float daylight = skyVisibilityDay * smoothstep(0.0, 0.10, worldSunVector.y);
+        if (daylight <= 0.0) return vec3(0.0);
+        vec3 shadowPos = distort(player_shadow(playerPos)) * 0.5 + 0.5;
+        float coverage = shadow_coverage(playerPos, shadowPos);
+        if (coverage <= 0.0) return vec3(0.0);
+        shadowPos.z -= 0.00001;
+        ShadowTap tap = shadow_read_tap(shadowPos.xy, shadowPos.z);
+        if (surfaceHeight < -10000.0) {
+            if (tap.caster.r >= 0.999) return vec3(0.0);
+            surfaceHeight = decode_water_height(tap.caster.r);
+        }
+        float depth = surfaceHeight - (cameraPosition.y + playerPos.y);
+        if (depth <= 0.0) return vec3(0.0);
+        // The caller establishes that this segment is water. Only opaque
+        // geometry blocks solar energy; absence of a water caster is not darkness.
+        float visibility = tap.opaqueVisibility;
+        vec3 lightDir = water_light_direction(normalize(worldSunVector));
+        float lightDistance = depth / max(lightDir.y, 1e-4);
+        vec3 source = astra_direct_light() * water_light_entry(normalize(worldSunVector))
+                    * water_transmission(lightDistance);
+        vec3 surfaceWorld = cameraPosition + playerPos + lightDir * lightDistance;
+        // direct_light is E/pi (the diffuse shader multiplies it by albedo).
+        // A normalized phase function consumes irradiance E, hence pi here.
+        source *= 3.14159265 * mix(1.0, water_sun_focus(surfaceWorld), smoothstep(0.2, 1.5, depth));
+        return source * (visibility * coverage * daylight * (1.0 - rainStrength)
+                       * water_phase(dot(viewRay, lightDir)));
+    #else
+        return vec3(0.0);
+    #endif
+}
+vec3 astra_water_sun_source(vec3 playerPos, vec3 viewRay) {
+    vec4 state = water_volume_state();
+    float h = isEyeInWater == 1 && state.a > 0.5
+        ? water_unpack_surface_height(state.rg) : -20000.0;
+    return astra_water_sun_source(playerPos, viewRay, h);
+}
+// Analytic atmosphere excludes the vanilla sun sprite. A ray that leaves the
+// water must explicitly include that emitter, otherwise Snell's window has no sun.
+vec3 astra_water_air_sky(vec3 direction) {
+    vec3 sky = astra_sky(direction);
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        float angle = length(normalize(direction) - normalize(worldSunVector));
+        float disk = 1.0 - smoothstep(0.009, 0.014, angle);
+        float aureole = exp(-angle * angle / 0.0025);
+        float daylight = skyVisibilityDay * smoothstep(0.0, 0.10, worldSunVector.y);
+        sky += astra_direct_light() * (disk * 12.0 + aureole * 0.30)
+             * daylight * (1.0 - rainStrength);
+    #endif
+    return sky;
+}
+// Integrate the OTHER leg of a water-surface path (interface to floor, or
+// interface to reflected terrain). The camera leg is handled separately.
+// start MUST be the actual water/air interface, in camera-relative world axes.
+// Its world Y anchors this local column. An upward ray leaving that horizontal
+// interface is outside this volume and correctly receives no water sun source.
+vec3 astra_water_segment(vec3 radiance, vec3 start, vec3 finish, float skylight) {
+    vec3 delta = finish - start;
+    float distanceInWater = length(delta);
+    vec3 result = water_interface_medium(radiance, distanceInWater, astra_water_incident(skylight));
+    #ifdef ASTRA_UNDERWATER_SHAFTS
+        vec3 ray = delta / max(distanceInWater, 1e-5);
+        vec3 sigma = water_interface_extinction();
+        vec3 albedo = vec3(water_scattering_coefficient()) / max(sigma, vec3(1e-6));
+        vec3 sum = vec3(0.0);
+        for (int i = 0; i < 4; ++i) {
+            float a = distanceInWater * float(i) * 0.25;
+            float b = distanceInWater * float(i + 1) * 0.25;
+            vec3 weight = (exp(-sigma * a) - exp(-sigma * b)) * albedo;
+            sum += astra_water_sun_source(start + ray * (0.5 * (a + b)), ray,
+                                         start.y + cameraPosition.y) * weight;
+        }
+        result += sum * (UNDERWATER_SHAFT_STRENGTH * 0.01);
+    #endif
+    return result;
 }
 vec4 astra_fog(vec3 playerPos, float skylight) {
     float distanceToCamera = length(playerPos);
@@ -69,32 +156,69 @@ vec4 astra_fog(vec3 playerPos, float skylight) {
     #elif defined DIMENSION_END
         fog = end_fog(skyStrength, distanceToCamera, distanceToCamera, playerPos);
     #else
-        FogParams params = FogParams(MIN_AMBIENT_COLOR, astra_underwater_color(),
+        FogParams params = FogParams(MIN_AMBIENT_COLOR, astra_underwater_color(direction),
                                      clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0));
         fog = fog_v2(skyStrength, params, distanceToCamera, distanceToCamera, skylight);
     #endif
-    if (skyStrength > 0.0 && fog.a > 0.0) {
-        vec3 sky = astra_reflection_sky(direction, 1.0);
-        #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        if (isEyeInWater == 0 && blindness <= 0.0001 && fog.a > 0.0) {
+            #ifdef CAVE_FOG
+                float eyeSky = clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0);
+                float outdoorWeight = smoothstep(0.0, 0.25, max(skylight, eyeSky));
+            #else
+                float outdoorWeight = 1.0;
+            #endif
+            float horizonConvergence = smoothstep(0.68, 0.98, fog.a) * outdoorWeight;
+            if (skyStrength <= 0.0 && horizonConvergence <= 0.0)
+                return vec4(max(fog.rgb, vec3(0.0)), clamp(fog.a, 0.0, 1.0));
+            // Keep a clean sky target for the fully fogged horizon. SKY_FOG_STRENGTH
+            // controls the near/mid-distance sky contribution, but must not make
+            // fully fogged outdoor terrain darker than the sky behind it.
+            vec3 horizonSky = astra_sky_radiance(direction);
+            vec3 localFogSky = horizonSky;
             #ifdef AIR_PERSPECTIVE
-                sky = fog_air_perspective(sky, direction, astra_direct_light());
+                localFogSky = fog_air_perspective(
+                    localFogSky, direction, astra_direct_light());
             #endif
             #ifdef BIOME_TINT
-                sky = fog_biome_tint(sky, srgb_decode(max(fogColor, vec3(0.0))));
+                // Biome colour belongs to thin local haze. Fade it away before the
+                // horizon converges to the atmosphere, preventing a persistent
+                // fogColor-derived green/yellow band at long range.
+                vec3 biomeFogSky = fog_biome_tint(
+                    localFogSky, srgb_decode(max(fogColor, vec3(0.0))));
+                float biomeTintWindow = 1.0 - smoothstep(0.35, 0.82, fog.a);
+                localFogSky = mix(localFogSky, biomeFogSky, biomeTintWindow);
             #endif
-        #endif
-        fog.rgb += sky * skyStrength;
+            fog.rgb += localFogSky * skyStrength;
+
+            fog.rgb = mix(fog.rgb, horizonSky, horizonConvergence);
+        }
+    #else
+        if (skyStrength > 0.0 && fog.a > 0.0) {
+            vec3 sky = astra_reflection_sky(direction, 1.0);
+            fog.rgb += sky * skyStrength;
+        }
+    #endif
+    if (isEyeInWater == 1 && blindness <= 0.0001) {
+        fog.rgb = astra_underwater_color(direction);
+        // Directional scattering is integrated after translucent geometry (SC-33).
+        // This function supplies only the background medium, once per optical path.
     }
-    if (isEyeInWater == 1 && blindness <= 0.0001) fog.rgb = astra_underwater_color();
     return vec4(max(fog.rgb, vec3(0.0)), clamp(fog.a, 0.0, 1.0));
 }
 vec3 astra_apply_medium(vec3 color, vec3 playerPos, float skylight) {
-    if (isEyeInWater == 1) color *= water_absorption(clamp(length(playerPos) / 32.0, 0.0, 1.0));
+    if (isEyeInWater == 1 && blindness <= 0.0001) {
+        // The source field belongs to the eye's water volume, not to a remote
+        // receiver's already water-diminished Minecraft lightmap.
+        float eyeSky = clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0);
+        return water_medium(color, length(camera_relative_view(playerPos)), astra_water_incident(eyeSky));
+    }
     vec4 fog = astra_fog(playerPos, skylight);
     return mix(color, fog.rgb, fog.a);
 }
 vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos,
-                 float skylight, float blocklight, uint material) {
+                 float skylight, float blocklight, uint material, out vec3 directRadiance) {
+    directRadiance = vec3(0.0);
     float emissive = material == 10u ? 1.0 : 0.0;
     float portal = material == 7u ? 1.0 : 0.0;
     #if defined DIMENSION_NETHER
@@ -116,7 +240,7 @@ vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos,
         vec3 shadowPos = shadow_map_position(playerPos, normal,
                             dot(normal, normalize(view_player(lightVector))));
         vec3 color = diffuse_lighting(albedo, normal, playerPos, shadowPos,
-                         skylight, blocklight, sss, material == 2u, material == 8u, params);
+                         skylight, blocklight, sss, material == 2u, material == 8u, params, directRadiance);
         return color + albedo * ((emissive + portal) * (EMISSIVE_STRENGTH * 0.01));
     #endif
 }

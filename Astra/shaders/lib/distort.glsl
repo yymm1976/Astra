@@ -30,7 +30,15 @@ vec3 distort(vec3 pos) {
 }
 
 vec3 undistort(vec3 pos) {
-    float factor = get_distort_factor(pos.xy);
+    // Invert q = p / (a + b * norm(p)); evaluating the forward factor at q
+    // is not its inverse. Both box and radial norms are homogeneous.
+    float radius;
+    #if SUN_PATH_ROTATION == 0
+        radius = max(abs(pos.x), abs(pos.y));
+    #else
+        radius = length(pos.xy);
+    #endif
+    float factor = (1.0 - shadow_map_bias) / max(1.0 - shadow_map_bias * radius, 1e-5);
     return vec3(pos.xy * factor, pos.z / 0.2);
 }
 

@@ -102,17 +102,17 @@ option.WATER_CHARACTER.comment=水体配色倾向：0 = 寒冷，1 = 均衡，2 
 option.WATER_CAUSTICS.comment=水底的焦散光斑，随阴影一同投射并随深度衰减。
 option.UNDERWATER_PARTICLES.comment=水下视野中的悬浮颗粒。（性能影响：中）
 option.FANCY_TRANSLUCENTS.comment=水与半透明物体使用预乘 alpha 混合，支持反射/折射自由混合。（性能影响：低）
-option.FOG_DENSITY.comment=远景大气雾的浓度。
-option.SKY_FOG_STRENGTH.comment=雾与天空色的融合程度；调低时自动跳过部分天空雾计算。
+option.FOG_DENSITY.comment=远景大气雾的浓度（出厂 65%，以清爽大气透视为准）。
+option.SKY_FOG_STRENGTH.comment=近中景雾混入天空色的强度（出厂 25%；远端始终收敛天空色）。
 option.BORDER_FOG.comment=渲染边界处的雾。
 option.CAVE_FOG.comment=洞穴内的雾。
-option.UNDERWATER_FOG_DENSITY.comment=水下雾的浓度。
+option.UNDERWATER_FOG_DENSITY.comment=水下雾的浓度（出厂 55%，目标能见度 25–40 格）。
 option.NETHER_FOG_DENSITY.comment=下界雾的浓度，其密度与高度曲线独立于主世界。
 option.END_FOG_DENSITY.comment=末地 void 雾渐变的浓度。
 option.TONEMAP_OPERATOR.comment=0 = Uchimura（默认），1 = AgX，2 = ACES，3 = Reinhard-Jodie。
 option.EXPOSURE.comment=色彩分级：整体曝光。
-option.SATURATION.comment=色彩分级：饱和度（出厂默认 112，Refrax 风格校准）。
-option.VIBRANCE.comment=色彩分级：自然饱和度，偏向提升欠饱和颜色（出厂 115）。
+option.SATURATION.comment=色彩分级：饱和度（出厂 105，Refrax 风格校准）。
+option.VIBRANCE.comment=色彩分级：自然饱和度，偏向提升欠饱和颜色（出厂 108）。
 option.CONTRAST.comment=色彩分级：对比度（出厂默认 104）。
 option.COLOR_TEMPERATURE.comment=色彩分级：暖/冷偏移，负值为偏冷。
 option.BLOOM.comment=高光区域的柔和溢出。（性能影响：低）
@@ -150,3 +150,13 @@ screen.WATER=水
 screen.FOG=雾
 screen.POST=后处理
 screen.PERFORMANCE=性能+高级
+
+option.UNDERWATER_LIGHT_SHAFTS=水下阳光束
+option.UNDERWATER_LIGHT_SHAFTS.comment=阳光经过水面和遮挡物后形成水下光束，需要开启阴影。独立于后处理中的空气光束。
+option.UNDERWATER_SHAFT_STRENGTH=水下光束强度
+option.UNDERWATER_SHAFT_STRENGTH.comment=调整水下光束的亮度，不改变水下雾的浓度。
+option.UNDERWATER_SHAFT_SAMPLES=水下光束精细度
+option.UNDERWATER_SHAFT_SAMPLES.comment=越高越能保留细窄的光束，也会增加显卡开销。
+value.UNDERWATER_SHAFT_SAMPLES.16=流畅
+value.UNDERWATER_SHAFT_SAMPLES.24=均衡
+value.UNDERWATER_SHAFT_SAMPLES.32=精细
