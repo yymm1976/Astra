@@ -34,21 +34,20 @@ vec4 water_shafts_march(vec2 uv) {
     float sun = solas_sun_visibility();
     float VoU = 1.0 - pow(clamp(ray.y, 0.0, 1.0), 1.5);
     VoU = mix(VoU, 1.0, time * 0.75);
-    // 2026-09-11 user round: "不要搞一大堆光束打到玩家脸上". The old weighting kept a
-    // floor of 0.35 + 0.35*VoL whatever the view direction was, so beams covered the
-    // whole frame. The reference concentrates them on the sun side instead: this keeps
-    // only the directional term, weighted by how steeply the view looks toward the sun,
-    // so beams stay near the sun's azimuth and fade out when looking away from it.
-    float VoL = pow(clamp(dot(ray, normalize(view_player(lightVector))), 0.0, 1.0), 2.6);
-    float visibility = astraSolasShadowFade;
-    // Sun shafts must stay visible through the near medium. The earlier build also
-    // multiplied this by float(depthtex0.r > 0.56), a hard cut that removed every ray
-    // terminating within ~6 blocks, which emptied the effect in exactly the range the
-    // reference image shows beams. A smooth near ramp keeps the user's "close to the
-    // camera it fades out" rule without deleting the visible depth range.
+    // 2026-09-11 second user round: "黄昏时光束变得非常多，侧向的光束异常亮，图2是背向
+    // 光源方向拍摄的". Two inverted terms caused exactly that:
+    //   - the directional weight was (1.0 - VoL), i.e. BRIGHTEST when looking away from
+    //     the sun, so the beams were strongest on the wrong side;
+    //   - visibility was scaled by (2.0 - sun) * 0.5, which is 1.0 when the sun is at the
+    //     horizon and 0.5 at noon, so dusk was the single strongest moment.
+    // Forward scattering is what makes shafts visible: the weight now peaks toward the
+    // light, and a sun-elevation gate removes them once the sun is down.
+    float VoL = pow(clamp(dot(ray, normalize(view_player(lightVector))), 0.0, 1.0), 2.0);
+    float sunGate = smoothstep(-0.02, 0.16, worldSunVector.y);
+    float visibility = astraSolasShadowFade * sunGate * 0.75;
     visibility *= smoothstep(1.0, 3.5, rayLength);
-    visibility *= pow(VoU, 1.5) * (1.0 - VoL) * 0.9;
-    visibility *= (2.0 - sun) * 0.5 * (1.0 - clamp(blindness, 0.0, 1.0));
+    visibility *= pow(VoU, 1.5) * VoL;
+    visibility *= (1.0 - clamp(blindness, 0.0, 1.0));
     float endDistance = min(-viewPos.z, WATER_SHAFT_MAX_DISTANCE);
     float dither = texture(solasWaterNoise, gl_FragCoord.xy / 512.0).b;
     vec3 integral = vec3(0.0);

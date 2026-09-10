@@ -94,7 +94,10 @@
 // --- WATER ---
 #define WATER_WAVES // [false true]
 // Animated water surface normals
-#define WATER_WAVE_HEIGHT 100 // [25 50 75 100 125 150 175 200]
+#define WATER_WAVE_HEIGHT 62 // [25 40 50 62 75 100 125 150 175 200]
+// 2026-09-11 user round: 100 -> 62. At full strength the slope field read as "凹凸不平,
+// 不丝滑" (bumpy rather than silky) both looking down at the surface and looking up at it
+// from below, where it also broke the kelp reflection into pieces.
 // Wave amplitude, %
 #define WATER_WAVE_SPEED 100 // [25 50 75 100 125 150 175 200]
 // Wave flow speed, %

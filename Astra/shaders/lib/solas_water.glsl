@@ -81,8 +81,13 @@ vec3 solas_water_sky(vec3 direction) {
 }
 
 vec4 solas_water_fog(vec3 viewPos) {
+    // 2026-09-11 user round: "水下就像加了一层蓝色滤镜，水底的方块都是蓝的". At the old
+    // 6.0/0.01 coefficient the fog already reached 45% at ten blocks and 70% at twenty,
+    // so the seabed lost its own colour (and any caustic contrast) at normal viewing
+    // range. Halving the coefficient restores block colour and lets the caustic network
+    // read through, which is what the reference underwater shows.
     float density = UNDERWATER_FOG_DENSITY / 40.0;
-    float fogAmount = 1.0 - exp(-6.0 * length(viewPos) * 0.01 * density);
+    float fogAmount = 1.0 - exp(-3.0 * length(viewPos) * 0.01 * density);
     vec3 fog = mix(mix(solasWaterSqrt * solasWaterSqrt,
                        normalize(fogColor + 0.00001) * 0.5, 0.25),
                    solasWeather * 0.25, wetness * 0.25);

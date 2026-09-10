@@ -230,8 +230,16 @@ vec3 diffuse_lighting(
         #endif
         float NoL = max(dot(worldNormal, worldLightVector), 0.0);
         vec3 shadow = clamp(visibility * clamp(NoL * 1.01 - 0.01, 0.0, 1.0), 0.0, 1.0);
+        // astraSolasShadowFade was gating this blend and it evaluates to ZERO at noon
+        // (it is a horizon-glare fade: 1 at sunrise/sunset, 0 at sunAngle 0.5). Underwater
+        // at midday that removed the entire direct term, so `shadow` - and with it the
+        // projected caustic network - had no effect at all. The result was the flat blue
+        // ambient wash the user reported as "no caustics, everything is blue". Direct light
+        // is gated by the sun's elevation instead, and the glare factor stays where it
+        // belongs, in solas_water_fog.
+        float underwaterSun = smoothstep(-0.02, 0.16, worldSunVector.y);
         vec3 sceneLight = mix(ambient * skyLight * skyLight, direct,
-            shadow * (1.0 - wetness * 0.75) * astraSolasShadowFade);
+            shadow * (1.0 - wetness * 0.75) * underwaterSun);
         float vanilla = (0.25 * worldNormal.y + 0.75)
             + (0.667 - abs(worldNormal.x)) * (1.0 - abs(worldNormal.y)) * 0.15;
         vanilla = mix(1.0, vanilla * vanilla, clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0));

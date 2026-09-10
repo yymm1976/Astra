@@ -113,7 +113,10 @@ float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
 // The reference sky/SSR implementations are not replaced by this adapter.
 vec4 solas_underwater_interface(vec3 color, vec3 viewPos, vec3 normal, vec3 faceNormal, float skylight) {
     vec3 incident = normalize(viewPos);
-    float fresnel = clamp(1.0 + dot(normal, incident), 0.0, 0.5);
+    // From below, reflectance climbs toward total internal reflection at grazing angles.
+    // The reference floors this at 0.5 and the user reported the kelp reflection as "不太
+    // 明显", so the ceiling is raised to let the reflected underwater scene through.
+    float fresnel = clamp(1.0 + dot(normal, incident), 0.0, 0.88);
     vec3 surface = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
     vec3 reflection = mix(surface, solas_water_sky(view_player(reflect(incident, normal))), skylight);
     #ifdef SCREENSPACE_REFLECTIONS
@@ -180,6 +183,18 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
                      : astra_reflection_sky(reflectedWorld, roughness)) * skylight;
         reflection += fallback * (1.0 - reflectionWeight);
     }
+    // Solar glint. waterRef_SkyColor carries the reference's atmospheric Mie lobe, which
+    // is broad, so on the surface the sun reads as a weak wash (user: "太阳在水面上的反射
+    // 有点弱"). This adds the narrow specular lobe: sharp when the waves are smooth, wider
+    // as roughness grows, and gated by the sun's elevation.
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        if (water && !belowWater) {
+            float sunAlign = max(dot(reflectedWorld, worldSunVector), 0.0);
+            float sharpness = mix(340.0, 70.0, clamp(roughness * 6.0, 0.0, 1.0));
+            float glint = pow(sunAlign, sharpness) * solas_sun_visibility();
+            reflection += vec3(1.00, 0.96, 0.88) * glint * skylight * 2.6;
+        }
+    #endif
     vec2 uv = gl_FragCoord.xy / vec2(viewWidth, viewHeight);
     vec3 transmitted = vec3(0.0);
     if (!totalReflection) {
