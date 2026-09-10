@@ -18,7 +18,7 @@ vec3 getBloomTile(float lod, vec2 bloomCoord, vec2 offset) {
 				vec2 pixelOffset = vec2((i - 2.25) * pixelWidth, (j - 2.25) * pixelHeight);
 				vec2 sampleCoord = bloomCoord + pixelOffset * scale;
 
-				bloom += clamp(texture2D(colortex0, sampleCoord).rgb, 0.0, 1.0) * weight[i] * weight[j];
+				bloom += clamp(texture(colortex0, sampleCoord).rgb, 0.0, 1.0) * weight[i] * weight[j];
 			}
 		}
 	}

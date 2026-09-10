@@ -7,9 +7,9 @@ float astra_rain_exposure(float skyLight) {
 }
 float astra_puddle(vec3 worldPos, vec3 normal, float skyLight) {
     // Solas generatedPBR: wetness, sky light, upward face and two noise scales.
-    float n = texture(solasWaterNoise, worldPos.xz * 0.001).b
-            * texture(solasWaterNoise, worldPos.xz * 0.002).b;
-    return smoothstep(0.16, 0.48, n) * wetness
+    float n = texture(solasWaterNoise, worldPos.xz * 0.00025).b
+            * texture(solasWaterNoise, worldPos.xz * 0.00050).b;
+    return smoothstep(0.43, 0.66, n) * wetness
          * astra_rain_exposure(skyLight) * smoothstep(0.94, 0.999, normal.y);
 }
 vec3 astra_puddle_normal(vec3 worldPos) {

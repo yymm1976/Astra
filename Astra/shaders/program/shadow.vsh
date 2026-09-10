@@ -27,7 +27,46 @@ out vec4 tint;                  // vertex colour, feeds the coloured-shadow tint
 out float waterHeight;
 out vec3 waterCasterWorld;
 
+// Nether voxel capture. Both guards are required: the option is global while the
+// uimage3D declaration and imageAtomicMax need GLSL 420+, so the overworld and
+// End shadow shells must not see them at all.
+#if defined DIMENSION_NETHER && defined NETHER_VOXEL_LIGHT
+layout(r32ui) uniform uimage3D astraVoxelImage;
+// Occupancy encoding consumed by program/nether_light.csh and
+// global/dimension/nether_colored_light.glsl:
+//   bit 8  : solid geometry -> blocks diffusion
+//   bit 16 : frame stamp, flips every frame; cells without the current stamp are
+//            retired by the compute pass (chunks that unloaded stop contributing)
+//   bits 0-7: 0 = empty, 1 = solid, 2..8 = coloured light groups, 9..11 = fire,
+//            soul fire, lava
+uint astra_voxel_encode(uint kind, bool solid, uint stamp) {
+    return (kind & 255u) | (solid ? 256u : 0u) | stamp;
+}
+void astra_voxel_write() {
+    // MC_RENDER_STAGE_* values must match Iris WorldRenderingPhase ordinals; see the
+    // table note in qa/tools/compile_glsl.py before changing this list.
+    if (!(renderStage == MC_RENDER_STAGE_TERRAIN_SOLID || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT
+       || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT_MIPPED || renderStage == MC_RENDER_STAGE_TERRAIN_TRANSLUCENT)) return;
+    vec3 center = (shadowModelViewInverse * gl_ModelViewMatrix * vec4(gl_Vertex.xyz + at_midBlock/64.0,1.0)).xyz;
+    ivec3 cell = ivec3(floor(center + fract(cameraPosition) + vec3(32.0)));
+    if(any(lessThan(cell,ivec3(0))) || any(greaterThanEqual(cell,ivec3(64)))) return;
+    int raw = int(mc_Entity.x+0.5);
+    uint kind = 1u;
+    bool solid = true;
+    // Water, plants and torches are not full cubes: they must not block the volume.
+    if(raw == 10001 || raw == 10010 || (raw >= 10004 && raw <=10006)) { kind = 1u; solid = false; }
+    if(raw >=10021 && raw <=10027) { kind=uint(raw-10019); solid = false; }
+    if(raw ==10028) { kind=9u; solid = false; }
+    if(raw ==10029) { kind=10u; solid = false; }
+    if(raw ==10030) kind=11u;  // lava is a full cube, so it stays solid
+    uint stamp = (uint(frameCounter) & 1u) << 16;
+    imageAtomicMax(astraVoxelImage,cell,astra_voxel_encode(kind,solid,stamp));
+}
+#endif
 void main() {
+#if defined DIMENSION_NETHER && defined NETHER_VOXEL_LIGHT
+    astra_voxel_write();
+#endif
 	vec4 viewPos = gl_ModelViewMatrix * gl_Vertex;
 	// Sodium's region offset already subtracts cameraPosition. Undo only this
 	// pass's shadow view: the result is camera-relative, exactly as in lit.vsh.

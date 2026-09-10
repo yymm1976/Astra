@@ -14,6 +14,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import compile_glsl  # shared Iris render-stage table (SC-31)
+
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
         _stream.reconfigure(encoding="utf-8", errors="replace")
@@ -273,8 +276,10 @@ def check_lang(opts):
 
 
 def walk_shader_files():
+    # .csh covers Iris compute stages (and their include-only modules) so the
+    # symbol/render-stage contracts apply to them too.
     for p in sorted(PACK.rglob("*")):
-        if p.is_file() and p.suffix in (".vsh", ".fsh", ".glsl", ".json"):
+        if p.is_file() and p.suffix in (".vsh", ".fsh", ".glsl", ".csh", ".json"):
             yield p
 
 
@@ -463,7 +468,7 @@ def check_undeclared_symbols():
 
 
 def check_custom_uniforms():
-    c = Check(6, "custom uniforms: shaders.properties <-> lib/uniforms.glsl contract")
+    c = Check(6, "custom uniforms: shaders.properties <-> GLSL uniform declarations")
     props, text = parse_properties()
     uni_decl, var_decl = {}, {}
     for line in logical_lines(text):
@@ -474,23 +479,32 @@ def check_custom_uniforms():
         if m:
             var_decl[m.group(2)] = m.group(1)
 
-    glsl_path = PACK / "lib" / "uniforms.glsl"
+    # Custom uniforms may be declared in any include layer reachable from an entry:
+    # lib/uniforms.glsl is the shared layer, but feature modules such as
+    # lib/solas_water.glsl own their own names. Scanning only uniforms.glsl produced
+    # false "not declared" failures for those.
+    decl_files = {}
     glsl_decl = {}
-    if glsl_path.exists():
+    for path in walk_shader_files():
+        if path.suffix not in (".glsl", ".vsh", ".fsh", ".csh"):
+            continue
         for m in re.finditer(r"^\s*uniform\s+(\w+)\s+(\w+)\s*(?:\[\s*\d+\s*\])?\s*;",
-                             read(glsl_path), flags=re.M):
-            glsl_decl[m.group(2)] = m.group(1)
+                             read(path), flags=re.M):
+            name, ty = m.group(2), m.group(1)
+            glsl_decl.setdefault(name, ty)
+            decl_files.setdefault(name, pk(path))
     for name, ty in uni_decl.items():
         if name not in glsl_decl:
-            c.fail(f"uniform.{name} sent by properties but not declared in lib/uniforms.glsl")
+            c.fail(f"uniform.{name} sent by properties but declared in no GLSL file")
         elif glsl_decl[name] != ty:
-            c.fail(f"uniform.{name}: properties says {ty}, GLSL declares {glsl_decl[name]}")
+            c.fail(f"uniform.{name}: properties says {ty}, GLSL declares "
+                   f"{glsl_decl[name]} in {decl_files[name]}")
     for name, ty in glsl_decl.items():
         if name in uni_decl:
             continue
         # built-ins are fine; flag only our own camelCase precomputed names
     c.note(f"{len(uni_decl)} uniform.* + {len(var_decl)} variable.* in properties; "
-           f"{len(glsl_decl)} uniform decl(s) in lib/uniforms.glsl")
+           f"{len(glsl_decl)} uniform decl(s) across the include tree")
 
     # every intermediate referenced in expressions must be defined earlier in the file
     order, seen = [], set()
@@ -747,6 +761,19 @@ def check_iris_parser_contracts():
 
     shader_files = list(walk_shader_files())
 
+    # Format tokens Iris injects for const int colortex<N>Format (the engine reads the
+    # identifier, not a value), so they must not be reported as unknown macros.
+    ENGINE_FORMAT_TOKENS = {
+        "RGBA", "R8", "RG8", "RGB8", "RGBA8", "R8_SNORM", "RG8_SNORM", "RGB8_SNORM",
+        "RGBA8_SNORM", "R16", "RG16", "RGB16", "RGBA16", "R16_SNORM", "RG16_SNORM",
+        "RGB16_SNORM", "RGBA16_SNORM", "R16F", "RG16F", "RGB16F", "RGBA16F", "R32F",
+        "RG32F", "RGB32F", "RGBA32F", "R8I", "RG8I", "RGB8I", "RGBA8I", "R8UI",
+        "RG8UI", "RGB8UI", "RGBA8UI", "R16I", "RG16I", "RGB16I", "RGBA16I", "R16UI",
+        "RG16UI", "RGB16UI", "RGBA16UI", "R32I", "RG32I", "RGB32I", "RGBA32I",
+        "R32UI", "RG32UI", "RGB32UI", "RGBA32UI", "RGBA2", "RGBA4", "R3_G3_B2",
+        "RGB5_A1", "RGB565", "RGB10_A2", "RGB10_A2UI", "R11F_G11F_B10F", "RGB9_E5",
+    }
+
     # SC-21: Iris treats anything after the closing quote as part of the path.
     for p in shader_files:
         for lineno, line in enumerate(read(p).splitlines(), 1):
@@ -795,15 +822,30 @@ def check_iris_parser_contracts():
             if not valid:
                 c.fail(f"{pk(p)}: engine const {name} must use literal initializer, got '{value}'")
 
-    # SC-27 supersedes the older entry-shell placement rule: this Iris build rejects
-    # every active *Format const, regardless of its location.
-    active_formats = []
+    # SC-27 (revised 2026-09-10): the blanket "no active *Format const" rule was a
+    # misdiagnosis. Bliss, Complementary Reimagined and Complementary Unbound all
+    # declare "const int colortex<N>Format = <token>;" and load on Iris 1.11.2, so the
+    # contract is: recognised buffer name, integer literal or upper-case token value,
+    # and exactly one declaration per buffer.
+    format_decls = {}
     for p in shader_files:
         body = strip_comments(read(p))
-        for m in re.finditer(r"\bconst\s+int\s+(\w+Format)\s*=", body):
-            active_formats.append(f"{pk(p)}:{m.group(1)}")
-    if active_formats:
-        c.fail("active *Format const forbidden by SC-27: " + ", ".join(active_formats))
+        for m in re.finditer(
+                r"\bconst\s+int\s+(colortex\d+Format|depthtex\d+Format)\s*=\s*([^;]+);", body):
+            name, value = m.group(1), m.group(2).strip()
+            format_decls.setdefault(name, []).append((pk(p), value))
+    for name, decls in sorted(format_decls.items()):
+        if len(decls) > 1:
+            c.fail(f"{name} declared {len(decls)} times: "
+                   + ", ".join(f"{where}={value}" for where, value in decls))
+        for where, value in decls:
+            if not re.fullmatch(r"\d+|[A-Z][A-Z0-9_]*", value):
+                c.fail(f"{where}: {name} must be an integer literal or an upper-case "
+                       f"token macro, got '{value}'")
+            elif (value[0].isalpha() and value not in settings_macros
+                  and value not in ENGINE_FORMAT_TOKENS):
+                c.warn(f"{where}: {name} uses token '{value}', which no lib/settings.glsl "
+                       f"macro defines (Iris resolves it to a buffer format)")
 
     # SC-26: when Voxy activates #ifdef VOXY, every vx* symbol used by shader code
     # must have a declaration in the shared uniform layer.
@@ -820,10 +862,12 @@ def check_iris_parser_contracts():
         c.fail("Voxy symbol(s) used without lib/uniforms.glsl declaration: "
                + ", ".join(missing_vx))
 
-    # SC-28: Iris registers a boolean option ONLY when shader source references it
-    # via #ifdef/#ifndef (OptionAnnotatedSource parses just #define/const/#ifdef/
-    #ifndef - "#if defined NAME" is invisible to the scanner). Unreferenced booleans
-    # are dropped -> "Invalid pack option" warnings and profile toggles ignored.
+    # SC-28 (revised 2026-09-10): the original note claimed Iris cannot see a boolean
+    # referenced only through defined(). That is not what Iris does - pack options are
+    # injected as #define before the preprocessor runs, so "#if defined OPT" works and
+    # every reference pack uses that form for compound guards. The real requirement is
+    # only that the option is referenced somewhere; an unreferenced boolean is dropped
+    # before the GUI sees it.
     boolean_options = {}
     for m in re.finditer(r"^\s*(//?)?\s*#define\s+([A-Z][A-Z0-9_]*)\s*(//[^\n]*)?",
                          settings_text, flags=re.M):
@@ -841,18 +885,178 @@ def check_iris_parser_contracts():
         for m in re.finditer(r"\bdefined\s+([A-Z][A-Z0-9_]*)", body):
             defined_only.setdefault(m.group(1), set()).add(pk(p))
     for name in sorted(boolean_options):
-        if name in references:
+        if name in references or name in defined_only:
             continue
-        where = sorted(defined_only.get(name, set()))
-        if where:
-            c.warn(f"boolean option {name} referenced only via defined() in "
-                   f"{', '.join(where)} - Iris cannot see it; add an "
-                   f"#ifdef {name} reference (SC-28)")
-        else:
-            c.warn(f"boolean option {name} has no #ifdef/#ifndef reference in any "
-                   f"shader - Iris drops it until its owning task wires it (SC-28)")
+        c.warn(f"boolean option {name} has no #ifdef/#ifndef/defined() reference in any "
+               f"shader - Iris drops it until its owning task wires it (SC-28)")
 
-    c.note(f"{texture_count} staged texture directive(s); {engine_consts} engine const(s); "
+    # SC-29: Iris rejects a pack that uses iris custom images without declaring the
+    # CUSTOM_IMAGES feature flag (ShaderPack throws IllegalStateException at load time),
+    # silently ignores custom images past its cap, and ignores malformed image fields.
+    # Verified directive order against iris.jar ShaderProperties:
+    #   image.<name>=<samplerName> <format> <internalFormat> <type> <clear> <relative> <w> <h> [d]
+    # The texture target is derived from the dimension count, not written out.
+    IMAGE_PIXEL_FORMATS = {
+        "red", "rg", "rgb", "bgr", "rgba", "bgra",
+        "red_integer", "rg_integer", "rgb_integer", "bgr_integer",
+        "rgba_integer", "bgra_integer",
+    }
+    IMAGE_INTERNAL_FORMATS = {
+        "rgba", "r8", "rg8", "rgb8", "rgba8", "r8_snorm", "rg8_snorm", "rgb8_snorm",
+        "rgba8_snorm", "r16", "rg16", "rgb16", "rgba16", "r16_snorm", "rg16_snorm",
+        "rgb16_snorm", "rgba16_snorm", "r16f", "rg16f", "rgb16f", "rgba16f", "r32f",
+        "rg32f", "rgb32f", "rgba32f", "r8i", "rg8i", "rgb8i", "rgba8i", "r8ui",
+        "rg8ui", "rgb8ui", "rgba8ui", "r16i", "rg16i", "rgb16i", "rgba16i", "r16ui",
+        "rg16ui", "rgb16ui", "rgba16ui", "r32i", "rg32i", "rgb32i", "rgba32i",
+        "r32ui", "rg32ui", "rgb32ui", "rgba32ui", "rgba2", "rgba4", "r3_g3_b2",
+        "rgb5_a1", "rgb565", "rgb10_a2", "rgb10_a2ui", "r11f_g11f_b10f", "rgb9_e5",
+    }
+    IMAGE_PIXEL_TYPES = {
+        "byte", "short", "int", "half_float", "float", "unsigned_byte",
+        "unsigned_byte_3_3_2", "unsigned_byte_2_3_3_rev", "unsigned_short",
+        "unsigned_short_5_6_5", "unsigned_short_5_6_5_rev", "unsigned_short_4_4_4_4",
+        "unsigned_short_4_4_4_4_rev", "unsigned_short_5_5_5_1",
+        "unsigned_short_1_5_5_5_rev", "unsigned_int", "unsigned_int_8_8_8_8",
+        "unsigned_int_8_8_8_8_rev", "unsigned_int_10_10_10_2",
+        "unsigned_int_2_10_10_10_rev", "unsigned_int_10f_11f_11f_rev",
+        "unsigned_int_5_9_9_9_rev",
+    }
+    INTEGER_INTERNALS = tuple(
+        name for name in IMAGE_INTERNAL_FORMATS if name.endswith(("i", "ui"))
+    )
+    image_directives = []
+    feature_required, feature_optional = [], []
+    for lineno, line in enumerate(logical_lines(properties_text), 1):
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = (part.strip() for part in line.split("=", 1))
+        if key.startswith("image."):
+            image_directives.append((lineno, key, value))
+        elif key == "iris.features.required":
+            feature_required += value.split()
+        elif key == "iris.features.optional":
+            feature_optional += value.split()
+    if image_directives:
+        declared = set(feature_required) | set(feature_optional)
+        if "CUSTOM_IMAGES" not in declared:
+            c.fail("image.* directives need iris.features.required/optional=CUSTOM_IMAGES "
+                   "(Iris throws IllegalStateException otherwise)")
+        if len(image_directives) > 15:
+            c.fail(f"{len(image_directives)} custom images declared; Iris 1.11.2 caps them at 15")
+        for lineno, key, value in image_directives:
+            name = key[len("image."):]
+            fields = value.split()
+            if not name:
+                c.fail(f"shaders.properties logical line {lineno}: image. has no name")
+                continue
+            if len(fields) < 8:
+                c.fail(f"image.{name}: needs '<sampler> <format> <internalFormat> <type> "
+                       f"<clear> <relative> <w> <h> [d]', got {len(fields)} field(s)")
+                continue
+            sampler = fields[0]
+            pixel_format = fields[1].lower()
+            internal = fields[2].lower()
+            pixel_type = fields[3].lower()
+            if pixel_format not in IMAGE_PIXEL_FORMATS:
+                c.fail(f"image.{name}: pixel format '{pixel_format}' is unknown to Iris")
+            if internal not in IMAGE_INTERNAL_FORMATS:
+                c.fail(f"image.{name}: internal format '{internal}' is unknown to Iris")
+            if pixel_type not in IMAGE_PIXEL_TYPES:
+                c.fail(f"image.{name}: pixel type '{pixel_type}' is unknown to Iris")
+            for flag in fields[4:6]:
+                if flag not in ("true", "false"):
+                    c.fail(f"image.{name}: clear/relative flags must be true or false, got '{flag}'")
+            dims = fields[6:]
+            for dim in dims:
+                if not dim.isdigit() or int(dim) < 1:
+                    c.fail(f"image.{name}: dimension '{dim}' is not a positive integer")
+            target = {1: "texture1D", 2: "texture2D", 3: "texture3D"}.get(len(dims))
+            if target is None:
+                c.fail(f"image.{name}: {len(dims)} dimension(s); Iris supports 1, 2 or 3")
+                continue
+            # 3D images that back a usampler3D need a uint internal format and an
+            # integer pixel type, otherwise every texelFetch in the compute/compute
+            # consumers is a type mismatch on real drivers.
+            integer_format = pixel_format.endswith("_integer")
+            integer_internal = internal.endswith(("i", "ui"))
+            if integer_format != integer_internal:
+                c.fail(f"image.{name}: pixel format '{pixel_format}' and internal format "
+                       f"'{internal}' disagree on integer-ness")
+            if integer_format and pixel_type not in ("unsigned_int", "int", "unsigned_short",
+                                                     "short", "unsigned_byte", "byte"):
+                c.fail(f"image.{name}: integer image needs an integer pixel type, got '{pixel_type}'")
+            if not integer_format and pixel_type in ("unsigned_int", "int"):
+                c.fail(f"image.{name}: float image with integer pixel type '{pixel_type}'")
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", sampler):
+                c.fail(f"image.{name}: sampler name '{fields[0]}' is not a GLSL identifier")
+            # The sampler must appear in a shader, otherwise the image is dead weight.
+            users = [q for q in walk_shader_files()
+                     if q.suffix in (".vsh", ".fsh", ".csh")
+                     and re.search(r"\b" + re.escape(sampler) + r"\b", strip_comments(read(q)))]
+            if not users:
+                c.warn(f"image.{name}: sampler '{sampler}' is declared but never referenced by a shader")
+
+    # SC-30: compute shaders live at <stage>/<name>.csh; Iris reads the ShadowComposite,
+    # Setup and Final stages, so a stray .csh is dead weight no compile step would catch.
+    # Include-only helpers (program/*.csh) are fine when a stage file includes them.
+    # A stage with no compute.<stage>.<name>.enabled condition cannot be switched off
+    # from shaders.properties, so it always burns GPU time.
+    compute_dir = {"shadowcomp", "setup", "final"}
+    compute_files = sorted(PACK.rglob("*.csh"))
+    enabled_stages = set()
+    for line in logical_lines(properties_text):
+        if not line.startswith("compute.") or "=" not in line:
+            continue
+        key, value = (part.strip() for part in line.split("=", 1))
+        if key.endswith(".enabled") and value:
+            enabled_stages.add(key[len("compute."):-len(".enabled")])
+    for path in compute_files:
+        parts = path.relative_to(PACK).parts
+        stem = path.stem
+        base = re.match(r"([a-z]+)", stem)
+        if base and base.group(1) in compute_dir and not re.fullmatch(
+                re.escape(base.group(1)) + r"[A-Z]?", stem):
+            c.fail(f"{pk(path)}: compute stages are '<name>' plus '<name>A'..'<name>Z'; "
+                   f"'{stem}' is never loaded by Iris (upper-case single letter suffix)")
+        if len(parts) >= 2 and parts[-2] in ("program", "lib", "global"):
+            # Include-only module (e.g. program/nether_light.csh pulled in by the
+            # world-1/shadowcompN.csh wrappers); only require that something includes it.
+            included = any(
+                path.name in strip_comments(read(other))
+                for other in compute_files if other is not path
+            )
+            if not included:
+                c.warn(f"{pk(path)}: include-only compute module that no other compute "
+                       f"shader includes")
+            continue
+        is_stage_file = len(parts) == 2 and base and base.group(1) in compute_dir
+        if not is_stage_file:
+            c.fail(f"{pk(path)}: '{stem}' is not a compute stage Iris loads "
+                   f"(expected {', '.join(sorted(compute_dir))})")
+            continue
+        stage_key = f"{parts[0]}.{stem}"
+        if stage_key not in enabled_stages:
+            c.warn(f"{pk(path)}: no compute.{stage_key}.enabled condition; the whole stage "
+                   f"is built and dispatched unconditionally")
+    if compute_files and "COMPUTE_SHADERS" not in set(feature_required) | set(feature_optional):
+        c.warn("compute shaders present but no iris.features.*=COMPUTE_SHADERS declaration")
+
+    # SC-31: MC_RENDER_STAGE_* spellings must match the Iris WorldRenderingPhase names
+    # exactly; a typo only compiles away if the macro is undefined, and an undefined
+    # macro in a renderStage comparison is a hard compile error on Iris.
+    known_stages = {
+        "MC_RENDER_STAGE_" + name for name in getattr(compile_glsl, "RENDER_STAGES", ())
+    }
+    if known_stages:
+        for p in shader_files:
+            body = strip_comments(read(p))
+            for m in re.finditer(r"\bMC_RENDER_STAGE_[A-Z0-9_]*", body):
+                if m.group(0) not in known_stages:
+                    c.fail(f"{pk(p)}: {m.group(0)} is not an Iris 1.11.2 render stage "
+                           f"(see qa/tools/compile_glsl.py RENDER_STAGES)")
+
+    c.note(f"{texture_count} staged texture directive(s); {len(image_directives)} custom image(s); "
+           f"{len(compute_files)} compute shader(s); {engine_consts} engine const(s); "
            f"{len(declared_vx)} Voxy uniform declaration(s); Iris default buffer formats; "
            f"{len(references)}/{len(boolean_options)} boolean option(s) wired")
     return c

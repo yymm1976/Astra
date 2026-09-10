@@ -26,7 +26,7 @@ uint astra_material(int id) {
     if (id >= 10001 && id <= 10007) return uint(id - 10000);
     if (id == 10010) return 8u;
     if (id == 10011) return 9u;
-    if (id >= 10021 && id <= 10027) return 10u;
+    if (id >= 10021 && id <= 10030) return 10u;
     return 0u;
 }
 void main() {

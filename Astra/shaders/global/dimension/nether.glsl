@@ -7,6 +7,11 @@
 #include "/lib/colors.glsl"
 #include "/lib/encoding.glsl"
 #include "/lib/noise.glsl"
+// Included from scene.glsl, which already guards on DIMENSION_NETHER; the option
+// itself uses a plain #ifdef so Iris registers the boolean (SC-28).
+#ifdef NETHER_VOXEL_LIGHT
+    #include "/global/dimension/nether_colored_light.glsl"
+#endif
 
 struct NetherParams {
 	vec3  biomeFogColor;   // vanilla fogColor (sRGB-ish 0..1), per nether biome — E1 supplies
@@ -120,7 +125,9 @@ vec3 nether_lighting(
 	NetherParams params
 ) {
 
-	vec3 netherCol = nether_color(params.biomeFogColor);
+	// Complementary uses the palette directly in lighting; the earlier sRGB
+    // decode here darkened it again before the squared light combination.
+    vec3 netherCol = nether_palette(params.biomeFogColor);
 
 	float NdotU = worldNormal.y;
 	float NdotE = worldNormal.x;
@@ -157,7 +164,11 @@ vec3 nether_lighting(
 	                  + emission * emission;
 	finalDiffuse = sqrt(max(finalDiffuse, vec3(0.0)));
 
+#ifdef NETHER_VOXEL_LIGHT
+	return surfaceColor * (finalDiffuse + astra_nether_colored_light(playerPos,worldNormal));
+#else
 	return surfaceColor * finalDiffuse;
+#endif
 }
 
 #endif

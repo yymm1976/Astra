@@ -26,7 +26,7 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 | `shaders/lib/noise.glsl` | Mellow v3.4（`lib/noise.glsl` 的 noise/noise_water/fbm_fast） | 逐行移植（noise_water 的 WATER_NORMAL_* 宏适配为 WATER_WAVE_SPEED/HEIGHT） | MIT | 同上 |
 | `shaders/lib/dither.glsl` | Mellow v3.4（`lib/noise.glsl` 的 ign/dither） | 逐行移植（Astra 无 TAA，dither 固定为静态 IGN） | MIT | 同上 |
 | `shaders/lib/bayer.glsl` | 无参考（自写：教科书式 Bayer 递归构造，公共域模式） | 自写 | — | `// written for Astra` |
-| `shaders/shaders.properties` 的 `CUSTOM UNIFORMS` 段 | Steadfast 0.8.0（`shaders/shaders.properties`，作者 coderbot）；其中 9 条 `astraSolas*` 为 Solas V2.2b 时间/日相表达式的 Astra 改写 | **表达式级移植**（2026-09-05 复核更正：原记"结构借鉴"不成立）。Astra 侧 **40** 条（21 `uniform.*` + 19 `variable.*`）：verbatim=14 literal-suffix=3 rewritten=7 astra-only=16（逐字相同 / 仅字面量后缀差异 / 同名改写 / 自写）；逐条名单与复核方法见下节 | Steadfast 部分：GPLv3 + §7 两条附加条款；`astraSolas*` 部分：Solas 未声明 | 段内注释 `Expression-level port from Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot ...` |
+| `shaders/shaders.properties` 的 `CUSTOM UNIFORMS` 段 | Steadfast 0.8.0（`shaders/shaders.properties`，作者 coderbot）；其中 11 条 `astraSolas*` 为 Solas V2.2b 时间/日相表达式的 Astra 改写 | **表达式级移植**（2026-09-05 复核更正：原记"结构借鉴"不成立）。Astra 侧 **46** 条（21 `uniform.*` + 19 `variable.*` + 2026-09-10 维度/气候/下界群系与降雨平滑新增 6 条）：verbatim=14 literal-suffix=3 rewritten=7 astra-only=22（逐字相同 / 仅字面量后缀差异 / 同名改写 / 自写）；逐条名单与复核方法见下节 | Steadfast 部分：GPLv3 + §7 两条附加条款；`astraSolas*` 部分：Solas 未声明 | 段内注释 `Expression-level port from Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot ...` |
 | `shaders/block.properties` 基础表（10001–10007、10021–10027） | Mellow v3.4（`block.properties` 现代分支） | 逐行移植（数据表；删除 floodfill 10020） | MIT | 文件头注明 |
 | `shaders/block.properties` Astra 补全区（10010、10011，以及并入 10002/10004/10022/10025/10026/10027 的原版补漏 ID） | 无参考（自组：原版 1.21.x 事实 ID 数据） | 自写（2026-09-05 修正：block.properties 无 `+=` 追加运算符，原 6 条 `block.N+=` 行会整行替换基础表，已并入对应基础行） | — | 文件头注明 |
 | `shaders/entity.properties` | Refrax v1.3.1 / Solas V2.2b 的 `entity.properties`（仅分类思路） | 结构借鉴（分组方案自组，ID 内容为原版事实数据） | Refrax：专有 / Solas：未声明 | 文件头注明 |
@@ -59,9 +59,10 @@ SC-33 新增：`shaders/global/water/light_shafts.glsl` 为 Astra 自写；思�
 - 复核命令：`python qa/tools/provenance_steadfast.py`（逐条比对 `Astra/shaders/shaders.properties`
   与 `_analysis/Steadfast-0.8.0/shaders/shaders.properties` 的 `uniform.*`/`variable.*` 定义；
   Steadfast 对同名保留多条历史定义，任一相同即计 verbatim）。
-- 台账声明计数：`verbatim=14 literal-suffix=3 rewritten=7 astra-only=16`（合计 **40** 条 =
-  `Astra/shaders/shaders.properties` 的 21 条 `uniform.*` + 19 条 `variable.*`；口径为整段
-  CUSTOM UNIFORMS，2026-09-10 三处 `31` 更正为 `40`——实算命令见上，原记录少算了 9 条）——
+- 台账声明计数：`verbatim=14 literal-suffix=3 rewritten=7 astra-only=22`（合计 **46** 条 =
+  `Astra/shaders/shaders.properties` 的 21 条 `uniform.*` + 19 条 `variable.*`，另加 2026-09-10
+  维度/气候/下界群系与降雨平滑新增的 6 条；口径为整段 CUSTOM UNIFORMS。2026-09-10 先由 `31`
+  更正为 `40`，同日随下界群系与降雨改动复核为 `46`——实算命令见上）——
   `check_pack.py` 第 8 项把这一行与脚本实算值比对，不一致即 FAIL。
 - **verbatim（14）**：sunVector、lightVector、worldSunVector、skyVisibilityDay、borderFogDistance、
   renderDistanceFogTweak、windChaos、windTheta、LdotF、
@@ -74,16 +75,19 @@ SC-33 新增：`shaders/global/water/light_shafts.glsl` 为 Astra 自写；思�
   godraysDayExposureNoon（0.20 → 0.10）、godraysMaxAngle（60° 余弦为 0.5）、
   godraysViewAngleFade（夹取 0..1）、ndcLightVector（投影分母防零）、
   godraysOffscreenFade（夹取 0..1，防负曝光）。
-- **astra-only（16）**：moonProgress、windStrength、biomeTemperatureSmooth、biomeHumiditySmooth、
+- **astra-only（22）**：moonProgress、windStrength、biomeTemperatureSmooth、biomeHumiditySmooth、
   astraHeldLightBase、astraBlocklightSuppression、astraHeldLightSuppression（E1 总成 2026-09-06 新增，
-  CPU 标量表达式自写），以及 SC-24/33 水体链新增的 9 条 `astraSolas*`：
+  CPU 标量表达式自写），SC-24/33 水体链新增的 11 条 `astraSolas*`：
   astraSolasTAlin、astraSolasTAmin、astraSolasTAfrc、astraSolasTAfrs、astraSolasTAmix、
   astraSolasHA、astraSolasTimeAngle、astraSolasTimeBrightness、astraSolasShadowFade
-  （Solas 时间/日相表达式，Astra 侧自行改写并加 `astra` 前缀，无 Steadfast 同名定义）。
-  更正记录（2026-09-10）：此前记为 7 条，是 SC-24 之后未随水体链更新所致；实算 16 条
-  （`python qa/tools/provenance_steadfast.py --quiet` → `astra-only=16`）。
-  注：`astraSolas*` 系列在 `lib/uniforms.glsl` 尚无声明，`check_pack.py` 第 6 项会 FAIL
-  （既有缺陷，与本次五个并行分支的改动无关，见发布闸门提示）。
+  （Solas 时间/日相表达式，Astra 侧自行改写并加 `astra` 前缀，无 Steadfast 同名定义），
+  以及 2026-09-10 新增的 astraRainFactor（`smooth(71, rainStrength, 3, 3)` 三秒平滑雨量）、
+  astraNetherWastes、astraNetherCrimson、astraNetherWarped、astraNetherBasalt、astraNetherSoul
+  （Complementary r5.9 群系权重写法，名字与阈值由 Astra 自定）。
+  更正记录（2026-09-10 晚）：此前记为 16 条，是 SC-24 之后未随维度与降雨改动更新所致；
+  实算 22 条（`python qa/tools/provenance_steadfast.py --quiet` → `astra-only=22`）。
+  注：`astraSolas*` 现在声明在 `lib/solas_water.glsl`（水体模块自持）；`check_pack.py`
+  第 6 项已改为扫描整棵 include 树，不再因只查 `lib/uniforms.glsl` 而误报。
 - 更正记录（2026-09-05）：本行原写"结构借鉴（表达式与分节模式，数值为 Astra 自定；
   worldSunVector 改锚定 sunPosition 而非 shadow light）"——两点均不成立：表达式为逐字复制，
   且 Steadfast 自己的 `worldSunVector` 已由 `sunVector`（= `sunPosition`/100）构造，与 Astra 逐字相同。
@@ -179,3 +183,11 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 - `global/dimension/nether.glsl` 与群系 uniforms：Complementary r5.9 `lib/common.glsl` NETHER_COLOR_MODE 3 配色及 `shaders.properties` 群系识别模式，保留既有参考照明。删除 Astra 旧端点噪声雾。
 - `global/atmosphere/weather.glsl`：积水的湿度/天光/向上法线/双层纹理因子参考 Solas `lib/pbr/generatedPBR.glsl`；阈值、圆环法线、云透射及管线组合由 Astra 实现。
 - `program/lit.fsh` 雨滴形状、`program/deferred.fsh` 积水射线和雨雾散射为 Astra 实现，使用上列参考模块提供的天空/噪声。上述参考的授权说明沿用本文件已有登记。
+
+### 2026-09-10 下界体积光与体积雾（N2/N3）
+
+- `shaders/global/dimension/nether_volume.glsl`：适配 X0nk Bliss Stable `lib/nether_fog.glsl`（沿程 16 步积分、Plumes/floorPlumes/Erosion/Roof 与 Floor 高度衰减结构、haze/ceiling smoke 三段合成）。Astra 侧改动：加入 `ASTRA_NETHER_PLUME_SCALE`/`ASTRA_NETHER_HAZE_SCALE`/`ASTRA_NETHER_CEILING_SCALE` 三个密度标度，并按 Astra 的单次散射合成约定重写注释；采样步数、积分长度与参考不同（Astra 为 16 步、`borderFogDistance` 与 12×16 取小），不是逐像素复现。
+- `shaders/textures/bliss-nether-noise.png`：Bliss Stable `shaders/texture/noises.png` 原文件复制，未修改（sha256 前缀 `77d1aa0c2195a4f6`，512×512 RGBA8 与源一致）。Bliss 用 `texture.noise = texture/noises.png` 的自动绑定；Astra 因 `noisetex` 已占用为自有的 256×256 噪声，改用 `customTexture.blissNetherNoise` 独立绑定，因此**采样过滤/包裹参数与参考不同**（Astra 为 Iris 自定义纹理默认值），这是已知保真差异。
+- `shaders/program/nether_light.csh`、`shaders/global/dimension/nether_colored_light.glsl`、`shaders/world-1/shadowcomp{,A..H}.csh`、`shaders/program/shadow.vsh` 的下界体积光写入：架构参照 Solas V3.7b（`lib/vx/voxelization.glsl`、`programs/shadowcomp.glsl`、`shadow.glsl` 的 `voxel_img` 体素化与空单元传播模式），但**不是 Solas 实现的移植**：Astra 是自写的受限子集——64³ 体积、玩家周围约 32 格、同帧 8 步传播、无跨帧历史、无 LPV 照明、无 128+ 体积档位；占用/光源编码（bit 8 固体、bit 16 帧戳）、逐帧失效与边界淡出由 Astra 自行设计。Solas 的许可证状态与既有登记一致。
+- `shaders/program/shadow.vsh` 的 `imageAtomicMax` 写入与 `shaders/program/nether_light.csh` 的传播：Astra 自写。
+- `shaders/global/dimension/nether.glsl` 的 `astra_nether_colored_light` 消费点与 `program/scene.glsl` 的体积雾合成：Astra 自写。

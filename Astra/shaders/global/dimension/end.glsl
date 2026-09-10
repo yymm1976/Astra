@@ -66,17 +66,30 @@ vec3 end_sky(vec3 dir, vec3 voidTint, float time) {
     #ifdef STARS
     // Solas star distribution; both hemispheres, independent of camera motion.
     vec2 coord = dir.xz / max(abs(dir.y) + length(dir.xz), 0.001);
-    coord = floor((coord + time * 0.001) * 1228.8) / 1228.8;
+    coord = floor(coord * 850.0) / 850.0;
     float stars = end_noise(coord) * end_noise(coord + 0.10) * end_noise(coord + 0.23);
-    sky += vec3(max(stars - (0.75 - nebula * 0.1), 0.0) * max(0.4 - nebula * 0.2, 0.0) * 6.0);
+    sky += vec3(max(stars - 0.82, 0.0) * max(0.4 - nebula * 0.2, 0.0) * 8.0 * (0.94 + 0.06*sin(time*0.24 + end_noise(coord+0.37)*6.283185)));
     #endif
     // Emission and terrain shadows use exactly the same shadow-light direction.
     vec3 stellarDirection = normalize(view_player(lightVector));
     float angle = acos(clamp(dot(dir, stellarDirection), -1.0, 1.0));
     float aa = max(fwidth(angle), 0.0001);
-    float core = 1.0 - smoothstep(0.019 - aa, 0.019 + aa, angle);
-    float corona = exp(-angle * 45.0) * 0.7 + exp(-angle * 10.0) * 0.06;
-    sky += vec3(0.78,0.65,1.0) * (core * 9.0 + corona);
+    float stellarRadius = 0.072;
+    float core = 1.0 - smoothstep(stellarRadius-aa, stellarRadius+aa, angle);
+    vec3 axis = abs(stellarDirection.y)<0.95 ? vec3(0.0,1.0,0.0) : vec3(1.0,0.0,0.0);
+    vec3 tangent = normalize(cross(axis,stellarDirection));
+    vec3 binormal = cross(stellarDirection,tangent);
+    vec2 disk = vec2(dot(dir,tangent),dot(dir,binormal))/sin(stellarRadius);
+    float limb = sqrt(max(1.0-dot(disk,disk),0.0));
+    float cells = texture(solasWaterNoise,disk*0.12+vec2(time*0.0008,0.0)).r;
+    float surface = mix(0.62,1.0,limb)*(0.75+0.25*cells);
+    float azimuth = atan(dot(dir,binormal),dot(dir,tangent));
+    float streamers = 0.65+0.35*pow(0.5+0.5*sin(azimuth*11.0+sin(azimuth*5.0)+time*0.06),3.0);
+    float rimDistance = max(angle-stellarRadius,0.0);
+    float corona = exp(-rimDistance*28.0)*0.48*streamers*(1.0-core);
+    float halo = exp(-angle*7.0)*0.055;
+    sky += mix(vec3(1.0,0.47,0.20),vec3(0.86,0.78,1.0),limb) * core * surface * 3.2;
+    sky += vec3(0.62,0.45,1.0)*(corona+halo);
     return sky * (1.0 - max(blindness, darknessFactor));
 }
 vec4 end_fog(out float skyFogStrength, float distanceToEye, float borderDistance, vec3 playerPos) {
@@ -100,7 +113,7 @@ vec3 end_lighting(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
     // This response is an artistic adaptation, not a color-space conversion.
     vec3 scene = mix(END_AMBIENT_COLOR, END_SKY_LIGHT_COLOR, visibility * ndotl) * 0.25;
     scene += solasMinLight + params.nightVision * vec3(0.2,0.3,0.2);
-    vec3 factor = sqrt(max(scene, vec3(0.0)));
+    vec3 factor = sqrt(max(scene, vec3(0.0))) * 1.22;
     vec3 local = block_lighting(0.0, blockLight, held_light_strength(params.heldLightBase, playerPos), 0.0, 0.0);
     return albedo * (factor + local + (emissive + portal * 2.0) * (EMISSIVE_STRENGTH * 0.01));
 }

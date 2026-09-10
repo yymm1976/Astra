@@ -158,3 +158,38 @@
 - check_pack 复跑：0 FAIL / 2 WARN / 9 PASS。
 - 状态：未修改任何视觉裁决；无本轮游戏画面。待杨间按 docs 第 7 节机位复测
   （阴影三连截图法、水色/断层俯仰扫描、水下机位对照图 2 参考）。
+
+## 2026-09-10 晚 — 接替轮：交接复核 + N3 可行性修复 + W4
+
+- 复核交接清单（docs/2026-09-10-next-agent-dimensions-weather.md）发现 7 处自述与代码不符，
+  全部记入交接文档“复查结论”节；其中 3 处会导致功能完全失效或整包被禁：
+  1) `world-1/shadowcomp1..8.csh` 数字后缀 → Iris compute 数组只读 `<name>A..Z`（`ProgramSet.readComputeArray`
+     27 槽），8 个传播步从未加载；已改名 `shadowcompA..H.csh`。
+  2) `NETHER_VOXEL_LIGHT` 为全局选项但 `shadow.vsh` 的 `uimage3D` 无名次守卫 → 主世界/末地阴影
+     编译失败（离线编译 3 处 FAIL）；已加 `DIMENSION_NETHER &&`。
+  3) `iris.features.required=CUSTOM_IMAGES` + 无守卫 image 指令 → 特性缺失时 Iris 弹
+     FeatureMissingErrorScreen 并整体禁用光影；改 `optional` 且 image 指令入 `#ifdef`。
+- 离线编译工具 preamble 的 `MC_RENDER_STAGE_*` 与 Iris 1.11.2 `WorldRenderingPhase` 枚举不符
+  （SUN 3/4、MOON 4/5、CUSTOM_SKY 7/3），会让 program/sky.fsh 的日/月/星分支永久不命中；
+  按枚举全量重写，并新增 SC-31 防漂移校验。
+- 工具链扩展：compile_glsl.py 支持 `.csh`（4.3 上下文 + `compute_capable` 报告）、`--no-compute`、
+  修正 `--undef` 对默认开启选项的处理；check_pack.py 新增 SC-29/30/31、纳入 `.csh`、
+  第 6 项改为扫描整棵 include 树（修掉 lib/solas_water.glsl 声明漏看导致的误报）。
+- N3 正确性：占用编码 bit0-7 种类 / bit8 固体 / bit16 帧戳；空单元才扩散、固体阻挡、
+  邻居无本帧帧戳则跳过（防跨未加载区块漏光），消费端忽略过期单元。
+- N2 比对结论：`result*volume.a + volume.rgb` 即单次散射，双雾层各自持透射率属预期分层；
+  加三个密度标度（plume 0.55 / haze 0.30 / ceiling 0.35）并写进注释防止下轮误修。
+- N3 素材核对：textures/bliss-nether-noise.png 与 Bliss Stable texture/noises.png sha256 前缀
+  一致（77d1aa0c2195a4f6，512×512 RGBA8）；因 noisetex 已占用改用 customTexture 绑定，
+  过滤参数与参考不同，已记入 THIRD-PARTY.md 为已知保真差异。
+- W4：确认引擎无粒子类型 ID（Iris 无 particle.properties）→ 按图集精灵区域识别
+  （splash.json 四帧 8×8，位于粒子表最外行/列，取 UV>0.875 的 6%），蓝色偏置换中性冷灰、
+  alpha 降 55%，只改该区域以免误伤药水/水下/灵魂粒子；待实机确认命中与无误伤。
+- 驱动编译（RTX 4050 / NVIDIA 572.83 / GL 4.6）：`linked=261 failed=0 compute=27`
+  （234 vsh/fsh 对 + 9 步 × 3 档 compute），日志 qa/glsl-2026-09-10-p0-final.log 与
+  ...-w4-particle.log；关闭态回退 `--undef NETHER_VOXEL_LIGHT --no-compute` → linked=234 failed=0。
+- check_pack 复跑：0 FAIL / 2 WARN / 9 PASS（历史 4 项 FAIL 全清：texture2D 拼写、
+  自定义 uniform 误报、colortex*Format 误判、台账 16≠22）。
+- 同步：qa/tools/sync_to_instance.py 已把 Astra 全量同步到实例（缺失 0 / 内容差异 0）。
+- 状态：编译与静态校验全绿，**无本轮游戏画面**。待用户实机按交接文档“下一步”第 2-5 条复测；
+  W4 区域命中与否、下界体积光遮挡与残留、雨滴/积水/雨环观感、末地恒星尺度均需画面裁决。

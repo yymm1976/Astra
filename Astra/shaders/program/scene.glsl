@@ -17,6 +17,7 @@
 #include "/global/atmosphere/fog.glsl"
 #if defined DIMENSION_NETHER
     #include "/global/dimension/nether.glsl"
+    #include "/global/dimension/nether_volume.glsl"
 #elif defined DIMENSION_END
     #include "/global/dimension/end.glsl"
 #else
@@ -172,7 +173,18 @@ vec3 astra_apply_medium(vec3 color, vec3 playerPos, float skylight) {
         #endif
     }
     vec4 fog = astra_fog(playerPos, skylight);
-    return mix(color, fog.rgb, fog.a);
+    vec3 result = mix(color, fog.rgb, fog.a);
+    #ifdef DIMENSION_NETHER
+    if(isEyeInWater == 0 && blindness < 0.001) {
+        // Single-scattering composite: the plume/haze volume absorbs what the plain
+        // nether fog already produced and adds its own in-scatter once. Both layers
+        // owning their own transmittance is intended layering, not double absorption
+        // (T_combined = exp(-(d1+d2)L)); the density scales live in nether_volume.glsl.
+        vec4 volume = astra_bliss_fog(camera_relative_view(playerPos),0.5,0.5);
+        result = result*volume.a + volume.rgb;
+    }
+    #endif
+    return result;
 }
 vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
                  float skylight, float blocklight, uint material, out vec3 directRadiance) {

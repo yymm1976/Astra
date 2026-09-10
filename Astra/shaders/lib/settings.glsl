@@ -144,6 +144,12 @@
 // Nether fog density, % (independent curve, design 4.5)
 #define END_FOG_DENSITY 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // End void fog density, %
+#define NETHER_VOXEL_LIGHT // [false true]
+// Nether volumetric light: fire, soul fire and lava cast spatial coloured light through a
+// 64x64x64 voxel volume around the player (8 propagation steps, same frame, no history).
+// Bounded subset of the Solas voxel-light architecture, not a full 128+ volume. Needs
+// OpenGL 4.3 compute and custom images; on hardware without them Iris drops the option
+// and the rest of the pack keeps working.
 
 // --- POST ---
 #define TONEMAP_OPERATOR 0 // [0 1 2 3]

@@ -23,16 +23,25 @@ PROFILE_RE = re.compile(r"^profile\.([A-Za-z0-9_]+)=(.*)$")
 INCLUDE_RE = re.compile(r'^\s*#include\s+["<]([^">]+)[">]\s*(?://.*)?$')
 DEFINE_RE = re.compile(r"^(\s*)(//\s*)?#define\s+([A-Z][A-Z0-9_]*)(?:\s+(.*?))?\s*$")
 
+# Values below are the ordinals of Iris 1.11.2's WorldRenderingPhase enum, read
+# from the installed iris.jar (net/irisshaders/iris/pipeline/WorldRenderingPhase).
+# Iris injects them as "MC_RENDER_STAGE_<NAME>"; a wrong ordinal makes a
+# renderStage comparison silently never fire, so this table must be re-verified
+# against the jar whenever the Iris version changes.
+RENDER_STAGES = (
+    "NONE", "SKY", "SUNSET", "CUSTOM_SKY", "SUN", "MOON", "STARS", "VOID",
+    "TERRAIN_SOLID", "TERRAIN_CUTOUT_MIPPED", "TERRAIN_CUTOUT", "ENTITIES",
+    "BLOCK_ENTITIES", "DESTROY", "OUTLINE", "DEBUG", "HAND_SOLID",
+    "TERRAIN_TRANSLUCENT", "TRIPWIRE", "PARTICLES", "CLOUDS", "RAIN_SNOW",
+    "WORLD_BORDER", "HAND_TRANSLUCENT",
+)
+
 IRIS_PREAMBLE = """\
 #define MC_VERSION 260200
-#define MC_RENDER_STAGE_NONE 0
-#define MC_RENDER_STAGE_SKY 1
-#define MC_RENDER_STAGE_SUNSET 2
-#define MC_RENDER_STAGE_SUN 3
-#define MC_RENDER_STAGE_MOON 4
-#define MC_RENDER_STAGE_STARS 5
-#define MC_RENDER_STAGE_VOID 6
-#define MC_RENDER_STAGE_CUSTOM_SKY 7
+""" + "".join(
+    f"#define MC_RENDER_STAGE_{name} {index}\n"
+    for index, name in enumerate(RENDER_STAGES)
+) + """\
 #define MC_HAND_DEPTH 0.125
 #define R11F_G11F_B10F 35898
 #define R8 33321
@@ -47,6 +56,8 @@ import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
 import static org.lwjgl.opengl.GL20.*;
 import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.opengl.GL14.*;
+import static org.lwjgl.opengl.GL43.*;
 
 public final class AstraShaderCompiler {
     private static String sourceMap(String path) {
@@ -81,24 +92,63 @@ public final class AstraShaderCompiler {
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
         long window = glfwCreateWindow(32, 32, "Astra GLSL compiler", 0L, 0L);
-        if (window == 0L) throw new IllegalStateException("OpenGL 4.0 compatibility context failed");
+        if (window == 0L) {
+            glfwDefaultWindowHints();
+            glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+            glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
+            window = glfwCreateWindow(32, 32, "Astra GLSL compiler", 0L, 0L);
+        }
+        if (window == 0L) throw new IllegalStateException("OpenGL 4.3/4.0 compatibility context failed");
         glfwMakeContextCurrent(window);
         GL.createCapabilities();
+        boolean computeCapable = org.lwjgl.opengl.GL.getCapabilities().OpenGL43;
         System.out.println("OPENGL_VENDOR\t" + glGetString(GL_VENDOR));
         System.out.println("OPENGL_RENDERER\t" + glGetString(GL_RENDERER));
         System.out.println("OPENGL_VERSION\t" + glGetString(GL_VERSION));
 
         int failed = 0;
         int linked = 0;
+        int computeCount = 0;
         for (String row : Files.readAllLines(Path.of(args[0]))) {
             if (row.isBlank()) continue;
             String[] p = row.split("\t", -1);
             String label = p[0];
-            int vs = compile(GL_VERTEX_SHADER, p[1], p[2], label, "vertex");
-            int fs = compile(GL_FRAGMENT_SHADER, p[3], p[4], label, "fragment");
+            String kind = p[1];
+            if (kind.equals("cs")) {
+                computeCount++;
+                if (!computeCapable) {
+                    System.err.println("COMPUTE_UNAVAILABLE\t" + label);
+                    failed++;
+                    continue;
+                }
+                int cs = compile(GL_COMPUTE_SHADER, p[2], p[3], label, "compute");
+                if (cs == 0) { failed++; continue; }
+                int program = glCreateProgram();
+                glAttachShader(program, cs);
+                glLinkProgram(program);
+                String log = glGetProgramInfoLog(program);
+                if (glGetProgrami(program, GL_LINK_STATUS) == GL_FALSE) {
+                    System.err.println("LINK_FAIL\t" + label);
+                    System.err.print(log);
+                    failed++;
+                } else {
+                    if (!log.isBlank()) {
+                        System.out.println("LINK_LOG\t" + label);
+                        System.out.print(log);
+                    }
+                    linked++;
+                }
+                glDeleteProgram(program);
+                glDeleteShader(cs);
+                continue;
+            }
+            int vs = compile(GL_VERTEX_SHADER, p[2], p[3], label, "vertex");
+            int fs = compile(GL_FRAGMENT_SHADER, p[4], p[5], label, "fragment");
             if (vs == 0 || fs == 0) {
                 if (vs != 0) glDeleteShader(vs);
                 if (fs != 0) glDeleteShader(fs);
@@ -125,7 +175,8 @@ public final class AstraShaderCompiler {
             glDeleteShader(vs);
             glDeleteShader(fs);
         }
-        System.out.println("RESULT\tlinked=" + linked + "\tfailed=" + failed);
+        System.out.println("RESULT\tlinked=" + linked + "\tfailed=" + failed
+            + "\tcompute=" + computeCount + "\tcompute_capable=" + computeCapable);
         glfwDestroyWindow(window);
         glfwTerminate();
         if (failed != 0) System.exit(1);
@@ -161,9 +212,12 @@ def apply_profile_settings(text: str, values: dict[str, str | None]) -> str:
         if not match or match.group(3) not in values:
             output.append(line)
             continue
-        indent, _, name, old_value = match.groups()
+        indent, commented, name, old_value = match.groups()
         seen.add(name)
         value = values[name]
+        # A profile token may enable or disable an option whose factory default is
+        # the opposite, so the original commented/uncommented state is dropped here
+        # in favour of the profile value.
         if value is None:
             output.append(f"{indent}// profile disables {name}")
         elif value == "":
@@ -175,7 +229,7 @@ def apply_profile_settings(text: str, values: dict[str, str | None]) -> str:
             output.append(f"{indent}#define {name} {value}{suffix}")
     missing = sorted(set(values) - seen)
     if missing:
-        raise ValueError("profile options not found in settings.glsl: " + ", ".join(missing))
+        raise ValueError("option not found in settings.glsl: " + ", ".join(missing))
     return "\n".join(output) + "\n"
 
 
@@ -229,14 +283,24 @@ class Expander:
         path.write_text("".join(f"{number}\t{source}\n" for number, source in inverse), encoding="utf-8")
 
 
-def entry_pairs(shader_root: Path) -> list[tuple[str, Path, Path]]:
+def entry_sources(shader_root: Path) -> tuple[list[tuple[str, Path, Path]], list[tuple[str, Path]]]:
+    """Every entry Iris can load, split by kind.
+
+    Vertex/fragment pairs come from .fsh files with a matching .vsh in the same
+    directory. Compute entries are the .csh files Iris loads for the
+    ShadowComposite stage (world-1/shadowcomp*.csh in this pack); they compile
+    and link on their own, with no vertex/fragment partner.
+    """
     pairs: list[tuple[str, Path, Path]] = []
+    computes: list[tuple[str, Path]] = []
     for directory in (shader_root, shader_root / "world-1", shader_root / "world1"):
         for fragment in sorted(directory.glob("*.fsh")):
             vertex = fragment.with_suffix(".vsh")
             if vertex.is_file():
                 pairs.append((fragment.relative_to(shader_root).as_posix(), vertex, fragment))
-    return pairs
+        for compute in sorted(directory.glob("*.csh")):
+            computes.append((compute.relative_to(shader_root).as_posix(), compute))
+    return pairs, computes
 
 
 def lwjgl_classpath(mc_root: Path) -> str:
@@ -262,6 +326,9 @@ def main() -> int:
     parser.add_argument("--minecraft-root", type=Path, default=DEFAULT_MC_ROOT)
     parser.add_argument("--profiles", nargs="+", default=["PERFORMANCE", "BALANCED", "ULTRA"])
     parser.add_argument("--match", help="compile only entries whose relative path contains this text")
+    parser.add_argument("--no-compute", action="store_true",
+                        help="skip .csh entries, mirroring what Iris does when every "
+                             "compute.*.enabled condition is false")
     parser.add_argument("--undef", nargs="*", default=[], metavar="MACRO",
                         help="compile-time profile override: remove these option defines")
     parser.add_argument("--set", action="append", default=[], metavar="MACRO=VALUE",
@@ -281,11 +348,14 @@ def main() -> int:
             raise ValueError("--set requires MACRO=VALUE: " + item)
         name, value = item.split("=", 1)
         overrides[name] = value
-    pairs = entry_pairs(shader_root)
+    pairs, computes = entry_sources(shader_root)
+    if args.no_compute:
+        computes = []
     if args.match:
         pairs = [pair for pair in pairs if args.match in pair[0]]
-    if not pairs:
-        raise ValueError("no shader entry pairs selected")
+        computes = [entry for entry in computes if args.match in entry[0]]
+    if not pairs and not computes:
+        raise ValueError("no shader entries selected")
 
     javac = shutil.which("javac")
     java = shutil.which("java")
@@ -317,7 +387,17 @@ def main() -> int:
                 expander.write_map(fragment_map)
                 full_label = profile_name + ":" + label
                 manifest_rows.append("\t".join(map(str, (
-                    full_label, vertex_out, vertex_map, fragment_out, fragment_map))))
+                    full_label, "vf", vertex_out, vertex_map, fragment_out, fragment_map))))
+            for label, compute in computes:
+                expander = Expander(shader_root, profile_values)
+                safe = re.sub(r"[^A-Za-z0-9_.-]", "_", profile_name + "_" + label)
+                compute_out = temp / (safe + ".csh")
+                compute_map = temp / (safe + ".cmap")
+                compute_out.write_text(expander.expand(compute, root=True), encoding="utf-8")
+                expander.write_map(compute_map)
+                full_label = profile_name + ":" + label
+                manifest_rows.append("\t".join(map(str, (
+                    full_label, "cs", compute_out, compute_map))))
         manifest = temp / "manifest.tsv"
         manifest.write_text("\n".join(manifest_rows) + "\n", encoding="utf-8")
         result = subprocess.run(

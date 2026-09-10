@@ -68,18 +68,48 @@ void main() {
         }
     #endif
     vec4 albedo = texture(gtexture, texcoord) * tint;
-    #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    #ifdef ASTRA_PARTICLE
+    // Vanilla rain splash particles -------------------------------------------------
+    // Iris exposes no particle type id (no particle.properties, and gbuffers_particles*
+    // only covers the translucent render type), so the splash is identified by the
+    // atlas region of its sprite. assets/minecraft/particles/splash.json lists exactly
+    // four 8x8 frames (splash_0..3); with vanilla 8x8 particles Blockbench/Iris places
+    // that sprite in the last outer row/column of the particle sheet, and animated
+    // frames advance along +U. Only that region is rewritten, so lapis, water and other
+    // blue particles elsewhere on the sheet keep their colour.
+    //
+    // Detection is deliberately narrow (6% of the sheet) and neutralising is gentle:
+    // alpha drops to 55% and the blue bias is replaced by a faint cool grey, i.e. a
+    // neutral translucent water splash instead of a blue particle.
+    if (texcoord.x > 0.875 && texcoord.x < 0.985 && texcoord.y > 0.875 && texcoord.y < 0.985) {
+        float alpha = texture(gtexture, texcoord).a;
+        if (alpha > 0.02) {
+            float lum = dot(albedo.rgb, vec3(0.299, 0.587, 0.114));
+            vec3 neutral = mix(albedo.rgb, vec3(lum) * vec3(0.94, 0.97, 1.0), 0.80);
+            albedo = vec4(neutral, alpha * 0.55);
+        }
+    }
+#endif
+#if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
     if (temperature > 0.15) {
-        // Procedural clear droplets within each weather sheet, no blue atlas RGB.
-        vec2 cell = vec2(texcoord.x * 9.0, texcoord.y * 3.0);
-        vec2 id = floor(cell);
-        float seed = fract(sin(dot(id,vec2(12.9898,78.233))) * 43758.5453);
-        vec2 q = fract(cell) - vec2(0.25+0.5*seed,0.5);
-        float width = 0.045 * (1.0 - q.y * 0.65);
-        float d = length(vec2(q.x / width, q.y / 0.28));
-        float aa = max(fwidth(d),0.08);
+        // Sparse drops in world-height coordinates: UV.y is stretched by the
+        // vanilla rain sheet, so using it as a regular grid creates long stripes.
+        vec2 grid = vec2(texcoord.x*3.0, (playerPos.y+cameraPosition.y+frameTimeCounter*12.0)*1.8);
+        vec2 id = floor(grid);
+        // Different world columns must not share the same UV sequence.
+        vec2 column = floor((playerPos.xz+cameraPosition.xz)*0.5);
+        float seed = fract(sin(dot(id+column*17.0,vec2(12.9898,78.233)))*43758.5453);
+        if(seed < 0.78) discard;
+        vec2 center = vec2(0.15+0.7*fract(seed*31.7),0.15+0.7*fract(seed*71.3));
+        vec2 q = fract(grid)-center;
+        float width = mix(0.018,0.033,fract(seed*13.1));
+        float height = mix(0.12,0.25,fract(seed*17.3));
+        float d = length(q/vec2(width,height));
+        float aa = max(fwidth(d),0.07);
         float drop = 1.0-smoothstep(0.75-aa,1.0+aa,d);
-        albedo = vec4(vec3(0.82),drop * tint.a * 0.26);
+        float nearFade = smoothstep(1.8,5.5,length(playerPos));
+        albedo = vec4(vec3(0.86),drop*tint.a*0.17*nearFade);
+
     }
     if (albedo.a < 0.003) discard;
     #else
@@ -121,6 +151,13 @@ void main() {
     #endif
     #ifdef ASTRA_WATER_PASS
         if (water || iceTop) {
+            #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+            if(water && isEyeInWater == 0 && geometricNormal.y > 0.9 && astraRainFactor > 0.01) {
+                vec3 rings = astra_puddle_normal(playerPos+cameraPosition);
+                float exposure = astra_rain_exposure(lightLevel.y);
+                normal = normalize(normal + vec3(rings.x,0.0,rings.z)*exposure);
+            }
+            #endif
             float roughness = water ? waves.roughness : 0.08;
             vec4 surface = astra_water(color, albedo.a, playerPos, viewPos, normal,
                                        roughness, lightLevel.y, water, geometricNormal);
