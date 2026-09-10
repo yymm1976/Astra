@@ -57,7 +57,7 @@ vec4 water_shafts_march(vec2 uv) {
         integral += clamp(shadow1 * color * color, 0.0, 8.0) * weight;
     }
     integral *= visibility * 1.75;
-    integral *= mix(solasWaterSqrt, solasWaterSqrt * solasWeather, rainStrength) * (4.0 + sun * 8.0);
+    integral *= mix(solasWaterSqrt, solasWaterSqrt * solasWeather, wetness) * (4.0 + sun * 8.0);
     // A positive exponent keeps the zero-light case defined at extreme settings.
     integral = pow(integral, vec3(max(1.0 - pow(length(integral), 1.25) * 0.25, 0.01)));
     return vec4(pow(clamp(integral / 128.0, 0.0, 1.0), vec3(0.25)), rayLength / 128.0);

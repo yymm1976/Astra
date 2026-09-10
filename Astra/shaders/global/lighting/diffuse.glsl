@@ -162,6 +162,9 @@ vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
     #else
         float fallback = 1.0;
     #endif
+    // Solas getFakeShadow explicitly disables sky-derived direct light underwater.
+    // Missing shadow coverage must not create an unoccluded sunlight source.
+    if (isEyeInWater == 1) fallback = 0.0;
     #ifdef SHADOWS
         float coverage = shadow_coverage(playerPos, shadowPos);
         if (coverage <= 0.0) return vec3(fallback);
@@ -228,11 +231,11 @@ vec3 diffuse_lighting(
         float NoL = max(dot(worldNormal, worldLightVector), 0.0);
         vec3 shadow = clamp(visibility * clamp(NoL * 1.01 - 0.01, 0.0, 1.0), 0.0, 1.0);
         vec3 sceneLight = mix(ambient * skyLight * skyLight, direct,
-            shadow * (1.0 - rainStrength * 0.75) * astraSolasShadowFade);
+            shadow * (1.0 - wetness * 0.75) * astraSolasShadowFade);
         float vanilla = (0.25 * worldNormal.y + 0.75)
             + (0.667 - abs(worldNormal.x)) * (1.0 - abs(worldNormal.y)) * 0.15;
         vanilla = mix(1.0, vanilla * vanilla, clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0));
-        sceneLight += MIN_AMBIENT_COLOR * (1.0 - skyLight) + params.nightVision * vec3(0.2, 0.3, 0.2);
+        sceneLight += solasMinLight * (1.0 - skyLight) + params.nightVision * vec3(0.2, 0.3, 0.2);
         float held = held_light_strength(params.heldLightBase, playerPos);
         directRadiance = surfaceColor * direct * shadow * vanilla;
         return surfaceColor * (sceneLight * vanilla + block_lighting(skyLight, blockLight, held,

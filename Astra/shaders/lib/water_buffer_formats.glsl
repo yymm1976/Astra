@@ -1,0 +1,16 @@
+#ifndef ASTRA_WATER_BUFFER_FORMATS_GLSL
+#define ASTRA_WATER_BUFFER_FORMATS_GLSL
+// Steadfast declares the format name as a GLSL constant as well as using it
+// in Iris directives. Iris reads the identifier; GLSL needs a declaration.
+// Leaving every format at its default clipped the linear scene before absorption.
+#ifndef R11F_G11F_B10F
+const int R11F_G11F_B10F = 0;
+#endif
+#ifndef RGBA16
+const int RGBA16 = 0;
+#endif
+const int colortex0Format = R11F_G11F_B10F;
+const int colortex4Format = R11F_G11F_B10F;
+// Solas bloom uses eighth-root encoding, requiring its reference precision.
+const int colortex7Format = RGBA16;
+#endif

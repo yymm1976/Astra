@@ -12,6 +12,7 @@
 #include "/global/water/optics.glsl"
 #include "/global/water/medium_state.glsl"
 #include "/lib/solas_water.glsl"
+#include "/global/water/reference_light.glsl"
 #include "/global/lighting/diffuse.glsl"
 #include "/global/atmosphere/fog.glsl"
 #if defined DIMENSION_NETHER
@@ -184,6 +185,12 @@ vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
         LightParams params = LightParams(astra_sky_ambient(), astra_direct_light(),
             nightVision, astraBlocklightSuppression, astraHeldLightBase,
             astraHeldLightSuppression, lightningBoltPosition);
+        // Match the light spectrum entering air-side water absorption, not just
+        // the absorption coefficients. Dry terrain keeps the public sky lighting.
+        if (isEyeInWater == 0 && shadow_water_depth(playerPos, shadowPos) > 0.0) {
+            water_reference_lighting(params.skyAmbient, params.directLightSurface);
+            params.directLightSurface *= max(skylight, 0.125 / 16.0);
+        }
         bool sss = material >= 2u && material <= 6u;
         #ifndef SSS_FOLIAGE
             sss = false;

@@ -6,6 +6,9 @@
 #include "/global/post/grading.glsl"
 #include "/global/water/light_shafts.glsl"
 #include "/lib/solas_water.glsl"
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    #include "/lib/water_buffer_formats.glsl"
+#endif
 #ifdef UNDERWATER_PARTICLES
     #include "/lib/transforms.glsl"
     #include "/global/water/absorption.glsl"
@@ -14,6 +17,10 @@
 #ifdef BLOOM
     #include "/global/post/bloom.glsl"
     uniform sampler2D colortex2;
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        uniform sampler2D colortex7;
+        #include "/global/water/bloom_resolve.glsl"
+    #endif
     const bool colortex2MipmapEnabled = true;
 #endif
 #if defined GODRAYS || defined ASTRA_UNDERWATER_SHAFTS
@@ -28,6 +35,10 @@ in vec2 texcoord;
 void main() {
     vec3 hdr = max(texture(colortex0, texcoord).rgb, vec3(0.0));
     #ifdef BLOOM
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        if (isEyeInWater == 1) getBloom(hdr, texcoord, texture(depthtex0, texcoord).r);
+        else
+        #endif
         hdr += bloom_composite(colortex2, texcoord, BLOOM_STRENGTH * 0.01);
     #endif
     #ifdef GODRAYS
@@ -45,18 +56,6 @@ void main() {
         }
     #endif
     #endif
-    #endif
-    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-    if (isEyeInWater == 1) {
-        float rayLength;
-        vec3 viewPos = water_shafts_view(texcoord, rayLength);
-        vec3 shafts = vec3(0.0);
-        #ifdef ASTRA_UNDERWATER_SHAFTS
-            shafts = water_shafts_resolve(colortex1, texcoord, rayLength)
-                   * (UNDERWATER_SHAFT_STRENGTH * 0.01);
-        #endif
-        hdr = solas_water_composite(hdr, viewPos, shafts) * (1.0 - clamp(blindness, 0.0, 1.0));
-    }
     #endif
     #ifdef UNDERWATER_PARTICLES
         if (isEyeInWater == 1 && blindness < 1.0) {

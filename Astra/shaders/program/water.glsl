@@ -115,8 +115,7 @@ vec4 solas_underwater_interface(vec3 color, vec3 viewPos, vec3 normal, vec3 face
     vec3 incident = normalize(viewPos);
     float fresnel = clamp(1.0 + dot(normal, incident), 0.0, 0.5);
     vec3 surface = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
-    vec3 reflection = mix(surface, pow(max(astra_reflection_sky(view_player(reflect(incident, normal)), 0.0),
-                                        vec3(0.0)), vec3(1.0 / 2.2)), skylight);
+    vec3 reflection = mix(surface, solas_water_sky(view_player(reflect(incident, normal))), skylight);
     #ifdef SCREENSPACE_REFLECTIONS
         vec4 hit = water_raytrace(depthtex1, viewPos, reflect(incident, normal), faceNormal);
         if (hit.a > 0.0) {
@@ -177,7 +176,8 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
     if (reflectionWeight < 1.0) {
         vec3 fallback = belowWater
             ? astra_water_segment(vec3(0.0), playerPos, playerPos + reflectedWorld * 96.0, skylight)
-            : astra_reflection_sky(reflectedWorld, roughness) * skylight;
+            : (water ? waterRef_SkyColor(reflectedWorld)
+                     : astra_reflection_sky(reflectedWorld, roughness)) * skylight;
         reflection += fallback * (1.0 - reflectionWeight);
     }
     vec2 uv = gl_FragCoord.xy / vec2(viewWidth, viewHeight);
