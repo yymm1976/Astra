@@ -2,7 +2,11 @@
 #define ASTRA_WEATHER_GLSL
 #include "/lib/noise.glsl"
 float astra_rain_exposure(float skyLight) {
-    return pow(clamp(skyLight, 0.0, 1.0), 16.0)
+    // pow(.., 16) required skyLight > 0.95, i.e. fully exposed noon terrain, which made
+    // both puddles and the water impact rings vanish under any overcast sky. The user's
+    // rain round is exactly that situation, so the curve is relaxed to a still-selective
+    // but usable range.
+    return pow(clamp(skyLight, 0.0, 1.0), 7.5)
          * smoothstep(0.0, 0.15, rainfall) * smoothstep(0.10, 0.20, temperature);
 }
 float astra_puddle(vec3 worldPos, vec3 normal, float skyLight) {
@@ -10,7 +14,7 @@ float astra_puddle(vec3 worldPos, vec3 normal, float skyLight) {
     float n = texture(solasWaterNoise, worldPos.xz * 0.00025).b
             * texture(solasWaterNoise, worldPos.xz * 0.00050).b;
     return smoothstep(0.43, 0.66, n) * wetness
-         * astra_rain_exposure(skyLight) * smoothstep(0.94, 0.999, normal.y);
+         * astra_rain_exposure(skyLight) * smoothstep(0.86, 0.999, normal.y);
 }
 vec3 astra_puddle_normal(vec3 worldPos) {
     // Expanding local rings; random cell phases prevent synchronized stripes.
@@ -24,9 +28,12 @@ vec3 astra_puddle_normal(vec3 worldPos) {
         float age = fract(frameTimeCounter * 0.85 + seed);
         float ring = radius - age * 1.6;
         slope += delta / max(radius,0.02) * sin(ring*28.0)
-               * exp(-ring*ring*100.0) * (1.0-age) * smoothstep(0.0,0.1,age);
+               * exp(-ring*ring*80.0) * (1.0-age) * smoothstep(0.0,0.1,age);
     }
-    return normalize(vec3(slope.x * 0.018 * astraRainFactor, 1.0, slope.y * 0.018 * astraRainFactor));
+    // Amplitude raised for the user's "rings on water are missing" round. The old
+    // 0.018 perturbation was below the threshold where a specular highlight reads as a
+    // ring, especially at the grazing angles a shoreline view produces.
+    return normalize(vec3(slope.x * 0.055 * astraRainFactor, 1.0, slope.y * 0.055 * astraRainFactor));
 }
 // Same cloud field as the visible layer; ray starts at the receiving world point.
 float astra_cloud_transmission(vec3 worldPos, vec3 lightDir) {

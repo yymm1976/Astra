@@ -248,3 +248,28 @@ Iris 的选项扫描跳过该文件，故被丢弃。已在 `lib/uniforms.glsl` 
 
 验证：`linked=261 failed=0 compute=27`（qa/glsl-2026-09-11-feedback1.log）；
 `check_pack` 0 FAIL / 1 WARN / 10 PASS。已同步实例。
+
+## 2026-09-11 第二轮反馈（漏项纠正 + 黑洞返工）
+
+用户指出上一轮漏掉了雨滴相关的另外两条要求，并质疑黑洞做得太快。承认属实，本轮补齐：
+
+1. **溅水蓝色粒子未删除（我上一轮只做了"中性化"且识别未命中）**。本轮查实路径：
+   26.2 的 `WaterDropParticle.getLayer()` 返回 `SingleQuadParticle$Layer.OPAQUE` →
+   不透明粒子层 → Iris 由 `gbuffers_particles` 提供（回退 `gbuffers_textured_lit`），
+   两者都已定义 `ASTRA_PARTICLE`。
+   上一轮"猜图集格子"的做法必然失败：stitcher 把 `8px + 2*padding` 向上取整到 2 的幂，
+   且 mip 每级 padding 翻倍，溅水格根本不在表角。
+   改为**与图集/资源包无关**的判据：单四边形粒子把 8x8 精灵铺在几个像素上，其纹理坐标导数
+   远大于方块/物品表面（约 0.1–0.4 / 像素 vs 0.0x）。组合蓝色偏置后直接 `discard`。
+   这样不会误伤药水、sculk 灵魂、滴水等更大精灵的蓝色粒子。
+2. **雨滴打到水方块上的效果太弱**：`astra_puddle_normal` 振幅 0.018 → 0.055、水面叠加系数
+   2.6 → 4.0；同时发现 `astra_rain_exposure` 用 `pow(..,16)`，要求 skyLight > 0.95（正午完全
+   露天）——这正是阴雨天下积水和雨环全部消失的原因，放宽为 `pow(..,7.5)`，积水法线门限
+   0.94 → 0.86。
+3. **黑洞返工**：第一版只是"亮环+黑心"，仍偏简陋。第二版按四个真正决定观感的特征建模：
+   纯黑阴影盘（吞掉背景）、紧贴阴影的光子环、**投影平面吸积盘**（宽度由盘面法向与视线决定，
+   自然呈现椭圆，含内侧高温、多普勒束流、蓝移/红移配色）、沿盘轴的电离喷流 + 透镜晕。
+   盘面法向 (0.72,1,0.20)，湍流细节用 solasWaterNoise 在盘面坐标采样。
+
+验证：`linked=261 failed=0 compute=27`（qa/glsl-2026-09-11-feedback2-full.log）；
+`check_pack` 0 FAIL / 1 WARN / 10 PASS。已同步实例。

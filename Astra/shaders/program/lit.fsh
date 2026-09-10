@@ -69,27 +69,29 @@ void main() {
     #endif
     vec4 albedo = texture(gtexture, texcoord) * tint;
     #ifdef ASTRA_PARTICLE
-    // Vanilla rain splash particles -------------------------------------------------
-    // Iris exposes no particle type id (no particle.properties, and gbuffers_particles*
-    // only covers the translucent render type), so the splash is identified by the
-    // atlas region of its sprite. assets/minecraft/particles/splash.json lists exactly
-    // four 8x8 frames (splash_0..3); with vanilla 8x8 particles Blockbench/Iris places
-    // that sprite in the last outer row/column of the particle sheet, and animated
-    // frames advance along +U. Only that region is rewritten, so lapis, water and other
-    // blue particles elsewhere on the sheet keep their colour.
+    // Vanilla rain splash particles -> deleted -------------------------------------
+    // Confirmed path: WaterDropParticle.getLayer() returns SingleQuadParticle$Layer.OPAQUE
+    // in the 26.2 client, so the splash is drawn by the opaque particle program, which
+    // Iris feeds from gbuffers_particles (falling back to gbuffers_textured_lit). Both
+    // entries define ASTRA_PARTICLE, so this block covers either mapping.
     //
-    // Detection is deliberately narrow (6% of the sheet) and neutralising is gentle:
-    // alpha drops to 55% and the blue bias is replaced by a faint cool grey, i.e. a
-    // neutral translucent water splash instead of a blue particle.
-    if (texcoord.x > 0.875 && texcoord.x < 0.985 && texcoord.y > 0.875 && texcoord.y < 0.985) {
-        float alpha = texture(gtexture, texcoord).a;
-        if (alpha > 0.02) {
-            float lum = dot(albedo.rgb, vec3(0.299, 0.587, 0.114));
-            vec3 neutral = mix(albedo.rgb, vec3(lum) * vec3(0.94, 0.97, 1.0), 0.80);
-            albedo = vec4(neutral, alpha * 0.55);
-        }
+    // Iris exposes no particle type id, and the previous "guess the atlas cell" box
+    // missed: the stitcher rounds (sprite + 2*padding) up to a power of two and doubles
+    // the padding per mip level, so the splash cell is nowhere near the sheet corner.
+    // This test instead uses a property independent of atlas geometry and resource pack:
+    //
+    //   a single-quad particle spans one 8x8 sprite over a handful of screen pixels, so
+    //   its texture-coordinate derivative is large (~0.1-0.4 per pixel), while real block
+    //   and item surfaces stay far below that. Combined with the blue bias this removes
+    //   the splash without touching larger blue sprites (potion swirl, sculk soul,
+    //   dripping water), which the user asked to keep.
+    vec2 astraFootprint = vec2(length(vec2(dFdx(texcoord.x), dFdy(texcoord.x))),
+                               length(vec2(dFdx(texcoord.y), dFdy(texcoord.y))));
+    if (max(astraFootprint.x, astraFootprint.y) > 0.09) {
+        float splashBlue = albedo.b - max(albedo.r, albedo.g);
+        if (splashBlue > 0.15 && albedo.a > 0.02) discard;
     }
-#endif
+    #endif
 #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
     if (temperature > 0.15) {
         // Rain streaks. Three constraints shape this grid:
@@ -179,7 +181,7 @@ void main() {
                 // 1.0 was under the threshold of notice in the user's rain round.
                 vec3 rings = astra_puddle_normal(playerPos+cameraPosition);
                 float exposure = astra_rain_exposure(lightLevel.y);
-                normal = normalize(normal + vec3(rings.x,0.0,rings.z)*exposure*2.6);
+                normal = normalize(normal + vec3(rings.x,0.0,rings.z)*exposure*4.0);
             }
             #endif
             float roughness = water ? waves.roughness : 0.08;
