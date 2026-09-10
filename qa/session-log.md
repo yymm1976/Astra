@@ -387,3 +387,40 @@ Iris 的选项扫描跳过该文件，故被丢弃。已在 `lib/uniforms.glsl` 
 
 验证：`linked=261 failed=0 compute=27`（qa/glsl-2026-09-11-round5-full.log）；
 `check_pack` 0 FAIL / 1 WARN / 10 PASS。已同步实例。
+
+## 2026-09-11 第七轮（按用户要求：下载 ITT 3.2 移植黑洞 + 对照 Solas 焦散）
+
+用户的要求是对的：不要自创，去读参考源码。本轮照做。
+
+**ITT 3.2.0 已下载并登记**：`_analysis/latest-2026-09-10/iterationT-3.2.0`（`sources.json` 同步登记，
+来源 https://edge.forgecdn.net/files/6825/165/iterationT%203.2.0.zip ，40.86MB）。
+注：bash 的 curl 因 schannel 握手失败，改用 Python urllib 下载成功——后续下载参考包都用这个方式。
+
+**读源码后的关键发现（也是我此前失败的原因）**：
+IterationT 的黑洞**根本不是解析式**，而是 **50 步光线步进**，每一步调用 `WarpSpace` 把光线朝奇点
+弯折（`warpFactor = 1/(d²+ε)`，`warpAmount = 0.06`）。所以：
+- 吸积盘在步进中被自然采样到近侧与远侧两次 → 上下弧线是"走出来的"，不是画出来的；
+- 背景被连续弯折 → 星场被拉成弧；
+- 光子环是**环面**（`torusDist = length(length(discPos + vec3(0,-0.05,0)) - vec2(1.0, 0.01))`）
+  用 `Blackbody(12000)` 上色 → 极细的蓝白环。
+我此前用"一个静态角度 + 解析公式"去逼近，方向就错了——这是三轮失败的共同根源。
+
+**移植**：新建 `global/dimension/end_blackhole.glsl`，逐函数移植 `CalculateStars`、`WarpSpace`、
+`RotateMatrix`、`Calculate3DNoise`、`CalculateCloudFBM`、`pcurve`、`BlackHole_AccretionDisc_Stars`
+与 `Blackbody`/`MiePhaseFunction`/`InterleavedGradientNoise`。Astra 侧改编仅四处（noisetex 分辨率、
+IGN 替代 TAA 蓝噪声、传入恒星方向、星等增益），已在文件内逐条标注。`end.glsl` 里我手写的那套
+解析式**整段删除**。台账已加专有授权条目（ITT 归档无许可文件，与 Refax 同级）。
+**验证**：把步进循环同样搬到 Python 做离线渲染，确认输出为"黑阴影 + 环带 + 左侧多普勒增亮"的
+黑洞形态，峰值辐射约 10.8——在我三次翻车之后，这次形状是先验证再交付。
+
+**焦散对照 Solas**：读 V2.2b `lib/lighting/shadows.glsl` 消费端，其返回式为
+`clamp(shadowCol * (1.0 - shadow0) + shadow0, 0, 1)`，其中 `shadowCol` 是
+`shadowcolor0.rgb * shadowtex1 可见性` 的累积。与 Astra 现有 `surface_shadow_light`
+（`allVisibility + transmission * max(opaqueVisibility - allVisibility, 0)`）**代数等价**，
+说明写入/读取链路本身是对的。同时确认 `encode_water_height` 对水返回 < 0.999、
+`block.properties` 水为 10001、`COLORED_SHADOWS`/`WATER_CAUSTICS` 三档均开——
+因此链路无缺陷，问题更可能在"水下直接光占比"这一侧。上一轮加的直算焦散项保留作为保底，
+并已在台账注明为 Astra 自写适配，Solas 的写入端口径不变。
+
+验证：`linked=261 failed=0 compute=27`（qa/glsl-2026-09-11-itt-port.log）；
+`check_pack` 0 FAIL / 1 WARN / 10 PASS。已同步实例。

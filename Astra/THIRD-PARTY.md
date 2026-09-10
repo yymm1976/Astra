@@ -191,3 +191,25 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 - `shaders/program/nether_light.csh`、`shaders/global/dimension/nether_colored_light.glsl`、`shaders/world-1/shadowcomp{,A..H}.csh`、`shaders/program/shadow.vsh` 的下界体积光写入：架构参照 Solas V3.7b（`lib/vx/voxelization.glsl`、`programs/shadowcomp.glsl`、`shadow.glsl` 的 `voxel_img` 体素化与空单元传播模式），但**不是 Solas 实现的移植**：Astra 是自写的受限子集——64³ 体积、玩家周围约 32 格、同帧 8 步传播、无跨帧历史、无 LPV 照明、无 128+ 体积档位；占用/光源编码（bit 8 固体、bit 16 帧戳）、逐帧失效与边界淡出由 Astra 自行设计。Solas 的许可证状态与既有登记一致。
 - `shaders/program/shadow.vsh` 的 `imageAtomicMax` 写入与 `shaders/program/nether_light.csh` 的传播：Astra 自写。
 - `shaders/global/dimension/nether.glsl` 的 `astra_nether_colored_light` 消费点与 `program/scene.glsl` 的体积雾合成：Astra 自写。
+
+### 2026-09-11 末地黑洞与星空：移植 IterationT 3.2.0
+
+- `shaders/global/dimension/end_blackhole.glsl`：**移植**（非思路借鉴）IterationT 3.2.0
+  `shaders/Lib/IndividualFounctions/EndSky.glsl`（`CalculateStars`、`WarpSpace`、
+  `RotateMatrix`、`Calculate3DNoise`、`CalculateCloudFBM`、`pcurve`、
+  `BlackHole_AccretionDisc_Stars`）与 `shaders/Lib/Utilities.glsl`（`Blackbody`、
+  `MiePhaseFunction`、`InterleavedGradientNoise`、`curve`/`saturate`/`remapSaturate`）。
+  来源见 `_analysis/latest-2026-09-10/iterationT-3.2.0`（`sources.json` 同目录登记）。
+  口径：**表达式级移植**——步进循环、密度场、Blackbody 色温、环面光子环均为参考原式；
+  Astra 侧改编只有四处，均已在文件内逐条标注：
+  1. `noisetex` 采样改用 Astra 的 `noiseTextureResolution`（Astra 为 256，参考为 64）；
+  2. `BlueNoiseTemproal()`（TAA 查询）改为参考同样提供的 `InterleavedGradientNoise`；
+  3. `worldShadowVector` 改由 `end.glsl` 传入末地恒星方向；
+  4. 新增 `ASTRA_END_STAR_GAIN`（=3.0）补偿 Astra 不同的曝光/tonemap 链，参考取值为 1.0。
+- 授权：IterationT 归档内**不含任何许可文件**，按专有处理，与本文件既有的 Refrax 条目同级——
+  仅限当前个人使用定位；发布前必须整段重写或取得授权（design.md 9.3 发布闸门）。
+- 历史说明：本文件此前登记的 `end.glsl` 手写解析式黑洞已**整段移除**，改为调用上述移植模块；
+  被移除的实现连同两次失败记录保留在 `docs/2026-09-10-next-agent-dimensions-weather.md`
+  与 `qa/session-log.md` 中，供追溯。
+- `shaders/program/lit.fsh` 的水下直算焦散项为 Astra 自写（见该处注释），用于在阴影贴图投射
+  路径无法实机验证时保证焦散可见；Solas 的写入端口径仍保留在 `program/shadow.fsh`。
