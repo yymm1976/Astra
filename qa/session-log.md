@@ -131,3 +131,30 @@
 - 最终 600 组驱动编译成功；用户要求的默认档位及五个关闭/零值配置均各自覆盖。`check_pack.py` 无失败、两条既有 Voxy 提示；`git diff --check` 无空白错误。
 - 已同步指定实例，12 个包内文件更新；214 个文件逐一比较，差异/缺失/额外均为 0，见 sync.json。
 - 详细数据流与实现边界：`docs/2026-09-07-water-path-followup.md`。下一步重新加载 Astra，集中实测七类场景；水面、水下、halo、阴影和火把颜色不标视觉通过。
+
+## 2026-09-08 阴影-水修复轮（回退点 + 四修复项 + 编译验证）
+
+- 应杨间要求先提交回退点：`6fcb0fd`（chore: checkpoint water/shadow visual-round work for rollback，
+  196 文件 +5188/−1183，覆盖 SC-33..SC-35 全部未提交工作；回退 `git reset --hard 6fcb0fd`）。
+- 提交前 check_pack：0 FAIL / 2 WARN / 9 PASS（WARN 为既有 VOXY_SUPPORT 未接线项）。
+- 参考源码精读（只读）：Steadfast 0.8.0 单跳折射 + 单指数吸收 (16,3,1)/16m、
+  Solas 水下雾色 glare×16 与 VL 4-12x 增益；确定本轮数值口径（自写等效曲线，无 Solas 表达式移植）。
+- 新增 `qa/tools/shadow_frustum_probe.py`：接收端世界纹素/PCF 宽度/bias/fade 距离表；
+  修复前后对比见 docs/2026-09-08-shadow-water-fix-round.md 第 2 节。
+- 修复 A（阴影）：settings SHADOW_DISTANCE 128→256、SHADOW_SOFTNESS 4→2、
+  shadowIntervalSize 0.5；profiles 三档同步（PERF 96→192 / BALANCED 256 / ULTRA 256+SOFTNESS 8）；
+  shadowmap fade (d−24,d−8)、bias clamp 0.35。
+- 修复 B（水色）：absorption 界面吸收三档改 Steadfast 口径（BALANCED (1.0,0.1875,0.0625)）；
+  water_sun_focus 基准 0.12→1.0。
+- 修复 C（断层）：refraction.glsl 重写为单跳投影（|Δz|、32m、10% 屏幕边缘淡出）；
+  water.glsl maxDistance 96→32；REFRACTION_STRENGTH 100→60（三档 profile 同步）。
+- 修复 D（水下阳光）：scene.glsl 新增自写 water_sun_glare（exp 窄峰 + daylight*(1-rain)，
+  Nether/End 宏保护）+ WATER_SUN_GLARE_BOOST 2.5，接入 astra_underwater_color 与
+  water_medium 入射；water_phase g 0.60→0.40；light_shafts WATER_SHAFT_GAIN 2.0 +
+  UNDERWATER_SHAFT_STRENGTH 100→150（settings + 三档 profile）。
+- 驱动编译（RTX 4050 / NVIDIA 572.83 / GL 4.6）：BALANCED / PERFORMANCE / ULTRA 各
+  linked=76 failed=0（日志 qa/glsl-shadow-water-fix-{balanced,performance,ultra}.log）。
+  首轮 world-1 编译发现 `astra_direct_light` 在 Nether/End 未定义 → 辉光项加维度宏保护后全绿。
+- check_pack 复跑：0 FAIL / 2 WARN / 9 PASS。
+- 状态：未修改任何视觉裁决；无本轮游戏画面。待杨间按 docs 第 7 节机位复测
+  （阴影三连截图法、水色/断层俯仰扫描、水下机位对照图 2 参考）。

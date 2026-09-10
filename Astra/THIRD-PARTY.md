@@ -151,3 +151,11 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 | program/lit.vsh、lit.fsh、scene.glsl、scattering.fsh、final.fsh | Astra 管线适配；调用及组合以上对应来源，仍保留 Astra 的 SSR、天空、局部光和部分后处理 |
 
 具体已接入与仍有差异的模块见 docs/2026-09-10-reference-effects.md；不得把本轮表达式移植描述为完整包逐像素复现。
+
+
+### 2026-09-10 水体入射光、反射与合成补齐
+
+- `shaders/global/water/reference_light.glsl` adapted from Steadfast 0.8.0 `environment/sky/minishita.glsl` and the matching `shaders.properties` atmospheric/light expressions. Prefix and water-path integration changes by Astra; retains Steadfast GPL-3.0-or-later and additional Section 7 terms already recorded above.
+- `shaders/lib/solas_water.glsl` additionally adapts Solas V2.2b `lib/atmosphere/sky.glsl` and the default minimum-light constants.
+- `shaders/global/water/bloom_capture.glsl` and `bloom_resolve.glsl` adapt Solas V2.2b `lib/post/computeBloom.glsl` and `getBloom.glsl`, retaining tile layout, sample weights, encoding and blend equations; sampler names and default option expressions adapted. Solas attribution and license treatment remain as recorded above.
+- `program/water_composite.fsh` and `program/water_bloom.fsh` integrate those reference operations into Astra pass order.
