@@ -35,10 +35,12 @@ layout(r32ui) uniform uimage3D astraVoxelImage;
 // Occupancy encoding consumed by program/nether_light.csh and
 // global/dimension/nether_colored_light.glsl:
 //   bit 8  : solid geometry -> blocks diffusion
-//   bit 16 : frame stamp, flips every frame; cells without the current stamp are
-//            retired by the compute pass (chunks that unloaded stop contributing)
-//   bits 0-7: 0 = empty, 1 = solid, 2..8 = coloured light groups, 9..11 = fire,
-//            soul fire, lava
+//   bits 16-17: frame stamp. Alternates between 0b01 and 0b11, never 0b00, because
+//            the persistent image reads back as 0 before anything is written: a zero
+//            stamp would make every untouched cell look like air captured this frame
+//            and the diffusion march would leak through unloaded regions.
+//   bits 0-7: 0 = captured air (diffusion passes through), 1 = solid/unlit,
+//            2..8 = coloured light groups, 9..11 = fire, soul fire, lava
 uint astra_voxel_encode(uint kind, bool solid, uint stamp) {
     return (kind & 255u) | (solid ? 256u : 0u) | stamp;
 }
@@ -51,15 +53,21 @@ void astra_voxel_write() {
     ivec3 cell = ivec3(floor(center + fract(cameraPosition) + vec3(32.0)));
     if(any(lessThan(cell,ivec3(0))) || any(greaterThanEqual(cell,ivec3(64)))) return;
     int raw = int(mc_Entity.x+0.5);
-    uint kind = 1u;
+    // Any rendered vertex marks its cell as captured. kind 0 = captured air, kind 1 =
+    // captured solid, 2..8 = coloured light groups, 9..11 = fire/soul fire/lava. The
+    // diffusion pass only spreads through kind 0, so an unlit-but-rendered cell must be
+    // 0 here; writing 1 for it (the pre-handoff behaviour) made every air cell look
+    // solid and the propagation loop never ran at all.
+    uint kind = 0u;
     bool solid = true;
     // Water, plants and torches are not full cubes: they must not block the volume.
-    if(raw == 10001 || raw == 10010 || (raw >= 10004 && raw <=10006)) { kind = 1u; solid = false; }
+    if(raw == 10001 || raw == 10010 || (raw >= 10004 && raw <=10006)) { kind = 0u; solid = false; }
     if(raw >=10021 && raw <=10027) { kind=uint(raw-10019); solid = false; }
     if(raw ==10028) { kind=9u; solid = false; }
     if(raw ==10029) { kind=10u; solid = false; }
     if(raw ==10030) kind=11u;  // lava is a full cube, so it stays solid
-    uint stamp = (uint(frameCounter) & 1u) << 16;
+    // Bit flipped against the raw frame parity so the stamp is never zero.
+    uint stamp = (1u - (uint(frameCounter) & 1u)) << 16;
     imageAtomicMax(astraVoxelImage,cell,astra_voxel_encode(kind,solid,stamp));
 }
 #endif

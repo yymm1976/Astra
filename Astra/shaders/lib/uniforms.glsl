@@ -94,6 +94,16 @@ uniform mat4 vxModelView;
 uniform mat4 vxModelViewInv;
 #endif
 
+// Iris keeps a boolean option only when some compiled shader source references it;
+// lib/settings.glsl alone is not enough (Iris's option scanner skips that file), and
+// the log then shows "Unable to resolve shader pack option menu element VOXY_SUPPORT".
+// This is a bootstrap reference for the option itself: voxy.json still holds an empty
+// patch and voxy_opaque.glsl / voxy_translucent.glsl are stubs, so the owning task (C5)
+// must replace this with real Voxy support. It deliberately guards nothing else.
+#ifdef VOXY_SUPPORT
+const bool astraVoxyBootstrap = true;
+#endif
+
 #endif // EXTERNALLY_DEFINED_UNIFORMS
 
 #endif

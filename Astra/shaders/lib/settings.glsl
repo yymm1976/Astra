@@ -184,6 +184,8 @@
 // Foliage sway strength, %
 //#define VOXY_SUPPORT // [false true]
 // Voxy distant-terrain support (EXPERIMENTAL on 26.x, design 4.6)
+// Iris keeps this option only because lib/uniforms.glsl references it; the real
+// Voxy integration (voxy.json patch + Voxy programs) is still pending (owner C5).
 
 // ------------------------------------------------------------
 // ENGINE KNOBS (design.md 4.1 / 5) - the engine reads these const names, not macros.

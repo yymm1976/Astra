@@ -3,10 +3,12 @@
 //
 // Occupancy encoding written by program/shadow.vsh through imageAtomicMax:
 //   bit 8    solid geometry rendered this frame (needed so walls block diffusion)
-//   bit 16   frame stamp; flips every frame, which retires cells that were not
-//            rendered this frame (unloaded chunks, unloaded terrain)
-//   bits 0-7 light species: 0 = empty, 1 = solid/unlit, 2..8 = coloured block light
-//            (2-8 mirrored from block.properties groups), 9-11 = fire, soul fire, lava
+//   bits 16-17 frame stamp; alternates 0b01/0b11 and is never zero, which retires cells
+//            that were not rendered this frame (unloaded chunks). Zero would collide
+//            with the never-written image state and let light cross unloaded regions.
+//   bits 0-7 light species: 0 = captured air (diffusion passes through), 1 = solid/unlit,
+//            2..8 = coloured block light (mirrored from block.properties groups),
+//            9-11 = fire, soul fire, lava
 layout(local_size_x=8,local_size_y=8,local_size_z=8) in;
 const ivec3 workGroups=ivec3(8,8,8);
 uniform usampler3D astraVoxelSampler;
@@ -15,7 +17,7 @@ layout(rgba16f) uniform writeonly image3D astraLightA,astraLightB;
 uniform float frameTimeCounter;
 uniform int frameCounter;
 uint astra_frame_stamp() {
-    return (uint(frameCounter) & 1u) << 16;
+    return (1u - (uint(frameCounter) & 1u)) << 16;
 }
 vec3 emission(uint id) {
     if(id==2u) return vec3(1.0,0.04,0.01);
@@ -41,7 +43,9 @@ void main() {
         // Only empty cells diffuse; solids keep the light field from crossing them,
         // and stale neighbours (unloaded chunks) are skipped so light cannot leak
         // across regions that were never captured.
-        bool empty = (raw == 0u);
+        // Captured air is uint kind 0 without the solid bit. "raw == 0" would be the
+        // unwritten cell instead, which is never a valid diffusion source.
+        bool empty = fresh && (id == 0u) && !solid;
         if(empty) {
             const ivec3 dirs[6]=ivec3[6](ivec3(1,0,0),ivec3(-1,0,0),ivec3(0,1,0),ivec3(0,-1,0),ivec3(0,0,1),ivec3(0,0,-1));
             for(int i=0;i<6;i++) {

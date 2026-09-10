@@ -193,3 +193,30 @@
 - 同步：qa/tools/sync_to_instance.py 已把 Astra 全量同步到实例（缺失 0 / 内容差异 0）。
 - 状态：编译与静态校验全绿，**无本轮游戏画面**。待用户实机按交接文档“下一步”第 2-5 条复测；
   W4 区域命中与否、下界体积光遮挡与残留、雨滴/积水/雨环观感、末地恒星尺度均需画面裁决。
+
+## 2026-09-10 深夜 — N3 逻辑仿真：抓到 2 个编译无法发现的缺陷
+
+新增 `qa/tools/nether_voxel_model.py`：把 `program/shadow.vsh` 的占用编码与 `program/nether_light.csh`
+的九步传播在 Python 里逐规则复刻，断言四条不变量（墙阻挡/未渲染失效/空气不写成固体/八步有界）。
+它一次就抓到两个**GLSL 编译与静态校验都不可能发现**的问题：
+
+1. **传播循环从未执行（致命）**：写入端对普通不发光方块也写 `kind=1`，而传播判据是 `id==0`，
+   两者永不相等 → 8 步扩散全是死代码，彩色光只停在光源自己那一格。这就是"下界缺乏光影空间感"
+   的直接原因。修法：捕获到空气的格子写 `kind=0`（固体写 1），传播判据改为
+   `(id == 0u) && !solid`。
+2. **帧戳在偶数帧等于 0**：持久图像初始值也是 0（"从未写入"），于是偶数帧所有未渲染格子都被
+   当成"本帧捕获的空气"，扩散会穿过未加载区域。修法：帧戳改为 `(1 - (frameCounter & 1)) << 16`，
+   在 0b01/0b11 间交替，永不为 0。
+
+修后仿真：`wall blocks light ... behind=0.0000`、`air_lit=1.0800`、距离衰减 d1=1.0800 → d8=0.1083 →
+d9=0.0000，四条不变量全 PASS。
+
+同时修掉实机日志里的真实报错：`latest.log` 有
+`Unable to resolve shader pack option menu element "VOXY_SUPPORT"`——该选项只在 settings.glsl 声明，
+Iris 的选项扫描跳过该文件，故被丢弃。已在 `lib/uniforms.glsl` 加引导引用（注释写明 C5 落地后替换）；
+`check_pack` 第 11 项由 WARN 转 PASS。
+
+- 编译：`linked=261 failed=0 compute=27`（日志 qa/glsl-2026-09-10-n3-fixed.log）；
+  关闭态 `linked=234 failed=0`（...-n3-fixed-off.log）。
+- 校验：`check_pack.py` → **0 FAIL / 1 WARN / 10 PASS**。
+- 待用户实机裁决：体积光遮挡与残留、雨滴/积水/雨环观感、溅水粒子命中与否、末地恒星尺度。
