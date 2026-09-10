@@ -72,13 +72,13 @@
 // Foliage SSS strength, %
 
 // --- SKY ---
-#define SKY_MODE 0 // [0 1]
+#define SKY_MODE 1 // [0 1]
 // 0 = Minishita mini physical atmosphere, 1 = simple gradient
 #define SUN_MOON_MODE 0 // [0 1]
 // 0 = vanilla sun/moon texture, 1 = procedural discs
 #define STARS // [false true]
 // Cell-hash star field with subtle twinkle
-#define CLOUD_MODE 0 // [0 1 2]
+#define CLOUD_MODE 1 // [0 1 2]
 // 0 = vanilla clouds, 1 = planar wispy clouds, 2 = off
 #define CLOUD_COVERAGE 50 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
 // Planar cloud coverage, % (CLOUD_MODE=1 only)

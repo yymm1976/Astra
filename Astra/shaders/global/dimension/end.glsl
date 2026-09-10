@@ -725,7 +725,7 @@ vec3 end_sky(vec3 worldViewDir, vec3 voidTint, float time) {
 	// frozen set carries only `blindness` (lib/uniforms.glsl:48), so the Warden darknessFactor
 	// half is missing -> docs/handoffs/end.md. Without this term the sky kept full brightness
 	// while end_fog() blacked the terrain out under the Blindness effect.
-	return mix(voidTint, sky, voidFade) * (1.0 - blindness);
+	return mix(voidTint, sky, voidFade) * (1.0 - max(blindness, darknessFactor));
 }
 
 // ---------------------------------------------------------------------------

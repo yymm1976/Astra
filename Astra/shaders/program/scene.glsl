@@ -35,7 +35,7 @@ vec3 astra_sky(vec3 worldDir) {
     #else
         vec3 sky = astra_overworld_sky(worldDir);
         #if CLOUD_MODE == CLOUD_PLANAR
-            vec4 cloud = astra_planar_cloud(worldDir, astra_direct_light(), astra_sky_ambient());
+            vec4 cloud = astra_planar_cloud(worldDir);
             sky = mix(sky, cloud.rgb, cloud.a);
         #endif
         return sky;

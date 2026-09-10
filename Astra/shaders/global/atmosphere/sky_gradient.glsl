@@ -80,7 +80,7 @@ float astra_sky_dither() {
 
 // Astra has no `screenBrightness` uniform; the reference clamps it to [0,1] and its
 // default (vanilla "Brightness: 50%") resolves to 1.0.
-const float ASTRA_VS_BRIGHTNESS = 1.0;
+#define ASTRA_VS_BRIGHTNESS clamp(screenBrightness, 0.0, 1.0)
 
 // ------------------------------------------------------------
 // Time-of-day factors
@@ -116,7 +116,7 @@ AstraSkyFactors astra_sky_factors() {
 	f.invNoonFactor   = 1.0 - f.noonFactor;
 	f.invNoonFactor2  = f.invNoonFactor * f.invNoonFactor;
 	f.nightFactor     = 1.0 - skyVisibilityDay;             // ASTRA MAP: see header
-	f.rainFactor      = rainStrength;                       // ASTRA MAP: see header
+	f.rainFactor      = astraRainFactor;                       // ASTRA MAP: see header
 	f.rainFactor2     = f.rainFactor * f.rainFactor;
 	f.invRainFactor   = 1.0 - f.rainFactor;
 

@@ -183,7 +183,7 @@ const vec3  NETHER_LAVA_LIGHT_COLOR = vec3(0.15, 0.06, 0.01);
 //   环境 `(0.9 + 0.45 * vsBrightness)`    → 0.90 ~ 1.35
 //   熔岩 `(0.7 + 0.35 * vsBrightness)`    → 0.70 ~ 1.05
 //   下限 `vec3(0.005625 + vsBrightness * 0.043)` → 0.0056 ~ 0.0486
-const float NETHER_VS_BRIGHTNESS = 0.5;
+#define NETHER_VS_BRIGHTNESS clamp(screenBrightness, 0.0, 1.0)
 
 // minimumLighting.glsl:8 —— 下界暗部下限的色相（轻微偏冷，不是强蓝）
 const vec3  NETHER_FLOOR_TINT = vec3(0.45, 0.475, 0.6);

@@ -80,6 +80,13 @@ void main() {
     vec3 directRadiance;
     vec3 color = astra_light(albedo.rgb, normal, playerPos, surfaceShadowPosition,
                              lightLevel.y, lightLevel.x, material, directRadiance);
+    #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
+        // Camera-facing precipitation has no stable surface normal. Use diffuse
+        // sky and local block light, without surface shadows or sun-facing bands.
+        color = albedo.rgb * (astra_sky_ambient() * lightLevel.y
+              + block_lighting(lightLevel.y, lightLevel.x, 0.0,
+                               astraBlocklightSuppression, astraHeldLightSuppression));
+    #endif
     #ifdef ASTRA_WATER_PASS
         if (water || iceTop) {
             float roughness = water ? waves.roughness : 0.08;

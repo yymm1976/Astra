@@ -25,10 +25,8 @@
 //  (cloudShading), which is what produces rounded tops and dark undersides.
 //
 //  ASTRA ADAPTATIONS (the reference parts that cannot be copied as-is):
-//   - Noise source: the reference reads its cloud noise from colortex3 / gaux4,
-//     which Astra does not allocate (buffer formats are the integration task's).
-//     Astra's existing `noisetex` (256x256, the same 256 the reference's
-//     GetRoundedCloudCoord divides by) is used instead.
+//   - Noise source: dedicated complementaryCloudNoise binds the original
+//     cloud-water.png; geometry and deferred stages share the same source.
 //   - Sample count: taken from the CLOUD_QUALITY == 1 branch
 //     (reimaginedClouds.glsl:48), which is the branch the reference selects
 //     whenever DEFERRED1 is undefined - as it is in Astra.
@@ -47,6 +45,7 @@
 // ============================================================
 
 #include "/global/atmosphere/sky_gradient.glsl"
+uniform sampler2D complementaryCloudNoise;
 
 // lib/atmospherics/clouds/cloudCoord.glsl:4
 const float ASTRA_CLOUD_NARROWNESS = 0.07;
@@ -84,7 +83,7 @@ vec3 astra_modify_trace_pos(vec3 tracePos, float cloudAltitude) {
 
 // lib/atmospherics/clouds/reimaginedClouds.glsl:22-28 (Astra noise source, see header)
 float astra_2d_cloud_sample(vec2 pos) {
-	return texture(noisetex, astra_rounded_cloud_coord(pos, ASTRA_CLOUD_ROUNDNESS)).b;
+	return texture(complementaryCloudNoise, astra_rounded_cloud_coord(pos, ASTRA_CLOUD_ROUNDNESS)).b;
 }
 
 // lib/atmospherics/clouds/reimaginedClouds.glsl:7-20, without the colortex3 branch
@@ -153,13 +152,8 @@ void astra_cloud_colors(AstraSkyFactors f, AstraSkyPalette p,
 }
 
 // ------------------------------------------------------------
-// Astra interface - signature unchanged (consumed by program/scene.glsl:38).
-// NOTE: directLight / ambientLight are no longer read. The reference model
-// supplies its own cloudLightColor / cloudAmbientColor (cloudColors.glsl), so
-// keeping the parameters is only here to avoid touching program/scene.glsl;
-// see docs/handoffs/sky-clouds.md for the suggested cleanup.
-// ------------------------------------------------------------
-vec4 astra_planar_cloud(vec3 worldDir, vec3 directLight, vec3 ambientLight) {
+// Cloud colors come from the reference sky palette.
+vec4 astra_planar_cloud(vec3 worldDir) {
 	AstraSkyFactors f = astra_sky_factors();
 	AstraSkyPalette p = astra_sky_palette(f);
 	vec3 cloudAmbientColor, cloudLightColor;
@@ -172,7 +166,7 @@ vec4 astra_planar_cloud(vec3 worldDir, vec3 directLight, vec3 ambientLight) {
 
 	// ASTRA OWN: CLOUD_COVERAGE bias, zero at the default 50 so the default
 	// test is exactly the reference's `noise > threshold * 0.5 + 0.25`.
-	float coverageBias = mix(0.20, -0.20, CLOUD_COVERAGE * 0.01);
+	float coverageBias = mix(0.20, -0.20, CLOUD_COVERAGE * 0.01) - 0.18 * f.rainFactor;
 
 	// lib/atmospherics/clouds/reimaginedClouds.glsl:33-41
 	float higherPlaneAltitude = ASTRA_CLOUD_ALTITUDE + ASTRA_CLOUD_STRETCH;
@@ -192,7 +186,7 @@ vec4 astra_planar_cloud(vec3 worldDir, vec3 directLight, vec3 ambientLight) {
 	const float skyFadeM = 1.0;
 
 	// lib/atmospherics/clouds/reimaginedClouds.glsl:47-48
-	int sampleCount = max(int(planeDistanceDif) / 16, 6);
+	int sampleCount = clamp(int(min(planeDistanceDif, ASTRA_CLOUD_THRESHOLD_F)) / 16, 6, 64);
 
 	// lib/atmospherics/clouds/reimaginedClouds.glsl:55-59
 	float stepMult = planeDistanceDif / float(sampleCount);
@@ -229,7 +223,7 @@ vec4 astra_planar_cloud(vec3 worldDir, vec3 directLight, vec3 ambientLight) {
 
 		vec3 cLightPos = astra_modify_trace_pos(tracePos, ASTRA_CLOUD_ALTITUDE);
 		// lightVec (composite.glsl:26) == Astra's lightVector (sun by day, moon by night)
-		vec3 cLightPosAdd = normalize(lightVector) * 0.08 * f.shadowTime;
+		vec3 cLightPosAdd = normalize(mat3(gbufferModelViewInverse) * lightVector) * 0.08 * f.shadowTime;
 
 		float light = 2.0;
 		cLightPos += (1.0 + gradientNoise) * cLightPosAdd;
