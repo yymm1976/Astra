@@ -5,6 +5,25 @@
 // Uniforms: worldSunVector, sunProgress, moonProgress, skyVisibilityDay, rainStrength.
 // Original Astra implementation. The integration layout follows the public Minishita idea
 // (tiny spherical atmosphere, very few samples); no reference-pack expression is copied.
+//
+// ★ ASTRA-OWNED DESIGN - KEPT AS IS (2026-09-10 sky/cloud worktree).
+//   The reference pack for this task (Complementary r5.9) has NO physically-based
+//   atmosphere: its sky is the artist "up / middle / down" spherical model, which was
+//   ported into global/atmosphere/sky_gradient.glsl instead. This file therefore has no
+//   counterpart to copy from, and per the task constraint ("参考没有的（Astra 自有设计）
+//   保留并标注") its scattering structure is left untouched - only this header changed.
+//
+//   Known open issues, all inherent to this model and NOT addressed here:
+//     - The 2x1 sample budget over-extincts blue on long grazing paths, so the horizon
+//       drifts olive; ASTRA_SKY_HORIZON_ELEVATION clamps at 0.10 instead of resolving it.
+//     - No ambient floor term, which is why the day gain needs ASTRA_SKY_DAY_GAIN = 22.
+//   A different reference (Steadfast-0.8.0/shaders/environment/sky/minishita.glsl) has a
+//   structurally better version of the same idea (0.15/0.65 non-uniform view samples,
+//   t = 0.15 light samples, a hardcoded ambient blue and luminance-preserving day/night
+//   overrides). Porting it needs four extra CPU-side uniforms
+//   (rayleighStrengthSun/Moon, mieStrengthSun/Moon, day/nightSkyOverridePremultiplied,
+//   ambientSkyColor), which live in shaders.properties - the integration task's boundary.
+//   Raised in docs/handoffs/sky-clouds.md.
 
 const float ASTRA_PI = 3.14159265359;
 const float ASTRA_PLANET_RADIUS = 1.0;
