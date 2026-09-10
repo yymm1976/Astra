@@ -1,21 +1,10 @@
 #ifndef ASTRA_GLOBAL_WATER_LIGHT_SHAFTS_GLSL
 #define ASTRA_GLOBAL_WATER_LIGHT_SHAFTS_GLSL
-// Written for Astra (SC-33). Idea reference: Solas V2.2b
-// lib/atmosphere/volumetricLight.glsl and program/shadow.glsl: integrate light-space
-// occlusion along the water view ray, modulated by water-surface focusing.
-// The bounded quadrature, broad focus field and pixel-exact reconstruction are
-// self-authored; Solas' computeVL expressions and temporal noise are not ported.
-// Uniforms: depthtex0/1, colortex3, noisetex, cameraPosition, eyeBrightnessSmooth,
-// worldSunVector, frameTimeCounter, rainStrength, skyVisibilityDay, blindness.
-// March consumer also needs B1 shadow samplers/transforms and astra_direct_light().
+// Adapted from Solas V2.2b volumetricLight.glsl and composite3/5 by Septonious.
+// Astra adapters: full-resolution transport, static noise (no TAA), GBA tint.
 #include "/lib/transforms.glsl"
-#include "/lib/bayer.glsl"
-
 uniform sampler2D colortex3;
-// Solas marches to 128 blocks; Astra's 48 stopped shafting well inside the
-// distance the thinned fog now reveals, so distant water had no shafts at all.
-// 96 keeps the encoded step at 4 blocks for the default 24 samples.
-const float WATER_SHAFT_MAX_DISTANCE = 96.0;
+const float WATER_SHAFT_MAX_DISTANCE = 128.0;
 
 vec3 water_shafts_view(vec2 uv, out float rayLength) {
     ivec2 size = textureSize(depthtex0, 0);
@@ -35,44 +24,54 @@ vec3 water_shafts_view(vec2 uv, out float rayLength) {
 }
 
 #ifdef ASTRA_SHAFT_MARCH_PASS
-// Both the interface paths and this camera path consume the same solar source.
-// No second blue tint, independent extinction, angular glow or empirical gain.
+#include "/global/water/caustics.glsl"
+// Solas V2.2b computeVL underwater branch; positions use Astra's shadow matrix.
 vec4 water_shafts_march(vec2 uv) {
     float rayLength;
     vec3 viewPos = water_shafts_view(uv, rayLength);
-    float encodedDepth = rayLength / WATER_SHAFT_MAX_DISTANCE;
+    vec3 ray = normalize(view_player(viewPos));
+    float time = astraSolasTimeBrightness;
+    float sun = solas_sun_visibility();
+    float VoU = 1.0 - pow(clamp(ray.y, 0.0, 1.0), 1.5);
+    VoU = mix(VoU, 1.0, time * 0.75);
+    float VoL = mix(pow(clamp(dot(ray, normalize(view_player(lightVector))), 0.0, 1.0), 1.5), 0.5, 0.25);
+    float visibility = float(texture(depthtex0, uv).r > 0.56) * astraSolasShadowFade;
+    visibility *= pow(VoU, 1.5) * mix(0.25 + VoL * 0.25, VoL * 0.45, time);
+    visibility *= (2.0 - sun) * 0.5 * (1.0 - clamp(blindness, 0.0, 1.0));
+    float endDistance = min(-viewPos.z, WATER_SHAFT_MAX_DISTANCE);
+    float dither = texture(solasWaterNoise, gl_FragCoord.xy / 512.0).b;
     vec3 integral = vec3(0.0);
-    vec3 rayDir = normalize(view_player(viewPos));
-    vec3 rayOrigin = view_camera_relative(vec3(0.0));
-    vec3 extinction = water_extinction();
-    vec4 state = water_volume_state();
-    float surfaceHeight = state.a > 0.5 ? water_unpack_surface_height(state.rg) : -20000.0;
-    vec3 albedo = vec3(water_scattering_coefficient()) / max(extinction, vec3(1e-6));
-    // Cover the visible segment uniformly: far samples must resolve the same
-    // surface-focused columns as near samples, not skip across whole light bands.
     for (int i = 0; i < UNDERWATER_SHAFT_SAMPLES; ++i) {
-        float ta = float(i) / float(UNDERWATER_SHAFT_SAMPLES);
-        float tb = float(i + 1) / float(UNDERWATER_SHAFT_SAMPLES);
-        float begin = rayLength * ta;
-        float end = rayLength * tb;
-        float distanceAlongRay = 0.5 * (begin + end);
-        vec3 source = astra_water_sun_source(rayOrigin + rayDir * distanceAlongRay, rayDir, surfaceHeight);
-        vec3 weight = (exp(-extinction * begin) - exp(-extinction * end)) * albedo;
-        integral += source * weight;
+        float sampleIndex = float(i) + dither;
+        float distance = mix(sampleIndex * (128.0 / float(UNDERWATER_SHAFT_SAMPLES) * 0.5),
+                             exp2(sampleIndex) - 0.95, time);
+        if (distance > endDistance) break;
+        vec3 point = view_camera_relative(viewPos * (distance / max(-viewPos.z, 0.0001)));
+        vec3 pos = distort(player_shadow(point)) * 0.5 + 0.5;
+        if (length(pos.xy * 2.0 - 1.0) >= 1.0 || pos.z <= 0.0 || pos.z >= 1.0) continue;
+        float shadow0 = clamp((texture(shadowtex0, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);
+        if (shadow0 >= 1.0) continue;
+        float shadow1 = clamp((texture(shadowtex1, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);
+        vec3 color = texture(shadowcolor0, pos.xy).gba;
+        float weight = pow((distance / 128.0) / float(UNDERWATER_SHAFT_SAMPLES), 1.0 - time * 0.5);
+        integral += clamp(shadow1 * color * color, 0.0, 8.0) * weight;
     }
-    integral *= 1.0 - clamp(blindness, 0.0, 1.0);
-    return vec4(sqrt(clamp(integral * 0.25, 0.0, 1.0)), encodedDepth);
+    integral *= visibility * 1.75;
+    integral *= mix(solasWaterSqrt, solasWaterSqrt * solasWeather, rainStrength) * (4.0 + sun * 8.0);
+    // A positive exponent keeps the zero-light case defined at extreme settings.
+    integral = pow(integral, vec3(max(1.0 - pow(length(integral), 1.25) * 0.25, 0.01)));
+    return vec4(pow(clamp(integral / 128.0, 0.0, 1.0), vec3(0.25)), rayLength / 128.0);
 }
-
 #else
 vec3 water_shafts_resolve(sampler2D shaftMap, vec2 uv, float rayLength) {
-    ivec2 size = textureSize(shaftMap, 0);
-    // Producer and consumer now share the full-resolution pixel and ray endpoint.
-    // No neighbour can donate light across a block edge, and no depth rejection
-    // can erase the sun on a sloping surface.
-    ivec2 pixel = clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1);
-    vec3 encoded = texelFetch(shaftMap, pixel, 0).rgb;
-    return encoded * encoded * 4.0;
+    vec2 pixel = 1.0 / vec2(textureSize(shaftMap, 0));
+    vec3 encoded = vec3(0.0);
+    const vec2 offsets[4] = vec2[4](vec2(1.5, 0.5), vec2(-0.5, 1.5), vec2(-1.5, -0.5), vec2(0.5, -1.5));
+    for (int i = 0; i < 4; ++i) {
+        vec2 offset = offsets[i];
+        encoded += texture(shaftMap, clamp(uv + offset * pixel, pixel * 0.5, 1.0 - pixel * 0.5)).rgb;
+    }
+    return pow(encoded * 0.25, vec3(4.0)) * 128.0;
 }
 #endif
 #endif

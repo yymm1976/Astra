@@ -14,9 +14,8 @@
 //     design.md 4.4) is already folded into the exposure, NOT into this value;
 //   - GODRAYS_STRENGTH is likewise NOT applied here - it belongs to the stage-2
 //     composite, so that changing the slider does not require re-running this pass.
-// SC-33/35 water output: RGB = sqrt(linear scattering / 4), A = ray length / 96.
-// final decodes the matching full-resolution water pixel without reconstruction. Both
-// modes use the existing default RGBA target; no active format const is added.
+// Water output: RGB = fourth-root(gamma-domain VL / 128), A = ray length / 128.
+// Final reconstructs with the Solas four-tap pattern before linear conversion.
 // design.md 3.2 layer 2: program files provide the lib entry.
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"

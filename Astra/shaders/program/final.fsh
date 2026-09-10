@@ -4,9 +4,8 @@
 #include "/lib/encoding.glsl"
 #include "/lib/tonemap.glsl"
 #include "/global/post/grading.glsl"
-#ifdef ASTRA_UNDERWATER_SHAFTS
-    #include "/global/water/light_shafts.glsl"
-#endif
+#include "/global/water/light_shafts.glsl"
+#include "/lib/solas_water.glsl"
 #ifdef UNDERWATER_PARTICLES
     #include "/lib/transforms.glsl"
     #include "/global/water/absorption.glsl"
@@ -47,13 +46,17 @@ void main() {
     #endif
     #endif
     #endif
-    #ifdef ASTRA_UNDERWATER_SHAFTS
-        if (isEyeInWater == 1 && blindness < 1.0) {
-            float rayLength;
-            water_shafts_view(texcoord, rayLength);
-            hdr += water_shafts_resolve(colortex1, texcoord, rayLength)
-                 * (UNDERWATER_SHAFT_STRENGTH * 0.01);
-        }
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    if (isEyeInWater == 1) {
+        float rayLength;
+        vec3 viewPos = water_shafts_view(texcoord, rayLength);
+        vec3 shafts = vec3(0.0);
+        #ifdef ASTRA_UNDERWATER_SHAFTS
+            shafts = water_shafts_resolve(colortex1, texcoord, rayLength)
+                   * (UNDERWATER_SHAFT_STRENGTH * 0.01);
+        #endif
+        hdr = solas_water_composite(hdr, viewPos, shafts) * (1.0 - clamp(blindness, 0.0, 1.0));
+    }
     #endif
     #ifdef UNDERWATER_PARTICLES
         if (isEyeInWater == 1 && blindness < 1.0) {
@@ -68,6 +71,9 @@ void main() {
         }
     #endif
     vec3 displayColor = srgb_encode(apply_tonemap(apply_exposure(hdr)));
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        if (isEyeInWater == 1) displayColor = solas_water_display(apply_exposure(hdr));
+    #endif
     displayColor = apply_grading(displayColor);
     displayColor = apply_vignette(displayColor, texcoord);
     displayColor = apply_output_dither(gl_FragCoord.xy, displayColor);

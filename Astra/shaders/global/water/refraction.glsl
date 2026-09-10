@@ -1,29 +1,23 @@
 #ifndef ASTRA_GLOBAL_WATER_REFRACTION_GLSL
 #define ASTRA_GLOBAL_WATER_REFRACTION_GLSL
-// Astra-authored projected Snell ray / depth-plane iteration.
-// Historical provenance: From Solas V2.2b (licence undeclared), SC-24 screen
-// offset implementation. That implementation has been replaced; retain its
-// attribution record in THIRD-PARTY.md rather than silently removing history.
-// The ray is supplied by the interface. No second normal or screen perturbation.
-// Returns a projected UV; the caller validates each colour/depth sample together.
-vec2 refract_trace(sampler2D depthBuffer, vec3 viewPos, vec3 direction, float maxDistance) {
-    vec2 originalUV = view_screen(viewPos).xy;
-    ivec2 size = textureSize(depthBuffer, 0);
-    vec2 uv = originalUV;
-    for (int i = 0; i < 4; ++i) {
-        if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) break;
-        ivec2 pixel = clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1);
-        float depth = texelFetch(depthBuffer, pixel, 0).r;
-        float travel = maxDistance;
-        if (depth < 0.999999 && direction.z < -1e-4) {
-            vec2 pixelUV = (vec2(pixel) + 0.5) / vec2(size);
-            float sceneZ = screen_view(vec3(pixelUV, depth)).z;
-            travel = clamp((sceneZ - viewPos.z) / direction.z, 0.0, maxDistance);
-        }
-        vec4 projected = gbufferProjection * vec4(viewPos + direction * travel, 1.0);
-        if (projected.w <= 1e-4) return vec2(-1.0);
-        uv = projected.xy / projected.w * 0.5 + 0.5;
-    }
-    return uv;
+// Adapted from Steadfast 0.8.0 environment/water/refraction.glsl, coderbot.
+// GPL-3.0-or-later with Section 7 terms; see Astra/LICENSE and THIRD-PARTY.md.
+vec2 water_depth_range(sampler2D depthBuffer, vec2 uv) {
+    vec4 depths = textureGather(depthBuffer, clamp(uv, vec2(0.0), vec2(1.0)));
+    return vec2(min(min(depths.x, depths.y), min(depths.z, depths.w)),
+                max(max(depths.x, depths.y), max(depths.z, depths.w)));
+}
+vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 normalDelta) {
+    vec2 uv = view_screen(viewPos).xy;
+    float backgroundDepth = water_depth_range(depthBuffer, uv).y;
+    float backgroundZ = screen_view(vec3(uv, backgroundDepth)).z;
+    vec3 direction = normalize(normalize(viewPos) + normalDelta * (REFRACTION_STRENGTH * 0.01));
+    float distance = min(abs(viewPos.z - backgroundZ), 32.0);
+    vec2 refractedUV = view_screen(viewPos + direction * distance).xy;
+    vec2 ndc = abs(refractedUV * 2.0 - 1.0);
+    float visibility = clamp((1.0 - max(ndc.x, ndc.y)) / 0.10, 0.0, 1.0);
+    refractedUV = mix(uv, refractedUV, visibility);
+    if (gl_FragCoord.z > water_depth_range(depthBuffer, refractedUV).x) return uv;
+    return refractedUV;
 }
 #endif

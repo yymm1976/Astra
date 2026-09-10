@@ -44,7 +44,7 @@ uniform mat4  gbufferProjection;
 uniform mat4  gbufferProjectionInverse;
 uniform mat4  shadowModelView;         // global/lighting/shadowmap.glsl
 uniform mat4  shadowProjection;
-uniform mat4  shadowModelViewInverse;  // program/shadow.vsh: undo the shadow view before removing render-origin T
+uniform mat4  shadowModelViewInverse;  // program/shadow.vsh: shadow view -> camera-relative world point
 uniform float blindness;               // global/atmosphere/fog.glsl (0..1, vanilla darkness effect)
 
 // ------------------------------------------------------------

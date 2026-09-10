@@ -25,7 +25,7 @@ in vec3 at_midBlock;
 out vec2 texcoord;
 out vec4 tint;                  // vertex colour, feeds the coloured-shadow tint
 out float waterHeight;
-out vec3 shadowPlanePosition;
+out vec3 waterCasterWorld;
 
 void main() {
 	vec4 viewPos = gl_ModelViewMatrix * gl_Vertex;
@@ -60,11 +60,13 @@ void main() {
 	viewPos = shadowModelView * vec4(eyeRelativePos, 1.0);
 #endif
 
+	waterCasterWorld = eyeRelativePos + cameraPosition;
 	texcoord = gl_MultiTexCoord0.xy;
 	tint = gl_Color;
 
 	gl_Position = gl_ProjectionMatrix * viewPos;
-	shadowPlanePosition = gl_Position.xyz / gl_Position.w;
+	// Use the rasterizer's triangle depth. Surface receivers interpolate this
+	// same vertex projection in lit.vsh; neither pass extrapolates a plane.
 	gl_Position.xyz = distort(gl_Position.xyz / gl_Position.w) * gl_Position.w;
 
 	// Shadow-transparent glass casts nothing (design.md 4.1). Steadfast writes

@@ -2,11 +2,13 @@
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
 #include "/program/scene.glsl"
-#if !defined DIMENSION_NETHER && !defined DIMENSION_END
-    #include "/global/water/caustics.glsl"
-#endif
 #ifdef ASTRA_WATER_PASS
     #include "/program/water.glsl"
+    #include "/global/water/caustics.glsl"
+    in vec3 waterTangent;
+    in vec3 waterBinormal;
+    in vec3 waterViewVector;
+    in float waterViewDistance;
 #endif
 in vec2 texcoord;
 in vec2 lightcoord;
@@ -21,13 +23,13 @@ flat in uint faceData;
 #endif
 
 in vec3 cameraRelativePosition;
+in vec3 surfaceShadowPosition;
 
 void main() {
     // Use the rasterized surface itself for lighting and waves. A depth-buffer
     // reconstruction is unnecessary here and can disagree with per-pass projection.
     vec3 playerPos = cameraRelativePosition;
     vec3 viewPos = camera_relative_view(playerPos);
-    float pixelFootprint = max(length(dFdx(playerPos)), length(dFdy(playerPos)));
     vec3 normal = unpack_octahedral(faceData, 9);
     uint material = (faceData >> 18) & 15u;
     bool water = material == 1u;
@@ -35,7 +37,19 @@ void main() {
     #ifdef ASTRA_WATER_PASS
         // Evaluate derivatives before alpha rejection or divergent material flow.
         WaterSurface waves = water_surface(playerPos + cameraPosition, normal, frameTimeCounter);
-        if (water) normal = waves.normal;
+        if (water) {
+            normal = waves.normal;
+            #ifdef WATER_WAVES
+            #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+            if (isEyeInWater == 1) {
+                vec3 face = unpack_octahedral(faceData, 9);
+                float fresnel = clamp(1.0 + dot(face, normalize(playerPos)), 0.0, 1.0);
+                normal = solas_water_normal(playerPos + cameraPosition, face, waterTangent,
+                                            waterBinormal, waterViewVector, waterViewDistance, fresnel);
+            }
+            #endif
+            #endif
+        }
     #endif
     // Sodium/fluid underside vertices can retain an upward attribute normal.
     // Orient the geometric side from the actual ray, independent of winding.
@@ -48,6 +62,12 @@ void main() {
     #endif
     vec4 albedo = texture(gtexture, texcoord) * tint;
     if (albedo.a < alphaTestRef) discard;
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    if (water && isEyeInWater == 1) {
+        albedo.rgb = mix(tint.rgb, solasWaterSqrt * solasWaterSqrt, 0.5);
+        albedo.a = 0.70;
+    }
+    #endif
     albedo.rgb = srgb_decode(max(albedo.rgb, vec3(0.0)));
     #ifdef ASTRA_ENTITY
         albedo.rgb = mix(albedo.rgb, srgb_decode(max(entityColor.rgb, vec3(0.0))), entityColor.a);
@@ -58,16 +78,8 @@ void main() {
         discard;
     #endif
     vec3 directRadiance;
-    vec3 color = astra_light(albedo.rgb, normal, playerPos, lightLevel.y, lightLevel.x, material, directRadiance);
-    #if defined WATER_CAUSTICS && defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END
-        if (!water && lightLevel.y > 0.0) {
-            vec3 shadowPos = shadow_map_position(playerPos, normal, dot(normal, view_player(lightVector)));
-            float caustics = water_caustics(playerPos, shadowPos, frameTimeCounter, pixelFootprint);
-            // Caustics focus incoming direct light, never ambient, torch light or
-            // the already composed scene. Direct radiance already carries visibility.
-            color += directRadiance * caustics;
-        }
-    #endif
+    vec3 color = astra_light(albedo.rgb, normal, playerPos, surfaceShadowPosition,
+                             lightLevel.y, lightLevel.x, material, directRadiance);
     #ifdef ASTRA_WATER_PASS
         if (water || iceTop) {
             float roughness = water ? waves.roughness : 0.08;

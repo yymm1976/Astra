@@ -11,8 +11,8 @@
 // license including Steadfast's Section 7 additional terms.
 // Publish gate: design.md 9.3 + escalations.md SC-14 (⏸ pending user decision).
 //
-// Producer reconstructs depth on the inverse-warped surface plane. Consumers
-// compare raw depths at the same texel as the caster data and filter illumination.
+// Producer writes native triangle depth. Surface coordinates are projected at
+// vertices, then interpolated. Exact caster texels are paired with their depths.
 #include "/lib/distort.glsl"
 #include "/lib/transforms.glsl"
 
@@ -51,7 +51,10 @@ float shadow_box_distance(vec3 playerPos) {
     return max(abs(playerPos.x), max(abs(playerPos.y), abs(playerPos.z)));
 }
 float shadow_map_fade(vec3 playerPos) {
-    return 1.0 - smoothstep(shadowDistance - 16.0, shadowDistance - 4.0,
+    // SC-35 shadow round: 16/4 -> 24/8. The old band ended 4 blocks inside
+    // the map edge and faded the last visible shadows on top of the larger
+    // 256-block map; the wider band keeps coverage gradual instead of popping.
+    return 1.0 - smoothstep(shadowDistance - 24.0, shadowDistance - 8.0,
                             shadow_box_distance(playerPos));
 }
 float shadow_uv_coverage(vec3 shadowPos) {
@@ -59,7 +62,8 @@ float shadow_uv_coverage(vec3 shadowPos) {
                        min(shadowPos.y, 1.0 - shadowPos.y));
     float margin = shadowTexelSpread + 1.5 / float(shadowMapResolution);
     if (shadowPos.z <= 0.0 || shadowPos.z >= 1.0) return 0.0;
-    return smoothstep(margin, margin * 2.0, border);
+    float radialBorder = 0.5 * (1.0 - length(shadowPos.xy * 2.0 - 1.0));
+    return smoothstep(margin, margin * 2.0, min(border, radialBorder));
 }
 float shadow_coverage(vec3 playerPos, vec3 shadowPos) {
     return shadow_map_fade(playerPos) * shadow_uv_coverage(shadowPos);
@@ -80,6 +84,23 @@ ShadowTap shadow_read_tap(vec2 uv, float referenceDepth) {
     tap.caster = texelFetch(shadowcolor0, pixel, 0);
     return tap;
 }
+// Volume samples have no receiver plane. Filter visibility, never raw depth,
+// so a texel crossing cannot switch an entire integrated light column at once.
+float shadow_opaque_visibility(vec3 shadowPos) {
+    ivec2 size = textureSize(shadowtex1, 0);
+    vec2 location = shadowPos.xy * vec2(size) - 0.5;
+    ivec2 corner = ivec2(floor(location));
+    vec2 f = fract(location);
+    float visibility = 0.0;
+    for (int y = 0; y < 2; ++y) {
+        for (int x = 0; x < 2; ++x) {
+            ivec2 pixel = clamp(corner + ivec2(x,y), ivec2(0), size - 1);
+            vec2 w = mix(vec2(1.0) - f, f, vec2(x,y));
+            visibility += step(shadowPos.z, texelFetch(shadowtex1, pixel, 0).r) * w.x * w.y;
+        }
+    }
+    return visibility;
+}
 // Four bilinear lobes, expanded to sixteen exact texels. Every consumer filters
 // the completed lighting at these texels, never a material ID or depth code.
 vec2 shadow_filter_uv(vec3 shadowPos, int index, out float weight) {
@@ -94,25 +115,14 @@ vec2 shadow_filter_uv(vec3 shadowPos, int index, out float weight) {
     weight = w.x * w.y * 0.25;
     return (floor(location) + c + 0.5) / float(shadowMapResolution);
 }
-float shadow_receiver_depth(vec3 shadowPos, vec2 tapUV, vec3 worldNormal) {
-    vec3 planeNormal = mat3(shadowModelView) * worldNormal;
-    planeNormal /= vec3(shadowProjection[0][0], shadowProjection[1][1], shadowProjection[2][2]);
-    vec3 center = undistort(shadowPos * 2.0 - 1.0);
-    vec2 point = undistort(vec3(tapUV * 2.0 - 1.0, 0.0)).xy;
-    if (abs(planeNormal.z) < 1e-5) return shadowPos.z;
-    float correction = -dot(planeNormal.xy, point - center.xy) / planeNormal.z * 0.1;
-    return shadowPos.z + clamp(correction, -0.002, 0.002);
-}
 #endif
 
 vec3 shadow_map_position(vec3 playerPos, vec3 worldNormal, float ndotl) {
     vec3 raw = player_shadow(playerPos);
-    float factor = get_distort_factor(raw.xy);
-    // Radial derivative of x/(b*r + a) is a/(b*r+a)^2. Convert a
-    // distorted texel back to a conservative world-space footprint.
-    float stretch = factor * factor / max(1.0 - shadow_map_bias, 0.05);
-    float texelWorld = (2.0 * shadowDistance / float(shadowMapResolution)) * stretch;
-    float bias = clamp(texelWorld * (0.30 + 0.45 * (1.0 - max(ndotl, 0.0))), 0.008, 0.12);
+    // Steadfast's normal offset is paired with its radial projection. All PCF
+    // taps compare the same Z; no screen-derivative plane inversion is involved.
+    float bias = 1.5 * length(raw.xy)
+               + SHADOW_DISTORT_FACTOR * (1.0 - max(ndotl, 0.0));
     vec3 shadowPos = distort(player_shadow(playerPos + worldNormal * bias)) * 0.5 + 0.5;
     shadowPos.z -= 0.00001;
     return shadowPos;

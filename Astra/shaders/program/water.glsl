@@ -1,14 +1,14 @@
 #ifndef ASTRA_PROGRAM_WATER_GLSL
 #define ASTRA_PROGRAM_WATER_GLSL
 // SC-34 follow-up: colour, depth, interface side and path length are inseparable.
-// Historical Steadfast provenance below is retained. The raised F0 and modulation
-// of Fresnel by skylight described in that history are superseded by optics.glsl.
+// Above water uses Steadfast Fresnel and refraction; underwater uses Solas
+// normal/Fresnel/alpha composition, adapted to the existing scene targets.
 // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot:
 // historical translucent.glsl composition adaptation. Source at
 // _analysis/Steadfast-0.8.0/shaders/environment/lighting/translucent.glsl.
 // This derivative retains GPL-3.0-or-later and its Section 7 terms; see
 // Astra/LICENSE and THIRD-PARTY.md. Dielectric and path reconstruction below
-// replace the former F0=0.1/skylight-Fresnel choices with Astra's optical contract.
+// remain for non-water transparent surfaces.
 #include "/global/water/surface.glsl"
 #include "/global/water/raytrace.glsl"
 #include "/global/water/refraction.glsl"
@@ -16,7 +16,7 @@ uniform sampler2D colortex4;
 
 // A filtered scene lookup transports each tap BEFORE combining it. Refractive
 // silhouettes must never associate bilinear RGB with the farthest of four depths.
-// A reflection cone uses four such footprints, all constrained to the hit surface.
+// A reflection cone uses four footprints and may span different visible objects.
 //
 // SC-35: scene queries pair the deferred opaque colour copy with depthtex1, the
 // depth snapshot that excludes translucent geometry. depthtex0 includes the
@@ -40,11 +40,6 @@ float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
     float side = reflected ? 1.0 : -1.0;
     float anchorSide = water_side_acceptance(side, anchor, origin, faceNormal);
     if (anchorSide <= 0.0) return 0.0;
-    vec3 planePoint, planeNormal;
-    float footprint;
-    bool hasPlane = water_scene_plane(depthtex1, uv, planePoint, planeNormal, footprint);
-    if (!hasPlane) planeNormal = vec3(0.0,0.0,1.0);
-    float tolerance = 0.03 + abs(anchor.z) * 0.001;
     vec3 endpoint = vec3(0.0);
     float weights = 0.0;
     float sideSum = 0.0;
@@ -61,28 +56,44 @@ float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
                 ivec2 pixel = corner + ivec2(x,y);
                 if (any(lessThan(pixel, ivec2(0))) || any(greaterThanEqual(pixel, size))) continue;
                 float depth = texelFetch(depthtex1, pixel, 0).r;
-                if (depth >= 0.999999) continue;
+                if (depth >= 0.999999) {
+                    if (reflected && !inWater) {
+                        // Sky holes between leaves are part of a reflection
+                        // footprint. Renormalizing them away expands thin leaves
+                        // and makes the whole cone jump when its last leaf exits.
+                        vec2 sw = mix(vec2(1.0) - f, f, vec2(x,y));
+                        float weight = sw.x * sw.y;
+                        radiance += texelFetch(colortex4, pixel, 0).rgb * weight;
+                        endpoint += anchor * weight;
+                        weights += weight;
+                        sideSum += weight;
+                    }
+                    continue;
+                }
                 vec3 point = screen_view(vec3((vec2(pixel) + 0.5) / vec2(size), depth));
                 float accept = water_side_acceptance(side, point, origin, faceNormal);
                 if (accept <= 0.0) continue;
-                float dw = 1.0 - smoothstep(tolerance, tolerance * 2.0, abs(dot(point - anchor, planeNormal)));
                 vec2 sw = mix(vec2(1.0) - f, f, vec2(x,y));
-                float weight = sw.x * sw.y * dw * accept;
+                float weight = sw.x * sw.y * accept;
                 vec3 color = texelFetch(colortex4, pixel, 0).rgb;
-                if (inWater) color = water_interface_medium(color, length(point - origin), astra_water_incident(skylight));
+                if (inWater) color = isEyeInWater == 0
+                    ? water_surface_medium(color, dot(origin - point, faceNormal))
+                    : water_medium(color, length(point - origin), astra_water_incident(skylight));
                 radiance += color * weight;
                 endpoint += point * weight;
                 weights += weight;
-                sideSum += sw.x * sw.y * dw;
+                sideSum += sw.x * sw.y;
             }
         }
     }
     float validity;
     if (weights < 1e-5) {
-        // Every footprint tap failed the plane/side tests: transport the
+        // Every footprint tap failed the interface-side rejection: transport the
         // nearest-depth anchor alone instead of jumping to the deep fallback.
         vec3 color = texelFetch(colortex4, anchorPixel, 0).rgb;
-        if (inWater) color = water_interface_medium(color, length(anchor - origin), astra_water_incident(skylight));
+        if (inWater) color = isEyeInWater == 0
+            ? water_surface_medium(color, dot(origin - anchor, faceNormal))
+            : water_medium(color, length(anchor - origin), astra_water_incident(skylight));
         radiance = color;
         endpoint = anchor;
         validity = anchorSide;
@@ -91,18 +102,40 @@ float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
         endpoint /= weights;
         validity = clamp(weights / max(sideSum, 1e-5), 0.0, 1.0);
     }
-    if (inWater) {
-        // The retained taps describe one surface; use their centroid for the
-        // slowly varying solar source, while extinction above remains per tap.
-        vec3 start = view_camera_relative(origin);
-        vec3 finish = view_camera_relative(endpoint);
-        radiance += astra_water_segment(vec3(0.0), start, finish, skylight)
-                  - water_interface_medium(vec3(0.0), length(endpoint - origin), astra_water_incident(skylight));
-    } else if (isEyeInWater == 0) {
+    if (!inWater && isEyeInWater == 0) {
         vec4 fog = astra_fog(view_player(endpoint - origin), skylight);
         radiance = mix(radiance, fog.rgb, fog.a);
     }
     return validity;
+}
+
+// Solas underwater interface composition, adapted to Astra's linear scene copy.
+// The reference sky/SSR implementations are not replaced by this adapter.
+vec4 solas_underwater_interface(vec3 color, vec3 viewPos, vec3 normal, vec3 faceNormal, float skylight) {
+    vec3 incident = normalize(viewPos);
+    float fresnel = clamp(1.0 + dot(normal, incident), 0.0, 0.5);
+    vec3 surface = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
+    vec3 reflection = mix(surface, pow(max(astra_reflection_sky(view_player(reflect(incident, normal)), 0.0),
+                                        vec3(0.0)), vec3(1.0 / 2.2)), skylight);
+    #ifdef SCREENSPACE_REFLECTIONS
+        vec4 hit = water_raytrace(depthtex1, viewPos, reflect(incident, normal), faceNormal);
+        if (hit.a > 0.0) {
+            vec3 scene = pow(max(texture(colortex4, hit.xy).rgb, vec3(0.0)), vec3(1.0 / 2.2));
+            reflection = mix(reflection, scene, hit.a);
+        }
+    #endif
+    surface = mix(surface, reflection, fresnel);
+    float alpha = mix(0.70, 1.0, fresnel);
+    vec2 uv = gl_FragCoord.xy / vec2(viewWidth, viewHeight);
+    #ifdef SCREENSPACE_REFRACTION
+        // Solas composite4: normal displacement, FOV and eight-block minimum.
+        vec2 displacement = (normal.xy - faceNormal.xy) * (0.6 * REFRACTION_STRENGTH * 0.01);
+        displacement *= vec2(viewHeight / viewWidth, 1.0) * (gbufferProjection[1][1] / 1.37) / max(length(viewPos), 8.0);
+        vec2 candidate = clamp(uv + displacement, vec2(0.0), vec2(1.0));
+        if (water_depth_range(depthtex1, candidate).x >= gl_FragCoord.z) uv = candidate;
+    #endif
+    vec3 background = pow(max(texture(colortex4, uv).rgb, vec3(0.0)), vec3(1.0 / 2.2));
+    return vec4(pow(mix(background, surface, alpha), vec3(2.2)), 1.0);
 }
 
 vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
@@ -111,26 +144,26 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
     vec3 geometric = normalize(geometricNormal);
     if (dot(incidentWorld, geometric) > 0.0) geometric = -geometric;
     if (dot(normal, geometric) < 0.0) normal = -normal;
-    // A shading normal cannot send reflection through the geometric interface.
-    // Smoothly limit the incident-plane slope at grazing angles, using this same
-    // normal for Fresnel, reflection and refraction (no second perturbation).
-    vec3 slope = normal / max(dot(normal, geometric), 1e-4) - geometric;
-    float projectedSlope = abs(dot(incidentWorld, slope));
-    float slopeLimit = 0.45 * max(-dot(incidentWorld, geometric), 1e-4);
-    normal = normalize(geometric + slope * min(1.0, slopeLimit / max(projectedSlope, 1e-5)));
     vec3 incident = normalize(viewPos);
     vec3 viewNormal = normalize(player_view(normal));
     vec3 viewGeometric = normalize(player_view(geometric));
     bool belowWater = isEyeInWater == 1;
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        if (water && belowWater) return solas_underwater_interface(color, viewPos, viewNormal, viewGeometric, skylight);
+    #endif
     float eta = belowWater && water ? WATER_IOR : 1.0 / WATER_IOR;
     bool totalReflection;
     float fresnel = water_fresnel(max(dot(-incident, viewNormal), 0.0), eta, totalReflection);
+    if (water && !belowWater) {
+        fresnel = (0.1 + 0.9 * pow(clamp(1.0 + dot(incident, viewNormal), 0.0, 1.0), 5.0)) * skylight;
+    }
     vec3 reflectedRay = reflect(incident, viewNormal);
+    if (dot(reflectedRay, viewGeometric) <= 0.0) reflectedRay = reflect(incident, viewGeometric);
     vec3 reflectedWorld = normalize(view_player(reflectedRay));
     vec3 reflection = vec3(0.0);
     float reflectionWeight = 0.0;
     #ifdef SCREENSPACE_REFLECTIONS
-        vec4 hit = water_raytrace(depthtex1, viewPos, reflectedRay, roughness);
+        vec4 hit = water_raytrace(depthtex1, viewPos, reflectedRay, viewGeometric);
         if (hit.a > 0.0) {
             vec3 reflected;
             vec3 hitPos = screen_view(hit.xyz);
@@ -155,8 +188,8 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
         float valid = 0.0;
         bool airMiss = false;
         #ifdef SCREENSPACE_REFRACTION
-            vec3 ray = normalize(mix(incident, refractedRay, REFRACTION_STRENGTH * 0.01));
-            vec2 refractedUV = refract_trace(depthtex1, viewPos, ray, 96.0);
+            // Steadfast advances by background depth with the perturbed direction.
+            vec2 refractedUV = water_refracted_uv(depthtex1, viewPos, viewNormal - viewGeometric);
             valid = water_sample_path(refractedUV, viewPos, viewGeometric, false,
                                      water && !belowWater, 0.0, skylight, transmitted);
             if (belowWater && valid <= 0.0) {

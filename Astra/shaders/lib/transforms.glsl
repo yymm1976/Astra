@@ -46,26 +46,23 @@ vec3 view_screen(vec3 x) {
     return x * 0.5 + 0.5;
 }
 
-// SC-35 render-origin contract (Iris on 26.x): gbufferModelViewInverse[3] is a
-// NONZERO section-origin translation T that slides with the player. Full-affine
-// point transforms therefore yield (camera-relative + T); mixing those with
-// cameraPosition or length() anchored effects to the render origin instead of
-// the world (moving torch ball, swimming waves/caustics, fog distance error).
-// Working packs keep the rotation part only (Mellow lib/transformations.glsl,
-// Solas lib/util/ToWorld.glsl). Shadow rendering has its OWN model-view matrix;
-// the main camera's inverse-view translation must not enter that pipeline.
+// Point transforms include translation; view_player/player_view above transform
+// directions only. Solas ToWorld and Steadfast lit use this affine contract.
+// Native 26.2 normally supplies a pure rotation here; do not invent a nonzero
+// section-origin translation, nor assume translation is absent on every path.
 vec3 view_camera_relative(vec3 x) {
-    return mat3(gbufferModelViewInverse) * x;
+    return (gbufferModelViewInverse * vec4(x, 1.0)).xyz;
 }
 
 vec3 camera_relative_view(vec3 x) {
-    return mat3(gbufferModelView) * x;
+    return (gbufferModelView * vec4(x, 1.0)).xyz;
 }
 
 // Camera-relative world point -> shadow NDC. Iris ShadowRenderer supplies its
 // MODELVIEW directly to Sodium ChunkRenderMatrices. Sodium GLDrawContext already
 // subtracts the entire camera position in u_RegionOffset (integer + fraction).
-// Adding gbufferModelViewInverse[3] here displaced ALL receivers as the eye moved.
+// The point conversion above has already applied the main inverse view.
+// Do not add its translation a second time here.
 vec3 player_shadow(vec3 player_pos) {
     vec3 shadow_pos = project_and_divide(shadowProjection,
         (shadowModelView * vec4(player_pos, 1.0)).xyz);

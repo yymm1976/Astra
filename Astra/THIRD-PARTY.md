@@ -21,7 +21,7 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 | `shaders/lib/tonemap.glsl` | Mellow v3.4（`lib/tonemap_operators.glsl` + `lib/tonemap.glsl` 的 apply_saturation/vibrance/contrast） | 逐行移植（重命名为 snake_case；仅保留设计 §4.4 四算子） | MIT | `// From Mellow v3.4 (MIT) by TheCMK` |
 | `shaders/lib/encoding.glsl` | Mellow v3.4（`lib/util.glsl` 的 encodeUnitVector/decodeUnitVector/get_luminance、`lib/transformations.glsl` 的 to_linear） | 逐行移植（重命名）+ Astra 增补（srgb_encode/srgb_decode 为 IEC 标准式；pack_octahedral/unpack_octahedral/pack_u16 自写封装） | MIT | 同上 |
 | `shaders/lib/transforms.glsl` | Mellow v3.4（`lib/transformations.glsl`） | 逐行移植（删除 DH 分支；Voxy 矩阵分支改由入口专属 ASTRA_VOXY_PASS 控制，SC-32） | MIT | 同上 |
-| `shaders/lib/distort.glsl` | Mellow v3.4（`lib/shadow_distort.glsl`） | 逐行移植（compute_bias 内保留其源自 Complementary 的授权注释） | MIT | 同上 |
+| `shaders/lib/distort.glsl` | Steadfast 0.8.0（`lib/distort.glsl`，作者 coderbot） | 径向扭曲与 Z 缩放表达式移植；Astra 增补解析逆变换。2026-09-09 与 shadow_map_position 成套替换原 Mellow 方形扭曲，删除无调用的 compute_bias | GPLv3 + §7 两条附加条款 | 文件头 GPL 来源说明 |
 | `shaders/lib/noise.glsl` | Mellow v3.4（`lib/noise.glsl` 的 noise/noise_water/fbm_fast） | 逐行移植（noise_water 的 WATER_NORMAL_* 宏适配为 WATER_WAVE_SPEED/HEIGHT） | MIT | 同上 |
 | `shaders/lib/dither.glsl` | Mellow v3.4（`lib/noise.glsl` 的 ign/dither） | 逐行移植（Astra 无 TAA，dither 固定为静态 IGN） | MIT | 同上 |
 | `shaders/lib/bayer.glsl` | 无参考（自写：教科书式 Bayer 递归构造，公共域模式） | 自写 | — | `// written for Astra` |
@@ -135,3 +135,19 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 ## 2026-09-08 后续四图续修
 
 依据本地 Iris/Sodium 顶点与矩阵输入纠正 shadow 坐标契约；保留 transforms 的 Mellow、shadow 的 Steadfast 出处。Astra 自写的界面透射谱与水下体积谱分离。`water_sun_focus` 是 Astra 的水面噪声聚光场，现同时供床面与光束使用；caustics.glsl 删除不再使用的 Solas 差分图案函数，保留其历史来源登记。原出处表中对旧差分图案的描述为历史记录，当前实现以本段为准。
+
+## 2026-09-10 参考水面／水下依赖接入
+
+本节为上述历史水光条目的当前实现补充。当前使用范围仍为用户授权的本地开发与实例。
+
+| 文件 | 当前来源 |
+|---|---|
+| global/water/surface.glsl、refraction.glsl、absorption.glsl、program/water.glsl 空气侧 | Steadfast 0.8.0，coderbot，既有 GPL-3.0-or-later 及 Section 7 条款继续适用；恢复波场、视差、折射推进、吸收和 Fresnel 关系 |
+| global/water/caustics.glsl、lib/solas_water.glsl、global/water/light_shafts.glsl | Solas V2.2b，Septonious；表达式级适配 waterNormals/waterCaustics、waterFog、lightColor、volumetricLight、post/tonemap 及 composite3/4/5/14；不是仅思路借鉴 |
+| program/shadow.fsh、global/lighting/diffuse.glsl、program/water.glsl 水下侧 | 在既有出处之上接入 Solas 焦散投射、环境／直射混合、界面法线与 Fresnel/alpha 组合 |
+| textures/solas-water-noise.png 及 .mcmeta | 来自用户提供的 Solas V2.2b shaders/tex/noise.png 及其采样元数据 |
+| textures/steadfast-water-noise.png 及 .mcmeta | 按当前 Iris 1.11.2 的 NativeImageBackedNoiseTexture 所用 Java Random(0) 填充规则生成 64×64 数据；线性重复采样，以匹配 Steadfast 的 noiseTextureResolution=64 |
+| shaders.properties | 接入并加前缀的 Solas 时间表达式，以及两组独立纹理绑定 |
+| program/lit.vsh、lit.fsh、scene.glsl、scattering.fsh、final.fsh | Astra 管线适配；调用及组合以上对应来源，仍保留 Astra 的 SSR、天空、局部光和部分后处理 |
+
+具体已接入与仍有差异的模块见 docs/2026-09-10-reference-effects.md；不得把本轮表达式移植描述为完整包逐像素复现。

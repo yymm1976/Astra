@@ -14,15 +14,17 @@ vec3 water_absorption_coefficient() {
     return vec3(0.055, 0.028, 0.010) * (WATER_ABSORPTION * 0.01);
 }
 vec3 water_surface_absorption() {
+    // Steadfast's appearance presets expressed per block of VERTICAL depth.
+    // These are an interface appearance control, not volume extinction.
     #if WATER_CHARACTER == WATER_COLD
         // Colder water retains relatively more blue than the other types.
-        vec3 coefficient = vec3(0.200, 0.032, 0.020);
+        vec3 coefficient = vec3(1.000, 0.3125, 0.0625);
     #elif WATER_CHARACTER == WATER_TROPICAL
         // Strongest red removal and longest green transport length.
-        vec3 coefficient = vec3(0.320, 0.018, 0.032);
+        vec3 coefficient = vec3(2.000, 0.1250, 0.03125);
     #else
         // Default: clear cyan shallows, teal middle depths, dark deep water.
-        vec3 coefficient = vec3(0.260, 0.022, 0.026);
+        vec3 coefficient = vec3(1.000, 0.1875, 0.0625);
     #endif
     return coefficient * (WATER_ABSORPTION * 0.01);
 }
@@ -47,14 +49,12 @@ vec3 water_transport(vec3 radiance, float distanceInWater, vec3 incidentLight, v
 vec3 water_medium(vec3 radiance, float distanceInWater, vec3 incidentLight) {
     return water_transport(radiance, distanceInWater, incidentLight, water_extinction());
 }
-// This is called only for an interface-to-bed/reflected-terrain leg, never for
-// the eye-to-interface volume. It preserves zero-distance transparency and the
-// bed's texture; it does not tint reflections or the complete screen.
-vec3 water_interface_extinction() {
-    return isEyeInWater == 0
-        ? water_surface_absorption() + water_scattering_coefficient() : water_extinction();
-}
-vec3 water_interface_medium(vec3 radiance, float distanceInWater, vec3 incidentLight) {
-    return water_transport(radiance, distanceInWater, incidentLight, water_interface_extinction());
+// Air-side appearance: the reference uses (vertical depth + 1) / 16, not the
+// much longer grazing view path. Do not add the blue underwater volume source
+// to this branch.
+vec3 water_surface_medium(vec3 radiance, float verticalDepth) {
+    float depth = max(verticalDepth, 0.0);
+    float appearanceDepth = clamp(depth + 1.0, 0.0, 16.0);
+    return radiance * exp(-appearanceDepth * water_surface_absorption());
 }
 #endif

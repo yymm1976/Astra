@@ -56,11 +56,11 @@
 // Master switch for shadow map
 #define SHADOW_RESOLUTION 2048 // [512 1024 1536 2048 3072 4096]
 // Shadow map resolution (square)
-#define SHADOW_DISTANCE 128 // [64 80 96 112 128 160 192 256]
+#define SHADOW_DISTANCE 256 // [64 80 96 112 128 160 192 256]
 // Shadow render distance, blocks
 #define ENTITY_SHADOW_DISTANCE 64 // [32 48 64 96 128]
 // Entity shadow distance, blocks
-#define SHADOW_SOFTNESS 4 // [1 2 4 8 16]
+#define SHADOW_SOFTNESS 2 // [1 2 4 8 16]
 // Shadow edge softness, texels (4-tap PCF, max 16)
 #define COLORED_SHADOWS // [false true]
 // Tinted shadows via shadowcolor0 (stained glass / water)
@@ -101,9 +101,10 @@
 #define SCREENSPACE_REFLECTIONS // [false true]
 // SSR on water/ice top faces (24 steps, sky fallback)
 #define SCREENSPACE_REFRACTION // [false true]
-// Single-jump screen-space refraction with depth rejection
+// Finite interface perturbation with per-tap depth/side rejection
 #define REFRACTION_STRENGTH 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
 // Refraction offset strength, %
+// Controls the finite wave layer; background depth cannot amplify this strength.
 #define WATER_ABSORPTION 100 // [0 10 20 30 40 50 60 70 80 90 100]
 // Underwater absorption amount, % (0 = OFF, enables deferred pass)
 #define WATER_CHARACTER 1 // [0 1 2]
@@ -116,7 +117,8 @@
 // Shadowed underwater sunlight, independent of the air GODRAYS option
 #define UNDERWATER_SHAFT_STRENGTH 100 // [0 25 50 75 100 125 150 175 200]
 // Underwater light shaft brightness, %
-#define UNDERWATER_SHAFT_SAMPLES 24 // [16 24 32]
+// The user control scales the integrated solar source once.
+#define UNDERWATER_SHAFT_SAMPLES 7 // [4 5 6 7 8 9 10]
 // Shadow samples along each full-resolution water view ray
 #define FANCY_TRANSLUCENTS // [false true]
 // Premultiplied alpha blending for translucents (blend ONE, ONE_MINUS_SRC_ALPHA)
@@ -185,6 +187,11 @@
 const int   shadowMapResolution  = SHADOW_RESOLUTION;  // shadow map is square
 const float shadowDistance       = SHADOW_DISTANCE;    // blocks
 const float shadowDistanceRenderMul = 1.5;             // retain upstream casters beyond the receiver range
+// Smaller world-grid intervals reduce changes of the distortion origin at
+// cell boundaries; this does not change the shadow map's texel resolution.
+const float shadowIntervalSize   = 0.5;
+// Both Steadfast and Solas use this orbit; Iris applies it to sky and shadow matrices.
+const float sunPathRotation = -40.0;
 const int   noiseTextureResolution = 256;              // matches textures/noise.png
 
 // --- SC-13 (design.md 4.1): the three shadow engine knobs, semantics frozen there ---

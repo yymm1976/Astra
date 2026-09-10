@@ -22,20 +22,17 @@
 in vec2 texcoord;
 in vec4 tint;
 in float waterHeight;
-in vec3 shadowPlanePosition;
+in vec3 waterCasterWorld;
+#include "/global/water/caustics.glsl"
 
 /* RENDERTARGETS: 0 */
+// GBA stores light-transmission RGB, so A is data, not surface coverage.
+// Iris adds an output-alpha discard to legacy gl_FragData[0] writes. Use an
+// explicit data output so only the source-albedo cutout below clips geometry;
+// keep alphaTestRef supplied by Iris (including the terrain cutout threshold).
+layout(location = 0) out vec4 shadowData;
 
 void main() {
-	// A nonlinear XY warp invalidates interpolated Z, even on a flat block.
-	// Reconstruct the original light-space plane at the inverse-warped pixel.
-	// Derivatives are evaluated before alpha rejection.
-	vec3 planeNormal = cross(dFdx(shadowPlanePosition), dFdy(shadowPlanePosition));
-	vec2 rawXY = undistort(vec3(gl_FragCoord.xy / float(shadowMapResolution) * 2.0 - 1.0, 0.0)).xy;
-	float rawZ = shadowPlanePosition.z;
-	if (abs(planeNormal.z) > 1e-12)
-		rawZ -= dot(planeNormal.xy, rawXY - shadowPlanePosition.xy) / planeNormal.z;
-	gl_FragDepth = clamp(rawZ * 0.1 + 0.5, 0.0, 1.0);
 	vec4 albedo = texture(gtexture, texcoord) * tint;
 
 	if (waterHeight >= WATER_HEIGHT_NONE && albedo.a < alphaTestRef) {
@@ -55,5 +52,15 @@ void main() {
 	vec3 shadowTint = vec3(1.0);
 #endif
 
-	gl_FragData[0] = vec4(waterHeight, shadowTint);
+    // Solas writes the water focusing pattern into the light map itself.
+    // Both the floor and volume samples consume this same projected pattern.
+    #ifdef WATER_CAUSTICS
+    if (waterHeight < WATER_HEIGHT_NONE) {
+        float focus = solas_water_caustics(waterCasterWorld);
+        vec3 waterTint = vec3(115.0, 200.0, 250.0) / 255.0 * 0.80;
+        shadowTint = mix(vec3(1.0), pow(waterTint, vec3(0.75)), 0.25 + 0.75 * focus);
+        shadowTint *= (0.25 + focus * 4.0) * (1.0 - pow(albedo.a, 32.0));
+    }
+    #endif
+    shadowData = vec4(waterHeight, shadowTint);
 }

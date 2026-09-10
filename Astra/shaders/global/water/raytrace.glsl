@@ -44,138 +44,72 @@ bool water_ssr_gather_uv_valid(sampler2D sceneDepth, vec2 uv) {
 		&& all(lessThanEqual(uv, vec2(1.0) - halfTexel));
 }
 
-// Neighbours are selected within the same depth surface, never across a silhouette.
-bool water_scene_plane(sampler2D sceneDepth, vec2 uv, out vec3 center,
-                       out vec3 planeNormal, out float footprint) {
-    ivec2 size = textureSize(sceneDepth, 0);
-    ivec2 pixel = clamp(ivec2(uv * vec2(size)), ivec2(1), size - 2);
-    vec2 centerUV = (vec2(pixel) + 0.5) / vec2(size);
-    float centerDepth = texelFetch(sceneDepth, pixel, 0).r;
-    center = screen_view(vec3(centerUV, centerDepth));
-    float leftD = texelFetch(sceneDepth, pixel + ivec2(-1,0), 0).r;
-    float rightD = texelFetch(sceneDepth, pixel + ivec2(1,0), 0).r;
-    float downD = texelFetch(sceneDepth, pixel + ivec2(0,-1), 0).r;
-    float upD = texelFetch(sceneDepth, pixel + ivec2(0,1), 0).r;
-    int dx = abs(leftD-centerDepth) < abs(rightD-centerDepth) ? -1 : 1;
-    int dy = abs(downD-centerDepth) < abs(upD-centerDepth) ? -1 : 1;
-    float xDepth = dx < 0 ? leftD : rightD;
-    float yDepth = dy < 0 ? downD : upD;
-    if (centerDepth >= 0.999999 || xDepth >= 0.999999 || yDepth >= 0.999999) return false;
-    vec3 pointX = screen_view(vec3(centerUV + vec2(dx,0)/vec2(size), xDepth));
-    vec3 pointY = screen_view(vec3(centerUV + vec2(0,dy)/vec2(size), yDepth));
-    vec3 crossNormal = cross(pointX-center, pointY-center);
-    if (dot(crossNormal,crossNormal) < 1e-12) return false;
-    planeNormal = normalize(crossNormal);
-    footprint = length(pointX-center) + length(pointY-center);
-    return true;
-}
+vec4 water_raytrace(sampler2D sceneDepth, vec3 viewPos, vec3 rayDirection,
+                    vec3 interfaceNormal) {
+    rayDirection = normalize(rayDirection);
+    float rangeVisibility = 1.0 - smoothstep(64.0, 128.0, length(viewPos));
+    if (rangeVisibility <= 0.0) return vec4(0.0);
 
-vec4 water_raytrace(
-	sampler2D sceneDepth,
-	vec3 viewPos,
-	vec3 rayDirection,
-	float roughness
-) {
-	rayDirection = normalize(rayDirection);
-	float roughnessVisibility = 1.0 - smoothstep(0.18, 0.48, clamp(roughness, 0.0, 1.0));
-	float surfaceRangeVisibility = 1.0 - smoothstep(64.0, 128.0, length(viewPos));
+    vec3 origin = viewPos + rayDirection * 0.02;
+    float low = 0.0;
+    float high = 0.0;
+    float previous = 0.0;
+    float stride = clamp(-viewPos.z * 0.0025, 0.08, 0.25);
+    vec2 hitUV = vec2(0.0);
+    float hitDepth = 1.0;
+    bool found = false;
+    // Keep the first depth crossing on the REFLECTED side. A submerged floor
+    // must not end an above-water reflection before the ray reaches the shore.
+    for (int i = 0; i < 24; ++i) {
+        float travel = previous + stride;
+        vec3 candidate = origin + rayDirection * travel;
+        vec2 uv;
+        if (!water_ssr_project(candidate, uv) || !water_ssr_gather_uv_valid(sceneDepth, uv)) break;
+        float depth = water_ssr_depth_range(sceneDepth, uv).x;
+        if (depth < 0.999999) {
+            vec3 scene = screen_view(vec3(uv, depth));
+            if (dot(scene - viewPos, interfaceNormal) > 0.0 && candidate.z <= scene.z) {
+                low = previous;
+                high = travel;
+                hitUV = uv;
+                hitDepth = depth;
+                found = true;
+                break;
+            }
+        }
+        previous = travel;
+        stride = min(stride * 1.6, 8.0);
+    }
+    if (!found) return vec4(0.0);
 
-	// Rays may travel towards the eye and still hit visible geometry below water.
-	if (roughnessVisibility * surfaceRangeVisibility <= 0.0) {
-		return vec4(0.0);
-	}
-
-	vec3 rayOrigin = viewPos + rayDirection * 0.02;
-	float lowDistance = 0.0;
-	float highDistance = 0.0;
-	float previousDistance = 0.0;
-	float stepLength = max(0.06, min(0.24, -viewPos.z * 0.0025));
-	vec2 hitUv = vec2(0.0);
-	bool bracketed = false;
-
-	// Twenty coarse samples are followed by four binary steps and local-plane
-	// reconstruction. Doubling the step covers open water quickly while preserving nearby
-	// contacts through the small initial stride.
-	for (int stepIndex = 0; stepIndex < 20; ++stepIndex) {
-		float travel = previousDistance + stepLength;
-		vec3 candidate = rayOrigin + rayDirection * travel;
-		vec2 uv;
-		if (!water_ssr_project(candidate, uv)
-			|| !water_ssr_gather_uv_valid(sceneDepth, uv)) {
-			return vec4(0.0);
-		}
-
-		vec2 depthRange = water_ssr_depth_range(sceneDepth, uv);
-		if (depthRange.x < 0.999999) {
-			float sceneNearZ = water_ssr_view_z(depthRange.x, uv);
-			if (candidate.z <= sceneNearZ) {
-				lowDistance = previousDistance;
-				highDistance = travel;
-				hitUv = uv;
-				bracketed = true;
-				break;
-			}
-		}
-
-		previousDistance = travel;
-		stepLength = min(stepLength * 2.0, 12.0);
-	}
-
-	if (!bracketed) {
-		return vec4(0.0);
-	}
-
-	// The last in-front point and first behind point form a valid interval. Four
-	// bisections refine it without stochastic offsets or frame-dependent state.
-	for (int refinement = 0; refinement < 4; ++refinement) {
-		float middleDistance = 0.5 * (lowDistance + highDistance);
-		vec3 candidate = rayOrigin + rayDirection * middleDistance;
-		vec2 uv;
-		if (!water_ssr_project(candidate, uv)
-			|| !water_ssr_gather_uv_valid(sceneDepth, uv)) {
-			return vec4(0.0);
-		}
-
-		vec2 depthRange = water_ssr_depth_range(sceneDepth, uv);
-		if (depthRange.x >= 0.999999) {
-			lowDistance = middleDistance;
-			continue;
-		}
-
-		float sceneNearZ = water_ssr_view_z(depthRange.x, uv);
-		if (candidate.z > sceneNearZ) {
-			lowDistance = middleDistance;
-		} else {
-			highDistance = middleDistance;
-			hitUv = uv;
-		}
-	}
-
-    // Four bisections leave up to 0.75 blocks of uncertainty after a 12-block
-    // stride. Comparing that arbitrary residual to a 0.1-block thickness made
-    // a continuous floor alternate between valid reflection and dark fallback.
-    // Reconstruct a local opaque plane, choosing neighbours on its own side of
-    // a silhouette, then intersect the ray with that plane analytically.
-    vec3 center, planeNormal;
-    float footprint;
-    if (!water_scene_plane(sceneDepth, hitUv, center, planeNormal, footprint)) return vec4(0.0);
-    ivec2 size = textureSize(sceneDepth, 0);
-    float denominator = dot(planeNormal, rayDirection);
-    if (abs(denominator) < 1e-5) return vec4(0.0);
-    float travel = dot(planeNormal, center-rayOrigin) / denominator;
-    if (travel < max(lowDistance - 0.25, 0.0) || travel > highDistance + 0.25) return vec4(0.0);
-    vec3 point = rayOrigin + rayDirection * travel;
-    if (!water_ssr_project(point, hitUv) || !water_ssr_gather_uv_valid(sceneDepth, hitUv)) return vec4(0.0);
-    float actualDepth = texelFetch(sceneDepth, ivec2(hitUv * vec2(size)), 0).r;
-    if (actualDepth >= 0.999999) return vec4(0.0);
-    vec3 actual = screen_view(vec3(hitUv, actualDepth));
-    float tolerance = max(0.08, footprint);
-    float error = abs(actual.z - point.z);
-    float geometryConfidence = 1.0 - smoothstep(tolerance, tolerance * 2.0, error);
-    float edgeDistance = min(min(hitUv.x,1.0-hitUv.x), min(hitUv.y,1.0-hitUv.y));
-    float confidence = smoothstep(0.0,0.10,edgeDistance) * roughnessVisibility
-                     * surfaceRangeVisibility * geometryConfidence;
-    return vec4(hitUv, actualDepth, confidence);
+    // Refine a depth interval, without fitting a plane through unrelated leaves.
+    // Six subdivisions leave at most 1/8 block for the largest coarse stride.
+    for (int i = 0; i < 6; ++i) {
+        float middle = 0.5 * (low + high);
+        vec3 candidate = origin + rayDirection * middle;
+        vec2 uv;
+        if (!water_ssr_project(candidate, uv) || !water_ssr_gather_uv_valid(sceneDepth, uv)) break;
+        float depth = water_ssr_depth_range(sceneDepth, uv).x;
+        vec3 scene = screen_view(vec3(uv, depth));
+        bool behind = depth < 0.999999 && dot(scene - viewPos, interfaceNormal) > 0.0
+                   && candidate.z <= scene.z;
+        if (behind) {
+            high = middle;
+            hitUV = uv;
+            hitDepth = depth;
+        } else {
+            low = middle;
+        }
+    }
+    vec3 endpoint = origin + rayDirection * high;
+    float sceneZ = water_ssr_view_z(hitDepth, hitUV);
+    float footprint = 2.0 * abs(sceneZ) / max(abs(gbufferProjection[1][1]) * viewHeight, 1.0);
+    float thickness = max(0.25, footprint * 2.0);
+    float residual = abs(sceneZ - endpoint.z);
+    float confidence = 1.0 - smoothstep(thickness, thickness * 2.0, residual);
+    float edge = min(min(hitUV.x, 1.0-hitUV.x), min(hitUV.y, 1.0-hitUV.y));
+    confidence *= smoothstep(0.0, 0.03, edge) * rangeVisibility;
+    return vec4(hitUV, hitDepth, confidence);
 }
 
 #endif
