@@ -111,7 +111,11 @@
 // Water palette: 0 = COLD, 1 = BALANCED, 2 = TROPICAL
 #define WATER_CAUSTICS // [false true]
 // 6-layer crest caustics from shadow-encoded water height
-#define UNDERWATER_PARTICLES // [false true]
+//#define UNDERWATER_PARTICLES // [false true]
+// 2026-09-11 user round: default off. Both the reference look (Solas' still, clear
+// underwater) and the user's request ("大幅调低") are served better by the volume
+// light and caustics carrying the underwater read; the motes remain available for
+// anyone who wants the suspended-matter layer.
 // Underwater suspended particles
 #define UNDERWATER_LIGHT_SHAFTS // [false true]
 // Shadowed underwater sunlight, independent of the air GODRAYS option

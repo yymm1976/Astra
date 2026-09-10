@@ -58,8 +58,11 @@ void main() {
     if (waterHeight < WATER_HEIGHT_NONE) {
         float focus = solas_water_caustics(waterCasterWorld);
         vec3 waterTint = vec3(115.0, 200.0, 250.0) / 255.0 * 0.80;
-        shadowTint = mix(vec3(1.0), pow(waterTint, vec3(0.75)), 0.25 + 0.75 * focus);
-        shadowTint *= (0.25 + focus * 4.0) * (1.0 - pow(albedo.a, 32.0));
+        // Reference mapping: the water's own tint is only reached at the caustic peaks,
+        // the rest of the surface stays close to neutral. The floor term is the dark
+        // water base the reference keeps at 0.3; without it the whole seabed went dim.
+        shadowTint = mix(vec3(1.0), pow(waterTint, vec3(0.75)), 0.20 + 0.80 * min(focus, 1.0));
+        shadowTint *= (0.30 + focus * 1.5) * (1.0 - pow(albedo.a, 32.0));
     }
     #endif
     shadowData = vec4(waterHeight, shadowTint);

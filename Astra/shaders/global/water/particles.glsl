@@ -51,16 +51,20 @@ const int   PARTICLE_SHELLS = 3;
 // 晶格与 mote 形状。
 // SC-35（2026-09-08 实测）：颗粒喧宾夺主——命中率 0.35→0.16、半径 0.30→0.24、
 // 强度 0.10→0.045，静止画面中只保留非常轻微的水体悬浮物层次。
-const float PARTICLE_CELL = 2.0;          // 每 2 格一个候选 cell
-const float PARTICLE_DENSITY = 0.16;      // cell 命中率（Solas 观感：稀疏）
-const float PARTICLE_RADIUS = 0.24;       // mote 半径（cell 的 24%）
+// 2026-09-11 user round: "把水下的粒子效果和数量大幅调低". Previous SC-35 values
+// (0.16 / 0.24 / 0.045) still read as a particle layer in motion; this pass keeps only
+// a suggestion of suspended matter, so the underwater view is carried by the volume
+// light and caustics instead of by motes.
+const float PARTICLE_CELL = 2.6;          // 每 2.6 格一个候选 cell（候选更稀）
+const float PARTICLE_DENSITY = 0.055;     // cell 命中率 0.16 -> 0.055
+const float PARTICLE_RADIUS = 0.18;       // mote 半径 0.24 -> 0.18（更小）
 const float PARTICLE_EDGE = 0.55;         // softstep 起始（越大越柔）
 
 // 漂移：世界坐标中的缓水流与缓慢上升。
 const vec3 PARTICLE_DRIFT = vec3(0.30, 0.045, -0.22);
 
 // 亮度与颜色：白蓝微尘；峰值强度刻意低（HDR 加性，后接 tonemap）。
-const float PARTICLE_INTENSITY = 0.045;
+const float PARTICLE_INTENSITY = 0.016;   // 0.045 -> 0.016 (user: 大幅调低)
 const vec3  PARTICLE_COLOR = vec3(0.72, 0.88, 1.0);
 // 暗水底亮：无天光时保留 5% 可见度（深洞微尘几乎不可见，符合 Solas 观感）。
 const float PARTICLE_DARK_BASE = 0.05;

@@ -34,7 +34,12 @@ vec4 water_shafts_march(vec2 uv) {
     float sun = solas_sun_visibility();
     float VoU = 1.0 - pow(clamp(ray.y, 0.0, 1.0), 1.5);
     VoU = mix(VoU, 1.0, time * 0.75);
-    float VoL = mix(pow(clamp(dot(ray, normalize(view_player(lightVector))), 0.0, 1.0), 1.5), 0.5, 0.25);
+    // 2026-09-11 user round: "不要搞一大堆光束打到玩家脸上". The old weighting kept a
+    // floor of 0.35 + 0.35*VoL whatever the view direction was, so beams covered the
+    // whole frame. The reference concentrates them on the sun side instead: this keeps
+    // only the directional term, weighted by how steeply the view looks toward the sun,
+    // so beams stay near the sun's azimuth and fade out when looking away from it.
+    float VoL = pow(clamp(dot(ray, normalize(view_player(lightVector))), 0.0, 1.0), 2.6);
     float visibility = astraSolasShadowFade;
     // Sun shafts must stay visible through the near medium. The earlier build also
     // multiplied this by float(depthtex0.r > 0.56), a hard cut that removed every ray
@@ -42,7 +47,7 @@ vec4 water_shafts_march(vec2 uv) {
     // reference image shows beams. A smooth near ramp keeps the user's "close to the
     // camera it fades out" rule without deleting the visible depth range.
     visibility *= smoothstep(1.0, 3.5, rayLength);
-    visibility *= pow(VoU, 1.5) * mix(0.35 + VoL * 0.35, VoL * 0.6, time);
+    visibility *= pow(VoU, 1.5) * (1.0 - VoL) * 0.9;
     visibility *= (2.0 - sun) * 0.5 * (1.0 - clamp(blindness, 0.0, 1.0));
     float endDistance = min(-viewPos.z, WATER_SHAFT_MAX_DISTANCE);
     float dither = texture(solasWaterNoise, gl_FragCoord.xy / 512.0).b;

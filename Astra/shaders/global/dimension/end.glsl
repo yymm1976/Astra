@@ -63,80 +63,122 @@ vec3 end_sky(vec3 dir, vec3 voidTint, float time) {
     #ifdef END_NEBULA
     end_reference_nebula(sky, dir, dir.y, nebula, 1.0);
     #endif
-    #ifdef STARS
-    // Solas star distribution; both hemispheres, independent of camera motion.
-    vec2 coord = dir.xz / max(abs(dir.y) + length(dir.xz), 0.001);
-    coord = floor(coord * 850.0) / 850.0;
-    float stars = end_noise(coord) * end_noise(coord + 0.10) * end_noise(coord + 0.23);
-    sky += vec3(max(stars - 0.82, 0.0) * max(0.4 - nebula * 0.2, 0.0) * 8.0 * (0.94 + 0.06*sin(time*0.24 + end_noise(coord+0.37)*6.283185)));
-    #endif
     // Emission and terrain shadows use exactly the same shadow-light direction.
     vec3 stellarDirection = normalize(view_player(lightVector));
     float angle = acos(clamp(dot(dir, stellarDirection), -1.0, 1.0));
     float aa = max(fwidth(angle), 0.0001);
-    // 2026-09-11 user round: "恒星太简陋" plus a pointer to IterationT 3.2, whose End
-    // is built around a super-massive black hole. First attempt was still a flat ring;
-    // this version models the four features that actually make such an object read as a
-    // black hole instead of as a bright donut:
+    // 2026-09-11 user round (second pass) - the brief: a deep-space background with a
+    // razor-sharp pure-black event horizon, an extremely thin blue-white photon ring, an
+    // accretion disk flattened into an ellipse and bent by lensing into arcs above and
+    // below, hot blue-white inside grading through gold-orange to dark red outside,
+    // turbulent grain, background stars smeared into long arcs, high contrast.
     //
-    //   1. a pure-black shadow disk that occludes the background (mass, not brightness),
-    //   2. the photon ring hugging the shadow edge,
-    //   3. an inclined accretion disk with a hot inner edge, Doppler beaming (the side
-    //      sweeping toward the camera is brighter) and a colour shift from blue-shifted
-    //      to red-shifted across the disk,
-    //   4. a lensed halo plus an ionised jet perpendicular to the disk.
-    const float ASTRA_BH_SHADOW = 0.055;   // angular radius of the event horizon shadow
-    const float ASTRA_BH_RING   = 0.028;   // photon-ring thickness
-    const float ASTRA_BH_DISK   = 0.090;   // outer accretion disk radius
-    float bhShadow = 1.0 - smoothstep(ASTRA_BH_SHADOW-aa, ASTRA_BH_SHADOW+aa, angle);
-    vec3 axis = abs(stellarDirection.y)<0.95 ? vec3(0.0,1.0,0.0) : vec3(1.0,0.0,0.0);
-    vec3 tangent = normalize(cross(axis,stellarDirection));
-    float sinShadow = sin(ASTRA_BH_SHADOW);
-    // (3) Accretion disk modelled as a projected band, which is what makes it read as
-    // an inclined disk instead of a rectangle: the apparent width across the screen is
-    // set by the disk plane normal (0.72,1,0.20 normalised), so viewing it near edge-on
-    // narrows the band and viewing it face-on widens it, with no extra orientation term.
-    vec3 diskNormal = normalize(vec3(0.72, 1.0, 0.20));
-    vec3 diskAxis = normalize(cross(diskNormal, stellarDirection));
-    if (dot(diskAxis,diskAxis) < 1e-6) diskAxis = tangent;
-    vec3 diskAxis2 = cross(stellarDirection, diskAxis);
-    // Direction within the disk plane, scaled so 1.0 is the shadow edge.
-    vec2 diskPos = vec2(dot(dir,diskAxis), dot(dir,diskAxis2))/sinShadow;
-    float diskRadius = length(diskPos);
-    // How edge-on this disk is seen from stellarDirection: 0 = edge-on, 1 = face-on.
-    float faceOn = clamp(abs(dot(normalize(dir), diskNormal)), 0.0, 1.0);
-    float diskSpan = max(ASTRA_BH_DISK/sinShadow - 1.0, 0.001);
-    float diskT = clamp((diskRadius-1.0)/diskSpan, 0.0, 1.0);
-    // Band width grows with the projected opening angle; 0.30 keeps the near edge-on
-    // case (what the vanilla End look gives from ground level) a thin bright streak.
-    float diskBand = 1.0 - smoothstep(0.0, mix(0.30, 1.0, faceOn), abs(diskPos.y));
-    float disk = diskBand * (1.0 - smoothstep(0.10, 1.0, diskT));
-    float diskHot = 1.0 - diskT;                       // hotter toward the inner edge
-    float doppler = diskPos.x / max(diskRadius, 1e-4);
-    float beam = 0.22 + 0.78*pow(0.5+0.5*doppler, 1.55);
-    vec3 blueShift = vec3(0.72,0.83,1.00);
-    vec3 redShift  = vec3(1.00,0.52,0.26);
-    vec3 diskColor = mix(blueShift, redShift, 0.5+0.5*doppler);
-    diskColor = mix(diskColor, vec3(1.00,0.94,0.82), diskHot*0.65);
-    float cells = texture(solasWaterNoise, diskPos*3.2 + vec2(time*0.004,0.0)).r;
-    float diskDetail = 0.78 + 0.22*cells;
-    // (2) Photon ring: thin, bright, hugging the shadow.
-    float photonRing = exp(-max(angle-ASTRA_BH_SHADOW,0.0)*140.0);
-    // (4) Lensed halo: background light wrapped around the mass.
-    float halo = exp(-max(angle-ASTRA_BH_SHADOW-ASTRA_BH_RING,0.0)*4.6);
-    float outer = exp(-angle*3.4)*0.085;
-    // Jet: ionised outflow along the disk's rotation axis, so it is perpendicular to the
-    // band above rather than to the old fixed tower axis.
-    float jetAlong = dot(dir,diskNormal);
-    float jetAcross = length(cross(dir,diskNormal));
-    float jet = exp(-pow(jetAcross/max(sinShadow*0.14,1e-4),2.0))
-              * exp(-max(angle-ASTRA_BH_SHADOW,0.0)*5.5);
-    // The shadow eats the sky it covers; every emission term is ~0 inside it already.
-    sky *= bhShadow;
-    sky += diskColor * disk * diskDetail * beam * 3.4;
-    sky += vec3(1.00,0.86,0.62) * photonRing * 1.5;
-    sky += vec3(0.62,0.46,1.00) * (halo*0.34 + outer);
-    sky += vec3(0.55,0.72,1.00) * jet * 0.22;
+    // Lensing. A point mass deflects a ray by theta_E^2 / theta; solving the resulting
+    // quadratic in cos(angle) gives the background direction directly, with the right
+    // limits (inverse deflection far away, strong bending near the disk). The map is
+    // applied to BOTH the nebula and the star field, which is what warps the sky and
+    // smears the stars into arcs instead of leaving a decorative ring behind.
+    //
+    // Accretion disk, in world space with the black hole at the origin and the view ray
+    // parameterised as d*t (t > 0 ahead of the camera, which sits at the hole). The disk
+    // is a plane through the origin with normal n, so d*t . n = 0 gives the intersection
+    // at t = -p0.n / d.n with p0 = 0 -> t = 0. That degeneracy is the wrong parameterisation
+    // for a distant camera, so the camera is instead treated as far away: the ray is
+    // roughly the same everywhere and what matters is the angle to the disk axis.
+    //
+    // In that far-field view the disk projects to an ellipse: the axis-aligned component
+    // expands by 1/|axis.n|. The primary image is therefore the half of that ellipse on
+    // the camera side, and the far half is supplied separately by the lensed arc below -
+    // which is exactly the top-arc / bottom-band split the brief describes.
+    const float ASTRA_BH_SHADOW = 0.052;
+    const float ASTRA_BH_EINSTEIN = 0.115;   // Einstein radius (the arcs live here)
+    const float ASTRA_BH_DISK_IN = 0.085;    // inner accretion radius
+    const float ASTRA_BH_DISK_OUT = 0.205;   // outer accretion radius
+    float cosA = clamp(dot(dir, stellarDirection), -1.0, 1.0);
+    float R = max(angle, 1e-4);
+    float E = ASTRA_BH_EINSTEIN;
+    float q = sqrt(max(R * R + 4.0 * E * E, 0.0));
+    float cosDest = clamp((R * cosA + 2.0 * E * E) / max(q, 1e-6), -1.0, 1.0);
+    float destAngle = acos(cosDest);
+    float magnification = clamp((destAngle - E) / R, 0.0, 1.0);   // 1 = undistorted sky
+    vec3 radialAxis = dir - cosA * stellarDirection;
+    float sinAngle = length(radialAxis);
+    radialAxis = sinAngle > 1e-5
+        ? radialAxis / sinAngle
+        : normalize(cross(stellarDirection, vec3(0.0, 1.0, 0.0)) + vec3(1e-5, 0.0, 1e-5));
+    vec3 lensedDir = cosDest * stellarDirection + radialAxis * sin(destAngle);
+
+    // Background samples the lensed direction, which is what warps the nebula and smears
+    // the star field into arcs around the mass.
+    float lensNebula = 0.0;
+    #ifdef END_NEBULA
+    {
+        vec3 nebulaSky = END_VOID_COLOR;
+        end_reference_nebula(nebulaSky, lensedDir, lensedDir.y, lensNebula, 1.0);
+        sky = nebulaSky;
+    }
+    #endif
+    #ifdef STARS
+    // Cool blue star field; near the Einstein radius the mapping compresses the sky, so
+    // the same points land closer together and each one stretches into a short arc.
+    vec2 starCoord = lensedDir.xz / max(abs(lensedDir.y) + length(lensedDir.xz), 0.001);
+    starCoord = floor(starCoord * 850.0) / 850.0;
+    float stars = end_noise(starCoord) * end_noise(starCoord + 0.10) * end_noise(starCoord + 0.23);
+    float starArc = smoothstep(0.55, 1.0, 1.0 - magnification);
+    float starLum = max(stars - 0.80, 0.0) * max(0.4 - lensNebula * 0.2, 0.0) * 9.0
+                  * (0.94 + 0.06 * sin(time * 0.24 + end_noise(starCoord + 0.37) * 6.283185));
+    starLum *= (1.0 + starArc * 5.5);
+    sky += vec3(0.62, 0.78, 1.20) * starLum;
+    #endif
+
+    // ---- accretion disk -------------------------------------------------------
+    vec3 diskNormal = normalize(vec3(0.35, 1.0, 0.18));
+    float axisDotN = abs(dot(stellarDirection, diskNormal));
+    // Projected ellipse: the component along the disk axis is stretched by 1/axisDotN.
+    float radialComp = dot(dir, normalize(cross(diskNormal, stellarDirection) + vec3(1e-5)));
+    float axisComp  = dot(dir, normalize(cross(stellarDirection, cross(diskNormal, stellarDirection)) + vec3(1e-5)));
+    float projected = length(vec2(radialComp, axisComp / max(axisDotN, 1e-3)));
+    float diskRadius = asin(clamp(projected, 0.0, 1.0));
+    float u = clamp((diskRadius - ASTRA_BH_DISK_IN)
+                    / max(ASTRA_BH_DISK_OUT - ASTRA_BH_DISK_IN, 1e-4), 0.0, 1.0);
+    vec3 hotCore = vec3(1.30, 1.32, 1.45);
+    vec3 goldMid = vec3(1.40, 0.85, 0.34);
+    vec3 redEdge = vec3(0.52, 0.14, 0.08);
+    vec3 diskGrad = mix(hotCore, goldMid, smoothstep(0.0, 0.55, u));
+    diskGrad = mix(diskGrad, redEdge, smoothstep(0.55, 1.0, u));
+    float turb = texture(solasWaterNoise, vec2(radialComp, axisComp) * 6.0
+                         + vec2(time * 0.010, 0.0)).r;
+    float diskGrain = 0.68 + 0.32 * turb;
+    // Doppler beaming: the half sweeping toward the camera is far brighter.
+    float beam = 0.22 + 1.05 * pow(clamp(0.5 + 0.5 * radialComp, 0.0, 1.0), 1.6);
+    // Only the camera-side half is drawn here; the far half is the lensed arc below.
+    float nearHalf = smoothstep(-0.02, 0.06, radialComp);
+    float diskMask = (1.0 - smoothstep(0.72, 1.0, u)) * nearHalf;
+    vec3 diskRGB = diskGrad * diskMask * diskGrain * beam * 3.4;
+
+    // ---- lensed far side: the arc swept over the shadow ----------------------
+    {
+        float arcBand = exp(-pow((angle - E) / max(E * 0.62, 1e-4), 2.0));
+        float arcTurb = texture(solasWaterNoise, vec2(angle * 26.0, angle * 9.0)
+                                + vec2(time * 0.007, 0.0)).r;
+        vec3 arcColor = mix(vec3(1.30, 1.28, 1.44), vec3(1.32, 0.78, 0.30), 0.40);
+        diskRGB += arcColor * arcBand * smoothstep(0.15, 0.9, 1.0 - magnification)
+                 * (0.50 + 0.50 * arcTurb) * 3.0;
+    }
+
+    // ---- horizon, photon ring, halo ------------------------------------------
+    // Hard-edged pure-black shadow; it occludes everything already computed behind it.
+    float horizon = 1.0 - smoothstep(ASTRA_BH_SHADOW - aa, ASTRA_BH_SHADOW + aa, angle);
+    float photonRing = exp(-max(angle - ASTRA_BH_SHADOW, 0.0) * 220.0);
+    sky *= horizon;
+    sky += diskRGB;
+    sky += vec3(0.80, 0.90, 1.30) * photonRing * 2.2;
+    // Cool halo where the lensed background piles up at the ring: the deep-blue contrast
+    // against the warm disk is what the brief asks for.
+    sky += vec3(0.30, 0.38, 0.68) * exp(-max(angle - E, 0.0) * 3.0) * 0.17;
+
+    // Cinematic grade: higher contrast, and a slight bloom bleed from the disk.
+    sky = sky * sky * 0.60 + sky * 0.50;
     return sky * (1.0 - max(blindness, darknessFactor));
 }
 vec4 end_fog(out float skyFogStrength, float distanceToEye, float borderDistance, vec3 playerPos) {
