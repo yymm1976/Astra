@@ -65,6 +65,52 @@
 //     warped cube faces, two layers instead of one, a pixel-footprint widening instead of a
 //     magnitude-scaled radius, its own palette, thresholds, rates and amplitudes — but the skeleton
 //     above is recognizably Refrax's, and the file must be rewritten before any distribution.
+//   - Complementary r5.9 (Reimagined/Unbound — identical in every cited line) by Complementary
+//     Development, Complementary License Agreement 1.7 (redistribution/modification outside
+//     Normal Usage; treat like Refrax for publishing):
+//       lib/lighting/mainLighting.glsl:507-512 -> the End's directional shading: NdotUM /
+//                                              NdotNM / NdotEM multiplied into directionShade.
+//                                              Axis mapping is exact: its eastVec/northVec are
+//                                              normalize(gbufferModelView[0/2].xyz)
+//                                              (program/gbuffers_terrain.glsl:57-58), i.e. the
+//                                              world +X/+Z axes carried into view space, and dot
+//                                              products are rotation-invariant, so in Astra's
+//                                              world-space interface NdotE = worldNormal.x,
+//                                              NdotN = worldNormal.z, NdotU = worldNormal.y.
+//       lib/lighting/mainLighting.glsl:613     -> directionShade enters the diffuse as
+//                                              pow2(directionShade * vanillaAO); Astra's End
+//                                              interface carries no vanilla AO, so the ported
+//                                              gate is pow2(directionShade) only (handoff noted
+//                                              in docs/handoffs/end.md). Comp's sqrt() fold of
+//                                              blocklight into the sum (:613-616) is NOT ported:
+//                                              Astra's BLOCKLIGHT_COLOR is SC-34-calibrated for a
+//                                              linear add and a sqrt would re-tune it blind.
+//       lib/lighting/minimumLighting.glsl:2    -> `#if !defined END`: the End has NO dark-side
+//                                              minimum-light floor, so end_lighting() no longer
+//                                              adds MIN_AMBIENT_COLOR (the MIN_AMBIENT option is
+//                                              overworld/nether-only now).
+//       program/deferred1.glsl:386             -> the End sky (base + stars) is dimmed by
+//                                              (1.0 - maxBlindnessDarkness);
+//                                              maxBlindnessDarkness = max(blindness,
+//                                              darknessFactor) (shaders.properties:275). Astra
+//                                              freezes only `blindness` (lib/uniforms.glsl:48),
+//                                              so the port substitutes it and the Warden
+//                                              darknessFactor half is a handoff item.
+//     Considered and NOT ported, with evidence:
+//       lib/common.glsl:817 endSkyColor = vec3(0.095,0.07,0.15)*1.65 and
+//       lib/colors/lightAndAmbientColors.glsl:82-87 endLightColor = vec3(0.68,0.51,1.07):
+//         magnitudes live in Comp's own pre-tonemap pipeline (its endSkyColor is ~8x Astra's
+//         linear END_VOID_COLOR); a verbatim magnitude port cannot be verified without both
+//         tonemaps, so it stays a handoff question. The HUES need no port: Astra's
+//         END_AMBIENT_COLOR normalized is (1, 0.72, 1.54) vs Comp's endLightColor (1, 0.75,
+//         1.57) — already the same violet. The 0.2*vsBrightness balancer additionally needs the
+//         screenBrightness uniform, which Astra does not freeze (lib/uniforms.glsl) -> handoff.
+//       lib/atmospherics/enderStars.glsl: its visibility shape (zenith-dim band + a
+//         camera-altitude gate on END_BEAM_CENTER_ALT) exists to make room for Comp's volumetric
+//         ender beams, which Astra does not have; Astra's rotating 3D-lattice field below is the
+//         deliberate own design. Unchanged.
+//     PROVENANCE: verbatim expression porting from a pack under Complementary License Agreement
+//     1.7 - REWRITE REQUIRED before distribution (design.md 9.3, SC-14), same gate as Refrax.
 //   - Astra's own (no reference does these):
 //       the star field's rigid rotation about a tilted celestial pole (see end_rotate_sky), the
 //       3D cell lattice instead of a projected 2D grid, the nadir-stereographic sky projection,
@@ -96,23 +142,25 @@
 // Uniforms: cameraPosition, frameTimeCounter, noisetex (via lib/noise.glsl), borderFogDistance,
 //           blindness, isEyeInWater (all frozen in lib/uniforms.glsl).
 // Consts:   END_FOG_DENSITY, SKY_FOG_STRENGTH, BORDER_FOG, STARS, END_NEBULA, BLOCKLIGHT_STRENGTH,
-//           HANDHELD_LIGHTING, EMISSIVE_STRENGTH, MIN_AMBIENT (lib/settings.glsl);
-//           noiseTextureResolution (ENGINE KNOB, lib/settings.glsl); BLOCKLIGHT_COLOR,
-//           MIN_AMBIENT_COLOR (lib/colors.glsl). The END_* tuning constants below are local to
-//           this module.
-// Owner: C4. Consumers: program/lit.fsh (E1, lighting), program/deferred.fsh (E1, fog),
-//                       program/sky.fsh (D2, sky).
+//           HANDHELD_LIGHTING, EMISSIVE_STRENGTH (lib/settings.glsl);
+//           noiseTextureResolution (ENGINE KNOB, lib/settings.glsl); BLOCKLIGHT_COLOR
+//           (lib/colors.glsl). The END_* tuning constants below are local to this module.
+//           MIN_AMBIENT / MIN_AMBIENT_COLOR were dropped on 2026-09-10: Complementary r5.9's
+//           minimumLighting.glsl:2 gates the dark-side floor behind `#if !defined END`.
+// Owner: C4. Consumers: program/lit.fsh, program/deferred.fsh, program/sky.fsh (and clouds.fsh /
+//                       scattering.fsh) — all via the E1 composition boundary program/scene.glsl
+//                       (scene.glsl:34 end_sky, :107 end_fog, :182 end_lighting).
 // Requires (NOT included here — program/* guarantees the order, design.md 3.2 layer 2/3, matching
 //   lib/colors.glsl and global/dimension/nether.glsl which likewise include no settings/uniforms):
 //     lib/settings.glsl               -> the option macros listed above
 //     lib/uniforms.glsl               -> the uniforms listed above
 //     global/lighting/blocklight.glsl (C1, SIBLING) -> held_light_strength()
-//     global/lighting/diffuse.glsl    (C1, SIBLING) -> ambient_strength()
-//   globals may not include globals (SC-10), so C1's two helpers arrive by program-ordered
-//   inclusion: lit.fsh must include /global/lighting/blocklight.glsl and
-//   /global/lighting/diffuse.glsl BEFORE this file — the order C1's own headers already specify
-//   (colors -> blocklight -> diffuse). C4 re-derives neither the handheld ramp nor the directional
-//   ambient curve: one owner, one definition, same as C3.
+//   globals may not include globals (SC-10), so C1's helper arrives by program-ordered inclusion:
+//   scene.glsl includes /global/lighting/blocklight.glsl BEFORE this file (scene.glsl:9, 21).
+//   global/lighting/diffuse.glsl is NO LONGER required here: the End's directional shaping moved
+//   from C1's ambient_strength() to Complementary's directionShade on 2026-09-10 (see the
+//   provenance block) — one owner, one definition, now the reference pack's. C4 re-derives the
+//   handheld ramp from no one: it still calls held_light_strength(), same as C3.
 //
 // Interface contract (E1 unfrozen — every non-frozen input is a documented parameter):
 //   No new uniforms are required from E1 by this module. Unlike the nether, the End has no biome
@@ -130,11 +178,13 @@
 //   emissiveMask / portalMask — E1-resolved material categories, 0.0 or 1.0, exactly as in C3's
 //                  nether_lighting contract.
 //   time         — frameTimeCounter (frozen); the caller may scale it.
-//   ⚠ FROM E1 (SC-18): the DIMENSION_END macro currently reaches only the passes that have a
-//                  world1/ shell — deferred, composite, composite1, final, shadow. There is no
-//                  world1/gbuffers_* override, so program/lit.fsh never sees a dimension macro and
-//                  end_lighting() is unreachable. Same for C3's nether_lighting(). This is an
-//                  include-layer decision (SC-10's protocol), not a C-series call.
+//   RESOLVED (SC-18, verified 2026-09-10): DIMENSION_END reaches the terrain pass through
+//                  world1/gbuffers_terrain.fsh:1-4 (`#define DIMENSION_END` then
+//                  `#include "/program/lit.fsh"`), and lit.fsh:81 calls astra_light() which
+//                  dispatches to end_lighting() at scene.glsl:182. sky.fsh:61 -> astra_sky() ->
+//                  end_sky() (scene.glsl:34); deferred.fsh:18 -> astra_apply_medium() ->
+//                  astra_fog() -> end_fog() (scene.glsl:107). Same shell pattern serves C3's
+//                  nether_lighting().
 //   ⚠ FROM E1 (design.md 4.5 preamble): 按维度裁剪无关 pass. shaders.properties currently has no
 //                  per-dimension pass list, so cutting the overworld's cloud/sun-moon/godray work
 //                  in world1/ is an E1-side properties + pipeline change. C4 cuts nothing; it
@@ -310,8 +360,11 @@ const float END_NEBULA_THRESHOLD_SECOND   = 0.38;
 const float END_NEBULA_GAIN               = 3.00;
 const float END_NEBULA_BAND_EXP           = 3.0;   // pow of (1 - |rotated latitude|)
 const float END_NEBULA_SECOND_WEIGHT      = 0.35;
-// 0.35 against Solas's shipped 1.25: design.md 4.5 asks for 微弱 / 默认开低强度.
-const float END_NEBULA_BRIGHTNESS         = 0.35;
+// 0.30 against Solas's shipped 1.25: design.md 4.5 asks for 微弱 / 默认开低强度. Astra's own knob
+// (Complementary r5.9 ships no End nebula to copy); cut 0.35 -> 0.30 on 2026-09-10 for the
+// 减少泛亮 pass — the nebula is additive over the whole rotated band, so its brightness is part
+// of the sky's washout budget. UNVERIFIED (SC-6).
+const float END_NEBULA_BRIGHTNESS         = 0.30;
 const vec3  END_NEBULA_VIOLET = to_linear(vec3(0.30, 0.23, 0.45));
 const vec3  END_NEBULA_TEAL   = to_linear(vec3(0.00, 0.45, 0.25));
 const vec3  END_NEBULA_AMBER  = to_linear(vec3(0.45, 0.30, 0.10));
@@ -666,7 +719,13 @@ vec3 end_sky(vec3 worldViewDir, vec3 voidTint, float time) {
 	// constant black) is what keeps the seam exact at every height and every fog density.
 	float voidFade = 1.0 - smoothstep(END_VOID_FADE_LOW, END_VOID_FADE_HIGH, -worldViewDir.y);
 
-	return mix(voidTint, sky, voidFade);
+	// Complementary r5.9 program/deferred1.glsl:386: `color.rgb *= 1.0 - maxBlindnessDarkness;`
+	// applied to the composed End sky (base + stars there, base + nebula + stars here).
+	// maxBlindnessDarkness = max(blindness, darknessFactor) (shaders.properties:275); Astra's
+	// frozen set carries only `blindness` (lib/uniforms.glsl:48), so the Warden darknessFactor
+	// half is missing -> docs/handoffs/end.md. Without this term the sky kept full brightness
+	// while end_fog() blacked the terrain out under the Blindness effect.
+	return mix(voidTint, sky, voidFade) * (1.0 - blindness);
 }
 
 // ---------------------------------------------------------------------------
@@ -716,15 +775,30 @@ float end_emissive_boost(float emissiveMask, float portalMask, float time, vec3 
 // The End lighting composer — the counterpart of C1's diffuse_lighting() and C3's nether_lighting(),
 // and what E1 calls INSTEAD of them under DIMENSION_END.
 //
-// Terms, in design.md 4.5's order: 褪色环境光 (faded ambient, directionally shaped by C1's
-// ambient_strength) + the cave floor minimum + 天空漫射 (an up-facing hemispherical term standing in
-// for a sun, gated by how much sky the point can see) + 方块光 (blocklight, own curve) +
+// Terms, in design.md 4.5's order: 褪色环境光 (faded ambient) + 天空漫射 (an up-facing hemispherical
+// term standing in for a sun, gated by how much sky the point can see), the sum shaped by
+// Complementary r5.9's directionShade (ported, see below) + 方块光 (blocklight, own curve) +
 // 发光体/传送门辉光 (emissive). There is no sun/moon term and therefore no shadow-map sample:
 // nothing here could cast a shadow that the shadow map could represent, and Mellow reaches the same
 // conclusion by setting Shadow = vec3(1) for the End (lighting.glsl:127, in the branch opened at
 // :89). Solas does shadow the End, against a synthetic sun (lib/common.glsl:313-325) —
 // Astra's 真空暗天空 brief is the reason not to follow it, and it is also why this path is
 // cheaper per fragment than the overworld's.
+//
+// Two deliberate departures from the pre-2026-09-10 shape, both Complementary r5.9 ports:
+//   - NO cave floor minimum: minimumLighting.glsl:2 puts the whole term behind `#if !defined END`.
+//     Undersides and caves may now reach (near-)black against the starfield, which is what gives
+//     the islands their silhouette (保持地形轮廓可辨). MIN_AMBIENT stays meaningful in the
+//     overworld and the nether only.
+//   - Directional shaping is Complementary's directionShade, not C1's ambient_strength(): one
+//     definition of "up-faces are brighter" per dimension, now the reference pack's for the End.
+//     Relief relative to the old 0.67+0.33y shape: up-face unchanged at 1.0, E/W side 0.675² ≈
+//     0.456, N/S side 0.806² ≈ 0.650, down-face 0.5² = 0.25 — roughly double the old directional
+//     contrast, which is the 减少泛亮 mechanism: the flat ambient floor is gone, not lowered.
+// Night vision, blocklight and the emissive/portal boost stay LINEAR and unshaded: Comp folds its
+// blocklight into a sqrt (mainLighting.glsl:613-616), but Astra's BLOCKLIGHT_COLOR is
+// SC-34-calibrated for exactly this linear add, and Comp's emission is unshaded too
+// (sqrt(pow2(emission)) == emission).
 //
 // Returns surfaceColor * lighting, linear HDR, ready for the tonemap in global/post/grading.glsl.
 vec3 end_lighting(
@@ -739,37 +813,51 @@ vec3 end_lighting(
 ) {
 	float worldY = playerPos.y + cameraPosition.y;
 
-	// 1. Faded ambient. Directional shaping reuses C1's ambient_strength() (arrives by
-	//    program-ordered inclusion) so there is exactly one definition of "up-faces are brighter".
-	//    Plain worldNormal.y, not C1's `subsurfaceScatter ? 0.7071 : worldNormal.y` — no direct
-	//    light to wrap, so the parameter would be dead. Same reasoning as C3's nether_lighting.
-	float directional = ambient_strength(worldNormal.y);
+	// 1. Faded ambient + sky diffusion, the sceneLighting sum. The sky term is the violet
+	//    hemisphere above, from Mellow's up-facing NdotL with the shadow machinery dropped, gated
+	//    by the same depth term the fog uses, so a point under the island — where the sky is void —
+	//    loses the term and falls back to blocklight alone.
+	vec3 sceneLighting = END_AMBIENT_COLOR * END_AMBIENT_INTENSITY;
 
-	vec3 lighting = END_AMBIENT_COLOR * (END_AMBIENT_INTENSITY * directional);
-
-	// The cave floor minimum keeps absolute black out of the dimension. MIN_AMBIENT (the user's
-	// option) still governs it, so the setting stays meaningful in the End — which matters more here
-	// than in the nether, because End islands are thin and most of their undersides are cave.
-	lighting += MIN_AMBIENT_COLOR * directional;
-
-	// Night vision lifts the ambient only, never the emissive or the fog.
-	lighting += params.nightVision * END_NIGHT_VISION_TINT;
-
-	// 2. Sky diffusion: the violet hemisphere above, from Mellow's up-facing NdotL with the shadow
-	//    machinery dropped. Gated by the same depth term the fog uses, so a point under the island —
-	//    where the sky is void — loses the term and falls back to blocklight plus the floor.
 	float skyExposure = 1.0 - end_void_depth_gate(worldY);
-	lighting += END_SKY_LIGHT_COLOR
-	            * (END_SKY_LIGHT_INTENSITY * max(0.0, worldNormal.y) * skyExposure);
+	sceneLighting += END_SKY_LIGHT_COLOR
+	                 * (END_SKY_LIGHT_INTENSITY * max(0.0, worldNormal.y) * skyExposure);
 
-	// 3. Blocklight + handheld, on the End curve. C1's held_light_strength() is the one definition
+	// Complementary r5.9 lib/lighting/mainLighting.glsl:507-512, verbatim (the `!defined NETHER`
+	// branch, which is the branch the End takes there):
+	//     float NdotUM = 0.75 + NdotU * 0.25;
+	//     float NdotNM = 1.0 + 0.075 * absNdotN;
+	//     float NdotEM = 1.0 - 0.1 * absNdotE2;
+	//     directionShade = NdotUM * NdotEM * NdotNM;
+	// Axis mapping: its NdotE/NdotN are dotted against eastVec/northVec, which are
+	// normalize(gbufferModelView[0].xyz) / normalize(gbufferModelView[2].xyz)
+	// (program/gbuffers_terrain.glsl:57-58) — the world +X/+Z axes carried into view space.
+	// Dot products are rotation-invariant, so in Astra's player-relative WORLD-space interface
+	// the same products are simply the normal's components.
+	float NdotUM = 0.75 + worldNormal.y * 0.25;
+	float NdotNM = 1.0 + 0.075 * abs(worldNormal.z);
+	float NdotEM = 1.0 - 0.1 * abs(worldNormal.x) * abs(worldNormal.x);
+	float directionShade = NdotUM * NdotEM * NdotNM;
+
+	// mainLighting.glsl:613: `pow2(directionShade * vanillaAO)` gates the whole scene sum there.
+	// Astra's End interface carries no per-vertex AO (glColor.a never reaches scene.glsl), so the
+	// gate is directionShade² alone -> docs/handoffs/end.md asks E1 for the AO channel.
+	sceneLighting *= directionShade * directionShade;
+
+	// Night vision lifts the ambient only, never the emissive or the fog. Flat and unshaded, as
+	// Astra tuned it (Comp's nightVision add sits inside its shaded minLighting slot instead —
+	// not followed: a visibility aid that dims on down-faces defeats its purpose).
+	vec3 lighting = sceneLighting
+	              + params.nightVision * END_NIGHT_VISION_TINT;
+
+	// 2. Blocklight + handheld, on the End curve. C1's held_light_strength() is the one definition
 	//    of the handheld ramp (it already applies HANDHELD_LIGHT_STRENGTH and self-gates on
 	//    HANDHELD_LIGHTING), so it is called rather than re-derived.
 	lighting += end_block_lighting(
 		blockLight,
 		held_light_strength(params.heldLightBase, playerPos));
 
-	// 4. Emissive / portal / beam glow.
+	// 3. Emissive / portal / beam glow.
 	lighting += end_emissive_boost(emissiveMask, portalMask, time, playerPos);
 
 	return surfaceColor * lighting;
