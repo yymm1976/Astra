@@ -223,9 +223,9 @@ void main() {
     #if defined ASTRA_TERRAIN && !defined ASTRA_WATER_PASS
         #if !defined DIMENSION_NETHER && !defined DIMENSION_END
         if (isEyeInWater == 1 && !iceTop) {
-            float causticField = solas_water_caustics(playerPos + cameraPosition);
-            float causticFactor = 0.42 + 0.72 * clamp(causticField, 0.0, 1.35);
-            color *= mix(1.0, causticFactor, 0.80);
+            // IterationT's geometric caustic, multiplied straight into the lit colour the
+            // same way the reference multiplies it into its shadow term.
+            color *= mix(1.0, astra_water_caustics_focus(playerPos + cameraPosition), 0.70);
         }
         #endif
     #endif

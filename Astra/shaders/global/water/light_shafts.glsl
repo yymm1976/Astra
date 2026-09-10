@@ -49,10 +49,10 @@ vec4 water_shafts_march(vec2 uv) {
     visibility *= mix(0.25 + VoL * 0.25, VoL * 0.45, time);
     visibility *= 1.0 - clamp(blindness, 0.0, 1.0);
 
-    const float maxDist = 128.0;
-    // Solas: underwater the first sample starts at maxDist/sampleCount*0.5 away, and the
-    // spacing is uniform. The near field contributes nothing, so the beams fade out as the
-    // camera moves into them instead of sticking to the view.
+    // IterationT 3.2 underwater volumetric fog uses a 40-block range rather than Solas'
+    // 128; the shorter range plus the 1/max(3, d*0.1) attenuation below is what makes its
+    // beams vanish as the camera approaches rather than sticking to the view.
+    const float maxDist = 40.0;
     float minDist = maxDist / float(UNDERWATER_SHAFT_SAMPLES) * 0.5;
     float maxCurrentDist = min(rayLength, maxDist);
     float dither = texture(solasWaterNoise, gl_FragCoord.xy / 512.0).b;
@@ -70,10 +70,23 @@ vec4 water_shafts_march(vec2 uv) {
         // this point, and it is multiplied in rather than used as a hard skip: that is
         // what turns the old wedges into a gradient.
         float shade = 1.0 - clamp((texture(shadowtex1, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);
+        // Reference design point 1: modulate the beam by the water-surface caustics, cubed.
+        // This is what turns an even cone into the soft banded columns the reference shows,
+        // and because the same function drives the seabed caustics their phases agree.
+        shade *= astra_water_caustics_shaft_at(point + cameraPosition);
+        // Reference design point 2: distance attenuation. Near the camera the beam is
+        // crushed, which is the "walk closer and it disappears" behaviour.
+        shade /= max(3.0, currentDist * 0.1);
         vec3 col = texture(shadowcolor0, pos.xy).gba;
         integral += shade * clamp(col * col, 0.0, 4.0) * weight;
     }
     integral *= visibility;
+    // Reference design point 3: the scattering phase uses the sun direction REFRACTED
+    // through the water interface, not the air sun direction. Getting this wrong splits
+    // the beam peak away from the sun the surface and sky agree on.
+    vec3 sunWorld = normalize(view_player(lightVector));
+    vec3 refractSun = refract(sunWorld, vec3(0.0, -1.0, 0.0), 1.0 / 1.2);
+    integral *= mix(0.35, 1.0, pow(clamp(dot(refractSun, ray), 0.0, 1.0), 2.0));
     integral *= mix(solasWaterSqrt, solasWaterSqrt * solasWeather, wetness) * (4.0 + sun * 8.0);
     // Positive exponent keeps the zero-light case defined at extreme settings.
     integral = pow(integral, vec3(max(1.0 - pow(length(integral), 1.25) * 0.25, 0.01)));

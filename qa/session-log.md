@@ -424,3 +424,26 @@ IGN 替代 TAA 蓝噪声、传入恒星方向、星等增益），已在文件�
 
 验证：`linked=261 failed=0 compute=27`（qa/glsl-2026-09-11-itt-port.log）；
 `check_pack` 0 FAIL / 1 WARN / 10 PASS。已同步实例。
+
+## 2026-09-11 第八轮（通读 ITT 3.2 源码 + 落地焦散与光束）
+
+用户的第二个要求同样正确：去读参考源码。产出 `docs/2026-09-11-iterationt-3.2-source-review.md`
+（按架构/工具箱/阴影/水下/水/后处理分层，含 file:line 依据与"对 Astra 的落地清单"）。
+本轮把其中**直接对应未解决抱怨**的两条落地：
+
+1. **焦散改为 IterationT 的"几何聚焦量"**（`Sunlight_Shadow.glsl::CalculateWaterCaustics`
+   + `UnderwaterVolumetricFog.glsl::CalculateWaterCaustics`）。参考不染阴影贴图，而是：取接收点上方
+   1 格的水面波法线 → 让垂直光线折射 → 看折射光线**落在离接收点多远** → 落在附近即亮。
+   3×3 九抽头求和，参考在 `composite.fsh:327` 直接 `shadow *= caustics`。
+   Astra 适配：参考从它自己的缓冲区读波法线，我们没有，故用同一份 Solas 高度场做中心差分求法线。
+2. **光束接入参考的三个设计点**（`UnderwaterVolumetricFog.glsl`）：
+   `shadow *= caustics³`（焦散调制 → 柔和条纹）、`/= max(3, d*0.1)`（近处消失）、
+   相函数用**折射后的**太阳方向；range 128 → 40（参考值）。
+
+**离线标定（这轮唯一的新增流程）**：先算得 GLSL 的 `refract(I,N,1.0)` 会退化成镜像公式
+`I - 2·dot(N,I)·N`，折射位移约为坡度的 2 倍；再用真实噪声纹理扫描坡度尺度，得到对比度最强的
+取值为 **0.75**（p10 0.21 / p50 0.46 / p90 0.72 / 峰值 1.36，动态范围 3.4×）。我最初写的 6.0
+会把几乎所有采样饱和到暗底——**又是一次"不标定就会平场"的情况**，这次在交付前用数据拦住了。
+
+验证：`linked=261 failed=0 compute=27`（qa/glsl-2026-09-11-itt-caustics.log）；
+`check_pack` 0 FAIL / 1 WARN / 10 PASS。已同步实例。
