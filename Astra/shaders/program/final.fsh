@@ -6,9 +6,7 @@
 #include "/global/post/grading.glsl"
 #include "/global/water/light_shafts.glsl"
 #include "/lib/solas_water.glsl"
-#if !defined DIMENSION_NETHER && !defined DIMENSION_END
-    #include "/lib/water_buffer_formats.glsl"
-#endif
+#include "/lib/water_buffer_formats.glsl"
 #ifdef UNDERWATER_PARTICLES
     #include "/lib/transforms.glsl"
     #include "/global/water/absorption.glsl"

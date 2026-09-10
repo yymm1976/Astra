@@ -25,6 +25,7 @@
     #include "/global/atmosphere/stars.glsl"
     #include "/global/atmosphere/clouds_planar.glsl"
     #include "/global/dimension/overworld.glsl"
+    #include "/global/atmosphere/weather.glsl"
 #endif
 
 vec3 astra_sky(vec3 worldDir) {
@@ -37,6 +38,11 @@ vec3 astra_sky(vec3 worldDir) {
         #if CLOUD_MODE == CLOUD_PLANAR
             vec4 cloud = astra_planar_cloud(worldDir);
             sky = mix(sky, cloud.rgb, cloud.a);
+        #else
+            if (astraRainFactor > 0.01) {
+                vec4 cloud = astra_planar_cloud(worldDir);
+                sky = mix(sky, cloud.rgb, cloud.a * astraRainFactor);
+            }
         #endif
         return sky;
     #endif
@@ -179,7 +185,7 @@ vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
                                frameTimeCounter, params);
     #elif defined DIMENSION_END
         EndParams params = EndParams(nightVision, astraHeldLightBase);
-        return end_lighting(albedo, normal, playerPos, blocklight, emissive, portal,
+        return end_lighting(albedo, normal, playerPos, shadowPos, blocklight, emissive, portal,
                             frameTimeCounter, params);
     #else
         LightParams params = LightParams(astra_sky_ambient(), astra_direct_light(),
@@ -190,6 +196,10 @@ vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
         if (isEyeInWater == 0 && shadow_water_depth(playerPos, shadowPos) > 0.0) {
             water_reference_lighting(params.skyAmbient, params.directLightSurface);
             params.directLightSurface *= max(skylight, 0.125 / 16.0);
+        }
+        if (isEyeInWater == 0 && astraRainFactor > 0.01) {
+            float cloudLight = astra_cloud_transmission(playerPos + cameraPosition, normalize(view_player(lightVector)));
+            params.directLightSurface *= mix(1.0, cloudLight, astraRainFactor * 0.75);
         }
         bool sss = material >= 2u && material <= 6u;
         #ifndef SSS_FOLIAGE

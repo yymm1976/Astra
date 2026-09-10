@@ -166,7 +166,7 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 
 	// ASTRA OWN: CLOUD_COVERAGE bias, zero at the default 50 so the default
 	// test is exactly the reference's `noise > threshold * 0.5 + 0.25`.
-	float coverageBias = mix(0.20, -0.20, CLOUD_COVERAGE * 0.01) - 0.18 * f.rainFactor;
+	float coverageBias = mix(0.20, -0.20, CLOUD_COVERAGE * 0.01) - 0.28 * f.rainFactor;
 
 	// lib/atmospherics/clouds/reimaginedClouds.glsl:33-41
 	float higherPlaneAltitude = ASTRA_CLOUD_ALTITUDE + ASTRA_CLOUD_STRETCH;

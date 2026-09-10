@@ -33,6 +33,9 @@ uniform float biomeHumiditySmooth;     // temporally smoothed biome humidity
 // Iris/OptiFine built-ins referenced by lib/ and global/ (declared once here so a
 // module never depends on which pass happens to include it first)
 // ------------------------------------------------------------
+uniform sampler2D solasWaterNoise;
+uniform float temperature;
+uniform float rainfall;
 uniform sampler2D noisetex;            // lib/noise.glsl (texture.noisetex, 256x256)
 uniform int   frameCounter;            // lib/dither.glsl
 uniform float frameTimeCounter;        // lib/noise.glsl wind/water scroll
@@ -64,6 +67,12 @@ uniform float rainStrength;
 uniform float astraRainFactor;
 uniform float screenBrightness;
 uniform float darknessFactor;
+uniform float astraNetherWastes;
+uniform float astraNetherCrimson;
+uniform float astraNetherWarped;
+uniform float astraNetherBasalt;
+uniform float astraNetherSoul;
+
 uniform float nightVision;
 uniform ivec2 eyeBrightnessSmooth;
 uniform vec3 fogColor;

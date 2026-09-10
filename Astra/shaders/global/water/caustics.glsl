@@ -2,7 +2,7 @@
 #define ASTRA_GLOBAL_WATER_CAUSTICS_GLSL
 // Adapted from Solas V2.2b lib/water/waterCaustics.glsl by Septonious.
 // Uses its supplied noise image and defaults; see THIRD-PARTY.md.
-uniform sampler2D solasWaterNoise;
+// solasWaterNoise is declared in lib/uniforms.glsl.
 float solas_water_height(vec3 p, vec2 offset) {
     vec2 wind = vec2(frameTimeCounter) * 0.5 * 1.5;
     p.xz -= p.y * 0.2;

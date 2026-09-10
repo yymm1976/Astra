@@ -172,3 +172,10 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 - `program/water_composite.fsh` and `program/water_bloom.fsh` integrate those reference operations into Astra pass order.
 
 - `shaders/textures/complementary-cloud-water.png`: Complementary r5.9 Reimagined `lib/textures/cloud-water.png`, retained unmodified for the ported cloud sampler; same Complementary attribution and license terms recorded above.
+
+### 2026-09-10 维度与天气重做
+
+- `global/dimension/end.glsl`：适配 Solas V2.2b `lib/atmosphere/skyEffects.glsl` 星分布与星云、`common.glsl` 末地配色、`fog.glsl` 远雾、`gbuffersLighting.glsl` 阴影混合。恒星圆盘、全屏接入与提亮响应由 Astra 实现；无末地大气云。
+- `global/dimension/nether.glsl` 与群系 uniforms：Complementary r5.9 `lib/common.glsl` NETHER_COLOR_MODE 3 配色及 `shaders.properties` 群系识别模式，保留既有参考照明。删除 Astra 旧端点噪声雾。
+- `global/atmosphere/weather.glsl`：积水的湿度/天光/向上法线/双层纹理因子参考 Solas `lib/pbr/generatedPBR.glsl`；阈值、圆环法线、云透射及管线组合由 Astra 实现。
+- `program/lit.fsh` 雨滴形状、`program/deferred.fsh` 积水射线和雨雾散射为 Astra 实现，使用上列参考模块提供的天空/噪声。上述参考的授权说明沿用本文件已有登记。

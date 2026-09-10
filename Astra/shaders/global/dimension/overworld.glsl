@@ -45,7 +45,7 @@ vec3 astra_direct_light() {
 	vec3 moon = mix(vec3(0.22, 0.30, 0.52), vec3(0.34, 0.43, 0.68), moonProgress)
 	          * (MOONLIGHT_STRENGTH * 0.01);
 	vec3 direct = mix(moon, sun, skyVisibilityDay);
-	return direct * mix(1.0, 0.48, rainStrength);
+	return direct * mix(1.0, 0.22, astraRainFactor);
 }
 
 vec3 astra_overworld_sky(vec3 worldDir) {

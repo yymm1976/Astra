@@ -86,8 +86,11 @@ vec4 fog_v2(
 	#endif
 
 	// Rain thickens outdoor air; cave and underwater fog keep their own medium.
-	if (isEyeInWater == 0) atmosphereFog *= 1.0 + 2.0 * astraRainFactor * caveFogTransition;
-	skyFogStrength = caveFogTransition * (SKY_FOG_STRENGTH * 0.01);
+	if (isEyeInWater == 0) {
+        atmosphereFog *= 1.0 + 2.0 * astraRainFactor * caveFogTransition;
+        atmosphereFog += (1.0-exp(-fragDistance*0.005*astraRainFactor))*caveFogTransition;
+    }
+	skyFogStrength = caveFogTransition * mix(SKY_FOG_STRENGTH * 0.01, 0.65, astraRainFactor);
 	vec3 fogColor = (1.0 - caveFogTransition) * params.caveColor;
 
 	if (blindness > 0.0001) {

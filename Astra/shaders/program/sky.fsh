@@ -37,7 +37,9 @@ void main() {
 		#if SUN_MOON_MODE == SUN_MOON_VANILLA
 			vec4 celestial = texture(gtexture, texcoord) * tint;
 			celestial.rgb = srgb_decode(max(celestial.rgb, vec3(0.0)));
-			gl_FragData[0] = celestial;
+            float throughCloud = astra_cloud_transmission(cameraPosition, normalize(worldSunVector));
+            celestial.a *= mix(1.0, throughCloud * 0.25, astraRainFactor);
+            gl_FragData[0] = celestial;
 		#else
 			vec3 worldDir = astra_sky_world_direction();
 			if (renderStage == MC_RENDER_STAGE_SUN) {
@@ -51,8 +53,11 @@ void main() {
 			} else {
 				discard;
 			}
-		#endif
-	#endif
+        #endif
+        #if SUN_MOON_MODE != SUN_MOON_VANILLA
+        gl_FragData[0].a *= mix(1.0, astra_cloud_transmission(cameraPosition, normalize(worldSunVector)) * 0.25, astraRainFactor);
+        #endif
+    #endif
 #else
 	// gbuffers_skybasic also receives vanilla star geometry. Drawing an opaque atmosphere on
 	// those triangles would cover the sky; our cell field is already part of the SKY draw.
