@@ -79,8 +79,8 @@ vec3 end_sky(vec3 dir, vec3 voidTint, float time) {
     //      zero before the Einstein radius, so no second image and no opposite-side copy.
     //   3. the object is a centred black disk + thin blue-white photon ring + one tilted
     //      accretion ellipse with a Doppler-bright side. No half selections.
-    const float ASTRA_BH_SHADOW = 0.042;     // event horizon shadow radius
-    const float ASTRA_BH_RING = 0.055;       // photon ring radius (just outside)
+    const float ASTRA_BH_SHADOW = 0.038;     // event horizon shadow radius (4.4 deg across)
+    const float ASTRA_BH_RING = 0.055;       // lensing taper start
     const float ASTRA_BH_DISK_OUT = 0.150;   // accretion ellipse outer radius
     float cosA = clamp(dot(dir, stellarDirection), -1.0, 1.0);
     float horizon = 1.0 - smoothstep(ASTRA_BH_SHADOW - aa, ASTRA_BH_SHADOW + aa, angle);
@@ -113,7 +113,12 @@ vec3 end_sky(vec3 dir, vec3 voidTint, float time) {
         starCoord = floor(starCoord * 850.0) / 850.0;
         float stars = end_noise(starCoord) * end_noise(starCoord + 0.10)
                     * end_noise(starCoord + 0.23);
-        float starLum = max(stars - 0.80, 0.0) * max(0.4 - lensNebula * 0.2, 0.0) * 8.0
+        // 2026-09-11: the user reported the End sky as pure black. Measured with the real
+        // end_noise field, the old threshold 0.80 gave P=0.155% (< 1 star per 640 cells)
+        // and a peak luminance around 0.16 - present in theory, invisible on screen. The
+        // threshold and gain are set so ~10k stars cover the hemisphere with a peak well
+        // above the void colour.
+        float starLum = max(stars - 0.74, 0.0) * max(0.6 - lensNebula * 0.2, 0.0) * 12.0
                       * (0.94 + 0.06 * sin(time * 0.24 + end_noise(starCoord + 0.37) * 6.283185));
         // Arc stretch: the warp compresses neighbouring star cells together near the
         // ring, so the same points land closer and each one reads as a short arc.
@@ -130,9 +135,9 @@ vec3 end_sky(vec3 dir, vec3 voidTint, float time) {
     // ring is gone; the disk does all the work.
     float along = dot(dir, radialAxis);
     float across = dot(dir, diskAxis);
-    const float ASTRA_BH_A = 0.150;      // disk half-width
-    const float ASTRA_BH_T = 0.0160;     // band half-thickness
-    const float ASTRA_BH_Y0 = -0.009;    // near side sits just below centre
+    const float ASTRA_BH_A = 0.095;      // disk half-width (10.9 deg across)
+    const float ASTRA_BH_T = 0.0100;     // band half-thickness
+    const float ASTRA_BH_Y0 = -0.006;    // near side sits just below centre
     const float ASTRA_BH_TILT = 0.17;
     float ct = cos(ASTRA_BH_TILT), st = sin(ASTRA_BH_TILT);
     float su = along * ct - across * st;      // along the disk
@@ -157,15 +162,21 @@ vec3 end_sky(vec3 dir, vec3 voidTint, float time) {
                    * (1.0 - smoothstep(0.84, 1.0, radial));
     // Lensed far side: the same band lifted clear over the top of the shadow.
     // The lensed image hugs the top of the shadow rather than floating above it.
-    float farV = sv - (ASTRA_BH_Y0 + 1.55 * ASTRA_BH_SHADOW);
-    float farBand = exp(-pow(farV / (ASTRA_BH_T * 1.15), 2.0))
+    // Narrower than the near band: a wide Gaussian here smeared the lensed image into a
+    // diffuse glow instead of a crisp arc.
+    float farV = sv - (ASTRA_BH_Y0 + 1.75 * ASTRA_BH_SHADOW);
+    float farBand = exp(-pow(farV / (ASTRA_BH_T * 0.62), 2.0))
                   * (1.0 - smoothstep(0.76, 1.0, radial));
-    vec3 diskEmission = diskCol * (nearBand + farBand * 0.80) * beam * grain
+    vec3 diskEmission = diskCol * (nearBand + farBand * 0.90) * beam * grain
                       * radialFall * 1.55;
 
-    // Photon ring: a hairline just outside the shadow. Deliberately weak - a bright ring
-    // all the way around is the moon look this pass is removing.
-    float photonRing = exp(-max(angle - ASTRA_BH_SHADOW, 0.0) * 420.0);
+    // Photon ring: a hairline annulus sitting ON the rim.
+    // BUG FIXED: this used to be exp(-max(angle - SHADOW, 0.0) * k), and max() clamps the
+    // exponent to 0 for every angle INSIDE the shadow, so the ring evaluated to exactly
+    // 1.0 across the whole disk. Added after `sky *= horizon` it repainted the entire
+    // event horizon as a flat glowing circle - the "big moon" the user kept seeing, in
+    // both previous builds. An annulus centred on the rim with |.| decays on both sides.
+    float photonRing = exp(-pow((angle - ASTRA_BH_SHADOW) / max(ASTRA_BH_SHADOW * 0.075, 1e-4), 2.0));
 
     // Background is occluded by the shadow; the disk is added after, so its near side
     // correctly crosses in front of the black disk.

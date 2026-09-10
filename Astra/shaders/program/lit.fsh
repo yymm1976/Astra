@@ -2,6 +2,11 @@
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
 #include "/program/scene.glsl"
+#if defined ASTRA_TERRAIN && !defined ASTRA_WATER_PASS     && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    // Terrain only: the direct caustic term below needs the Solas height field. It is a
+    // program-level include, so no global/* -> global/* layering rule is broken.
+    #include "/global/water/caustics.glsl"
+#endif
 #ifdef ASTRA_WATER_PASS
     #include "/program/water.glsl"
     #include "/global/water/caustics.glsl"
@@ -205,6 +210,24 @@ void main() {
     #endif
     #if defined ASTRA_TRANSLUCENT && defined FANCY_TRANSLUCENTS
         color *= albedo.a;
+    #endif
+    // Direct caustics on submerged terrain.
+    // The reference projects its water-surface focus pattern down through the shadow map,
+    // and Astra still writes that pattern into the coloured shadow. The user reported the
+    // seabed as having no caustics at all, and that path depends on the water caster being
+    // present and correctly tinted in shadowcolor0, which cannot be verified offline. This
+    // evaluates the SAME Solas height field directly at the submerged fragment, so the
+    // network is guaranteed to appear and still animates and respects the sun through the
+    // surface wave phase. It is a multiplier centred near 1, so it modulates rather than
+    // dims: caustic peaks lift a little, the dark lattice crushes.
+    #if defined ASTRA_TERRAIN && !defined ASTRA_WATER_PASS
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        if (isEyeInWater == 1 && !iceTop) {
+            float causticField = solas_water_caustics(playerPos + cameraPosition);
+            float causticFactor = 0.42 + 0.72 * clamp(causticField, 0.0, 1.35);
+            color *= mix(1.0, causticFactor, 0.80);
+        }
+        #endif
     #endif
     ASTRA_LIT_COLOR = vec4(max(color, vec3(0.0)), albedo.a);
     #ifdef ASTRA_WATER_PASS

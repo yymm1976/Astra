@@ -25,55 +25,57 @@ vec3 water_shafts_view(vec2 uv, out float rayLength) {
 
 #ifdef ASTRA_SHAFT_MARCH_PASS
 #include "/global/water/caustics.glsl"
-// Solas V2.2b computeVL underwater branch; positions use Astra's shadow matrix.
+// Solas V2.2b volumetricLight.glsl, marched in Astra's world/shadow transforms.
+// 2026-09-11 rewrite. The previous version read as a solid, hard-edged spotlight:
+//   - it started sampling AT the camera (i=0 -> distance 0) with a near-constant weight,
+//     so the near medium was painted solid all the way to the eye;
+//   - it HARD-SKIPPED fully shadowed samples (`if (shadow1 >= 1.0) continue`), so with
+//     4-10 samples the shadow boundary became a hard wedge instead of a gradient.
+// The reference does neither: its first sample sits minDist away and the weight grows
+// with distance, which is why Solas' shafts dissolve as you approach and stay soft.
 vec4 water_shafts_march(vec2 uv) {
     float rayLength;
     vec3 viewPos = water_shafts_view(uv, rayLength);
     vec3 ray = normalize(view_player(viewPos));
-    float time = astraSolasTimeBrightness;
     float sun = solas_sun_visibility();
+    float time = astraSolasTimeBrightness;
     float VoU = 1.0 - pow(clamp(ray.y, 0.0, 1.0), 1.5);
-    VoU = mix(VoU, 1.0, time * 0.75);
-    // 2026-09-11 second user round: "黄昏时光束变得非常多，侧向的光束异常亮，图2是背向
-    // 光源方向拍摄的". Two inverted terms caused exactly that:
-    //   - the directional weight was (1.0 - VoL), i.e. BRIGHTEST when looking away from
-    //     the sun, so the beams were strongest on the wrong side;
-    //   - visibility was scaled by (2.0 - sun) * 0.5, which is 1.0 when the sun is at the
-    //     horizon and 0.5 at noon, so dusk was the single strongest moment.
-    // Forward scattering is what makes shafts visible: the weight now peaks toward the
-    // light, and a sun-elevation gate removes them once the sun is down.
-    float VoL = pow(clamp(dot(ray, normalize(view_player(lightVector))), 0.0, 1.0), 2.0);
+    float VoL = pow(clamp(dot(ray, normalize(view_player(lightVector))), 0.0, 1.0), 1.5);
+    // Forward scattering only, and daylight only: shafts must not appear when looking
+    // away from the sun, and must not peak at dusk.
     float sunGate = smoothstep(-0.02, 0.16, worldSunVector.y);
-    float visibility = astraSolasShadowFade * sunGate * 0.75;
-    visibility *= smoothstep(1.0, 3.5, rayLength);
-    visibility *= pow(VoU, 1.5) * VoL;
-    visibility *= (1.0 - clamp(blindness, 0.0, 1.0));
-    float endDistance = min(-viewPos.z, WATER_SHAFT_MAX_DISTANCE);
+    float visibility = sunGate * 0.85;
+    visibility *= pow(VoU, 1.5);
+    visibility *= mix(0.25 + VoL * 0.25, VoL * 0.45, time);
+    visibility *= 1.0 - clamp(blindness, 0.0, 1.0);
+
+    const float maxDist = 128.0;
+    // Solas: underwater the first sample starts at maxDist/sampleCount*0.5 away, and the
+    // spacing is uniform. The near field contributes nothing, so the beams fade out as the
+    // camera moves into them instead of sticking to the view.
+    float minDist = maxDist / float(UNDERWATER_SHAFT_SAMPLES) * 0.5;
+    float maxCurrentDist = min(rayLength, maxDist);
     float dither = texture(solasWaterNoise, gl_FragCoord.xy / 512.0).b;
     vec3 integral = vec3(0.0);
     for (int i = 0; i < UNDERWATER_SHAFT_SAMPLES; ++i) {
-        float sampleIndex = float(i) + dither;
-        float distance = mix(sampleIndex * (128.0 / float(UNDERWATER_SHAFT_SAMPLES) * 0.5),
-                             exp2(sampleIndex) - 0.95, time);
-        if (distance > endDistance) break;
-        vec3 point = view_camera_relative(viewPos * (distance / max(-viewPos.z, 0.0001)));
+        float currentDist = (float(i) + dither) * minDist;
+        if (currentDist > maxCurrentDist) break;
+        vec3 point = view_camera_relative(viewPos * (currentDist / max(-viewPos.z, 0.0001)));
         vec3 pos = distort(player_shadow(point)) * 0.5 + 0.5;
-        if (length(pos.xy * 2.0 - 1.0) >= 1.0 || pos.z <= 0.0 || pos.z >= 1.0) continue;
-        // shadowtex1 holds opaque casters only. shadowtex0 also contains translucent
-        // geometry, and since every underwater sample sits below the water surface the
-        // water itself shadowed the whole volume: shadow0 >= 1 skipped every sample and
-        // the shafts integrated to exactly zero. Opaque depth is the correct occluder
-        // for light coming down through the surface; the coloured shadow still comes
-        // from shadowcolor0.
-        float shadow1 = clamp((texture(shadowtex1, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);
-        if (shadow1 >= 1.0) continue;
-        vec3 color = texture(shadowcolor0, pos.xy).gba;
-        float weight = pow((distance / 128.0) / float(UNDERWATER_SHAFT_SAMPLES), 1.0 - time * 0.5);
-        integral += clamp(color * color, 0.0, 8.0) * weight;
+        if (length(pos.xy * 2.0 - 1.0) >= 1.0) continue;
+        // Distance-weighted: far samples dominate, which is the reference's soft falloff.
+        float weight = pow((currentDist / maxDist) / float(UNDERWATER_SHAFT_SAMPLES),
+                           1.0 - time * 0.5);
+        // Smooth accumulation. shadowtex1 (opaque only) reports how much light reaches
+        // this point, and it is multiplied in rather than used as a hard skip: that is
+        // what turns the old wedges into a gradient.
+        float shade = 1.0 - clamp((texture(shadowtex1, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);
+        vec3 col = texture(shadowcolor0, pos.xy).gba;
+        integral += shade * clamp(col * col, 0.0, 4.0) * weight;
     }
-    integral *= visibility * 1.75;
+    integral *= visibility;
     integral *= mix(solasWaterSqrt, solasWaterSqrt * solasWeather, wetness) * (4.0 + sun * 8.0);
-    // A positive exponent keeps the zero-light case defined at extreme settings.
+    // Positive exponent keeps the zero-light case defined at extreme settings.
     integral = pow(integral, vec3(max(1.0 - pow(length(integral), 1.25) * 0.25, 0.01)));
     return vec4(pow(clamp(integral / 128.0, 0.0, 1.0), vec3(0.25)), rayLength / 128.0);
 }
