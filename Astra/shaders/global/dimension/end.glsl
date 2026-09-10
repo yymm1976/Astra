@@ -122,43 +122,56 @@ vec3 end_sky(vec3 dir, vec3 voidTint, float time) {
     }
     #endif
 
-    // ---- 3. accretion ellipse ----------------------------------------------------
-    // Screen-space flattened ellipse centred on the hole. `node` sets its tilt so the
-    // near side passes below and the lensed far side reads as the arc above.
+    // ---- 3. accretion disk -------------------------------------------------------
+    // The previous build put a symmetric bright ring around a dark disk, which is exactly
+    // what a moon (or an eclipse) looks like - the user's "看起来也只像个大月亮". A black
+    // hole reads as one because of two things a ring cannot give: the disk is TILTED and
+    // passes IN FRONT of the shadow, and its lensed image arcs over the top. So the halo
+    // ring is gone; the disk does all the work.
     float along = dot(dir, radialAxis);
     float across = dot(dir, diskAxis);
-    const float ASTRA_BH_TILT = 0.22;                 // ellipse inclination
-    float c0 = cos(ASTRA_BH_TILT), s0 = sin(ASTRA_BH_TILT);
-    float u = along * c0 - across * s0;               // ellipse long axis
-    float v = along * s0 + across * c0;               // ellipse short axis
-    float a = ASTRA_BH_DISK_OUT;
-    float b = ASTRA_BH_DISK_OUT * 0.26;               // flattened
-    float e = sqrt(pow(u / a, 2.0) + pow(v / max(b, 1e-5), 2.0));
-    // Band around the ellipse, thinner toward the outer edge.
-    float band = exp(-pow((e - 1.0) * 5.5, 2.0));
-    // Inner edge brighter and bluer; outer edge dimmer and redder.
-    float warmth = clamp((e - 0.55) / 0.55, 0.0, 1.0);
-    vec3 hotBlue = vec3(0.95, 1.05, 1.45);
-    vec3 gold = vec3(1.35, 0.86, 0.36);
-    vec3 deepRed = vec3(0.55, 0.16, 0.09);
-    vec3 diskColor = mix(hotBlue, gold, smoothstep(0.0, 0.55, warmth));
-    diskColor = mix(diskColor, deepRed, smoothstep(0.6, 1.0, warmth));
-    // Doppler beaming: the side sweeping toward the camera is brighter.
-    float beam = 0.30 + 0.90 * pow(clamp(0.5 + 0.5 * (u / max(a, 1e-5)), 0.0, 1.0), 1.5);
-    float turb = texture(solasWaterNoise, vec2(u, v) * 42.0 + vec2(time * 0.010, 0.0)).r;
+    const float ASTRA_BH_A = 0.150;      // disk half-width
+    const float ASTRA_BH_T = 0.0160;     // band half-thickness
+    const float ASTRA_BH_Y0 = -0.009;    // near side sits just below centre
+    const float ASTRA_BH_TILT = 0.17;
+    float ct = cos(ASTRA_BH_TILT), st = sin(ASTRA_BH_TILT);
+    float su = along * ct - across * st;      // along the disk
+    float sv = along * st + across * ct;      // across the disk
+    float radial = clamp(abs(su) / ASTRA_BH_A, 0.0, 1.0);
+    // Inner edge hot blue-white, outer edge dim deep red.
+    vec3 hotInner = vec3(1.05, 1.12, 1.45);
+    vec3 goldMid  = vec3(1.30, 0.82, 0.34);
+    vec3 deepRed  = vec3(0.46, 0.13, 0.07);
+    vec3 diskCol = mix(hotInner, goldMid, smoothstep(0.0, 0.55, radial));
+    diskCol = mix(diskCol, deepRed, smoothstep(0.60, 1.0, radial));
+    // Doppler beaming: the approaching side is far brighter than the receding one. This
+    // asymmetry is the strongest single "not a moon" cue in the whole image.
+    float beam = mix(0.14, 1.0, smoothstep(-ASTRA_BH_A * 0.85, ASTRA_BH_A * 0.85, -su));
+    float turb = texture(solasWaterNoise, vec2(su, sv) * 46.0 + vec2(time * 0.010, 0.0)).r;
     float grain = 0.62 + 0.38 * turb;
-    // The disk is occluded where it passes behind the shadow: horizon >= 1 there.
-    vec3 diskEmission = diskColor * band * beam * grain * 1.35 * (1.0 - horizon * 0.85);
+    float radialFall = exp(-pow(radial * 1.10, 2.6));
+    // Near side: the band just below the centre line, drawn IN FRONT of the shadow.
+    float bandV = sv - ASTRA_BH_Y0;
+    float nearBand = exp(-pow(bandV / ASTRA_BH_T, 2.0))
+                   * smoothstep(0.0, -ASTRA_BH_T * 0.4, bandV)
+                   * (1.0 - smoothstep(0.84, 1.0, radial));
+    // Lensed far side: the same band lifted clear over the top of the shadow.
+    // The lensed image hugs the top of the shadow rather than floating above it.
+    float farV = sv - (ASTRA_BH_Y0 + 1.55 * ASTRA_BH_SHADOW);
+    float farBand = exp(-pow(farV / (ASTRA_BH_T * 1.15), 2.0))
+                  * (1.0 - smoothstep(0.76, 1.0, radial));
+    vec3 diskEmission = diskCol * (nearBand + farBand * 0.80) * beam * grain
+                      * radialFall * 1.55;
 
-    // Thin blue-white photon ring hugging the shadow edge.
-    float photonRing = exp(-max(angle - ASTRA_BH_SHADOW, 0.0) * 190.0);
+    // Photon ring: a hairline just outside the shadow. Deliberately weak - a bright ring
+    // all the way around is the moon look this pass is removing.
+    float photonRing = exp(-max(angle - ASTRA_BH_SHADOW, 0.0) * 420.0);
 
-    // Background is occluded by the shadow, then the emission is added on top.
+    // Background is occluded by the shadow; the disk is added after, so its near side
+    // correctly crosses in front of the black disk.
     sky *= horizon;
     sky += diskEmission;
-    sky += vec3(0.82, 0.92, 1.30) * photonRing * 1.35;
-    // Cool halo from the piled-up lensed background, keeping the space deep but not black.
-    sky += vec3(0.20, 0.26, 0.45) * exp(-max(angle - ASTRA_BH_RING, 0.0) * 3.4) * 0.10;
+    sky += vec3(0.85, 0.95, 1.35) * photonRing * 0.40;
 
     // Mild contrast lift only; the previous sky*sky term blew the disk out to white.
     sky *= 1.06;

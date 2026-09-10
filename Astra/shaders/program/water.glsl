@@ -134,7 +134,13 @@ vec4 solas_underwater_interface(vec3 color, vec3 viewPos, vec3 normal, vec3 face
         vec2 displacement = (normal.xy - faceNormal.xy) * (0.6 * REFRACTION_STRENGTH * 0.01);
         displacement *= vec2(viewHeight / viewWidth, 1.0) * (gbufferProjection[1][1] / 1.37) / max(length(viewPos), 8.0);
         vec2 candidate = clamp(uv + displacement, vec2(0.0), vec2(1.0));
-        if (water_depth_range(depthtex1, candidate).x >= gl_FragCoord.z) uv = candidate;
+        // A hard if() here switched the whole ray between displaced and undisplaced per
+        // pixel, which reads as shattered/torn water when looking up at the surface from
+        // below (the user's "水下看水面的破碎多", explicitly not a wave-amplitude issue).
+        // Blending across the depth test keeps the displaced path but removes the tear.
+        float candidateDepth = water_depth_range(depthtex1, candidate).x;
+        float accept = smoothstep(gl_FragCoord.z - 0.0015, gl_FragCoord.z + 0.0015, candidateDepth);
+        uv = mix(uv, candidate, accept);
     #endif
     vec3 background = pow(max(texture(colortex4, uv).rgb, vec3(0.0)), vec3(1.0 / 2.2));
     return vec4(pow(mix(background, surface, alpha), vec3(2.2)), 1.0);
@@ -190,9 +196,12 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
         if (water && !belowWater) {
             float sunAlign = max(dot(reflectedWorld, worldSunVector), 0.0);
-            float sharpness = mix(340.0, 70.0, clamp(roughness * 6.0, 0.0, 1.0));
+            // Softer and wider than the first attempt: at 2.6x with a 340 exponent this was
+            // a blinding point. A gentler lobe still reads as the sun on the water without
+            // searing the view.
+            float sharpness = mix(150.0, 42.0, clamp(roughness * 6.0, 0.0, 1.0));
             float glint = pow(sunAlign, sharpness) * solas_sun_visibility();
-            reflection += vec3(1.00, 0.96, 0.88) * glint * skylight * 2.6;
+            reflection += vec3(1.00, 0.96, 0.88) * glint * skylight * 0.85;
         }
     #endif
     vec2 uv = gl_FragCoord.xy / vec2(viewWidth, viewHeight);
