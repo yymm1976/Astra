@@ -140,8 +140,12 @@
 // Underwater fog density, %
 // 2026-09-06 second visual round: factory 100 -> 55 (25-40 block visibility target)
 // 2026-09-07 visual round: 55 -> 42 (toward Steadfast/Solas clean-through look; visibility >32 blocks)
-#define NETHER_FOG_DENSITY 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define NETHER_FOG_DENSITY 70 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Nether fog density, % (independent curve, design 4.5)
+// 2026-09-11 user round: "下界的雾气稍多" -> 100 to 70. The volumetric plume/haze
+// layer in nether_volume.glsl is composited on top of this, so the total density is
+// the two together; cut the homogeneous layer rather than the plumes that carry the
+// depth the user asked for.
 #define END_FOG_DENSITY 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // End void fog density, %
 #define NETHER_VOXEL_LIGHT // [false true]

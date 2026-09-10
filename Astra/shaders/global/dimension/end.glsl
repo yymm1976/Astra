@@ -74,22 +74,46 @@ vec3 end_sky(vec3 dir, vec3 voidTint, float time) {
     vec3 stellarDirection = normalize(view_player(lightVector));
     float angle = acos(clamp(dot(dir, stellarDirection), -1.0, 1.0));
     float aa = max(fwidth(angle), 0.0001);
-    float stellarRadius = 0.072;
-    float core = 1.0 - smoothstep(stellarRadius-aa, stellarRadius+aa, angle);
+    // 2026-09-11 user round: "恒星太简陋" + reference to IterationT 3.2, whose End is
+    // built around a super-massive black hole rather than a bright disk. The old
+    // implementation was a flat lit circle with a fluffy corona, which reads as a
+    // sticker on the sky. This is a compact black-hole model:
+    //   - the shadow disk is genuinely black (it must eat whatever was behind it,
+    //     which is what makes the size read as mass instead of brightness),
+    //   - the photon-ring boundary carries the brightest emission,
+    //   - an accretion band is brightest where the material approaches the camera
+    //     (relativistic beaming) and is tinted blue on the receding side,
+    //   - a lensed halo bends the surrounding sky/stars around the shadow.
+    const float ASTRA_BH_SHADOW = 0.055;
+    const float ASTRA_BH_RING   = 0.082;
+    const float ASTRA_BH_HALO   = 0.44;
+    float bhShadow = 1.0 - smoothstep(ASTRA_BH_SHADOW-aa, ASTRA_BH_SHADOW+aa, angle);
+    float bhRing = exp(-max(angle-ASTRA_BH_SHADOW,0.0)*34.0);
     vec3 axis = abs(stellarDirection.y)<0.95 ? vec3(0.0,1.0,0.0) : vec3(1.0,0.0,0.0);
     vec3 tangent = normalize(cross(axis,stellarDirection));
     vec3 binormal = cross(stellarDirection,tangent);
-    vec2 disk = vec2(dot(dir,tangent),dot(dir,binormal))/sin(stellarRadius);
-    float limb = sqrt(max(1.0-dot(disk,disk),0.0));
-    float cells = texture(solasWaterNoise,disk*0.12+vec2(time*0.0008,0.0)).r;
-    float surface = mix(0.62,1.0,limb)*(0.75+0.25*cells);
-    float azimuth = atan(dot(dir,binormal),dot(dir,tangent));
-    float streamers = 0.65+0.35*pow(0.5+0.5*sin(azimuth*11.0+sin(azimuth*5.0)+time*0.06),3.0);
-    float rimDistance = max(angle-stellarRadius,0.0);
-    float corona = exp(-rimDistance*28.0)*0.48*streamers*(1.0-core);
-    float halo = exp(-angle*7.0)*0.055;
-    sky += mix(vec3(1.0,0.47,0.20),vec3(0.86,0.78,1.0),limb) * core * surface * 3.2;
-    sky += vec3(0.62,0.45,1.0)*(corona+halo);
+    float along = dot(dir,tangent)/sin(ASTRA_BH_RING);
+    float across = dot(dir,binormal)/sin(ASTRA_BH_RING);
+    float azimuth = atan(across,along);
+    float radial = length(vec2(along,across));
+    // Accretion sheet: thin in the radial direction, hot close to the photon ring.
+    float sheet = exp(-pow(max(radial-1.0,0.0)*3.4,2.0));
+    // Beaming: matter sweeping toward the camera is brighter, the receding side dimmer.
+    float beamed = 0.30 + 0.70*pow(0.5+0.5*sin(azimuth),1.7);
+    float cells = texture(solasWaterNoise,vec2(along,across)*0.20+vec2(time*0.0013,0.0)).r;
+    float sheetDetail = 0.72+0.28*cells;
+    // Lensed halo: sky light bent around the shadow, strong just outside the ring.
+    float halo = exp(-max(angle-ASTRA_BH_SHADOW-ASTRA_BH_RING,0.0)*5.2);
+    float outer = exp(-angle*4.0)*0.10;
+    vec3 hot  = vec3(1.00,0.72,0.34);
+    vec3 cold = vec3(0.52,0.68,1.00);
+    vec3 diskColor = mix(cold,hot,beamed);
+    // The mass shadow eats whatever sky/nebula was behind it: that occlusion is what
+    // makes the disk read as mass rather than as a dim light. Every emission term below
+    // is already ~0 inside the shadow radius, so no extra mask is needed.
+    sky *= bhShadow;
+    sky += diskColor * (bhRing*0.85 + sheet*beamed*sheetDetail*2.3);
+    sky += vec3(0.60,0.44,1.00) * (halo*0.30 + outer);
     return sky * (1.0 - max(blindness, darknessFactor));
 }
 vec4 end_fog(out float skyFogStrength, float distanceToEye, float borderDistance, vec3 playerPos) {

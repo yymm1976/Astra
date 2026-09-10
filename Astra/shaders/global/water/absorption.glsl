@@ -16,22 +16,30 @@ vec3 water_absorption_coefficient() {
 vec3 water_surface_absorption() {
     // Steadfast's appearance presets expressed per block of VERTICAL depth.
     // These are an interface appearance control, not volume extinction.
+    // 2026-09-11 user A/B against Steadfast (shore view, same framing): Astra's near
+    // water measured v=0.27/s=0.70 against the reference's v=0.31/s=0.49 at the same
+    // hue (209deg vs 206deg). The hue was already right, so this was over-absorption,
+    // not a tint problem: a ~0.62x scale raises the value toward the reference and the
+    // more balanced green/blue ratio removes the excess saturation. Do not "fix" this
+    // by adding a blue tint - that would push the hue off the reference.
     #if WATER_CHARACTER == WATER_COLD
         // Colder water retains relatively more blue than the other types.
-        vec3 coefficient = vec3(1.000, 0.3125, 0.0625);
+        vec3 coefficient = vec3(1.000, 0.2200, 0.0800);
     #elif WATER_CHARACTER == WATER_TROPICAL
         // Strongest red removal and longest green transport length.
-        vec3 coefficient = vec3(2.000, 0.1250, 0.03125);
+        vec3 coefficient = vec3(2.000, 0.1100, 0.0420);
     #else
         // Default: clear cyan shallows, teal middle depths, dark deep water.
-        vec3 coefficient = vec3(1.000, 0.1875, 0.0625);
+        vec3 coefficient = vec3(1.000, 0.1320, 0.0800);
     #endif
     return coefficient * (WATER_ABSORPTION * 0.01);
 }
 // Spectral single-scattering coefficient (100% fog-density reference point).
 // Kept small in red so the teal selectivity bought above is not diluted.
+// Raised alongside the absorption cut so the lost transmission comes back as
+// in-scattered water colour instead of simply going darker.
 vec3 water_scattering_coefficient() {
-    return vec3(0.008, 0.023, 0.055) * (UNDERWATER_FOG_DENSITY * 0.01);
+    return vec3(0.011, 0.032, 0.076) * (UNDERWATER_FOG_DENSITY * 0.01);
 }
 vec3 water_extinction() {
     return water_absorption_coefficient() + water_scattering_coefficient();

@@ -92,26 +92,47 @@ void main() {
 #endif
 #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
     if (temperature > 0.15) {
-        // Sparse drops in world-height coordinates: UV.y is stretched by the
-        // vanilla rain sheet, so using it as a regular grid creates long stripes.
-        vec2 grid = vec2(texcoord.x*3.0, (playerPos.y+cameraPosition.y+frameTimeCounter*12.0)*1.8);
-        vec2 id = floor(grid);
-        // Different world columns must not share the same UV sequence.
-        vec2 column = floor((playerPos.xz+cameraPosition.xz)*0.5);
-        float seed = fract(sin(dot(id+column*17.0,vec2(12.9898,78.233)))*43758.5453);
-        if(seed < 0.78) discard;
-        vec2 center = vec2(0.15+0.7*fract(seed*31.7),0.15+0.7*fract(seed*71.3));
-        vec2 q = fract(grid)-center;
-        float width = mix(0.018,0.033,fract(seed*13.1));
-        float height = mix(0.12,0.25,fract(seed*17.3));
-        float d = length(q/vec2(width,height));
-        float aa = max(fwidth(d),0.07);
-        float drop = 1.0-smoothstep(0.75-aa,1.0+aa,d);
-        float nearFade = smoothstep(1.8,5.5,length(playerPos));
-        albedo = vec4(vec3(0.86),drop*tint.a*0.17*nearFade);
-
+        // Rain streaks. Three constraints shape this grid:
+        //   1. texcoord is per-quad and UV.y is stretched by the vanilla rain sheet, so
+        //      a plain UV grid produced the long regular stripes the user reported.
+        //   2. The vertical scroll is world-Y driven so the phase is continuous across
+        //      particles and the sheet appears to fall at a constant world speed.
+        //   3. Cells must be anchored to the world, not to the screen. The world column
+        //      is part of the hash, and the drop's in-cell offset only depends on the
+        //      cell's own hash, so a given piece of sky always rains the same way as the
+        //      camera moves instead of boiling (the earlier version hashed the moving
+        //      time index, which made every drop flicker on its own).
+        const float ASTRA_RAIN_FREQ_X = 6.0;
+        const float ASTRA_RAIN_FREQ_Y = 2.2;
+        const float ASTRA_RAIN_DENSITY = 0.78;   // cells kept (lower = denser rain)
+        vec2 grid = vec2(texcoord.x * ASTRA_RAIN_FREQ_X,
+                         (playerPos.y + cameraPosition.y) * 0.06
+                         + frameTimeCounter * ASTRA_RAIN_FREQ_Y);
+        vec2 cell = floor(grid);
+        // Stable repeat: the hash must not contain the moving time index, otherwise
+        // every cell re-rolls each frame and the whole field boils. Both hashed
+        // indices are world-anchored quantities, only the scroll above is temporal.
+        vec2 modIndex = floor(vec2(texcoord.x * ASTRA_RAIN_FREQ_X,
+                                   playerPos.y + cameraPosition.y) * 0.5);
+        vec2 column = floor((playerPos.xz + cameraPosition.xz) * 0.5);
+        float seed = fract(sin(dot(modIndex + column * 17.0, vec2(12.9898, 78.233))) * 43758.5453);
+        float alive = fract(seed * 7.31);
+        if (alive < ASTRA_RAIN_DENSITY) discard;
+        vec2 center = vec2(0.5) + (vec2(fract(seed * 31.7), fract(seed * 71.3)) - 0.5) * 0.7;
+        vec2 q = fract(grid) - center;
+        float width = mix(0.022, 0.042, fract(seed * 13.1));
+        float height = mix(0.15, 0.30, fract(seed * 17.3));
+        float d = length(q / vec2(width, height));
+        float aa = max(fwidth(d), 0.07);
+        float drop = 1.0 - smoothstep(0.75 - aa, 1.0 + aa, d);
+        // Held back only in the first ~1.7 blocks, where a full-screen quad is not a
+        // credible volume; the previous 1.8-5.5 block ramp hid almost all near rain.
+        float nearFade = smoothstep(0.6, 1.7, length(playerPos));
+        // Brightness follows rain strength so a light drizzle does not read as a
+        // downpour, and the streak itself is much brighter than the old 0.86.
+        albedo = vec4(vec3(1.25), drop * clamp(tint.a, 0.0, 1.0) * (0.55 + 0.45 * astraRainFactor) * nearFade);
     }
-    if (albedo.a < 0.003) discard;
+    if (albedo.a < 0.004) discard;
     #else
     if (albedo.a < alphaTestRef) discard;
     #endif
@@ -153,9 +174,12 @@ void main() {
         if (water || iceTop) {
             #if !defined DIMENSION_NETHER && !defined DIMENSION_END
             if(water && isEyeInWater == 0 && geometricNormal.y > 0.9 && astraRainFactor > 0.01) {
+                // Impact rings: the helper already scales by astraRainFactor; this
+                // multiplier is the visible strength on a water face. The previous
+                // 1.0 was under the threshold of notice in the user's rain round.
                 vec3 rings = astra_puddle_normal(playerPos+cameraPosition);
                 float exposure = astra_rain_exposure(lightLevel.y);
-                normal = normalize(normal + vec3(rings.x,0.0,rings.z)*exposure);
+                normal = normalize(normal + vec3(rings.x,0.0,rings.z)*exposure*2.6);
             }
             #endif
             float roughness = water ? waves.roughness : 0.08;

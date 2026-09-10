@@ -35,8 +35,14 @@ vec4 water_shafts_march(vec2 uv) {
     float VoU = 1.0 - pow(clamp(ray.y, 0.0, 1.0), 1.5);
     VoU = mix(VoU, 1.0, time * 0.75);
     float VoL = mix(pow(clamp(dot(ray, normalize(view_player(lightVector))), 0.0, 1.0), 1.5), 0.5, 0.25);
-    float visibility = float(texture(depthtex0, uv).r > 0.56) * astraSolasShadowFade;
-    visibility *= pow(VoU, 1.5) * mix(0.25 + VoL * 0.25, VoL * 0.45, time);
+    float visibility = astraSolasShadowFade;
+    // Sun shafts must stay visible through the near medium. The earlier build also
+    // multiplied this by float(depthtex0.r > 0.56), a hard cut that removed every ray
+    // terminating within ~6 blocks, which emptied the effect in exactly the range the
+    // reference image shows beams. A smooth near ramp keeps the user's "close to the
+    // camera it fades out" rule without deleting the visible depth range.
+    visibility *= smoothstep(1.0, 3.5, rayLength);
+    visibility *= pow(VoU, 1.5) * mix(0.35 + VoL * 0.35, VoL * 0.6, time);
     visibility *= (2.0 - sun) * 0.5 * (1.0 - clamp(blindness, 0.0, 1.0));
     float endDistance = min(-viewPos.z, WATER_SHAFT_MAX_DISTANCE);
     float dither = texture(solasWaterNoise, gl_FragCoord.xy / 512.0).b;
@@ -49,12 +55,17 @@ vec4 water_shafts_march(vec2 uv) {
         vec3 point = view_camera_relative(viewPos * (distance / max(-viewPos.z, 0.0001)));
         vec3 pos = distort(player_shadow(point)) * 0.5 + 0.5;
         if (length(pos.xy * 2.0 - 1.0) >= 1.0 || pos.z <= 0.0 || pos.z >= 1.0) continue;
-        float shadow0 = clamp((texture(shadowtex0, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);
-        if (shadow0 >= 1.0) continue;
+        // shadowtex1 holds opaque casters only. shadowtex0 also contains translucent
+        // geometry, and since every underwater sample sits below the water surface the
+        // water itself shadowed the whole volume: shadow0 >= 1 skipped every sample and
+        // the shafts integrated to exactly zero. Opaque depth is the correct occluder
+        // for light coming down through the surface; the coloured shadow still comes
+        // from shadowcolor0.
         float shadow1 = clamp((texture(shadowtex1, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);
+        if (shadow1 >= 1.0) continue;
         vec3 color = texture(shadowcolor0, pos.xy).gba;
         float weight = pow((distance / 128.0) / float(UNDERWATER_SHAFT_SAMPLES), 1.0 - time * 0.5);
-        integral += clamp(shadow1 * color * color, 0.0, 8.0) * weight;
+        integral += clamp(color * color, 0.0, 8.0) * weight;
     }
     integral *= visibility * 1.75;
     integral *= mix(solasWaterSqrt, solasWaterSqrt * solasWeather, wetness) * (4.0 + sun * 8.0);
