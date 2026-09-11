@@ -113,3 +113,8 @@
 - 复跑证据：`linked=261 failed=0 compute=27`（qa/glsl-2026-09-10-n3-fixed.log）；
   关闭态 `linked=234 failed=0`（...-n3-fixed-off.log）；`check_pack` 0 FAIL / 1 WARN / 10 PASS。
 - 实例已再次同步（缺失 0 / 内容差异 0）。
+
+
+## 2026-09-11 下界/性能接续状态（覆盖上方过时帧戳说明）
+
+当前下界占用图每帧清空，零为空气，已经没有帧戳；上文“(1-parity)<<16 永不为零”是错误历史结论，不得恢复。已有修正保留，本轮补上群系雾/照明统一、Bliss 顶层群系色、Solas 方块光组合，以及等价的传播读取和指数采样优化。详细范围见 docs/2026-09-11-nether-performance-followup.md。雨天和黑洞由另一个 Agent 负责。本轮没有改变它们。

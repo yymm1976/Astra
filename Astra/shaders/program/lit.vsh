@@ -56,6 +56,32 @@ void main() {
         waterViewDistance = length(viewPos);
     #endif
     vec3 playerPos = view_camera_relative(viewPos.xyz);
+    #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    // Rain curtain shear. Ported from IterationT 3.2 Lib/Programs/Gbuffers/Weather_VS.glsl.
+    //
+    // The whole rain sheet is displaced in world space by an offset PROPORTIONAL TO HEIGHT,
+    // so the curtain is slanted rather than vertical, and the disturbance vector rotates
+    // per world position and over time, which gives the curtain internal turbulence instead
+    // of translating it as a rigid body. This is the layer that actually removes the
+    // "picket fence" reading - no amount of colour or alpha work can, because the geometry
+    // was the problem.
+    //
+    // The reference exposes these three as sliders; the defaults below are its defaults.
+    // They are local constants rather than options so this change does not churn the option
+    // registry; promote them to sliders if tuning is wanted.
+    const float ASTRA_RAIN_WIND_X = 0.10;
+    const float ASTRA_RAIN_WIND_Z = 0.05;
+    const float ASTRA_RAIN_DISTURBANCE = 0.05;
+    {
+        vec3 weatherWorld = playerPos + cameraPosition;
+        float shearAngle = dot(weatherWorld, vec3(3.0, 0.5, 3.0)) + frameTimeCounter * 0.2;
+        vec2 shearRot = vec2(sin(shearAngle), cos(shearAngle));
+        vec2 shear = (vec2(ASTRA_RAIN_WIND_X, ASTRA_RAIN_WIND_Z)
+                      + shearRot * ASTRA_RAIN_DISTURBANCE) * playerPos.y;
+        playerPos.xz += clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0) * shear;
+        viewPos.xyz = camera_relative_view(playerPos);
+    }
+    #endif
     #if defined ASTRA_TERRAIN && defined WAVING_FOLIAGE
         bool ground = material == 4u || material == 5u || material == 6u;
         bool top = material == 6u || ((material == 4u || material == 5u) && at_midBlock.y < 0.0);

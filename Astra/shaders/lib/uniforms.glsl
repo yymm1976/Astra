@@ -34,6 +34,10 @@ uniform float biomeHumiditySmooth;     // temporally smoothed biome humidity
 // module never depends on which pass happens to include it first)
 // ------------------------------------------------------------
 uniform sampler2D solasWaterNoise;
+// Rain ripple flipbooks (shaders.properties customTexture.astraRipple1..3).
+uniform sampler2D astraRipple1;
+uniform sampler2D astraRipple2;
+uniform sampler2D astraRipple3;
 uniform float temperature;
 uniform float rainfall;
 uniform sampler2D noisetex;            // lib/noise.glsl (texture.noisetex, 256x256)

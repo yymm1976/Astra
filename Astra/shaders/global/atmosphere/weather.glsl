@@ -16,24 +16,35 @@ float astra_puddle(vec3 worldPos, vec3 normal, float skyLight) {
     return smoothstep(0.43, 0.66, n) * wetness
          * astra_rain_exposure(skyLight) * smoothstep(0.86, 0.999, normal.y);
 }
-vec3 astra_puddle_normal(vec3 worldPos) {
-    // Expanding local rings; random cell phases prevent synchronized stripes.
-    vec2 grid = worldPos.xz * 1.3;
-    vec2 slope = vec2(0.0);
-    for (int y=-1;y<=1;y++) for(int x=-1;x<=1;x++) {
-        vec2 id = floor(grid) + vec2(x,y);
-        float seed = fract(sin(dot(id,vec2(127.1,311.7))) * 43758.5453);
-        vec2 delta = grid - (id + vec2(seed,fract(seed*73.31)));
-        float radius = length(delta);
-        float age = fract(frameTimeCounter * 0.85 + seed);
-        float ring = radius - age * 1.6;
-        slope += delta / max(radius,0.02) * sin(ring*28.0)
-               * exp(-ring*ring*80.0) * (1.0-age) * smoothstep(0.0,0.1,age);
-    }
-    // Amplitude raised for the user's "rings on water are missing" round. The old
-    // 0.018 perturbation was below the threshold where a specular highlight reads as a
-    // ring, especially at the grazing angles a shoreline view produces.
-    return normalize(vec3(slope.x * 0.055 * astraRainFactor, 1.0, slope.y * 0.055 * astraRainFactor));
+// Rain impact ripples, ported from IterationT 3.2 Lib/IndividualFounctions/Ripple.glsl.
+//
+// The reference does not generate ripples procedurally: it ships three 60-frame flipbooks
+// and plays them by scrolling V in sixty discrete steps (frame = fract(floor(t*60)/60)),
+// which is why they read as sharp expanding rings rather than noise. Three layers are
+// blended by a downfall mask, and the layer sharpness follows wetness (a dry surface shows
+// crisper rings than a soaked one).
+//
+// Astra adapters: the reference reads a downfall noise for the layer mask, this uses the
+// rain exposure already computed for puddles, and the LOD attenuation uses fwidth of the
+// world position. Ramps are deliberately not used.
+vec2 astra_ripple_layer(sampler2D sheet, vec2 coord, float rp) {
+    vec2 n = textureLod(sheet, coord, 0.0).rg * 2.0 - 1.0;
+    n = pow(abs(n), vec2(rp)) * sign(n);
+    return n;
+}
+vec2 astra_rain_ripple(vec3 worldPos, float strength) {
+    if (strength <= 1e-4) return vec2(0.0);
+    vec2 p = worldPos.xz * 0.5;
+    float frame = fract(floor(frameTimeCounter * 60.0) / 60.0);
+    vec2 coord = vec2(p.x, fract(p.y / 60.0) - frame);
+    float w = clamp(wetness, 0.0, 1.0);
+    float rp = 2.0 - pow(w, 4.0) * 1.2;
+    vec2 n = astra_ripple_layer(astraRipple1, coord, rp);
+    n += astra_ripple_layer(astraRipple2, coord, rp) * clamp(strength * 2.0, 0.0, 1.0);
+    n += astra_ripple_layer(astraRipple3, coord, rp) * clamp(strength * 2.0 - 1.0, 0.0, 1.0);
+    float lod = dot(fwidth(worldPos.xz), vec2(1.0));
+    n /= lod * 5.0 + 1.0;
+    return n * strength;
 }
 // Same cloud field as the visible layer; ray starts at the receiving world point.
 float astra_cloud_transmission(vec3 worldPos, vec3 lightDir) {

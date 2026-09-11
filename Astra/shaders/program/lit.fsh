@@ -96,60 +96,24 @@ void main() {
     // deletes potion or sculk particles is worse than leaving the splash in place.
 #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
     if (temperature > 0.15) {
-        // Rain streaks. Three constraints shape this grid:
-        //   1. texcoord is per-quad and UV.y is stretched by the vanilla rain sheet, so
-        //      a plain UV grid produced the long regular stripes the user reported.
-        //   2. The vertical scroll is world-Y driven so the phase is continuous across
-        //      particles and the sheet appears to fall at a constant world speed.
-        //   3. Cells must be anchored to the world, not to the screen. The world column
-        //      is part of the hash, and the drop's in-cell offset only depends on the
-        //      cell's own hash, so a given piece of sky always rains the same way as the
-        //      camera moves instead of boiling (the earlier version hashed the moving
-        //      time index, which made every drop flicker on its own).
-        // 2026-09-11 user round: "雨滴太整齐，应该有长有短，不要这么多，颜色透明偏灰" -
-        // the previous pass kept 22% of a strict grid with one aspect ratio and a white
-        // 1.25 tint, which read as a regular picket fence and was too loud. Four changes:
-        //   1. density cut so roughly one cell in twelve carries a drop;
-        //   2. the drop is displaced inside its cell by up to half a cell, so the spacing
-        //      is no longer on a lattice;
-        //   3. the streak length spans a wide range with a bias toward short, so lengths
-        //      vary instead of repeating;
-        //   4. the tint is a mid grey and the alpha is low, making them read as water in
-        //      the air rather than lit paint.
-        const float ASTRA_RAIN_FREQ_X = 6.0;
-        const float ASTRA_RAIN_FREQ_Y = 2.2;
-        const float ASTRA_RAIN_DENSITY = 0.92;   // cells discarded, so ~1 in 12 survives
-        vec2 grid = vec2(texcoord.x * ASTRA_RAIN_FREQ_X,
-                         (playerPos.y + cameraPosition.y) * 0.06
-                         + frameTimeCounter * ASTRA_RAIN_FREQ_Y);
-        // Stable repeat: the hash must not contain the moving time index, otherwise
-        // every cell re-rolls each frame and the whole field boils.
-        vec2 modIndex = floor(vec2(texcoord.x * ASTRA_RAIN_FREQ_X,
-                                   playerPos.y + cameraPosition.y) * 0.5);
-        vec2 column = floor((playerPos.xz + cameraPosition.xz) * 0.5);
-        float seed = fract(sin(dot(modIndex + column * 17.0, vec2(12.9898, 78.233))) * 43758.5453);
-        float alive = fract(seed * 7.31);
-        if (alive < ASTRA_RAIN_DENSITY) discard;
-        // Irregular placement: each drop is pushed off the lattice by up to half a cell in
-        // both axes, which is what removes the "整齐" reading.
-        vec2 jitter = (vec2(fract(seed * 5.7), fract(seed * 9.1)) - 0.5) * 0.55;
-        vec2 center = vec2(0.5) + (vec2(fract(seed * 31.7), fract(seed * 71.3)) - 0.5) * 0.7;
-        vec2 q = fract(grid) - center + jitter;
-        float width = mix(0.010, 0.042, fract(seed * 13.1));
-        // Length spans ~8x with a square bias so short dashes dominate and long streaks
-        // are occasional, matching what falling rain actually looks like.
-        float lengthBias = fract(seed * 17.3);
-        lengthBias *= lengthBias;
-        float height = mix(0.05, 0.42, lengthBias);
-        float d = length(q / vec2(width, height));
-        float aa = max(fwidth(d), 0.07);
-        float drop = 1.0 - smoothstep(0.75 - aa, 1.0 + aa, d);
-        float nearFade = smoothstep(0.6, 1.7, length(playerPos));
-        // Mid grey, low alpha: visible as motion without becoming a bright overlay.
-        albedo = vec4(vec3(0.62), drop * clamp(tint.a, 0.0, 1.0)
-                      * (0.55 + 0.45 * astraRainFactor) * 0.34 * nearFade);
+        // RAIN. IterationT's Weather_FS is twenty lines: take the vanilla precipitation
+        // texture's alpha, cut the faint part, and output BLACK. The curtain darkens what
+        // is behind it instead of glowing, and its shape is the vanilla texture - which is
+        // already sparse and irregular (measured: 64x256, 2.5% of pixels non-transparent,
+        // vertical runs from 1 to 16 pixels). Every procedural replacement I wrote before
+        // this was worse than the texture it replaced: the lattice read as a picket fence,
+        // and a grey tint read as lit paint.
+        //
+        // alpha is scaled by the smoothed rain amount so a drizzle is thinner than a
+        // downpour, and the near-field fade is kept from the previous version.
+        float curtain = albedo.a * (0.55 + 0.45 * clamp(astraRainFactor, 0.0, 1.0));
+        if (curtain < 0.1) discard;
+        albedo = vec4(vec3(0.0), curtain * smoothstep(0.6, 1.7, length(playerPos)));
+    } else {
+        // SNOW keeps the lit treatment. This is the one place we deliberately differ from
+        // the reference, whose single black path would render snow as a dark curtain.
+        if (albedo.a < alphaTestRef) discard;
     }
-    if (albedo.a < 0.004) discard;
     #else
     if (albedo.a < alphaTestRef) discard;
     #endif
@@ -173,7 +137,10 @@ void main() {
     #if defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT && !defined DIMENSION_NETHER && !defined DIMENSION_END
     if (material == 0u && isEyeInWater == 0 && wetness > 0.001) {
         puddle = astra_puddle(playerPos + cameraPosition, geometricNormal, lightLevel.y);
-        puddleNormal = astra_puddle_normal(playerPos + cameraPosition);
+        // Wet-surface ripple field, from the same flipbook the water impact rings use, so
+        // the two never disagree about where it is raining.
+        puddleNormal = vec3(astra_rain_ripple(playerPos + cameraPosition,
+                                              astra_rain_exposure(lightLevel.y)), 1.0);
         albedo.rgb *= 1.0 - 0.22 * wetness * astra_rain_exposure(lightLevel.y);
     }
     #endif
@@ -191,12 +158,11 @@ void main() {
         if (water || iceTop) {
             #if !defined DIMENSION_NETHER && !defined DIMENSION_END
             if(water && isEyeInWater == 0 && geometricNormal.y > 0.9 && astraRainFactor > 0.01) {
-                // Impact rings: the helper already scales by astraRainFactor; this
-                // multiplier is the visible strength on a water face. The previous
-                // 1.0 was under the threshold of notice in the user's rain round.
-                vec3 rings = astra_puddle_normal(playerPos+cameraPosition);
+                // Impact rings on a water face: the flipbook ripple field, scaled up
+                // because a water surface has no other normal detail at this scale.
                 float exposure = astra_rain_exposure(lightLevel.y);
-                normal = normalize(normal + vec3(rings.x,0.0,rings.z)*exposure*4.0);
+                vec2 ripple = astra_rain_ripple(playerPos + cameraPosition, exposure) * 4.0;
+                normal = normalize(normal + vec3(ripple.x, 0.0, ripple.y));
             }
             #endif
             float roughness = water ? waves.roughness : 0.08;

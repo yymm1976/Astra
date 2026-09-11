@@ -208,16 +208,23 @@ void astra_end_blackhole(inout vec3 color, vec3 rayDir, vec3 lightDir) {
             density = bh_saturate(density + bloomFactor * 0.1);
 
             if (density > 0.0001) {
-                // Astra adaptation for "动态立体": the reference offers
-                // ACCRETIONDISC_DETAIL_ALONG_LONGTITUDE, which folds the azimuth into the
-                // noise coordinate (it ships that branch OFF). This switches it on AND
-                // advances the azimuth at a Keplerian rate, omega ~ r^-1.5, so the inner
-                // disc visibly outruns the outer one. Differential rotation is what makes
-                // the disc read as a rotating three-dimensional body instead of a texture
-                // sliding past; a uniform scroll would look like a conveyor belt.
-                float kepler = frameTimeCounter * 0.55 * pow(max(r, 0.45), -1.5);
-                vec3 discCoord = vec3(r, pAngle + kepler, h * 0.1) * 3.5;
-                float fbm = bh_CloudFBM(discCoord, frameTimeCounter * vec3(0.0, 0.0, 0.05));
+                // Disc self-rotation, exactly the reference's mechanism.
+                //
+                // IterationT ships this as ACCRETIONDISC_DETAIL_ALONG_LONGTITUDE, and it
+                // defaults to OFF - with the branch disabled discCoord.y is hard zero, so
+                // the noise contains no azimuth at all and the disc looks like a static
+                // texture. Enabling it is what makes the disc turn.
+                //
+                // The motion is not an explicit angular velocity. The azimuth is SCALED by
+                // (1 - radialGradient*0.5), which is 0.5 at the inner edge and 1.0 at the
+                // outer edge, and the noise field is then scrolled by a constant
+                // frameTimeCounter * vec3(0.1, 0.07, 0). The same scroll divided by a
+                // smaller scale is a larger angle, so the inner disc outruns the outer one:
+                // differential rotation falls out of the coordinate scaling, with no
+                // pow(r, -1.5) needed. (An earlier pass here added an explicit Keplerian
+                // term; that was my invention, not the reference's, and is removed.)
+                vec3 discCoord = vec3(r, pAngle * (1.0 - radialGradient * 0.5), h * 0.1) * 3.5;
+                float fbm = bh_CloudFBM(discCoord, frameTimeCounter * vec3(0.1, 0.07, 0.0));
                 fbm = fbm * fbm;
                 fbm = fbm * fbm;
 

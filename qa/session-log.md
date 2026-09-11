@@ -510,3 +510,48 @@ IGN 替代 TAA 蓝噪声、传入恒星方向、星等增益），已在文件�
 
 验证：`linked=261 failed=0 compute=27`（qa/glsl-2026-09-11-cosmic-rain.log）；
 `check_pack` 0 FAIL / 1 WARN / 10 PASS。已同步实例。
+
+
+## 2026-09-11 下界与性能接续
+
+用户分工：本 Agent 下界与性能，另一 Agent 雨天/黑洞。读 Complementary、Bliss、Solas、Steadfast、Mellow、ITT 本地源码后实现；详见 docs/2026-09-11-nether-performance-followup.md。
+
+- 保留已合入的体素帧戳/熔岩修正；非发光实体恒零，邻居读取去掉六次材质采样。343 单元 × 9 pass 与原路径完全相同。体素模型 5 条全部通过，墙后 0，熔岩旁 1.08，帧奇偶一致，第 9 格起为 0。
+- Complementary 群系雾和照明使用同一调色板；Bliss 顶层烟雾不再白色洗屏；Solas 方式组合体素/方块/手持光，避免最终颜色重复叠加。
+- Bliss 指数采样改等价递推，float32 样点偏差在 192 格内小于 0.000020 格。关闭体素光时关闭下界 shadow 程序。
+- 全入口 261 linked / 0 failed（compute 27）；静态 0 FAIL / 1 WARN / 10 PASS，WARN 仍是 Voxy 占位。关闭体素光的无 compute 路径及实例同步结果随后记录。
+- 无游戏运行结果，尚不能声称观感达到参考或 FPS 提升。
+
+关闭体素光路径：234 linked / 0 failed；实例同步：缺失 0、内容差异 0、额外文件 0。本次同步也包含另一 Agent 已落盘的雨天文件，下界与性能改动范围仍以上述清单为准。
+
+## 2026-09-11 第十一轮（授权执行：雨滴照参考重做 + 自转改回参考机制）
+
+用户授权前两步，第三步（行星）要求我给原创方案。本轮只做前两步。
+
+**第 1 步：雨滴三层全部照参考重做**
+1. *形状与颜色*（`program/lit.fsh`）：删掉我写的整套程序化雨丝（栅格/抖动/长度分布），
+   改为参考的 `Weather_FS` 做法——取原版降水纹理的 alpha、阈值 0.1 截断、输出**纯黑**，
+   alpha 按平滑雨量缩放。原版纹理实测 64×256、不透明像素仅 2.5%、竖向雨丝 1~16 像素，
+   本身就又稀疏又错落；我之前用栅格替代它是方向性错误。
+   唯一有意偏离参考处：**雪保持受光处理**（参考那条纯黑路径会把雪画成黑幕），已在注释标明。
+2. *雨幕几何*（`program/lit.vsh`）：新增参考 `Weather_VS` 的风切变——
+   `offset = (RAIN_WIND + rot*RAIN_DISTURBANCE) * playerPos.y`，`rot` 随世界位置与时间旋转。
+   离线验证：位移 ∝ 高度（倾斜成立），且同一高度不同世界位置位移不同（湍流成立，非刚体平移）。
+   三个参数用参考默认值（0.10 / 0.05 / 0.05），以局部常量给出并注明"参考暴露为滑条，
+   需要可提升为选项"。
+3. *落点涟漪*（`global/atmosphere/weather.glsl`）：删掉程序化 `astra_puddle_normal`，
+   改为移植 `Ripple.glsl` 的三层 flipbook——`texture/astra-ripple-1..3.png`
+   （各 128×7680 = 60 帧 ×128×128，约 6.7 MB，随贴图带 `.mcmeta`；**不需要** animation 段，
+   着色器用 `fract(floor(t*60)/60)` 逐帧滚动 V 播放）。三层按雨量递进混合，
+   涟漪锐度随湿度变化，LOD 衰减用 fwidth。水面冲击环与陆地涟漪共用同一函数，相位天然一致。
+
+**第 2 步：黑洞自转换回参考机制**
+撤掉我自创的 `pow(r,-1.5)` 开普勒项，改用参考的
+`ACCRETIONDISC_DETAIL_ALONG_LONGTITUDE` 分支：
+`discCoord = vec3(r, p*(1-radialGradient*0.5), h*0.1)*3.5` + 噪声平移 `frameTimeCounter*vec3(0.1,0.07,0)`。
+离线验证差速：角速度 ∝ 1/(1-rg*0.5)，内缘 2.0、中部 1.33、外缘 1.0 → **内缘快 2 倍**，
+差速是坐标缩放自然带来的。（参考默认关着这个分支，因为关掉时 discCoord.y 恒为 0、
+噪声里没有方位角，盘看起来就是静态纹理。）
+
+验证：`linked=261 failed=0 compute=27`（qa/glsl-2026-09-11-rain-selfrotation.log）；
+`check_pack` 0 FAIL / 1 WARN / 10 PASS。已同步实例。

@@ -230,3 +230,12 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
   折射太阳方向的相函数、起始采样点远离相机。步进距离改为沿射线真实距离。
 - 授权：IterationT 归档无许可文件，按专有处理，与本文件既有的 Refrax 条目同级，
   仅限当前个人使用定位；发布前必须重写或取得授权。
+
+
+### 2026-09-11 下界与性能接续
+
+- nether.glsl 的群系色/环境色继续来源于 Complementary r5.9；雾取消独立颜色解码，保持与环境照明的输入一致。
+- 方块光组合参考 Solas 3.7b lib/lighting/gbuffersLighting.glsl 的体素替换、独立手持光和自发光排除；0.95 混合上限沿参考，按实际体素亮度渐入是 Astra 八格传播范围的适配。
+- nether_volume.glsl 继续为 Bliss nether_fog.glsl 派生。指数样点递推是同一表达式的代数改写；顶层烟雾色改为 Complementary 群系色。
+- nether_light.csh 参考 Solas shadowcomp 的直接邻居光场读取；Astra 保留同帧 max 传播，不引入 Solas 时间历史。非发光实体输出恒零使邻居材质读取冗余。
+- Steadfast/Mellow/ITT 本轮只用于性能结构对照，没有新增三者的表达式移植。既有来源与授权要求继续适用。
