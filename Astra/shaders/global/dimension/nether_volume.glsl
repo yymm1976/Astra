@@ -91,6 +91,13 @@ vec4 astra_bliss_fog(
 	#endif
 
 	for (int i = 0; i < SAMPLECOUNT; i++) {
+		// Once the medium has absorbed essentially all of the light there is nothing left
+		// for the remaining samples to add: `color += (lighting - lighting * coeff) *
+		// absorbance` is already zero at zero absorbance, and every later sample only
+		// multiplies absorbance down further. In a dense plume this exits after a few
+		// samples instead of integrating the full stack. EMAIL/REF: Steadfast and the
+		// reference both truncate their volumetric marches this way.
+		if (absorbance < 0.002) break;
 		float d = (sampleExp - 1.0) / (expFactor - 1.0);
 		float dd = sampleExp * weightScale;
         sampleExp *= sampleRatio;
