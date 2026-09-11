@@ -16,17 +16,21 @@ float astra_puddle(vec3 worldPos, vec3 normal, float skyLight) {
     return smoothstep(0.43, 0.66, n) * wetness
          * astra_rain_exposure(skyLight) * smoothstep(0.86, 0.999, normal.y);
 }
-// Rain impact ripples, ported from IterationT 3.2 Lib/IndividualFounctions/Ripple.glsl.
+// Rain impact ripples.
 //
-// The reference does not generate ripples procedurally: it ships three 60-frame flipbooks
-// and plays them by scrolling V in sixty discrete steps (frame = fract(floor(t*60)/60)),
-// which is why they read as sharp expanding rings rather than noise. Three layers are
-// blended by a downfall mask, and the layer sharpness follows wetness (a dry surface shows
-// crisper rings than a soaked one).
+// Astra generates its own flipbook rather than shipping anyone else's artwork: three
+// 128x7680 sheets (sixty 128x128 frames) built by qa/tools/gen_rain_ripple.py from an
+// explicit model of expanding, decaying circular wavelets, differentiated into a normal
+// map. The shader plays them by scrolling V in sixty discrete steps, so no .mcmeta
+// animation section is involved and the sheets stay a plain 2D texture.
 //
-// Astra adapters: the reference reads a downfall noise for the layer mask, this uses the
-// rain exposure already computed for puddles, and the LOD attenuation uses fwidth of the
-// world position. Ramps are deliberately not used.
+// Sheet 1 is the drizzle layer, sheets 2 and 3 fade in as the rain deepens, and ring
+// sharpness follows wetness (a soaked surface holds softer ripples than a damp one).
+//
+// World scale: one sheet repeat spans ASTRA_RIPPLE_TILE blocks, chosen so a ring in the
+// sheet lands at roughly one to two blocks - the size a raindrop impact actually is.
+const float ASTRA_RIPPLE_TILE = 4.0;
+
 vec2 astra_ripple_layer(sampler2D sheet, vec2 coord, float rp) {
     vec2 n = textureLod(sheet, coord, 0.0).rg * 2.0 - 1.0;
     n = pow(abs(n), vec2(rp)) * sign(n);
@@ -34,9 +38,10 @@ vec2 astra_ripple_layer(sampler2D sheet, vec2 coord, float rp) {
 }
 vec2 astra_rain_ripple(vec3 worldPos, float strength) {
     if (strength <= 1e-4) return vec2(0.0);
-    vec2 p = worldPos.xz * 0.5;
+    vec2 p = worldPos.xz / ASTRA_RIPPLE_TILE;
     float frame = fract(floor(frameTimeCounter * 60.0) / 60.0);
-    vec2 coord = vec2(p.x, fract(p.y / 60.0) - frame);
+    // Z offsets the animation phase so neighbouring tiles do not ripple in lockstep.
+    vec2 coord = vec2(p.x, fract(p.y * 0.25) - frame);
     float w = clamp(wetness, 0.0, 1.0);
     float rp = 2.0 - pow(w, 4.0) * 1.2;
     vec2 n = astra_ripple_layer(astraRipple1, coord, rp);

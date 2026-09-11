@@ -225,6 +225,12 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
   Solas 高度场中心差分求法线；② 太阳方向改用 Astra 的 `lightVector`；
   ③ 空间抖动替代参考的时间蓝噪声（Astra 无 TAA，逐帧抖动会闪）。
   坡度尺度 0.75 为对真实噪声纹理的离线标定值，不是参考常数。
+- **资产边界（2026-09-11 修正）**：首次引入涟漪贴图时曾直接复制参考的
+  `RippleAnimation1/2/3.png`。用户明确指出**不得挪用参考的图像资产**，已全部删除。
+  现在 `shaders/textures/astra-ripple-1..3.png` 由
+  `qa/tools/gen_rain_ripple.py` **自行生成**（显式物理模型：扩散并衰减的圆形波包，
+  求梯度得到法线图），与参考资产无关。
+  边界原则：**代码级移植按专有处理并登记；图像/音频等美术资产一律不得取用。**
 - `shaders/global/water/light_shafts.glsl`：**结构移植**参考的
   `UnderwaterVolumetricFog`——`caustics³` 调制、`1/max(3, d*0.1)` 距离衰减、
   折射太阳方向的相函数、起始采样点远离相机。步进距离改为沿射线真实距离。
