@@ -371,3 +371,34 @@ gbuffers**，不是"合并 deferred"。
 需要更正原任务书的说明：当前软件实现本来就是“逐纹素比较，然后双线性过滤”。在同一波瓣坐标、LEQUAL 比较和边缘钳制下，理想硬件 PCF 与其纯可见度数学等价，不能承诺额外柔化。真正的可选取舍是透明材质采用中心染色近似，材质交界处不保证与软件逐纹素结果相同。数值工具只对可见度作等价判定，不把它当成完整染色图像的等价证明。
 
 关闭彩色阴影且相机在空气中，也可能在看水底；原路径需要 caster.R 判断水面透光。因此不能无条件删除这类材质读取。当前对不涉及透明遮挡的像素完全跳过材质读取；硬件路径其余情况下最多一次，软件路径保留必要的逐纹素配对。
+
+---
+
+## 八、P2/P1 逐项复核结论（2026-09-11 第二轮）
+
+"把优化相关项做完"的第一步是**逐项核实它们是否还存在**。结果是：**计划里的 P2 各项基本早已做对**，
+计划本身是基于我读 Steadfast 时的推断，而非对本包的实测。逐项证据如下。
+
+| 项 | 复核结论 | 证据 |
+|---|---|---|
+| **P1-1 缓冲格式最小化** | **无空间可降** | 反编译确认 **Iris 默认格式就是 `RGBA`（8 位）**（`PackRenderTargetProperties$RenderTargetSettings` 构造函数 `requestedFormat = InternalTextureFormat.RGBA`）。colortex1/2/3/5 都是默认值，**已经是 RGBA8**，没有下探余地 |
+| **P1-2 alpha test 前置** | 早已正确 | `lit.fsh:118` discard，`:148` 才调 `astra_light` |
+| **P1-5 pass 级门控** | 早已门控 | `composite2`（散射+godrays）已有 `#if defined GODRAYS \|\| (UNDERWATER_LIGHT_SHAFTS && SHADOWS && ...)`；`composite1`/`composite4` = `BLOOM`；`shadow` = `SHADOWS` |
+| **P2-1 雾分离 skyFogStrength** | 早已采用该形式 | `fog.glsl:43`：`mix(sceneColor, fogColor + skyColor * skyFogStrength, fogFactor)` —— 正是 Steadfast 的模式 |
+| **P2-3 编译期常量表** | 早已折叠 | `surface.glsl:99-160`：`rippleStretch` / `crestStretch` / `rippleScroll` / `crestScroll` / `rippleMagnitude` 全是 `const` 数组，`1.0/tan(shear)/tileSize`、`cos/sin(heading)`、总权重归一化都已在编译期算完 |
+| **P2-2 噪声改纹理 LUT** | 基本完成 | 水/云/下界噪声已走纹理（`solasWaterNoise` / `steadfastWaterNoise` / `blissNetherNoise`）。**仅剩两处 hash**：`stars.glsl:33` 的星场 hash、`end_geometry.glsl:29,31` 的末地 hash —— 二者都只在天穹 pass 且占屏比小 |
+| **P2-4 阴影远处降级** | 早已实现 | `surface_shadow_light` 的 `STATIC_SHADOW_FALLBACK` + `shadow_coverage` 混合 |
+| **P2-5 缓冲复用** | **无收益** | 9 张 colortex 各写 1～7 个入口、各读 1～6 处，**没有互斥关系**可利用；强行合并属重构级且无明确收益 |
+| **P2-6 体积早退** | 部分完成 | 下界步进已加 transmittance 早退；水下光束的同类改写经计算**恒不触发**（`exp(-0.11×20)=0.11 > 0.004`），已主动撤销以免留死代码 |
+
+### 本轮真正新增的两项
+
+1. **`qa/tools/cost_census.py`（新增工具）**：遍历每个入口的 include 树，统计**每像素纹理取样数**并按循环次数加权，输出模块级排行。它是启发式的（**分支/早退不可见，且循环调用取样函数时不相乘**——已在输出里声明），用途是**把"猜热点"换成"排序候选"**。
+   首次运行的模块级结论（末地 terrain 入口）：`program/water.glsl` 8、`global/lighting/shadowmap.glsl` 8（该值因上述盲点**低估**，实际软件路径为 16 抽头 × 3 张 = 48）、`lib/noise.glsl` 5×2、`weather.glsl` 3、`caustics.glsl` 2×2。
+2. **一项质量缺陷（未修，供决策）**：**泛光捕获缓冲是 8 位**（Iris 默认格式），而 `bloom_prefilter` 的输出可达 `BLOOM_SOURCE_CLAMP = 16.0` —— 即**亮部像素的泛光能量被裁掉**。修法是给它声明 `R11F_G11F_B10F`（Steadfast 对泛光缓冲正是这么做的）。**未修的原因**：这是质量问题不是性能问题，会**增加**带宽，且 `settings.glsl:244-247` 有一条与现状矛盾的注释（它说"本 Iris 构建拒绝生效的格式声明"，但 `water_buffer_formats.glsl` 的 colortex0/4/7 声明**确实生效**——包能正常加载即证据）。在无法实机确认加载行为前不应动，**建议由用户决定**。
+
+### 优化项的最终结论
+
+计划里的性能项**已全部落地或核实为早已存在**。本包当前最大的单项开销——**阴影的 16 次软件抽头**——已通过 `SHADOW_FILTER_MODE=1` 提供 8 次取样的等价替代（数值差 1e-15），默认仍走软件路径等待实机确认。
+
+**没有已知的、可安全落地的性能项剩余。** 后续若要有依据地继续，应先补齐 `cost_census.py` 的两个盲点（分支求值、循环×被调函数），它才能给出可信的排名。
