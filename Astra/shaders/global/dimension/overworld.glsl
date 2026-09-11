@@ -8,10 +8,17 @@
 
 vec3 astra_sky_radiance(vec3 worldDir) {
 #if SKY_MODE == SKY_GRADIENT
-	return astra_gradient_sky(worldDir);
+	vec3 sky = astra_gradient_sky(worldDir);
 #else
-	return astra_minishita_sky(worldDir);
+	vec3 sky = astra_minishita_sky(worldDir);
 #endif
+#ifdef LIGHTNING_FLASH
+	// Sky-wide part of a thunderstorm flash. Before this the bolt only existed as a point
+	// light, so the terrain lit up while the sky behind it stayed black.
+	// eyeBrightnessSmooth.y is the same sky exposure the point light gates on.
+	sky += astra_lightning_sky_flash(worldDir, eyeBrightnessSmooth.y / 240.0);
+#endif
+	return sky;
 }
 
 vec3 astra_sky_ambient() {

@@ -113,6 +113,28 @@ const float LIGHTNING_RANGE     = 88.0;                       // attenuation hal
 const float LIGHTNING_RANGE2    = LIGHTNING_RANGE * LIGHTNING_RANGE;
 const float LIGHTNING_INTENSITY = 2.5;                        // Refrax THUNDER_STRENGTH * 2.5, strength folded in
 
+// Sky-wide component of a lightning flash.
+//
+// The bolt is a point light in lightning_point_light(), which lights geometry near the
+// strike but leaves the sky untouched - so during a thunderstorm the world lit up while
+// the sky it is silhouetted against stayed dark, which reads as wrong. A real bolt makes
+// the whole cloud deck glow.
+//
+// Sky exposure gates it exactly as it gates the point light, so a player under a roof or
+// underground does not see the flash. The direction term keeps it from being a flat
+// full-screen lift: the glow is strongest looking toward the bolt.
+vec3 astra_lightning_sky_flash(vec3 worldDir, float skyLight) {
+	if (lightningBoltPosition.w < 0.5) return vec3(0.0);
+	float reach = smoothstep(0.02, 0.40, skyLight);
+	if (reach <= 0.0) return vec3(0.0);
+	float facing = clamp(dot(normalize(worldDir), normalize(lightningBoltPosition.xyz)), -1.0, 1.0);
+	float lobe = 0.35 + 0.65 * smoothstep(-0.4, 0.85, facing);
+	// LIGHTNING_INTENSITY is the point light's, tuned for inverse-square falloff over
+	// tens of blocks; a sky-wide term needs a far smaller coefficient or it turns the
+	// whole frame white.
+	return LIGHTNING_TINT * (lobe * reach * 0.06);
+}
+
 vec3 lightning_point_light(vec3 playerPos, vec3 worldNormal, float skyLight, vec4 bolt) {
 	// w is the flash gate: Iris sets lightningBoltPosition.w > 0 only while a bolt is alive.
 	if (bolt.w < 0.5) {

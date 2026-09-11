@@ -27,7 +27,7 @@ void main() {
         float hit,cover; vec3 normal; int id;
         float transmission=1.0;
         if(end_solid_hit(vec3(0),ray,limit,bodies,0.0001,hit,normal,cover,id)) transmission=0.0;
-        float ringT; vec3 ringP;
+        float ringT = 0.0; vec3 ringP = vec3(0.0);
         if(transmission>0.0 && end_ring_hit(vec3(0),ray,limit,ringT,ringP))
             transmission=dot(end_ring_transmission(ringP,ray,0.015),vec3(0.2126,0.7152,0.0722));
         float u=(radius-0.56)/0.62;

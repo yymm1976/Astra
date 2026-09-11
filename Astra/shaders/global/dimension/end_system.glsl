@@ -56,7 +56,9 @@ vec3 end_surface_radiance(vec3 position,vec3 normal,vec3 ray,vec4 body,int id,
         if(end_body_intersect(position+normal*body.w*0.02,light,
                               length(end_source_position()-position),bodies[i],i,0.0,hit,n,cover)) visibility=0.0;
     }
-    float ringT; vec3 ringP;
+    // Initialised because end_ring_hit() can return false without writing them;
+    // the compiler rightly warns that the values would otherwise be undefined.
+    float ringT = 0.0; vec3 ringP = vec3(0.0);
     if(end_ring_hit(position+normal*body.w*0.02,light,length(end_source_position()-position),ringT,ringP))
         visibility*=dot(end_ring_transmission(ringP,light,0.003),vec3(0.2126,0.7152,0.0722));
     float opposition=pow(max(dot(-ray,light),0.0),32.0);
@@ -79,7 +81,9 @@ bool end_scene_segment(vec3 origin,vec3 ray,float limit,float cone,vec4 bodies[E
                        inout vec3 radiance,inout vec3 transmission) {
     float solidT,coverage; vec3 normal; int id;
     bool solid=end_solid_hit_subset(origin,ray,limit,bodies,bodyIndices,count,cone,solidT,normal,coverage,id);
-    float ringT; vec3 ringP;
+    // Initialised because end_ring_hit() can return false without writing them;
+    // the compiler rightly warns that the values would otherwise be undefined.
+    float ringT = 0.0; vec3 ringP = vec3(0.0);
     if(end_ring_hit(origin,ray,solidT,ringT,ringP)) {
         float footprint=cone*length(ringP)/max(abs(dot(ray,end_ring_axis())),0.02);
         radiance+=transmission*end_ring_radiance(ringP,footprint);

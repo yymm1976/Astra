@@ -18,6 +18,35 @@ vec3 astra_sky_world_direction() {
 	return normalize(mat3(gbufferModelViewInverse) * viewDir);
 }
 
+// Moon with its phase applied. Vanilla's moon_phases texture carries the phase for the
+// textured path, but the procedural disc drew a full moon every night, so the phase never
+// showed. Iris reports moonPhase as 0..7 with 0 full and 4 new, the same order as the
+// vanilla texture strip.
+vec4 astra_procedural_moon(vec3 worldDir, vec3 centre, float angularRadius, vec3 color) {
+	vec3 c = normalize(centre);
+	float cosineRadius = cos(angularRadius);
+	float cosineAngle = dot(worldDir, c);
+	float edge = max(fwidth(cosineAngle), 2.0e-6);
+	float disc = smoothstep(cosineRadius - edge, cosineRadius + edge, cosineAngle);
+	if (disc <= 0.0) return vec4(0.0);
+
+	// Horizontal offset inside the disc, in disc radii (-1..1). Across half a degree the
+	// terminator's curvature is not resolvable, so a straight edge is used rather than
+	// projecting an ellipse.
+	vec3 up = normalize(cross(c, vec3(0.0, 0.0, 1.0)));
+	vec3 right = cross(c, up);
+	float x = dot(worldDir, right) / max(sin(angularRadius), 1e-6);
+
+	float lit = 0.5 + 0.5 * cos(6.2831853 * moonPhase / 8.0);   // 1 full, 0 new
+	float side = moonPhase < 4.0 ? 1.0 : -1.0;                    // waxing vs waning limb
+	float phaseMask = step(1.0 - 2.0 * lit, x * side);
+	// A new moon keeps a faint earthshine disc so the sky is never missing its object.
+	float shown = mix(0.045, 1.0, phaseMask);
+
+	float alpha = disc * shown;
+	return vec4(color * alpha, alpha);
+}
+
 vec4 astra_procedural_disc(vec3 worldDir, vec3 centre, float angularRadius, vec3 color) {
 	float cosineRadius = cos(angularRadius);
 	float cosineAngle = dot(worldDir, normalize(centre));
@@ -47,7 +76,7 @@ void main() {
 					worldDir, worldSunVector, 0.00873,
 					vec3(7.5, 4.8, 2.3) * mix(0.55, 1.0, sunProgress));
 			} else if (renderStage == MC_RENDER_STAGE_MOON) {
-				gl_FragData[0] = astra_procedural_disc(
+				gl_FragData[0] = astra_procedural_moon(
 					worldDir, -worldSunVector, 0.0096,
 					vec3(0.72, 0.88, 1.25) * (0.55 + 0.45 * moonProgress));
 			} else {

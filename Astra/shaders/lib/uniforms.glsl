@@ -83,6 +83,8 @@ uniform vec3 fogColor;
 uniform vec3 skyColor;
 uniform vec4 entityColor;
 uniform vec4 lightningBoltPosition;
+// 0..7, matching vanilla's moon_phases order: 0 is full, 4 is new.
+uniform float moonPhase;
 uniform int entityId;
 uniform int blockEntityId;
 uniform int currentRenderedItemId;
