@@ -32,6 +32,15 @@ const float BLOOM_KNEE = 0.5;
 // measure for the 0.5x capture (regression checklist item 18).
 const float BLOOM_SOURCE_CLAMP = 16.0;
 
+// Capture buffer scale. THIS MUST MATCH size.buffer.colortex2 IN shaders.properties.
+// It exists because the 13-tap offsets below are expressed in SOURCE texels, so the
+// filter's screen-space footprint is fixed only as long as the capture resolution is
+// fixed. Shrinking the capture buffer without widening the taps makes every output texel
+// gather from a footprint smaller than the screen area it represents, which under-samples
+// and lets bright pixels pop in and out between frames - exactly the flicker the
+// BLOOM_SOURCE_CLAMP above cannot catch.
+const float BLOOM_CAPTURE_SCALE = 0.25;
+
 // 13-tap dual-filter downsample offsets / weights (sum = 1.0). The ring radii are
 // 1, 2 and 2*sqrt(2) texels, which is what lets a single pass drop resolution by
 // exactly 2x without either aliasing or over-blurring.
@@ -80,11 +89,21 @@ vec3 bloom_capture(sampler2D src, vec2 texCoord) {
 	// has to track whatever size colortex0 actually is, and Iris resizes it with the
 	// render scale.
 	vec2 srcTexel = 1.0 / vec2(textureSize(src, 0));
-	vec2 pad = 0.5 * srcTexel;
+
+	// How many source texels one capture texel spans. At the classic 0.5x capture this is
+	// exactly 2.0, which is the ratio the dual filter is designed around, so tapScale is
+	// 1.0 and the filter is unchanged. A smaller capture buffer widens the footprint and
+	// the taps scale with it, keeping the gather the same size in screen space.
+	float footprint = float(textureSize(src, 0).x)
+	                / max(float(viewWidth) * BLOOM_CAPTURE_SCALE, 1.0);
+	float tapScale = max(footprint * 0.5, 1.0);
+
+	vec2 pad = 0.5 * srcTexel * tapScale;
 
 	vec3 acc = vec3(0.0);
 	for (int i = 0; i < 13; i++) {
-		vec2 coord = clamp(texCoord + vec2(BLOOM_TAP[i]) * srcTexel, pad, 1.0 - pad);
+		vec2 coord = clamp(texCoord + vec2(BLOOM_TAP[i]) * srcTexel * tapScale,
+		                   pad, 1.0 - pad);
 		acc += bloom_prefilter(max(textureLod(src, coord, 0.0).rgb, vec3(0.0)))
 			* BLOOM_TAP_WEIGHT[i];
 	}
@@ -108,10 +127,18 @@ vec3 bloom_composite(sampler2D bloomTex, vec2 texCoord, float strength) {
 		          +textureLod(bloomTex,texCoord,1.0).rgb*0.35;
 		return max(bloom,vec3(0))*strength*0.45;
 	#else
-	vec3 bloom = textureLod(bloomTex, texCoord, 1.0).rgb * 0.40
-	           + textureLod(bloomTex, texCoord, 2.0).rgb * 0.30
-	           + textureLod(bloomTex, texCoord, 3.0).rgb * 0.20
-	           + textureLod(bloomTex, texCoord, 4.0).rgb * 0.10;
+	// Mip levels compensate for the capture resolution, so these are not arbitrary.
+	// A level's texel covers (screen/bloomWidth) * 2^level pixels, so at the 0.5x capture
+	// levels 1..4 spanned 4, 8, 16 and 32 pixels. The capture is now 0.25x, which doubles
+	// every level's footprint, so the reads shift down one level and land on exactly the
+	// same 4, 8, 16, 32 pixel footprints - the weighted mean stays 10.4 px and the bloom
+	// radius is unchanged. Reading 1..4 here would silently widen the whole glow to a veil.
+	// The one residual difference is that level 0 is the capture itself rather than a mip
+	// of it, so the tightest term is marginally crisper; confirm in game.
+	vec3 bloom = textureLod(bloomTex, texCoord, 0.0).rgb * 0.40
+	           + textureLod(bloomTex, texCoord, 1.0).rgb * 0.30
+	           + textureLod(bloomTex, texCoord, 2.0).rgb * 0.20
+	           + textureLod(bloomTex, texCoord, 3.0).rgb * 0.10;
 
 	return max(bloom, vec3(0.0)) * strength;
 	#endif

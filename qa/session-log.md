@@ -577,3 +577,37 @@ IGN 替代 TAA 蓝噪声、传入恒星方向、星等增益），已在文件�
 
 验证：`linked=261 failed=0 compute=27`（qa/glsl-2026-09-11-own-ripple.log）；
 `check_pack` 0 FAIL / 1 WARN / 10 PASS；实例已同步（含删除多余 mcmeta）。
+
+## 2026-09-11 第十三轮（执行计划：P0 修复 + P1 优化）
+
+### P0 阻塞修复（已绿）
+- **D1**：`program/end_illumination.fsh` 删除 `const int RGBA16 = 0;`。该行是为满足
+  `check_pack` SC-27 而写，在 Iris 里无害（Iris 用 `acceptConstStringDirective` 文本解析格式声明，
+  **从不 #define 该 token**），但在离线编译器里（preamble 有 `#define RGBA16 32859`）
+  会展开成 `const int 32859 = 0;` 而语法错误——**这正是三档 profile 全部编译失败的根因**。
+- **D2**：`END_PRECESSION_MINUTES` 补进 `sliders=` 与三档 profile。首次填 30 被校验器
+  正确拒绝（不在枚举 `[20 24 28 32 36 40 44 48 52 56 60]` 内），改为 **28 / 36 / 36**。
+- GPT 的末地系统（环系/岛群/黑洞/1×1 光照预处理）一并提交。
+- 结果：**264 linked / 0 failed**（原 261/3），**0 FAIL / 1 WARN / 10 PASS**。
+
+### P1 优化
+1. **泛光捕获降分辨率（0.5 → 0.25）+ 层级精确补偿**。
+   `size.buffer.colortex2=0.25 0.25`，fragment 数降到 1/4（1080p：518k → 130k，每像素 13 次取样）。
+   **关键**：13 抽头是按**源纹素**取样的，单纯缩小缓冲会让过滤足迹小于它代表的屏幕面积 →
+   欠采样 → 亮点闪烁。故在 `bloom.glsl` 里按
+   `footprint = textureSize(src,0).x / (viewWidth * BLOOM_CAPTURE_SCALE)` 自动放大抽头
+   （0.25 时 tapScale=2.0，0.5 时=1.0 完全不变）。
+   同时 mip 读取层从 **1..4 下移到 0..3**：层级纹素覆盖 `(screen/bloomWidth)*2^level` 像素，
+   0.5 时是 4/8/16/32，0.25 时若仍读 1..4 会变成 8/16/32/64（辉光半径翻倍成"纱雾"）。
+   下移一层后逐层足迹与加权平均（10.40 px）**与原实现完全一致**，观感不变。
+2. **背光面跳过阴影采样**。`direct_lighting` 内部本来就有
+   `if (directLightStrength < 0.0001) return;` 的早退，但**调用方已经把 `surface_shadow_light`
+   的 4 次取样做完了**。现将朝向判断提到调用前，`ndotl <= -0.05` 且非 SSS 非玻璃时跳过采样
+   （SSS 有 0.65 下限、玻璃是顶光固定响应，背光仍有亮度，不可跳）。
+   判据与 `direct_lighting` 里的 `smoothstep(-0.05,0.05,ndotl)` 严格等价，语义不变。
+3. **确认 P1-2 早已做对**：`lit.fsh` 的 alpha test（118 行）在 `astra_light`（148 行）之前。
+
+验证：`264/0/27`（qa/glsl-2026-09-11-p1.log）；关闭态 `237/0`；`check_pack` 0 FAIL/1 WARN/10 PASS；
+`nether_voxel_model` 5/5（该工具已被扩展一个用例）。已同步实例。
+
+遗留：编译器有 1 条警告 `"ringP" might be used before being initialized`（末地环模块），未修。

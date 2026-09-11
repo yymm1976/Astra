@@ -218,7 +218,24 @@ vec3 diffuse_lighting(
 	//    too, matching how it is treated for direct light (Steadfast).
 	float ambientStr = ambient_strength(subsurfaceScatter ? 0.7071 : worldNormal.y);
 	vec3 lighting = ambient_sky_lighting(max(skyLight, params.nightVision), ambientStr, params.skyAmbient);
-    vec3 visibility = surface_shadow_light(playerPos, shadowPos, skyLight);
+    // Steadfast's rule, applied one step earlier than the copy inside direct_lighting():
+    // that function already returns black once the facing term collapses
+    // (smoothstep(-0.05, 0.05, ndotl) < 1e-4), but by then the caller has already paid for
+    // the shadow fetch - surface_shadow_light is four taps across shadowtex0, shadowtex1
+    // and shadowcolor0. Evaluating the facing here lets those pixels skip the fetch
+    // outright, and in a normal scene about half the visible faces point away from the
+    // light. The skip is only valid where the facing term really is the gate:
+    //   - SSS foliage wraps the light and keeps a 0.65 floor, so a backfacing leaf still
+    //     receives roughly a third of the light and its shadow sample is NOT discardable;
+    //   - glass uses a fixed top-lit response (worldNormal.y * 0.2071 + 0.5) that never
+    //     reaches zero either.
+    // Those two keep the original path. The value handed back for skipped pixels is 1.0
+    // because every consumer multiplies it by a facing term that is zero here.
+    float facingNdotL = dot(worldNormal, worldLightVector);
+    bool facingAway = !subsurfaceScatter && !isGlass && facingNdotL <= -0.05;
+    vec3 visibility = facingAway
+        ? vec3(1.0)
+        : surface_shadow_light(playerPos, shadowPos, skyLight);
     if (isEyeInWater == 1) {
         // Solas mixes ambient and direct light instead of adding a full outdoor
         // ambient floor under every water texel. The map supplies water caustics.

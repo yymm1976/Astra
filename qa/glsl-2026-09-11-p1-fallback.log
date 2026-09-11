@@ -1,0 +1,16 @@
+OPENGL_VENDOR	NVIDIA Corporation
+OPENGL_RENDERER	NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2
+OPENGL_VERSION	4.6.0 NVIDIA 572.83
+LINK_LOG	PERFORMANCE:world1/prepare.fsh
+Fragment info
+-------------
+2(30) : warning C7050: "ringP" might be used before being initialized
+LINK_LOG	BALANCED:world1/prepare.fsh
+Fragment info
+-------------
+2(30) : warning C7050: "ringP" might be used before being initialized
+LINK_LOG	ULTRA:world1/prepare.fsh
+Fragment info
+-------------
+2(30) : warning C7050: "ringP" might be used before being initialized
+RESULT	linked=237	failed=0	compute=0	compute_capable=true
