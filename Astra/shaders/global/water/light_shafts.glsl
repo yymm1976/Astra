@@ -88,7 +88,11 @@ vec4 water_shafts_march(vec2 uv) {
         // softening, caustics or phase work could fix a reversed visibility term.
         // Matches global/lighting/shadowmap.glsl (`step(referenceDepth, stored)`) and the
         // reference's own texture2DShadow.
+        #if SHADOW_FILTER_MODE == 1
+        float shade = shadow_opaque_visibility(pos);
+        #else
         float shade = clamp((texture(shadowtex1, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);
+        #endif
         // Reference design point 1: modulate the beam by the water-surface caustics, cubed.
         // This is what turns an even cone into the soft banded columns the reference shows,
         // and because the same function drives the seabed caustics their phases agree.

@@ -169,7 +169,29 @@ vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
         float coverage = shadow_coverage(playerPos, shadowPos);
         if (coverage <= 0.0) return vec3(fallback);
         vec3 filtered = vec3(0.0);
-        for (int i = 0; i < 16; ++i) {
+        #if SHADOW_FILTER_MODE == 1
+        vec2 visibility = vec2(0.0);
+        for (int i = 0; i < SHADOW_FILTER_TAPS; ++i) {
+            float weight;
+            ShadowTap tap = shadow_read_tap(shadow_filter_uv(shadowPos,i,weight),shadowPos.z);
+            visibility += vec2(tap.allVisibility,tap.opaqueVisibility)*weight;
+        }
+        filtered = vec3(visibility.x);
+        float transparentVisibility = max(visibility.y-visibility.x,0.0);
+        if (transparentVisibility > 0.0) {
+            // Optional approximation: one discrete material sample for the footprint.
+            // Never linearly interpolate the encoded water-height/material channel.
+            vec4 caster = shadow_caster_data(shadowPos.xy);
+            vec3 transmission = vec3(0.0);
+            #ifdef COLORED_SHADOWS
+                transmission = caster.gba;
+            #endif
+            if (caster.r < 0.999)
+                transmission = isEyeInWater == 1 ? caster.gba : vec3(1.0);
+            filtered += transmission*transparentVisibility;
+        }
+        #else
+        for (int i = 0; i < SHADOW_FILTER_TAPS; ++i) {
             float weight;
             vec2 uv = shadow_filter_uv(shadowPos, i, weight);
             ShadowTap tap = shadow_read_tap(uv, shadowPos.z);
@@ -184,6 +206,7 @@ vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
             filtered += (vec3(tap.allVisibility)
                 + transmission * max(tap.opaqueVisibility - tap.allVisibility, 0.0)) * weight;
         }
+        #endif
         return mix(vec3(fallback), filtered, coverage);
     #else
         return vec3(fallback);

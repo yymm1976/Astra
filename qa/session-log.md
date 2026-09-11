@@ -611,3 +611,28 @@ IGN 替代 TAA 蓝噪声、传入恒星方向、星等增益），已在文件�
 `nether_voxel_model` 5/5（该工具已被扩展一个用例）。已同步实例。
 
 遗留：编译器有 1 条警告 `"ringP" might be used before being initialized`（末地环模块），未修。
+
+## 2026-09-11 第十四轮（验收并落库：阴影硬件 PCF）
+
+Codex 完成了任务但未提交，且未收尾。我**独立重跑了全部验收**，不采信其日志。
+
+**实现**：`SHADOW_FILTER_MODE`（0=软件，默认；1=硬件 PCF）。模式 1 下
+`shadowtex0/1` 声明为 `sampler2DShadow`、`shadowHardwareFiltering/0/1 = true`、
+`shadow_filter_uv` 退化为 4 波瓣、`shadow_opaque_visibility` 走单次硬件比较；
+`light_shafts.glsl` 复用该函数而不再 `texelFetch`。
+**附带收益**：材质取样改为惰性（两者可见度相等时无物可取），并保住空气侧水体的 R 分支。
+
+**独立验收**：
+- `check_pack` **0 FAIL / 1 WARN / 10 PASS**
+- 默认路径全量编译 `264/0/27`
+- **手动把默认值改成 1 再全量编译 → 仍 264/0 且 0 警告**（这一步是关键：它确证
+  `sampler2DShadow` 与 `texture(tex, vec3(uv, ref))` 分支是真实可编译的 GLSL，
+  而不是被 `#if` 挡住的死代码）
+- `qa/tools/shadow_filter_equiv.py`：**max_abs = 9.4e-16**，FAIL=0
+
+**关键结论**：回归工具在合成深度场（硬边/斜面/噪声）上对比两条路径，差异在 **1e-15 量级**，
+即**两者数学上等价**——软件路径的"4 波瓣×4 角双线性"与硬件的"2×2 比较后过滤"本就是同一运算。
+故模式 1 的可见度输出与模式 0 一致，唯一差异是透明染色改用单次中心采样（代码与工具内均已标注为近似，
+且明确不对材质/水高通道做插值）。**这比任务书预期的"容差内相似"更强。**
+
+取样数：受影像素 **48 次 → 8 次 + 按需 1 次**。

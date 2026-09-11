@@ -27,6 +27,8 @@
 #define WATER_COLD               0
 #define WATER_BALANCED           1
 #define WATER_TROPICAL           2
+#define SHADOW_FILTER_SOFTWARE   0
+#define SHADOW_FILTER_HARDWARE   1
 
 // --- LIGHTING ---
 #define SUNLIGHT_STRENGTH 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
@@ -52,6 +54,8 @@
 // Emissive surface boost, %
 
 // --- SHADOWS ---
+#define SHADOW_FILTER_MODE 0 // [0 1]
+// 0 = existing sixteen software taps; 1 = four hardware comparison taps.
 #define SHADOWS // [false true]
 // Master switch for shadow map
 #define SHADOW_RESOLUTION 2048 // [512 1024 1536 2048 3072 4096]
@@ -225,9 +229,17 @@ const int   noiseTextureResolution = 256;              // matches textures/noise
 // diverge, this must become a per-profile literal again.
 const float entityShadowDistanceMul = 0.5;
 
-// Raw depths are paired with exact caster texels before filtering illumination.
-// Hardware PCF would discard that correspondence and cannot be enabled here.
+// Software retains exact depth/material pairing. Optional hardware comparison
+// filtering uses the surface consumer's explicitly approximate centre material.
+#if SHADOW_FILTER_MODE == 1
+const bool shadowHardwareFiltering = true;
+const bool shadowHardwareFiltering0 = true;
+const bool shadowHardwareFiltering1 = true;
+#else
 const bool shadowHardwareFiltering = false;
+const bool shadowHardwareFiltering0 = false;
+const bool shadowHardwareFiltering1 = false;
+#endif
 
 // --- buffer formats (design.md 2.3) ---
 // SC-27 supersedes SC-25/26: this Iris build rejects active format consts even
