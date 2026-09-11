@@ -43,7 +43,6 @@ float astra_bliss_cloud(in vec3 pos){
 
     float RoofToFloorDensityFalloff = exp(max(100-pos.y,0.0) / -15);
 	float FloorDensityFalloff = pow(exp(max(pos.y-31,0.0) / -3.0),2);
-	float RoofDensityFalloff = exp(max(120-pos.y,0.0) / -10);
 
 	float Output = max((RoofToFloorDensityFalloff - Plumes * (1.0-Erosion)) * 2.0,	clamp((FloorDensityFalloff - floorPlumes*0.5) * Erosion ,0.0,1.0) );
     
@@ -59,19 +58,26 @@ vec4 astra_bliss_fog(
 
 	/// -------------  RAYMARCHING STUFF ------------- \\\
 
-	int SAMPLECOUNT = 16;
+	const int SAMPLECOUNT = 16;
 
 	vec3 wpos = mat3(gbufferModelViewInverse) * viewPosition + gbufferModelViewInverse[3].xyz;
 	vec3 dVWorld = (wpos-gbufferModelViewInverse[3].xyz);
 	vec3 progressW = vec3(0.0);
 
-	float maxLength = min(length(dVWorld), min(borderFogDistance, 12*16))/max(length(dVWorld),0.001);
+	float rayLength = length(dVWorld);
+    if (rayLength < 0.001) return vec4(0.0, 0.0, 0.0, 1.0);
+	float maxLength = min(rayLength, min(borderFogDistance, 12*16))/rayLength;
 
 	dVWorld *= maxLength;
 
 	float dL = length(dVWorld);
 
-	float expFactor = 11.0;
+	const float expFactor = 11.0;
+    // Algebraic recurrence of Bliss's exponential sample distribution. It keeps
+    // the same points/weights, without two pow evaluations per loop iteration.
+    const float sampleRatio = pow(expFactor, 1.0 / float(SAMPLECOUNT));
+    const float weightScale = log(expFactor) / float(SAMPLECOUNT) / (expFactor - 1.0);
+    float sampleExp = pow(expFactor, dither / float(SAMPLECOUNT));
 	
 	/// -------------  COLOR/LIGHTING STUFF ------------- \\\
 
@@ -85,8 +91,9 @@ vec4 astra_bliss_fog(
 	#endif
 
 	for (int i = 0; i < SAMPLECOUNT; i++) {
-		float d = (pow(expFactor, float(i+dither)/float(SAMPLECOUNT))/expFactor - 1.0/expFactor)/(1-1.0/expFactor);
-		float dd = pow(expFactor, float(i+dither)/float(SAMPLECOUNT)) * log(expFactor) / float(SAMPLECOUNT)/(expFactor-1.0);
+		float d = (sampleExp - 1.0) / (expFactor - 1.0);
+		float dd = sampleExp * weightScale;
+        sampleExp *= sampleRatio;
 		
 		progressW = gbufferModelViewInverse[3].xyz + cameraPosition + d*dVWorld;
 
@@ -120,7 +127,10 @@ vec4 astra_bliss_fog(
 			ceilingSmokeDensity *= 0.60 * ASTRA_NETHER_CEILING_SCALE;
 			float ceilingSmokeVolumeCoeff = exp(-ceilingSmokeDensity*dd*dL);
 			
-			vec3 ceilingSmoke = vec3(1.0);
+			// Bliss's white ceiling term assumed its own exposure/palette. Use the
+            // same Complementary biome illumination as the haze, so the ceiling
+            // does not wash crimson/soul/warped biomes into the same white veil.
+            vec3 ceilingSmoke = hazeColor;
 
 			color += (ceilingSmoke - ceilingSmoke*ceilingSmokeVolumeCoeff) * (absorbance*0.5+0.5);
 			absorbance *= ceilingSmokeVolumeCoeff;

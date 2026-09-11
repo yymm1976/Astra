@@ -2,8 +2,8 @@
 #define ASTRA_NETHER_COLORED_LIGHT
 // Solas V3.7b voxel light architecture adapted to a bounded, same-frame volume.
 // Geometry captures emitting and solid cells; diffusion crosses empty cells only.
-// nether_light.csh stamps every written cell with the current frame, so a cell whose
-// stamp is old is simply "not rendered this frame" and is treated as no light.
+// Occupancy is cleared every frame; step 0 rebuilds light before propagation.
+// There is no temporal light history or frame stamp.
 uniform sampler3D astraLightSamplerA;
 float astra_nether_alignment(float raw) {
     float w = clamp((raw - 1.0) / 4.0, 0.0, 1.0);

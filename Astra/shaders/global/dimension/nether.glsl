@@ -47,8 +47,10 @@ vec3 nether_palette(vec3 fallback) {
            + astraNetherSoul * vec3(0.1, 0.24, 0.24);
     return mix(fallback * 0.6 + 0.2 * normalize(fallback + 0.0001), c / max(w, 0.0001), clamp(w, 0.0, 1.0));
 }
-vec3 nether_atmosphere_tint(vec3 biomeFogColor) { return to_linear(nether_palette(biomeFogColor)); }
-vec3 nether_color(vec3 biomeFogColor) { return to_linear(nether_palette(biomeFogColor)); }
+// Complementary feeds this palette directly to both ambient light and mainFog.
+// Do not decode just the fog: that gave the same biome two different intensities.
+vec3 nether_atmosphere_tint(vec3 biomeFogColor) { return nether_palette(biomeFogColor); }
+vec3 nether_color(vec3 biomeFogColor) { return nether_palette(biomeFogColor); }
 vec4 nether_fog(
 	out float skyFogStrength,
 	NetherParams params,
@@ -66,9 +68,7 @@ vec4 nether_fog(
 	#endif
 	float fogFactor = 1.0 - exp(-fogDensity * densityScale);
 
-	vec3 fogColor = tint * NETHER_FOG_TINT;
-
-	fogColor = tint;
+	vec3 fogColor = tint;
 	skyFogStrength = 0.0;
 	if (blindness > 0.0001) {
 		fogFactor = max(0.85, 1.0 - exp(-pow(fragDistance * blindness * 0.5, 2.0)));
@@ -152,9 +152,21 @@ vec3 nether_lighting(
 	                 * (1.0 - blockLight);
 	minLighting += params.nightVision * NETHER_NIGHT_VISION_TINT_REF;
 
-	vec3 blockLighting = nether_block_lighting(
-		blockLight,
-		held_light_strength(params.heldLightBase, playerPos));
+	vec3 blockLighting = nether_block_lighting(blockLight, 0.0);
+    #ifdef NETHER_VOXEL_LIGHT
+        // Solas gbuffersLighting replaces the warm block-light term, rather than
+        // adding a second copy after diffuse lighting. Astra only reaches eight
+        // cells, so fade by available radiance as well as the volume boundary;
+        // distant/unrepresented sources retain vanilla block-light support.
+        if (emissiveMask < 0.5 && portalMask < 0.5) {
+            vec3 voxel = astra_nether_colored_light(playerPos, worldNormal);
+            float coverage = clamp(max(voxel.r, max(voxel.g, voxel.b)), 0.0, 1.0);
+            blockLighting = mix(blockLighting, voxel * (BLOCKLIGHT_STRENGTH * 0.01), coverage * 0.95);
+        }
+    #endif
+    // Keep hand-held light separate from volume coverage, as Solas does.
+    blockLighting += nether_block_lighting(0.0, held_light_strength(params.heldLightBase, playerPos));
+    blockLighting *= 1.0 - clamp(max(emissiveMask, portalMask), 0.0, 1.0);
 
 	float emission = nether_emissive_boost(emissiveMask, portalMask, time);
 
@@ -164,11 +176,7 @@ vec3 nether_lighting(
 	                  + emission * emission;
 	finalDiffuse = sqrt(max(finalDiffuse, vec3(0.0)));
 
-#ifdef NETHER_VOXEL_LIGHT
-	return surfaceColor * (finalDiffuse + astra_nether_colored_light(playerPos,worldNormal));
-#else
 	return surfaceColor * finalDiffuse;
-#endif
 }
 
 #endif

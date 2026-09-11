@@ -96,7 +96,7 @@ class Volume:
     # how the previous model drifted away from the GPU.
 
     # ---- consumer / propagation --------------------------------------------------
-    def step(self, step_index: int) -> None:
+    def step(self, step_index: int, reference_reads: bool = False) -> None:
         src = self.light_a if step_index % 2 == 1 else self.light_b
         out: list = [None] * (N * N * N)
         for x in range(N):
@@ -114,11 +114,10 @@ class Volume:
                             if not (0 <= qx < N and 0 <= qy < N and 0 <= qz < N):
                                 continue
                             q = self.idx(qx, qy, qz)
-                            nraw = self.occupancy[q]
-                            # Opaque AND not an emitter -> blocks. An opaque emitter still
-                            # hands its light over (lava).
-                            if (nraw & BIT_SOLID) and (nraw & 255) < 2:
-                                continue
+                            if reference_reads:
+                                nraw = self.occupancy[q]
+                                if (nraw & BIT_SOLID) and (nraw & 255) < 2:
+                                    continue
                             adj = src[q]
                             color = [max(c, a * FALLOFF) for c, a in zip(color, adj)]
                     out[i] = tuple(color)
@@ -193,12 +192,40 @@ def scenario_reach_is_bounded() -> tuple[bool, str]:
     return ok, "falloff=" + ", ".join(f"d{d}:{val:.3f}" for d, val in zip(range(1, 12), values))
 
 
+def scenario_equivalent_reads() -> tuple[bool, str]:
+    """Compare every voxel/pass, including stale ping-pong data overwritten by step 0."""
+    global N
+    previous_n = N
+    N = 7
+    try:
+        a, b = Volume(), Volume()
+        import random
+        rng = random.Random(20260911)
+        occupancy = [encode(rng.choice((0, 1, 2, 9, 10, 11)), rng.choice((False, True)))
+                     for _ in range(N ** 3)]
+        for v in (a, b):
+            v.occupancy = occupancy.copy()
+            v.light_a = [(99.0, 99.0, 99.0)] * (N ** 3)
+            v.light_b = [(99.0, 99.0, 99.0)] * (N ** 3)
+        for s in range(9):
+            a.step(s)
+            b.step(s, reference_reads=True)
+            output_a = a.light_a if s % 2 == 0 else a.light_b
+            output_b = b.light_a if s % 2 == 0 else b.light_b
+            if output_a != output_b:
+                return False, f'neighbour-read removal diverges at step {s}'
+        return True, '343 cells x 9 passes identical; opaque non-emitter stays zero'
+    finally:
+        N = previous_n
+
+
 def main() -> int:
     scenarios = [
         ("never-written air is lit on every frame parity (R1)", scenario_air_has_no_vertices),
         ("lava lights its neighbours despite being solid (R2)", scenario_lava_is_an_opaque_emitter),
         ("non-emissive solids still block", scenario_solid_wall_blocks),
         ("eight steps bound the reach", scenario_reach_is_bounded),
+        ("removing neighbour occupancy reads preserves radiance", scenario_equivalent_reads),
     ]
     failures = 0
     print("Astra nether voxel light - offline model (mirrors the shipping contract)")

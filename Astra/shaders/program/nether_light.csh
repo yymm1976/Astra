@@ -42,12 +42,11 @@ void main() {
             for(int i=0;i<6;i++) {
                 ivec3 q=p+dirs[i];
                 if(any(lessThan(q,ivec3(0))) || any(greaterThanEqual(q,ivec3(64)))) continue;
-                uint nraw=texelFetch(astraVoxelSampler,q,0).r;
-                // An opaque neighbour blocks propagation, but an opaque EMITTER must still
-                // hand its light over - otherwise lava, which is a full cube and therefore
-                // solid, would light nothing at all. Solids with kind < 2 are plain
-                // blockers; anything from 2 up is a light source and stays readable.
-                if((nraw & 256u) != 0u && (nraw & 255u) < 2u) continue;
+                // Solas shadowcomp reads neighbouring radiance directly. Non-emissive
+                // solids are exactly zero in every pass (including step 0), so reading
+                // their occupancy again cannot change max(color, adjacent * 0.72).
+                // This removes six integer-volume reads per propagating cell/pass,
+                // while opaque emitters still hand their own light to adjacent air.
                 #if ASTRA_LIGHT_STEP % 2 == 1
                 vec3 adjacent=texelFetch(astraLightSamplerA,q,0).rgb;
                 #else
