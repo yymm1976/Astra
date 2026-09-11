@@ -59,6 +59,11 @@ void main() {
         #endif
     #endif
 #else
+	#ifdef DIMENSION_END
+		// End's full-screen sky is drawn once, in deferred after terrain depth exists.
+		gl_FragData[0]=vec4(0.0,0.0,0.0,1.0);
+		return;
+	#endif
 	// gbuffers_skybasic also receives vanilla star geometry. Drawing an opaque atmosphere on
 	// those triangles would cover the sky; our cell field is already part of the SKY draw.
 	if (renderStage == MC_RENDER_STAGE_STARS) discard;

@@ -12,7 +12,7 @@
     #include "/global/water/absorption.glsl"
     #include "/global/water/particles.glsl"
 #endif
-#ifdef BLOOM
+#if defined BLOOM || defined DIMENSION_END
     #include "/global/post/bloom.glsl"
     uniform sampler2D colortex2;
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
@@ -32,7 +32,7 @@ uniform sampler2D colortex0;
 in vec2 texcoord;
 void main() {
     vec3 hdr = max(texture(colortex0, texcoord).rgb, vec3(0.0));
-    #ifdef BLOOM
+    #if defined BLOOM || defined DIMENSION_END
         #if !defined DIMENSION_NETHER && !defined DIMENSION_END
         if (isEyeInWater == 1) getBloom(hdr, texcoord, texture(depthtex0, texcoord).r);
         else

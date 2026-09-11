@@ -52,8 +52,8 @@ vec3 astra_reflection_sky(vec3 worldDir, float roughness) {
     #if defined DIMENSION_NETHER
         return nether_sky(worldDir, nether_atmosphere_tint(fogColor));
     #elif defined DIMENSION_END
-        // No high frequency star field in reflections without temporal filtering.
-        return mix(END_VOID_COLOR, END_SKY_LIGHT_COLOR * 0.1, max(worldDir.y, 0.0));
+        vec3 sky=end_sky(normalize(worldDir),END_VOID_COLOR,frameTimeCounter);
+        return mix(sky,END_SKY_LIGHT_COLOR*0.002,clamp(roughness*roughness,0.0,1.0));
     #else
         return astra_sky_reflection(worldDir, roughness);
     #endif

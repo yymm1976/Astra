@@ -1,0 +1,28 @@
+OPENGL_VENDOR	NVIDIA Corporation
+OPENGL_RENDERER	NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2
+OPENGL_VERSION	4.6.0 NVIDIA 572.83
+RESULT	linked=261	failed=3	compute=27	compute_capable=true
+COMPILE_FAIL	PERFORMANCE:world1/prepare.fsh	fragment
+2(5) : error C0000: syntax error, unexpected integer constant, expecting ';' at token "<int-const>"
+SOURCE_MAP	PERFORMANCE:world1/prepare.fsh	fragment
+1	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\world1\prepare.fsh
+2	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\program\end_illumination.fsh
+3	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\lib\settings.glsl
+4	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\global\dimension\end_ring.glsl
+5	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\global\dimension\end_geometry.glsl
+COMPILE_FAIL	BALANCED:world1/prepare.fsh	fragment
+2(5) : error C0000: syntax error, unexpected integer constant, expecting ';' at token "<int-const>"
+SOURCE_MAP	BALANCED:world1/prepare.fsh	fragment
+1	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\world1\prepare.fsh
+2	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\program\end_illumination.fsh
+3	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\lib\settings.glsl
+4	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\global\dimension\end_ring.glsl
+5	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\global\dimension\end_geometry.glsl
+COMPILE_FAIL	ULTRA:world1/prepare.fsh	fragment
+2(5) : error C0000: syntax error, unexpected integer constant, expecting ';' at token "<int-const>"
+SOURCE_MAP	ULTRA:world1/prepare.fsh	fragment
+1	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\world1\prepare.fsh
+2	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\program\end_illumination.fsh
+3	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\lib\settings.glsl
+4	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\global\dimension\end_ring.glsl
+5	C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\Astra\shaders\global\dimension\end_geometry.glsl

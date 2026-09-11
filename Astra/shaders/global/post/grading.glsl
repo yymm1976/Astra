@@ -154,7 +154,11 @@ vec3 apply_grading(vec3 displayColor) {
 // unconditional.
 // ------------------------------------------------------------
 vec3 apply_vignette(vec3 displayColor, vec2 screenUV) {
-	#ifdef VIGNETTE
+	#if defined DIMENSION_END
+		vec2 offset=(screenUV-0.5)*2.0;
+		float falloff=clamp(dot(offset,offset)*0.5,0.0,1.0);
+		return displayColor*(1.0-0.08*falloff);
+	#elif defined VIGNETTE
 		vec2 offset = screenUV - 0.5;
 		// Falloff here is the exponent itself, not Mellow's "2 - falloff"
 		// inversion, so larger means tighter. Distance is measured in UV space,
@@ -175,7 +179,11 @@ vec3 apply_vignette(vec3 displayColor, vec2 screenUV) {
 // clip edge. The overshoot is absorbed by the 8-bit write.
 // ------------------------------------------------------------
 vec3 apply_output_dither(vec2 screenPos, vec3 displayColor) {
-	#ifdef DITHERING
+	#if defined DIMENSION_END
+		// Half an 8-bit code each way, attenuated at black to preserve the void.
+		float darkGate=smoothstep(0.0,0.025,max(displayColor.r,max(displayColor.g,displayColor.b)));
+		return displayColor+(dither(screenPos)-0.5)*(1.0/255.0)*darkGate;
+	#elif defined DITHERING
 		// Static IGN: lib/dither.glsl is fixed to animate = false because Astra has
 		// no TAA to average temporal noise (design 2.4).
 		return displayColor + (dither(screenPos) - 0.5) * GRADING_DITHER_STRENGTH;

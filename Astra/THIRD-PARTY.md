@@ -192,7 +192,13 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 - `shaders/program/shadow.vsh` 的 `imageAtomicMax` 写入与 `shaders/program/nether_light.csh` 的传播：Astra 自写。
 - `shaders/global/dimension/nether.glsl` 的 `astra_nether_colored_light` 消费点与 `program/scene.glsl` 的体积雾合成：Astra 自写。
 
-### 2026-09-11 末地黑洞与星空：移植 IterationT 3.2.0
+### 2026-09-11 末地空间交会接续：当前实现说明
+
+当前 `end_blackhole.glsl` 的 `bh_Blackbody` 继续保留下述 IterationT 来源和授权口径。旧文件里的 WarpSpace、旋转矩阵、纹理噪声、FBM、pcurve、IGN 等未被当前渲染路径使用的移植函数已移除；不能再用下方历史记录的“四处适配”概括现有实现。
+
+本次 `end_geometry.glsl`、`end_ring.glsl`、`end_system.glsl`、`program/end_illumination.fsh` 的虚拟轨道、实体距离场、消光、求交和每帧可见性计算，以及 `end_blackhole.glsl` 当前光路与盘积分，为 Astra 在本任务中的代码实现。没有新增第三方贴图、模型或音频。现有后处理文件的原始来源不因增加末地专属分支而改变。
+
+### 2026-09-11 末地黑洞与星空：移植 IterationT 3.2.0（历史实现）
 
 - `shaders/global/dimension/end_blackhole.glsl`：**移植**（非思路借鉴）IterationT 3.2.0
   `shaders/Lib/IndividualFounctions/EndSky.glsl`（`CalculateStars`、`WarpSpace`、

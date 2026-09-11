@@ -90,6 +90,8 @@
 // Biome tint strength, %
 #define END_NEBULA // [false true]
 // End dimension: faint nebula layer (low intensity)
+#define END_PRECESSION_MINUTES 36 // [20 24 28 32 36 40 44 48 52 56 60]
+// End ring axis precession; body orbital periods remain independent.
 
 // --- WATER ---
 #define WATER_WAVES // [false true]

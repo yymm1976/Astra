@@ -102,12 +102,19 @@ vec3 bloom_capture(sampler2D src, vec2 texCoord) {
 //
 //   color += bloom_composite(colortex2, texcoord, BLOOM_STRENGTH * 0.01);
 vec3 bloom_composite(sampler2D bloomTex, vec2 texCoord, float strength) {
+	#ifdef DIMENSION_END
+		// Restrict the sky bloom to the two smallest levels; retain sharp stars and gaps.
+		vec3 bloom=textureLod(bloomTex,texCoord,0.0).rgb*0.65
+		          +textureLod(bloomTex,texCoord,1.0).rgb*0.35;
+		return max(bloom,vec3(0))*strength*0.45;
+	#else
 	vec3 bloom = textureLod(bloomTex, texCoord, 1.0).rgb * 0.40
 	           + textureLod(bloomTex, texCoord, 2.0).rgb * 0.30
 	           + textureLod(bloomTex, texCoord, 3.0).rgb * 0.20
 	           + textureLod(bloomTex, texCoord, 4.0).rgb * 0.10;
 
 	return max(bloom, vec3(0.0)) * strength;
+	#endif
 }
 
 #endif
