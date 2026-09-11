@@ -45,14 +45,24 @@ void end_reference_nebula(inout vec3 color, in vec3 worldPos, in float VoU, inou
 			  nebulaNoise1 += texture(solasWaterNoise, planeCoord1 * 0.04 + frameTimeCounter * 0.0003).r * 0.250;
 			  nebulaNoise1 += texture(solasWaterNoise, planeCoord1 * 0.08 - frameTimeCounter * 0.0004).r * 0.250;
 			  nebulaNoise1 += texture(solasWaterNoise, planeCoord1 * 0.16 + frameTimeCounter * 0.0005).r * 0.125;
-			  nebulaNoise1 = clamp(nebulaNoise1 - 0.7, 0.0, 1.0);
+			  // 2026-09-11 user round: "背景不太真实". Measured against the real noise
+			  // texture, the OLD threshold of 0.7 fired on 99.8% of the sky - the nebula was
+			  // not an accent, it was the whole background, and that violet wash is what read
+			  // as fog rather than deep space. Thresholds below are the measured 15th
+			  // percentile of each field (noise1 p85 = 1.137, noise2 p85 = 1.211), so the
+			  // nebula now covers roughly one sixth of the sky in wisps and the rest stays
+			  // black with stars.
+			  nebulaNoise1 = clamp(nebulaNoise1 - 1.137, 0.0, 1.0);
 		float nebulaNoise2  = texture(solasWaterNoise, planeCoord2 * 0.02 - frameTimeCounter * 0.00015).r;
 			  nebulaNoise2 += texture(solasWaterNoise, planeCoord2 * 0.04 + frameTimeCounter * 0.00030).r * 0.75;
 			  nebulaNoise2 += texture(solasWaterNoise, planeCoord2 * 0.08 - frameTimeCounter * 0.00060).r * 0.50;
-			  nebulaNoise2 = clamp(nebulaNoise2 - 0.8, 0.0, 1.0);
+			  nebulaNoise2 = clamp(nebulaNoise2 - 1.211, 0.0, 1.0);
 
-		color += mix(mix(END_AMBIENT_COLOR, END_SKY_LIGHT_COLOR, nebulaNoise1), mix(vec3(2.0, 0.8, 0.2), vec3(0.1, 2.1, 0.8), nebulaNoise1), texture(solasWaterNoise, planeCoord1 * 0.025).r * 0.4) * visibility * nebulaNoise1;
-		color += mix(vec3(2.3, 0.8, 0.5), vec3(1.2, 2.2, 0.9), nebulaNoise2 - 0.25) * visibility * (nebulaNoise2 * nebulaNoise2) * 0.125;
+		// Dimmed hard: the nebula is now an accent in a black sky, not a sky-sized wash.
+		// Keeping it faint also restores the star field, because the black hole's star
+		// term suppresses stars under a bright nebula.
+		color += mix(mix(END_AMBIENT_COLOR, END_SKY_LIGHT_COLOR, nebulaNoise1), mix(vec3(2.0, 0.8, 0.2), vec3(0.1, 2.1, 0.8), nebulaNoise1), texture(solasWaterNoise, planeCoord1 * 0.025).r * 0.4) * visibility * nebulaNoise1 * 0.28;
+		color += mix(vec3(2.3, 0.8, 0.5), vec3(1.2, 2.2, 0.9), nebulaNoise2 - 0.25) * visibility * (nebulaNoise2 * nebulaNoise2) * 0.045;
 		nebulaFactor = (nebulaNoise1 + nebulaNoise2) * visibility;
 	}
 }

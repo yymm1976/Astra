@@ -208,8 +208,16 @@ void astra_end_blackhole(inout vec3 color, vec3 rayDir, vec3 lightDir) {
             density = bh_saturate(density + bloomFactor * 0.1);
 
             if (density > 0.0001) {
-                vec3 discCoord = vec3(r, 0.0, h * 0.1) * 3.5;
-                float fbm = bh_CloudFBM(discCoord, frameTimeCounter * vec3(0.03, 0.05, 0.0));
+                // Astra adaptation for "动态立体": the reference offers
+                // ACCRETIONDISC_DETAIL_ALONG_LONGTITUDE, which folds the azimuth into the
+                // noise coordinate (it ships that branch OFF). This switches it on AND
+                // advances the azimuth at a Keplerian rate, omega ~ r^-1.5, so the inner
+                // disc visibly outruns the outer one. Differential rotation is what makes
+                // the disc read as a rotating three-dimensional body instead of a texture
+                // sliding past; a uniform scroll would look like a conveyor belt.
+                float kepler = frameTimeCounter * 0.55 * pow(max(r, 0.45), -1.5);
+                vec3 discCoord = vec3(r, pAngle + kepler, h * 0.1) * 3.5;
+                float fbm = bh_CloudFBM(discCoord, frameTimeCounter * vec3(0.0, 0.0, 0.05));
                 fbm = fbm * fbm;
                 fbm = fbm * fbm;
 

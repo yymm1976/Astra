@@ -106,35 +106,48 @@ void main() {
         //      cell's own hash, so a given piece of sky always rains the same way as the
         //      camera moves instead of boiling (the earlier version hashed the moving
         //      time index, which made every drop flicker on its own).
+        // 2026-09-11 user round: "雨滴太整齐，应该有长有短，不要这么多，颜色透明偏灰" -
+        // the previous pass kept 22% of a strict grid with one aspect ratio and a white
+        // 1.25 tint, which read as a regular picket fence and was too loud. Four changes:
+        //   1. density cut so roughly one cell in twelve carries a drop;
+        //   2. the drop is displaced inside its cell by up to half a cell, so the spacing
+        //      is no longer on a lattice;
+        //   3. the streak length spans a wide range with a bias toward short, so lengths
+        //      vary instead of repeating;
+        //   4. the tint is a mid grey and the alpha is low, making them read as water in
+        //      the air rather than lit paint.
         const float ASTRA_RAIN_FREQ_X = 6.0;
         const float ASTRA_RAIN_FREQ_Y = 2.2;
-        const float ASTRA_RAIN_DENSITY = 0.78;   // cells kept (lower = denser rain)
+        const float ASTRA_RAIN_DENSITY = 0.92;   // cells discarded, so ~1 in 12 survives
         vec2 grid = vec2(texcoord.x * ASTRA_RAIN_FREQ_X,
                          (playerPos.y + cameraPosition.y) * 0.06
                          + frameTimeCounter * ASTRA_RAIN_FREQ_Y);
-        vec2 cell = floor(grid);
         // Stable repeat: the hash must not contain the moving time index, otherwise
-        // every cell re-rolls each frame and the whole field boils. Both hashed
-        // indices are world-anchored quantities, only the scroll above is temporal.
+        // every cell re-rolls each frame and the whole field boils.
         vec2 modIndex = floor(vec2(texcoord.x * ASTRA_RAIN_FREQ_X,
                                    playerPos.y + cameraPosition.y) * 0.5);
         vec2 column = floor((playerPos.xz + cameraPosition.xz) * 0.5);
         float seed = fract(sin(dot(modIndex + column * 17.0, vec2(12.9898, 78.233))) * 43758.5453);
         float alive = fract(seed * 7.31);
         if (alive < ASTRA_RAIN_DENSITY) discard;
+        // Irregular placement: each drop is pushed off the lattice by up to half a cell in
+        // both axes, which is what removes the "整齐" reading.
+        vec2 jitter = (vec2(fract(seed * 5.7), fract(seed * 9.1)) - 0.5) * 0.55;
         vec2 center = vec2(0.5) + (vec2(fract(seed * 31.7), fract(seed * 71.3)) - 0.5) * 0.7;
-        vec2 q = fract(grid) - center;
-        float width = mix(0.022, 0.042, fract(seed * 13.1));
-        float height = mix(0.15, 0.30, fract(seed * 17.3));
+        vec2 q = fract(grid) - center + jitter;
+        float width = mix(0.010, 0.042, fract(seed * 13.1));
+        // Length spans ~8x with a square bias so short dashes dominate and long streaks
+        // are occasional, matching what falling rain actually looks like.
+        float lengthBias = fract(seed * 17.3);
+        lengthBias *= lengthBias;
+        float height = mix(0.05, 0.42, lengthBias);
         float d = length(q / vec2(width, height));
         float aa = max(fwidth(d), 0.07);
         float drop = 1.0 - smoothstep(0.75 - aa, 1.0 + aa, d);
-        // Held back only in the first ~1.7 blocks, where a full-screen quad is not a
-        // credible volume; the previous 1.8-5.5 block ramp hid almost all near rain.
         float nearFade = smoothstep(0.6, 1.7, length(playerPos));
-        // Brightness follows rain strength so a light drizzle does not read as a
-        // downpour, and the streak itself is much brighter than the old 0.86.
-        albedo = vec4(vec3(1.25), drop * clamp(tint.a, 0.0, 1.0) * (0.55 + 0.45 * astraRainFactor) * nearFade);
+        // Mid grey, low alpha: visible as motion without becoming a bright overlay.
+        albedo = vec4(vec3(0.62), drop * clamp(tint.a, 0.0, 1.0)
+                      * (0.55 + 0.45 * astraRainFactor) * 0.34 * nearFade);
     }
     if (albedo.a < 0.004) discard;
     #else
