@@ -66,16 +66,29 @@ vec3 astra_wave_normal_at(vec3 p) {
     return normalize(vec3(-x * 0.75, 1.0, -z * 0.75));
 }
 
+// How strongly the caustic network modulates the DIRECT sun term. 0 disables the
+// modulation, 1 applies the full field. Applied to direct radiance only - see the note in
+// program/lit.fsh for why multiplying the finished colour was wrong.
+const float ASTRA_CAUSTIC_STRENGTH = 0.70;
+
 float astra_water_caustics_focus(vec3 worldPos) {
     // Static spatial dither. The reference uses a temporal blue-noise offset, which it can
     // afford because it accumulates over frames; Astra has no TAA, so a per-frame offset
     // would simply flicker. The 3x3 tap grid already supplies the spatial spread.
     vec2 dither = vec2(0.5);
-    vec3 lookupCenter = worldPos + vec3(0.0, 1.0, 0.0);
 
     // Light direction refracted through the flat water interface, as the reference does.
     vec3 sunWorld = normalize(view_player(lightVector));   // Astra: world-space sun
     vec3 lightVector = refract(sunWorld, vec3(0.0, -1.0, 0.0), 1.0 / 1.2);
+
+    // R6 FIX: the surface point above the receiver must be found by walking UP along the
+    // refracted light, otherwise the pattern does not move with the sun at all (the
+    // previous version computed lightVector and then never used it). One block of lookup
+    // depth, so the offset is the reference's parallax term.
+    vec3 lookupCenter = worldPos + vec3(0.0, 1.0, 0.0);
+    if (abs(lightVector.y) > 1e-3) {
+        lookupCenter.xz -= lightVector.xz / lightVector.y;
+    }
 
     float caustics = 0.0;
     for (float i = -1.0; i <= 1.0; i++) {

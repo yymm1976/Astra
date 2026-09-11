@@ -35,14 +35,16 @@ layout(r32ui) uniform uimage3D astraVoxelImage;
 // Occupancy encoding consumed by program/nether_light.csh and
 // global/dimension/nether_colored_light.glsl:
 //   bit 8  : solid geometry -> blocks diffusion
-//   bits 16-17: frame stamp. Alternates between 0b01 and 0b11, never 0b00, because
-//            the persistent image reads back as 0 before anything is written: a zero
-//            stamp would make every untouched cell look like air captured this frame
-//            and the diffusion march would leak through unloaded regions.
-//   bits 0-7: 0 = captured air (diffusion passes through), 1 = solid/unlit,
-//            2..8 = coloured light groups, 9..11 = fire, soul fire, lava
-uint astra_voxel_encode(uint kind, bool solid, uint stamp) {
-    return (kind & 255u) | (solid ? 256u : 0u) | stamp;
+//   bits 0-7: 0 = air, 1 = solid/unlit, 2..8 = coloured light groups,
+//            9..11 = fire, soul fire, lava
+// There is deliberately NO frame stamp. The image directive declares clear=true
+// (shaders.properties), so Iris zeroes the whole volume every frame: an unwritten cell
+// reads as 0 and 0 already means "air". An earlier version added a 2-bit stamp to retire
+// unloaded regions; it was both unnecessary and wrong - ordinary air has no vertices, so
+// it is never written, and the stamp made the march treat unwritten air as stale on one
+// frame parity and valid on the other, flipping the light field every other frame.
+uint astra_voxel_encode(uint kind, bool solid) {
+    return (kind & 255u) | (solid ? 256u : 0u);
 }
 void astra_voxel_write() {
     // MC_RENDER_STAGE_* values must match Iris WorldRenderingPhase ordinals; see the
@@ -65,10 +67,11 @@ void astra_voxel_write() {
     if(raw >=10021 && raw <=10027) { kind=uint(raw-10019); solid = false; }
     if(raw ==10028) { kind=9u; solid = false; }
     if(raw ==10029) { kind=10u; solid = false; }
-    if(raw ==10030) kind=11u;  // lava is a full cube, so it stays solid
-    // Bit flipped against the raw frame parity so the stamp is never zero.
-    uint stamp = (1u - (uint(frameCounter) & 1u)) << 16;
-    imageAtomicMax(astraVoxelImage,cell,astra_voxel_encode(kind,solid,stamp));
+    // lava is opaque, so it keeps the solid bit; the march is written to still read the
+    // light OUT of an emitter cell (see nether_light.csh), so lava can light its
+    // neighbours while remaining a blocker for light coming from elsewhere.
+    if(raw ==10030) kind=11u;
+    imageAtomicMax(astraVoxelImage,cell,astra_voxel_encode(kind,solid));
 }
 #endif
 void main() {

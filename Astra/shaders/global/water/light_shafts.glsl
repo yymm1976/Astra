@@ -37,6 +37,11 @@ vec4 water_shafts_march(vec2 uv) {
     float rayLength;
     vec3 viewPos = water_shafts_view(uv, rayLength);
     vec3 ray = normalize(view_player(viewPos));
+    // True distance from the eye to this fragment. The march below must scale by this, not
+    // by -viewPos.z: scaling by the Z component made currentDist an axial depth, so at a
+    // grazing angle a sample labelled 8 blocks sat 16 blocks from the eye and could land
+    // behind visible geometry that the loop then happily accumulated.
+    float eyeDistance = max(length(viewPos), 1e-4);
     float sun = solas_sun_visibility();
     float time = astraSolasTimeBrightness;
     float VoU = 1.0 - pow(clamp(ray.y, 0.0, 1.0), 1.5);
@@ -52,6 +57,11 @@ vec4 water_shafts_march(vec2 uv) {
     // IterationT 3.2 underwater volumetric fog uses a 40-block range rather than Solas'
     // 128; the shorter range plus the 1/max(3, d*0.1) attenuation below is what makes its
     // beams vanish as the camera approaches rather than sticking to the view.
+    // maxDist is a TRUE distance now. Note the coverage this layout actually gives: with
+    // the reference's step of maxDist/samples*0.5 the last sample sits at
+    // maxDist/2 - step, i.e. about 17 blocks for the 7-sample preset, not 40. Starting
+    // away from the eye is deliberate (it is the "walk closer and the beam vanishes"
+    // behaviour), but the range label must not overstate the reach.
     const float maxDist = 40.0;
     float minDist = maxDist / float(UNDERWATER_SHAFT_SAMPLES) * 0.5;
     float maxCurrentDist = min(rayLength, maxDist);
@@ -60,7 +70,8 @@ vec4 water_shafts_march(vec2 uv) {
     for (int i = 0; i < UNDERWATER_SHAFT_SAMPLES; ++i) {
         float currentDist = (float(i) + dither) * minDist;
         if (currentDist > maxCurrentDist) break;
-        vec3 point = view_camera_relative(viewPos * (currentDist / max(-viewPos.z, 0.0001)));
+        // Scale by the ray length so currentDist is measured along the view ray.
+        vec3 point = view_camera_relative(viewPos * (currentDist / eyeDistance));
         vec3 pos = distort(player_shadow(point)) * 0.5 + 0.5;
         if (length(pos.xy * 2.0 - 1.0) >= 1.0) continue;
         // Distance-weighted: far samples dominate, which is the reference's soft falloff.
@@ -69,7 +80,15 @@ vec4 water_shafts_march(vec2 uv) {
         // Smooth accumulation. shadowtex1 (opaque only) reports how much light reaches
         // this point, and it is multiplied in rather than used as a hard skip: that is
         // what turns the old wedges into a gradient.
-        float shade = 1.0 - clamp((texture(shadowtex1, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);
+        // R4 FIX: this was `1.0 - clamp(...)`, which is inverted. shadowtex1 stores the
+        // depth of the nearest opaque caster from the light, so a sample is LIT when its
+        // own depth is not greater than the stored one, i.e. when
+        // (stored - pos.z) > 0. The old form therefore accumulated light exactly where
+        // geometry blocked it and lit nothing where the ray was open - no amount of
+        // softening, caustics or phase work could fix a reversed visibility term.
+        // Matches global/lighting/shadowmap.glsl (`step(referenceDepth, stored)`) and the
+        // reference's own texture2DShadow.
+        float shade = clamp((texture(shadowtex1, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);
         // Reference design point 1: modulate the beam by the water-surface caustics, cubed.
         // This is what turns an even cone into the soft banded columns the reference shows,
         // and because the same function drives the seabed caustics their phases agree.

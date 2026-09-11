@@ -3,9 +3,9 @@
 //
 // Occupancy encoding written by program/shadow.vsh through imageAtomicMax:
 //   bit 8    solid geometry rendered this frame (needed so walls block diffusion)
-//   bits 16-17 frame stamp; alternates 0b01/0b11 and is never zero, which retires cells
-//            that were not rendered this frame (unloaded chunks). Zero would collide
-//            with the never-written image state and let light cross unloaded regions.
+// The image is cleared every frame (clear=true in the image directive), so an unwritten
+// cell reads as 0 and 0 means air. No frame stamp is involved - see the note in
+// program/shadow.vsh for why the previous stamp was both unnecessary and parity-broken.
 //   bits 0-7 light species: 0 = captured air (diffusion passes through), 1 = solid/unlit,
 //            2..8 = coloured block light (mirrored from block.properties groups),
 //            9-11 = fire, soul fire, lava
@@ -15,10 +15,6 @@ uniform usampler3D astraVoxelSampler;
 uniform sampler3D astraLightSamplerA,astraLightSamplerB;
 layout(rgba16f) uniform writeonly image3D astraLightA,astraLightB;
 uniform float frameTimeCounter;
-uniform int frameCounter;
-uint astra_frame_stamp() {
-    return (1u - (uint(frameCounter) & 1u)) << 16;
-}
 vec3 emission(uint id) {
     if(id==2u) return vec3(1.0,0.04,0.01);
     if(id==3u || id==9u) return vec3(1.0,0.30,0.045)*(0.96+0.04*sin(frameTimeCounter*2.1));
@@ -34,26 +30,24 @@ void main() {
     ivec3 p=ivec3(gl_GlobalInvocationID);
     uint raw=texelFetch(astraVoxelSampler,p,0).r;
     uint id=raw & 255u;
-    bool fresh=(raw & 0x30000u) == astra_frame_stamp();
     bool solid=(raw & 256u) != 0u;
-    // Cells that were not written this frame contribute nothing at all.
-    vec3 color=fresh ? emission(id)*1.5 : vec3(0.0);
+    vec3 color=emission(id)*1.5;
     #if ASTRA_LIGHT_STEP > 0
     {
-        // Only empty cells diffuse; solids keep the light field from crossing them,
-        // and stale neighbours (unloaded chunks) are skipped so light cannot leak
-        // across regions that were never captured.
-        // Captured air is uint kind 0 without the solid bit. "raw == 0" would be the
-        // unwritten cell instead, which is never a valid diffusion source.
-        bool empty = fresh && (id == 0u) && !solid;
+        // Only non-solid cells diffuse. raw == 0 is cleared air and is the common case:
+        // ordinary air has no vertices, so nothing ever writes it.
+        bool empty = !solid;
         if(empty) {
             const ivec3 dirs[6]=ivec3[6](ivec3(1,0,0),ivec3(-1,0,0),ivec3(0,1,0),ivec3(0,-1,0),ivec3(0,0,1),ivec3(0,0,-1));
             for(int i=0;i<6;i++) {
                 ivec3 q=p+dirs[i];
                 if(any(lessThan(q,ivec3(0))) || any(greaterThanEqual(q,ivec3(64)))) continue;
                 uint nraw=texelFetch(astraVoxelSampler,q,0).r;
-                if((nraw & 0x30000u) != astra_frame_stamp()) continue;
-                if((nraw & 256u) != 0u) continue;
+                // An opaque neighbour blocks propagation, but an opaque EMITTER must still
+                // hand its light over - otherwise lava, which is a full cube and therefore
+                // solid, would light nothing at all. Solids with kind < 2 are plain
+                // blockers; anything from 2 up is a light source and stays readable.
+                if((nraw & 256u) != 0u && (nraw & 255u) < 2u) continue;
                 #if ASTRA_LIGHT_STEP % 2 == 1
                 vec3 adjacent=texelFetch(astraLightSamplerA,q,0).rgb;
                 #else

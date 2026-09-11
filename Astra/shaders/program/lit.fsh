@@ -73,30 +73,27 @@ void main() {
         }
     #endif
     vec4 albedo = texture(gtexture, texcoord) * tint;
-    #ifdef ASTRA_PARTICLE
-    // Vanilla rain splash particles -> deleted -------------------------------------
-    // Confirmed path: WaterDropParticle.getLayer() returns SingleQuadParticle$Layer.OPAQUE
-    // in the 26.2 client, so the splash is drawn by the opaque particle program, which
-    // Iris feeds from gbuffers_particles (falling back to gbuffers_textured_lit). Both
-    // entries define ASTRA_PARTICLE, so this block covers either mapping.
+    // Vanilla rain splash particles - NOT implementable here ------------------------
+    // Two attempts have now failed, and the second failure is provable rather than a
+    // tuning problem:
     //
-    // Iris exposes no particle type id, and the previous "guess the atlas cell" box
-    // missed: the stitcher rounds (sprite + 2*padding) up to a power of two and doubles
-    // the padding per mip level, so the splash cell is nowhere near the sheet corner.
-    // This test instead uses a property independent of atlas geometry and resource pack:
+    //   attempt 1 guessed the splash sprite's atlas cell. The stitcher rounds
+    //   (sprite + 2*padding) up to a power of two and doubles padding per mip level, so
+    //   the cell is nowhere near the corner that was assumed.
     //
-    //   a single-quad particle spans one 8x8 sprite over a handful of screen pixels, so
-    //   its texture-coordinate derivative is large (~0.1-0.4 per pixel), while real block
-    //   and item surfaces stay far below that. Combined with the blue bias this removes
-    //   the splash without touching larger blue sprites (potion swirl, sculk soul,
-    //   dripping water), which the user asked to keep.
-    vec2 astraFootprint = vec2(length(vec2(dFdx(texcoord.x), dFdy(texcoord.x))),
-                               length(vec2(dFdx(texcoord.y), dFdy(texcoord.y))));
-    if (max(astraFootprint.x, astraFootprint.y) > 0.09) {
-        float splashBlue = albedo.b - max(albedo.r, albedo.g);
-        if (splashBlue > 0.15 && albedo.a > 0.02) discard;
-    }
-    #endif
+    //   attempt 2 used d(texcoord)/d(pixel) > 0.09 as a "tiny quad" test. That arithmetic
+    //   is wrong: texcoord is normalised over the WHOLE atlas, so an 8px sprite in a
+    //   256px atlas drawn across N screen pixels gives (8/256)/N = 0.031/N per pixel -
+    //   about 0.008 at four pixels, four times under the threshold. It would never fire
+    //   on a normally sized splash, while a sufficiently zoomed blue particle could still
+    //   trip it.
+    //
+    // Iris exposes no particle type id (no particle.properties, and gbuffers_particles*
+    // only covers the translucent layer), so from inside a shader the splash cannot be
+    // told apart from any other particle sharing the atlas. The honest options are a
+    // resource pack that blanks minecraft:splash_0..3, or engine support for particle
+    // identity. Colour or derivative thresholds are guesses, and a guess that silently
+    // deletes potion or sculk particles is worse than leaving the splash in place.
 #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
     if (temperature > 0.15) {
         // Rain streaks. Three constraints shape this grid:
@@ -220,12 +217,19 @@ void main() {
     // network is guaranteed to appear and still animates and respects the sun through the
     // surface wave phase. It is a multiplier centred near 1, so it modulates rather than
     // dims: caustic peaks lift a little, the dark lattice crushes.
-    #if defined ASTRA_TERRAIN && !defined ASTRA_WATER_PASS
+    // R6 FIX. IterationT multiplies its caustic into the SUNLIGHT term
+    // (composite.fsh: shadow *= CalculateWaterCaustics(...)), not into the finished pixel.
+    // The previous version scaled the whole colour, which also dimmed ambient light, block
+    // light and emissive surfaces, and it ran regardless of the WATER_CAUSTICS option.
+    // Here the delta is applied to the direct radiance only, so a caustic peak brightens
+    // sunlight and a dark lattice removes sunlight while every other light path is left
+    // alone. astra_light reports the direct part through its out parameter.
+    #if defined ASTRA_TERRAIN && !defined ASTRA_WATER_PASS && defined WATER_CAUSTICS
         #if !defined DIMENSION_NETHER && !defined DIMENSION_END
         if (isEyeInWater == 1 && !iceTop) {
-            // IterationT's geometric caustic, multiplied straight into the lit colour the
-            // same way the reference multiplies it into its shadow term.
-            color *= mix(1.0, astra_water_caustics_focus(playerPos + cameraPosition), 0.70);
+            float causticGain = mix(1.0, astra_water_caustics_focus(playerPos + cameraPosition),
+                                    ASTRA_CAUSTIC_STRENGTH);
+            color += directRadiance * (causticGain - 1.0);
         }
         #endif
     #endif

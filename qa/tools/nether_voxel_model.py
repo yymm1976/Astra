@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """Offline model of the Astra nether voxel light field (N3).
 
-The volume is a 64^3 image written by world-1/shadow.vsh (imageAtomicMax) and
-diffused by the nine world-1/shadowcomp*.csh steps through program/nether_light.csh.
-None of that is observable without the game, so this script re-implements the exact
-encoding and propagation rules in Python and asserts the invariants the design depends
-on. It is a logic model, not a renderer: it proves the algorithm's behaviour, never
-its looks.
+This mirrors the SHIPPING GLSL contract, not an idealised one. The contract was
+corrected on 2026-09-11 after an independent review showed the previous model had
+diverged from the GPU in three ways and therefore "passed" while the shader was broken:
 
-Encoding (kept in sync with program/shadow.vsh::astra_voxel_encode):
-    bit 8     solid geometry -> blocks diffusion
-    bit 16    frame stamp, flips every frame; cells without the current stamp are
-              treated as not-rendered and contribute no light
-    bits 0-7  0 = empty, 1 = solid/unlit, 2..8 = coloured light groups,
-              9 = fire, 10 = soul fire, 11 = lava
+  * the model used frame stamps of 65536/196608 while the GLSL produced 65536/0, so the
+    odd-frame path it validated did not exist on the GPU;
+  * the model fabricated air cells with an explicit write, but the real producer only
+    emits vertices for solid blocks, water, plants and light sources - ordinary air is
+    NEVER written and reads back as 0 from the per-frame clear;
+  * the model never exercised an opaque emitter, so lava's inability to light anything
+    went unnoticed.
+
+Encoding, matching program/shadow.vsh::astra_voxel_encode exactly:
+    bits 0-7 : 0 = air, 1 = solid/unlit, 2..8 = coloured light groups, 9..11 = fire,
+               soul fire, lava
+    bit  8   : opaque geometry. Blocks diffusion, but an EMITTER (kind >= 2) is still
+               readable by its neighbours so that lava, which is a full cube, can light.
+    no stamp : the image directive declares clear = true, so Iris zeroes the volume every
+               frame and 0 already means air.
 
 Usage:  python qa/tools/nether_voxel_model.py
 Exit code 0 = all invariants hold.
@@ -25,13 +31,7 @@ import sys
 
 N = 64
 BIT_SOLID = 256
-BIT_STAMP = 1 << 16
-STAMP_MASK = BIT_STAMP
-
-def stamp_for(frame: int) -> int:
-    """Non-zero stamp: 0 means 'never written' in the persistent image."""
-    return BIT_STAMP if (frame & 1) == 0 else (BIT_STAMP | (BIT_STAMP << 1))
-KIND_EMPTY = 0          # captured air: diffusion passes through (solid bit clear)
+KIND_AIR = 0
 KIND_SOLID = 1
 FALLOFF = 0.72
 
@@ -50,13 +50,8 @@ EMISSION = {
 }
 
 
-def encode(kind: int, solid: bool, stamp: int) -> int:
-    return (kind & 255) | (BIT_SOLID if solid else 0) | stamp
-
-
-def decode(raw: int) -> tuple[int, bool, bool]:
-    """returns (kind, solid, fresh_against_stamp0)"""
-    return raw & 255, bool(raw & BIT_SOLID), (raw & STAMP_MASK) == 0
+def encode(kind: int, solid: bool) -> int:
+    return (kind & 255) | (BIT_SOLID if solid else 0)
 
 
 def emission(kind: int) -> tuple[float, float, float]:
@@ -64,151 +59,150 @@ def emission(kind: int) -> tuple[float, float, float]:
 
 
 class Volume:
-    """Mirrors the GPU images: occupancy (uint) + two ping-pong light images."""
+    """Mirrors the GPU images: one occupancy image plus two ping-pong light images.
+
+    The occupancy image is cleared at the start of every frame (Iris clear=true), which
+    is modelled by constructing a fresh Volume per frame rather than clearing in place.
+    """
 
     def __init__(self) -> None:
         self.occupancy = [0] * (N * N * N)
-        self.light_a = [(0.0, 0.0, 0.0)] * (N * N * N)
-        self.light_b = [(0.0, 0.0, 0.0)] * (N * N * N)
+        self.light_a: list = [(0.0, 0.0, 0.0)] * (N * N * N)
+        self.light_b: list = [(0.0, 0.0, 0.0)] * (N * N * N)
 
     def idx(self, x: int, y: int, z: int) -> int:
         return (y * N + z) * N + x
 
-    def write(self, x: int, y: int, z: int, kind: int, solid: bool, frame: int) -> None:
-        """imageAtomicMax at the cell: max wins, exactly like the GLSL."""
-        stamp = stamp_for(frame)
-        value = encode(kind, solid, stamp)
+    # ---- producer side: exactly what shadow.vsh can emit -------------------------
+    def write_solid_block(self, x: int, y: int, z: int) -> None:
+        """An ordinary opaque block face. This is what most vertices produce."""
+        self._atomic_max(x, y, z, encode(KIND_SOLID, solid=True))
+
+    def write_non_solid(self, x: int, y: int, z: int) -> None:
+        """Water, plants, torches: a vertex exists but the block is not a full cube."""
+        self._atomic_max(x, y, z, encode(KIND_AIR, solid=False))
+
+    def write_emitter(self, x: int, y: int, z: int, kind: int, solid: bool) -> None:
+        """Fire / soul fire (solid=False) and lava (solid=True)."""
+        self._atomic_max(x, y, z, encode(kind, solid))
+
+    def _atomic_max(self, x: int, y: int, z: int, value: int) -> None:
         i = self.idx(x, y, z)
         if value > self.occupancy[i]:
             self.occupancy[i] = value
 
-    def clear(self) -> None:
-        self.occupancy = [0] * (N * N * N)
+    # NOTE: there is deliberately no write_air(). Ordinary air has no vertices, so the
+    # producer never touches it; it stays 0 and 0 is air. Adding such a helper is exactly
+    # how the previous model drifted away from the GPU.
 
-    def step(self, step_index: int, frame: int = 0) -> None:
-        """One shadowcomp pass. Mirrors nether_light.csh exactly."""
-        src, dst = (self.light_a, self.light_b) if step_index % 2 == 1 else (self.light_b, self.light_a)
-        out = [None] * (N * N * N)
-        stamp_bit = stamp_for(frame)
+    # ---- consumer / propagation --------------------------------------------------
+    def step(self, step_index: int) -> None:
+        src = self.light_a if step_index % 2 == 1 else self.light_b
+        out: list = [None] * (N * N * N)
         for x in range(N):
             for y in range(N):
                 for z in range(N):
                     i = self.idx(x, y, z)
                     raw = self.occupancy[i]
                     kind = raw & 255
-                    fresh = (raw & STAMP_MASK) == stamp_bit
                     solid = bool(raw & BIT_SOLID)
-                    color = [c * 1.5 for c in emission(kind)] if fresh else [0.0, 0.0, 0.0]
-                    if step_index > 0 and fresh and kind == KIND_EMPTY and not solid:
-                        for dx, dy, dz in ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)):
+                    color = [c * 1.5 for c in emission(kind)]
+                    if step_index > 0 and not solid:
+                        for dx, dy, dz in ((1, 0, 0), (-1, 0, 0), (0, 1, 0),
+                                           (0, -1, 0), (0, 0, 1), (0, 0, -1)):
                             qx, qy, qz = x + dx, y + dy, z + dz
                             if not (0 <= qx < N and 0 <= qy < N and 0 <= qz < N):
                                 continue
                             q = self.idx(qx, qy, qz)
                             nraw = self.occupancy[q]
-                            if (nraw & STAMP_MASK) != stamp_bit:
-                                continue
-                            if nraw & BIT_SOLID:
+                            # Opaque AND not an emitter -> blocks. An opaque emitter still
+                            # hands its light over (lava).
+                            if (nraw & BIT_SOLID) and (nraw & 255) < 2:
                                 continue
                             adj = src[q]
-                            color = [max(colour, a * FALLOFF) for colour, a in zip(color, adj)]
+                            color = [max(c, a * FALLOFF) for c, a in zip(color, adj)]
                     out[i] = tuple(color)
         if step_index % 2 == 1:
             self.light_b = out
         else:
             self.light_a = out
 
-    def run(self, steps: int = 8, frame: int = 0) -> None:
+    def run(self, steps: int = 8) -> None:
         for s in range(steps + 1):
-            self.step(s, frame)
+            self.step(s)
 
 
-def scenario_wall() -> tuple[bool, str]:
-    """A solid wall must block diffusion; air beside it must stay lit.
+def scenario_air_has_no_vertices() -> tuple[bool, str]:
+    """R1: a fire beside never-written air must light it, on every frame parity.
 
-    Deliberately minimal: the fire, its +x neighbour, the wall beyond it and the cell
-    behind the wall are the only air cells in the volume, so every neighbour access in
-    the march is either one of them or an unwritten cell. If the wall did not block,
-    the behind cell would take light from the wall's far side.
+    The producer writes only the fire: the air cell is never touched. Before the fix the
+    frame stamp made this cell look stale on one parity and valid on the other, so the
+    reading flipped between 0 and 1.08 every other frame.
+    """
+    results = []
+    for _frame in (0, 1, 2, 3):
+        v = Volume()                      # fresh volume = the per-frame clear
+        v.write_emitter(32, 20, 20, 9, solid=False)
+        v.run(8)
+        results.append(v.light_a[v.idx(33, 20, 20)][0])
+    ok = all(r > 0.5 for r in results) and max(results) - min(results) < 1e-9
+    return ok, (f"parities 0..3 -> {[round(r, 4) for r in results]} "
+                f"(all must be equal and non-zero; the pre-fix build gave 0 / 1.08 alternating)")
+
+
+def scenario_lava_is_an_opaque_emitter() -> tuple[bool, str]:
+    """R2: lava is a full cube, so it is solid - and must still light its neighbours."""
+    v = Volume()
+    v.write_emitter(40, 20, 20, 11, solid=True)     # lava
+    v.run(8)
+    lava = v.light_a[v.idx(40, 20, 20)][0]
+    beside = v.light_a[v.idx(41, 20, 20)][0]        # never-written air next to it
+    ok = lava > 0.5 and beside > 0.5
+    return ok, (f"lava={lava:.4f} neighbour_air={beside:.4f} "
+                f"(the pre-fix build gave lava=1.5 but neighbour=0)")
+
+
+def scenario_solid_wall_blocks() -> tuple[bool, str]:
+    """A non-emissive opaque wall must stop the light.
+
+    Under the corrected contract an unwritten cell IS air, so a single isolated block is
+    walked around: that is correct behaviour, not a leak. Blocking therefore has to be
+    tested with a wall wide enough that no detour fits inside the eight-step reach - the
+    plane spans 24 cells in y and z, so going around costs far more than eight steps.
     """
     v = Volume()
-    v.write(31, 32, 32, 9, solid=False, frame=0)             # fire
-    v.write(32, 32, 32, KIND_EMPTY, solid=False, frame=0)    # air in front of the wall
-    v.write(33, 32, 32, KIND_SOLID, solid=True, frame=0)     # solid wall
-    v.write(34, 32, 32, KIND_EMPTY, solid=False, frame=0)    # air behind the wall
+    v.write_emitter(30, 32, 32, 9, solid=False)                 # fire
+    for dy in range(-12, 12):
+        for dz in range(-12, 12):
+            v.write_solid_block(32, 32 + dy, 32 + dz)           # full opaque plane
     v.run(8)
-    near = v.light_a[v.idx(32, 32, 32)][0]
-    behind = v.light_a[v.idx(34, 32, 32)][0]
-    ok = near > 0.5 and behind == 0.0
-    return ok, (f"near={near:.4f} behind={behind:.4f} "
-                f"(behind must be exactly 0: the only path is through the solid cell)")
+    in_front = v.light_a[v.idx(31, 32, 32)][0]
+    behind = v.light_a[v.idx(33, 32, 32)][0]
+    ok = in_front > 0.5 and behind == 0.0
+    return ok, (f"front={in_front:.4f} behind={behind:.4f} "
+                f"(behind must be exactly 0: the plane is the only path)")
 
 
-def scenario_stale() -> tuple[bool, str]:
-    """A cell that stops being rendered must stop contributing light."""
+def scenario_reach_is_bounded() -> tuple[bool, str]:
     v = Volume()
-    for z in range(20, 24):
-        v.write(32, 20, z, 9, solid=False, frame=0)   # fire, captured this frame
-        v.write(33, 20, z, KIND_EMPTY, solid=False, frame=0)
-    v.run(8)
-    lit_before = v.light_a[v.idx(33, 20, 21)][0]
-
-    # Next frame: the chunk is gone, so nothing is written there. The stamp flips,
-    # which is exactly what the GPU does when it re-writes surviving geometry.
-    v.clear()
-    for z in range(20, 24):
-        v.write(40, 20, z, 9, solid=False, frame=1)   # fire somewhere else
-    v.light_a = [(0.0, 0.0, 0.0)] * (N * N * N)
-    v.light_b = [(0.0, 0.0, 0.0)] * (N * N * N)
-    v.run(8, frame=1)
-    stale_after = v.light_a[v.idx(33, 20, 21)][0]
-    ok = lit_before > 0.01 and stale_after == 0.0
-    return ok, f"lit_before={lit_before:.4f} stale_after={stale_after:.4f} (must be 0)"
-
-
-def scenario_empty_not_solid() -> tuple[bool, str]:
-    """Regression for the pre-handoff bug: air must be captured as kind 0.
-
-    The old writer stored kind=1 for air (so it read as solid/unlit), while the
-    diffusion pass only acted on id==0 cells. Every rendered air cell therefore
-    looked solid and the propagation loop never ran, which left the coloured light
-    stuck inside the emitting cell.
-    """
-    v = Volume()
-    v.write(32, 20, 20, 9, solid=False, frame=0)
-    v.write(33, 20, 20, KIND_EMPTY, solid=False, frame=0)
-    v.run(8)
-    air_raw = v.occupancy[v.idx(33, 20, 20)]
-    air_lit = v.light_a[v.idx(33, 20, 20)][0]
-    solid_raw = encode(KIND_SOLID, solid=True, stamp=0)
-    ok = (air_raw & 255) == KIND_EMPTY and (air_raw & BIT_SOLID) == 0 and air_lit > 0.05
-    return ok, (f"air_raw={air_raw} kind={air_raw & 255} solid_bit={bool(air_raw & BIT_SOLID)} air_lit={air_lit:.4f} "
-                f"(solid block would be {solid_raw})")
-
-
-def scenario_budget() -> tuple[bool, str]:
-    """The reach of the 8-step chain must stay bounded (performance + falloff)."""
-    v = Volume()
-    v.write(32, 20, 20, 9, solid=False, frame=0)
-    for d in range(1, 12):
-        v.write(32 + d, 20, 20, KIND_EMPTY, solid=False, frame=0)
+    v.write_emitter(32, 20, 20, 9, solid=False)
     v.run(8)
     values = [v.light_a[v.idx(32 + d, 20, 20)][0] for d in range(1, 12)]
     first_zero = next((d for d, val in zip(range(1, 12), values) if val == 0.0), None)
     ok = first_zero is not None and first_zero <= 9
-    return ok, "distance falloff=" + ", ".join(f"d{d}:{val:.4f}" for d, val in zip(range(1, 12), values))
+    return ok, "falloff=" + ", ".join(f"d{d}:{val:.3f}" for d, val in zip(range(1, 12), values))
 
 
 def main() -> int:
     scenarios = [
-        ("wall blocks light, open axis still lit", scenario_wall),
-        ("unrendered cells retire (frame stamp)", scenario_stale),
-        ("air is not encoded as solid", scenario_empty_not_solid),
-        ("eight steps bound the reach", scenario_budget),
+        ("never-written air is lit on every frame parity (R1)", scenario_air_has_no_vertices),
+        ("lava lights its neighbours despite being solid (R2)", scenario_lava_is_an_opaque_emitter),
+        ("non-emissive solids still block", scenario_solid_wall_blocks),
+        ("eight steps bound the reach", scenario_reach_is_bounded),
     ]
     failures = 0
-    print("Astra nether voxel light - offline logic model (N3)")
-    print(f"volume={N}^3 steps=9 falloff={FALLOFF}")
+    print("Astra nether voxel light - offline model (mirrors the shipping contract)")
+    print(f"volume={N}^3 steps=9 falloff={FALLOFF} | no frame stamp; clear=true gives air=0")
     for title, fn in scenarios:
         ok, detail = fn()
         print(f"[{'PASS' if ok else 'FAIL'}] {title}")

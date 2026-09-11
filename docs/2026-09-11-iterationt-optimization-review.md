@@ -80,7 +80,13 @@ godrays（`#ifndef GODRAYS return`）、水下光束（`#ifdef ASTRA_UNDERWATER_
 - `GetScatteringTextureUvwzFromRMuMuSNu`（r, μ, μ_s, ν 四维参数化压进 3D 纹理坐标）
 - `GetTransmittanceTextureUvFromRMu`、`GetCombinedScattering`、`GetExtrapolatedSingleMieScattering`
 - 查表就是一句：`textureLod(colortex8, vec3(uv, 32.5/33.0), 0.0)`
-- LUT 存在 `colortex8`，并且 `size.buffer.colortex8=2.0 2.0`（**半分辨率**）、RGBA8
+- LUT 存在 `colortex8`。
+
+> **2026-09-11 修正（独立审查提出，我原结论错误）**：ITT 的大气数据不是"493 行现算一张
+> 半分辨率 LUT"。`shaders.properties:184/187` 绑定的是**外部 512×128×33 RGBA32F 三维数据**，
+> 约 33 MiB；`size.buffer.colortex8=2.0 2.0` 的 2.0 是**放大**（buffer 为屏幕的 2 倍），
+> 不是半分辨率。因此"照搬这个 LUT"这条路**被否决**；应当研究的是"我们现有天空计算能否复用"，
+> 而且连"waterRef 天空是不是最大耗时项"都还没有计时证据。下面的 P0 推荐一并作废。
 
 **这是 ITT 最值钱的优化。** 对比 Astra：`global/water/reference_light.glsl::waterRef_SkyColor`
 **每像素**算一次物理大气（两次大气采样点、每点再做视线与太阳方向的光学深度积分、双散射），
@@ -140,11 +146,11 @@ const bool shadowtex0Nearest       = false;
 并在 `#ifdef MC_GL_VENDOR_NVIDIA` 下把 `shadowtex1` 声明为 `sampler2DShadow`（硬件比较采样）。
 
 **核对结果：Astra 现在是 `shadowHardwareFiltering = false`**（`lib/settings.glsl:228`），
-而 ITT 是 `true`。我们等于放弃了硬件比较采样，用手写抽头去模拟——**这是白扔的性能**。
+而 ITT 是 `true`。
 
-**取舍：抄，且这是本轮最便宜的一条。** 改成 `true` 并相应声明
-`shadowtex0Mipmap`，可以把手写 PCF 的抽头数降下来。需要实机确认一次采样质量
-（硬件过滤的半影比手写更"方"，可能要配 `SHADOW_SOFTNESS` 微调）。
+> **2026-09-11 修正（独立审查）**：这**不是**无代价替换。Astra 的 `shadowtex0/1` 声明为
+> `sampler2D` 并手动读深度、手动配对染色；硬件比较要求采样器类型与消费者一起改，
+> 不是翻一个开关。**本轮建议：暂保留 false**，先核实采样器与消费者的契约再评估。
 
 ### H. 把两个压倒性成本旋钮直接暴露给用户 ★★★ 必抄
 
@@ -154,10 +160,12 @@ const float shadowDistance      = 192.0;// [64.0 96.0 128.0 192.0 256.0 384.0 51
 ```
 
 阴影分辨率与距离是**成本的第一、第二项**，ITT 让用户直接选，范围给得非常宽
-（1024→32768，64→2048）。另一处**核对出的具体差距**：`shadowDistanceRenderMul` ITT 是 1.0，**Astra 是 1.5**
-（`lib/settings.glsl:208`）——意味着我们把投射体渲染到接收距离的 1.5 倍远，这部分几乎全是
-看不见的开销。`shadowIntervalSize` ITT 是 4.0、**Astra 是 0.5**（差 8 倍，`settings.glsl:211`），
-这个值控制顶点吸附的间隔，值得单独实测：间隔小通常更稳但顶点处理更频繁。
+（1024→32768，64→2048）。数值对比：`shadowDistanceRenderMul` ITT 1.0 / Astra 1.5；`shadowIntervalSize` ITT 4.0 /
+Astra 0.5。
+
+> **2026-09-11 修正（独立审查）**：两个数值都**不构成性能结论**。投射体即使落在视野外，
+> 也可能向可见区域投影，所以 1.5 未必是浪费；而 `shadowIntervalSize` 相差八倍也不代表
+> 顶点工作量相差八倍——它是顶点吸附间隔，收益方向需要实测。**本轮建议：两个都保留原值。**
 
 **取舍：抄。** Astra 的 `SHADOW_RESOLUTION` 只有三档值、`SHADOW_DISTANCE` 也是。
 我们应该给出更宽的可选档，并把"默认档"定在实测最优性价比处。
@@ -243,11 +251,11 @@ ITT 把整块 `colortex*Format / Clear` 声明**注释掉**（`composite.fsh:11-
 
 | 优先级 | 项 | 预计收益 | 风险/成本 | 与现有设计冲突 |
 |---|---|---|---|---|
-| P0 | **大气预算成 LUT** | 高（每像素省几十次超越函数，且被多处复用） | 中：要写 LUT 生成 pass + 改造 consumers | 无 |
+| ~~P0~~ | ~~大气预算成 LUT~~ **已作废**：前提错误（见上） | — | 先做计时，再决定是否值得 | — |
 | P0 | **程序级 gating：把可选效果挂到 `program.*.enabled`** | 高（关掉＝不编译不跑不烧带宽） | 低 | 无 |
 | P1 | **廉价数学工具箱**（fsqrt/fsign/facos/Bayer/R1R2/AlmostIdentity/textureSmooth） | 中：全局摊薄 | 低 | 无（与无 TAA 兼容） |
-| P0 | **`shadowHardwareFiltering` false→true + mipmap** | 中：省掉手写 PCF 抽头（当前是白扔） | 低：改 directive，需实机看一次质量 | 无 |
-| P1 | **`shadowDistanceRenderMul` 1.5→1.0** | 中：少渲染不可见的投射体 | 低：改常量，需实机确认远处阴影不缺失 | 无 |
+| — | ~~`shadowHardwareFiltering` false→true~~ **暂保留 false**：需先匹配采样器与消费者契约 | — | 中 | — |
+| — | ~~`shadowDistanceRenderMul` 1.5→1.0~~ **暂保留 1.5**：视野外投射体也会向可见区域投影，"看不见所以浪费"不成立，且本包有远处缺影的历史 | — | — | — |
 | P1 | **体积步进的空区跳过 + transmittance 早退** | 中：光束/雾 | 低 | 无 |
 | P2 | **拓宽阴影分辨率/距离可选档位** | 低（但对用户是刚需） | 低 | 无 |
 | P2 | **半分辨率缓冲用于低频信号** | 低-中 | 低 | 无 |
@@ -268,3 +276,15 @@ Astra 放弃了第③条（无 TAA），所以必须把第①②条做到位，�
 
 IterationT 归档不含许可文件，按专有处理。本笔记只记录设计思路与取舍；
 任何代码级移植须逐条登记 `THIRD-PARTY.md`，并受 `design.md` 9.3 发布闸门约束。
+
+---
+
+## 6. 2026-09-11 独立审查后的状态（本文件的结论以此为准）
+
+独立审查（`docs/2026-09-11-independent-review.md`）确认了本文件**三处错误结论**并已在上文逐条标注更正：
+大气 LUT 的前提（外部 3D 数据 + 2.0× 是放大）、硬件 PCF 的无代价假设、
+以及"看不见所以浪费"的投射体推断。
+
+仍然有效的结论：**程序级 gating**（已核实 Astra 有 22 条，缺口在只做运行时早退的那几个效果）、
+**廉价数学工具箱按热点选用**（不整批引入）、**空间去抖替代时域**（无 TAA 约束下）、
+**几何步进探测与 transmittance 早退**、以及"不引入 TAA/GI/FSR/体积云"。

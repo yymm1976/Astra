@@ -213,3 +213,20 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
   与 `qa/session-log.md` 中，供追溯。
 - `shaders/program/lit.fsh` 的水下直算焦散项为 Astra 自写（见该处注释），用于在阴影贴图投射
   路径无法实机验证时保证焦散可见；Solas 的写入端口径仍保留在 `program/shadow.fsh`。
+
+### 2026-09-11 水下焦散与光束：移植 IterationT 3.2.0
+
+- `shaders/global/water/caustics.glsl` 的 `astra_water_caustics_focus` 与
+  `astra_water_caustics_shaft_at`：**表达式级移植** IterationT 3.2.0
+  `Lib/BasicFounctions/Sunlight_Shadow.glsl::CalculateWaterCaustics` 与
+  `Lib/IndividualFounctions/UnderwaterVolumetricFog.glsl::CalculateWaterCaustics`
+  （三点法求波面法线、折射竖直光线、以落点与接收点的距离作为聚焦量，九抽头求和）。
+  Astra 适配三处并已在文件内标注：① 参考从自维护的波法线缓冲读取，Astra 改由同一份
+  Solas 高度场中心差分求法线；② 太阳方向改用 Astra 的 `lightVector`；
+  ③ 空间抖动替代参考的时间蓝噪声（Astra 无 TAA，逐帧抖动会闪）。
+  坡度尺度 0.75 为对真实噪声纹理的离线标定值，不是参考常数。
+- `shaders/global/water/light_shafts.glsl`：**结构移植**参考的
+  `UnderwaterVolumetricFog`——`caustics³` 调制、`1/max(3, d*0.1)` 距离衰减、
+  折射太阳方向的相函数、起始采样点远离相机。步进距离改为沿射线真实距离。
+- 授权：IterationT 归档无许可文件，按专有处理，与本文件既有的 Refrax 条目同级，
+  仅限当前个人使用定位；发布前必须重写或取得授权。
