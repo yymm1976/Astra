@@ -1,16 +1,31 @@
-// One directional irradiance estimate per frame, before terrain and sky rendering.
+// Per-frame scene data: irradiance, 73 bodies, ring axis and 73 orientation bases.
 #include "/lib/settings.glsl"
 #include "/global/dimension/end_ring.glsl"
-// Buffer format for the 1x1 illumination target, declared the same way as the pack's
-// other format lines. RGBA16 must stay a bare token here: Iris reads this declaration
-// textually (PackRenderTargetDirectives.acceptConstStringDirective ->
-// InternalTextureFormat.fromString) and never #defines the name, so a shadowing
-// `const int RGBA16 = ...` is not only unnecessary but makes the offline compiler, whose
-// preamble does define the token, fail with a syntax error on the substituted literal.
-const int colortex8Format = RGBA16;
+// Iris reads the format identifier; GLSL still needs its declaration.
+// The guard also supports hosts that supply the name as a macro.
+#ifndef RGBA32F
+const int RGBA32F = 0;
+#endif
+// Signed world-space centres and their radii require floating-point storage.
+const int colortex8Format = RGBA32F;
 const vec4 colortex8ClearColor = vec4(0.0,0.0,1.0,1.0);
 /* RENDERTARGETS: 8 */
 void main() {
+    int slot = int(gl_FragCoord.x);
+    if (slot == 74) {
+        gl_FragData[0] = vec4(end_ring_axis(),1.0);
+        return;
+    }
+    if (slot >= 75) {
+        int id=(slot-75)/3;
+        mat3 basis=end_body_basis(end_body(id).xyz,id);
+        gl_FragData[0]=vec4(basis[(slot-75)%3],1.0);
+        return;
+    }
+    if (slot > 0) {
+        gl_FragData[0] = end_body(slot - 1);
+        return;
+    }
     vec4 bodies[END_BODY_COUNT];
     for(int i=0;i<END_BODY_COUNT;i++) bodies[i]=end_body(i);
     mat3 disc=end_disc_basis();

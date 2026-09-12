@@ -1,5 +1,6 @@
 #ifndef ASTRA_GLOBAL_ATMOSPHERE_CLOUDS_PLANAR_GLSL
 #define ASTRA_GLOBAL_ATMOSPHERE_CLOUDS_PLANAR_GLSL
+#include "/lib/twilight.glsl"
 
 // ============================================================
 //  Astra v1 - planar cloud sheet, shaped and shaded with the
@@ -149,6 +150,12 @@ void astra_cloud_colors(AstraSkyFactors f, AstraSkyPalette p,
 
 	// lib/atmospherics/clouds/mainClouds.glsl:91 (CLOUDS_REIMAGINED)
 	cloudAmbientColor *= 1.0 - 0.25 * f.rainFactor;
+    // Warm illuminated edges over a cooler cloud body during the same twilight
+    // envelope used by the sky and terrain (Solas separates these two colours).
+    float twilight=astra_twilight_strength();
+    cloudLightColor=mix(cloudLightColor,cloudLightColor*vec3(1.12,0.88,0.72)
+                        +astra_twilight_tint()*0.18,twilight*0.65);
+    cloudAmbientColor=mix(cloudAmbientColor,cloudAmbientColor*vec3(0.92,0.94,1.04),twilight);
 }
 
 // ------------------------------------------------------------
@@ -166,7 +173,7 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 
 	// ASTRA OWN: CLOUD_COVERAGE bias, zero at the default 50 so the default
 	// test is exactly the reference's `noise > threshold * 0.5 + 0.25`.
-	float coverageBias = mix(0.20, -0.20, CLOUD_COVERAGE * 0.01) - 0.28 * f.rainFactor;
+	float coverageBias = mix(0.20, -0.20, CLOUD_COVERAGE * 0.01) - 0.04 - 0.28 * f.rainFactor;
 
 	// lib/atmospherics/clouds/reimaginedClouds.glsl:33-41
 	float higherPlaneAltitude = ASTRA_CLOUD_ALTITUDE + ASTRA_CLOUD_STRETCH;

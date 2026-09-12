@@ -26,6 +26,7 @@ uint astra_material(int id) {
     if (id >= 10001 && id <= 10007) return uint(id - 10000);
     if (id == 10010) return 8u;
     if (id == 10011) return 9u;
+    if (id == 10012) return 11u;
     if (id >= 10021 && id <= 10030) return 10u;
     return 0u;
 }
@@ -66,11 +67,11 @@ void main() {
     // "picket fence" reading - no amount of colour or alpha work can, because the geometry
     // was the problem.
     //
-    // The reference exposes these three as sliders; the defaults below are its defaults.
+    // The reference exposes these three as sliders; Astra increases the wind tilt.
     // They are local constants rather than options so this change does not churn the option
     // registry; promote them to sliders if tuning is wanted.
-    const float ASTRA_RAIN_WIND_X = 0.10;
-    const float ASTRA_RAIN_WIND_Z = 0.05;
+    const float ASTRA_RAIN_WIND_X = 0.24;
+    const float ASTRA_RAIN_WIND_Z = 0.12;
     const float ASTRA_RAIN_DISTURBANCE = 0.05;
     {
         vec3 weatherWorld = playerPos + cameraPosition;
@@ -92,6 +93,6 @@ void main() {
     // Match the shadow pass's interpolated triangle, including foliage motion.
     // Reprojecting the interior after a nonlinear warp uses a different surface.
     surfaceShadowPosition = shadow_map_position(playerPos, normal,
-                                dot(normal, normalize(view_player(lightVector))));
+                                dot(normal, astra_shadow_light_direction()));
     gl_Position = gl_ProjectionMatrix * viewPos;
 }

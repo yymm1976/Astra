@@ -29,14 +29,12 @@ vec4 end_fog(out float skyFogStrength, float distanceToEye, float borderDistance
 }
 vec3 end_lighting(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
                   float blockLight, float emissive, float portal, float time, EndParams params) {
-    float ndotl = max(dot(normal, end_light_direction()), 0.0);
+    vec3 surfaceLight = end_light_direction();
+    float ndotl = max(dot(normal, surfaceLight), 0.0);
     float visibility = 1.0;
     #ifdef SHADOWS
-    float alignment=dot(normalize(view_player(lightVector)),end_light_direction());
-    // Engine shadows follow its own light orbit. Suppress conflicting hard shadows
-    // rather than allowing them to contradict the fixed astronomical source.
-    float shadowStrength=mix(0.025,1.0,smoothstep(0.995,0.9995,alignment));
-    visibility = mix(1.0, shadow_opaque_visibility(shadowPos), shadow_coverage(playerPos, shadowPos)*shadowStrength);
+    // Caster and receiver now share the fixed black-hole shadow projection.
+    visibility = mix(1.0, shadow_opaque_visibility(shadowPos), shadow_coverage(playerPos, shadowPos));
     #endif
     // Solas shadow mixing and palette. Astra uses a brighter diffuse response
     // below to keep the island readable with its separate exposure/tonemap.

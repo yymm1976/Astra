@@ -69,16 +69,19 @@ float end_ring_self_shadow(vec3 position,vec3 light) {
     }
     return exp(-tau*5.0);
 }
-vec3 end_ring_radiance(vec3 position,float footprint) {
+vec3 end_ring_radiance_material(vec3 position,float density,float line) {
     vec3 light=normalize(end_source_position()-position);
     vec3 radial=normalize(position+end_ring_axis()*END_RING_HEIGHT);
-    float line;
-    float density=end_ring_material(position,footprint,line);
     float warm=smoothstep(cos(radians(25.0)),1.0,dot(normalize(position),end_light_direction()));
     vec3 tint=mix(vec3(0.62,0.66,0.78),vec3(0.95,0.80,0.62),warm);
     float facing=0.20+0.80*max(dot(radial,end_light_direction()),0.0);
     float lighting=(0.012+0.15*facing)*end_ring_self_shadow(position,light);
     return tint*lighting*density+vec3(0.006,0.009,0.014)*line;
+}
+vec3 end_ring_radiance(vec3 position,float footprint) {
+    float line;
+    float density=end_ring_material(position,footprint,line);
+    return end_ring_radiance_material(position,density,line);
 }
 mat3 end_disc_basis() {
     mat3 b=end_basis(end_light_direction());

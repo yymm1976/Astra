@@ -114,7 +114,11 @@ void main() {
 	texcoord = gl_MultiTexCoord0.xy;
 	tint = gl_Color;
 
+    #ifdef DIMENSION_END
+    gl_Position = shadowProjection * vec4(end_shadow_view(eyeRelativePos),1.0);
+    #else
 	gl_Position = gl_ProjectionMatrix * viewPos;
+    #endif
 	// Use the rasterizer's triangle depth. Surface receivers interpolate this
 	// same vertex projection in lit.vsh; neither pass extrapolates a plane.
 	gl_Position.xyz = distort(gl_Position.xyz / gl_Position.w) * gl_Position.w;

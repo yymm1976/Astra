@@ -96,19 +96,12 @@ void main() {
     // deletes potion or sculk particles is worse than leaving the splash in place.
 #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
     if (temperature > 0.15) {
-        // RAIN. IterationT's Weather_FS is twenty lines: take the vanilla precipitation
-        // texture's alpha, cut the faint part, and output BLACK. The curtain darkens what
-        // is behind it instead of glowing, and its shape is the vanilla texture - which is
-        // already sparse and irregular (measured: 64x256, 2.5% of pixels non-transparent,
-        // vertical runs from 1 to 16 pixels). Every procedural replacement I wrote before
-        // this was worse than the texture it replaced: the lattice read as a picket fence,
-        // and a grey tint read as lit paint.
-        //
-        // alpha is scaled by the smoothed rain amount so a drizzle is thinner than a
-        // downpour, and the near-field fade is kept from the previous version.
-        float curtain = albedo.a * (0.55 + 0.45 * clamp(astraRainFactor, 0.0, 1.0));
-        if (curtain < 0.1) discard;
-        albedo = vec4(vec3(0.0), curtain * smoothstep(0.6, 1.7, length(playerPos)));
+        // Keep only stronger texture streaks, then lower their opacity and tint.
+        // The threshold is independent of time, so rain does not randomly flicker.
+        if (albedo.a < 0.32) discard;
+        float curtain = albedo.a * clamp(astraRainFactor, 0.0, 1.0) * 0.24;
+        albedo = vec4(vec3(0.55, 0.59, 0.64),
+                      curtain * smoothstep(0.6, 1.7, length(playerPos)));
     } else {
         // SNOW keeps the lit treatment. This is the one place we deliberately differ from
         // the reference, whose single black path would render snow as a dark curtain.
@@ -139,14 +132,30 @@ void main() {
         puddle = astra_puddle(playerPos + cameraPosition, geometricNormal, lightLevel.y);
         // Wet-surface ripple field, from the same flipbook the water impact rings use, so
         // the two never disagree about where it is raining.
-        puddleNormal = vec3(astra_rain_ripple(playerPos + cameraPosition,
-                                              astra_rain_exposure(lightLevel.y)), 1.0);
-        albedo.rgb *= 1.0 - 0.22 * wetness * astra_rain_exposure(lightLevel.y);
+        vec2 ripple = astra_rain_ripple(playerPos + cameraPosition,
+                                       astra_rain_exposure(lightLevel.y));
+        puddleNormal = normalize(vec3(ripple.x, 1.0, ripple.y));
+        albedo.rgb *= 1.0 - 0.16 * wetness * astraRainFactor * astra_rain_exposure(lightLevel.y);
     }
     #endif
     vec3 directRadiance;
     vec3 color = astra_light(albedo.rgb, normal, playerPos, surfaceShadowPosition,
                              lightLevel.y, lightLevel.x, material, directRadiance);
+    #ifdef DIMENSION_END
+    if (material == 11u) {
+        vec3 L = end_light_direction();
+        vec3 V = -normalize(playerPos);
+        vec3 H = normalize(L + V + vec3(1e-6));
+        float visibility = 1.0;
+        #ifdef SHADOWS
+        visibility = mix(1.0, shadow_opaque_visibility(surfaceShadowPosition),
+                         shadow_coverage(playerPos, surfaceShadowPosition));
+        #endif
+        float sheen = pow(max(dot(normal, H), 0.0), 18.0)
+                    * max(dot(normal, L), 0.0) * visibility;
+        color += vec3(0.022, 0.023, 0.020) * sheen;
+    }
+    #endif
     #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
         // Camera-facing precipitation has no stable surface normal. Use diffuse
         // sky and local block light, without surface shadows or sun-facing bands.
@@ -158,10 +167,9 @@ void main() {
         if (water || iceTop) {
             #if !defined DIMENSION_NETHER && !defined DIMENSION_END
             if(water && isEyeInWater == 0 && geometricNormal.y > 0.9 && astraRainFactor > 0.01) {
-                // Impact rings on a water face: the flipbook ripple field, scaled up
-                // because a water surface has no other normal detail at this scale.
+                // The shared ripple field already has a bounded slope amplitude.
                 float exposure = astra_rain_exposure(lightLevel.y);
-                vec2 ripple = astra_rain_ripple(playerPos + cameraPosition, exposure) * 4.0;
+                vec2 ripple = astra_rain_ripple(playerPos + cameraPosition, exposure);
                 normal = normalize(normal + vec3(ripple.x, 0.0, ripple.y));
             }
             #endif

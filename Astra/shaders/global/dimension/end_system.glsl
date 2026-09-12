@@ -1,7 +1,8 @@
 #ifndef ASTRA_END_SYSTEM_GLSL
 #define ASTRA_END_SYSTEM_GLSL
-#include "/global/dimension/end_ring.glsl"
 uniform sampler2D colortex8;
+#define ASTRA_END_BODY_CACHE
+#include "/global/dimension/end_ring.glsl"
 float end_eclipse() {
     vec4 illumination=texelFetch(colortex8,ivec2(0),0);
     return illumination.a>0.5 ? illumination.r : 0.0;
@@ -22,15 +23,13 @@ vec3 end_starfield(vec3 direction,vec3 lightDir,float cone) {
             vec2 c=cell+vec2(x,y);
             if(any(lessThan(c,vec2(0))) || any(greaterThanEqual(c,vec2(256)))) continue;
             vec2 h=end_hash2(c+face*401.0);
-            if(h.x>0.87) continue;
+            if(h.x>0.055) continue;
             vec2 center=c+0.15+0.7*end_hash2(c+face*419.0+37.0);
-            float radius=0.07+0.065*pow(h.y,10.0), width=max(radius,footprint*0.55);
-            float flux=0.002+0.055*pow(h.y,14.0);
+            float radius=0.11+0.10*pow(h.y,8.0), width=max(radius,footprint*0.55);
+            float flux=0.045+0.22*pow(h.y,8.0);
             float profile=exp(-dot(p-center,p-center)/(width*width))*radius*radius/(width*width);
-            float temperature=mix(6500.0,12000.0,h.x/0.87);
-            if(h.x<0.87/7.0) temperature=mix(3000.0,6000.0,h.y);
-            vec3 tint=bh_Blackbody(temperature);
-            tint/=max(max(tint.r,tint.g),tint.b);
+            vec3 tint=mix(vec3(0.84,0.90,1.0),vec3(0.97,0.98,1.0),h.y);
+            if(h.x<0.055/9.0) tint=vec3(1.0,0.89,0.75);
             float warm=smoothstep(cos(radians(25.0)),cos(radians(20.0)),dot(direction,lightDir));
             tint=mix(min(tint,vec3(tint.b))+vec3(0.03,0.045,0.06),tint,warm);
             stars+=tint*flux*profile;
@@ -39,7 +38,10 @@ vec3 end_starfield(vec3 direction,vec3 lightDir,float cone) {
     return stars;
 }
 vec3 end_background(vec3 direction,float cone) {
-    vec3 sky=vec3(0.000015,0.000025,0.00006)+end_starfield(direction,end_light_direction(),cone);
+    vec3 sky=vec3(0.000015,0.000025,0.00006);
+    #ifndef ASTRA_END_SKY_BUFFER
+    sky+=end_starfield(direction,end_light_direction(),cone);
+    #endif
     #ifdef END_NEBULA
         sky+=vec3(0.0001,0.0002,0.00045)*smoothstep(0.79,0.97,end_noise3(direction*11.0));
     #endif
@@ -54,7 +56,10 @@ vec3 end_surface_radiance(vec3 position,vec3 normal,vec3 ray,vec4 body,int id,
         if(i==id) continue;
         float hit,cover; vec3 n;
         if(end_body_intersect(position+normal*body.w*0.02,light,
-                              length(end_source_position()-position),bodies[i],i,0.0,hit,n,cover)) visibility=0.0;
+                              length(end_source_position()-position),bodies[i],i,0.0,hit,n,cover)) {
+            visibility=0.0;
+            break; // All solid bodies are opaque; further blockers cannot change this.
+        }
     }
     // Initialised because end_ring_hit() can return false without writing them;
     // the compiler rightly warns that the values would otherwise be undefined.
@@ -86,8 +91,10 @@ bool end_scene_segment(vec3 origin,vec3 ray,float limit,float cone,vec4 bodies[E
     float ringT = 0.0; vec3 ringP = vec3(0.0);
     if(end_ring_hit(origin,ray,solidT,ringT,ringP)) {
         float footprint=cone*length(ringP)/max(abs(dot(ray,end_ring_axis())),0.02);
-        radiance+=transmission*end_ring_radiance(ringP,footprint);
-        transmission*=end_ring_transmission(ringP,ray,footprint);
+        float line;
+        float density=end_ring_material(ringP,footprint,line);
+        radiance+=transmission*end_ring_radiance_material(ringP,density,line);
+        transmission*=exp(-density*vec3(2.5,3.4,4.5));
     }
     if(solid) {
         vec3 p=origin+ray*solidT;

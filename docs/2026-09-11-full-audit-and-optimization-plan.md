@@ -20,7 +20,12 @@
 
 ## 二、必须修复的缺陷（2 个，均为阻塞级）
 
-### D1（阻塞）末地的 `world1/prepare` 编译失败
+### D1（阻塞）末地的 `world1/prepare` 编译失败（2026-09-12 更正）
+
+**下述原修法已被游戏日志证伪，不再适用。** 9 月 12 日 12:49:50 的 Iris 日志明确报
+`prepare.fsh: undefined variable "RGBA16"`，随后停用光影。格式名同时需要供 Iris 文本解析
+和 GLSL 符号解析使用。最终采用 `#ifndef RGBA16` 包围 `const int RGBA16 = 0;`，保留
+`colortex8Format = RGBA16`；编译工具移除自行注入的格式宏。原记录保留以说明误判来源。
 
 - **症状**：`RESULT linked=261 failed=3`，三档 profile 全部失败，失败的 entry 都是 `world1/prepare.fsh`。
 - **报错**：`2(5) : error C0000: syntax error, unexpected integer constant, expecting ';'`
@@ -226,7 +231,7 @@ gbuffers**，不是"合并 deferred"。
 
 | # | 动作 | 位置 | 风险 |
 |---|---|---|---|
-| P0-1 | 删除 `const int RGBA16 = 0;` | `program/end_illumination.fsh:5` | 极低 |
+| P0-1 | 用 `#ifndef RGBA16` 保护格式常量声明，并移除工具注入的格式宏（9 月 12 日更正） | `program/end_illumination.fsh` | 见 D1 更正 |
 | P0-2 | `END_PRECESSION_MINUTES` 加入 `sliders=` 与三档 profile | `shaders.properties:159, 152-154` | 极低 |
 | P0-3 | 提交 GPT 的全部改动（或明确丢弃） | git | 低 |
 | P0-4 | 复跑 `compile_glsl.py` + `check_pack.py`，要求 **0 failed / 0 FAIL** | — | — |
@@ -288,7 +293,7 @@ gbuffers**，不是"合并 deferred"。
 
 | 项 | 内容 | 证据 |
 |---|---|---|
-| **P0-1** | 删除 `end_illumination.fsh` 的 `const int RGBA16 = 0;` | 编译 261/3 → 264/0 |
+| **P0-1** | 原删除声明的修法已撤销；恢复带条件保护的常量并修正工具环境 | 原 264/0 不能证明 Iris 可加载，见 D1 更正 |
 | **P0-2** | `END_PRECESSION_MINUTES` 接入 `sliders=` 与三档 profile（28/36/36） | check_pack 1 FAIL → 0 FAIL |
 | **P0-3** | GPT 的末地系统（环系/岛群/黑洞/光照预处理）落库 | `d523e41` |
 | **P1-6** | 泛光捕获 0.5 → 0.25，抽头与 mip 层精确补偿，**足迹 4/8/16/32 px 与加权平均 10.40 px 完全不变** | fragment 数降到 1/4 |

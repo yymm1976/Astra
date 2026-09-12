@@ -16,7 +16,7 @@
 //
 // Acceptance mapping (design.md 4.1 / tasks-advanced-2.md C1):
 //   仿原版方向性环境光  -> ambient_strength() (0.67 + N.y*0.33) applied to BOTH ambient terms
-//   skylight 立方衰减   -> ambient_sky_lighting(): pow(skyLight, 3.0)
+//   skylight 二次衰减   -> ambient_sky_lighting(): skyLight * skyLight (晨昏调整)
 //   日光压制生效无跳变   -> block_lighting() sqrt(skyLight) suppression (blocklight.glsl)
 //   洞底 minAmbient 正确 -> MIN_AMBIENT_COLOR floor (lib/colors.glsl), never fully black
 //   "清爽"观感基线      -> the whole tuned sum below; HDR light colours fold back in C6
@@ -86,12 +86,14 @@ float ambient_strength(float worldNormalY) {
 	return 0.67 + worldNormalY * 0.33;
 }
 
-// Sky ambient with a cubic skylight falloff (design.md 4.1: skylight 立方衰减) and the
+// Sky ambient with a quadratic skylight falloff (September 12 visual adjustment) and the
 // cave-floor minimum so unlit interiors are dim-blue, never pure black. Directional form
 // (ambientStrength scales BOTH the floor and the sky term) — this is the "仿原版方向性环境光"
 // the acceptance asks for; Steadfast's non-directional variant is not exposed in Astra.
 vec3 ambient_sky_lighting(float skyLightStrength, float ambientStrength, vec3 skyAmbient) {
-	float skyLight = pow(skyLightStrength, 3.0);
+	// Solas retains quadratic sky exposure under tree shade; the cubic response
+	// crushed partially exposed faces during the direct-light handoff.
+	float skyLight = skyLightStrength * skyLightStrength;
 	return ambientStrength * (MIN_AMBIENT_COLOR + skyLight * skyAmbient * (SKYLIGHT_STRENGTH * 0.01));
 }
 
@@ -141,6 +143,9 @@ vec3 direct_lighting(
 		//      6.9x brighter. With Steadfast's curve the ground gets 1.0, so the
 		//      grass is no longer the brightest thing on screen.
 		directLightStrength = smoothstep(-0.05, 0.05, ndotl);
+		// Blend toward Lambert at low elevations to avoid full-strength grazing bands.
+		float highSun = smoothstep(0.15, 0.50, worldLightVector.y);
+		directLightStrength *= mix(max(ndotl, 0.0), 1.0, highSun);
 		// Turned away from the light -> no direct light and no shadow sample (design.md 5).
 		if (directLightStrength < 0.0001) {
 			return vec3(0.0);
@@ -290,6 +295,12 @@ vec3 diffuse_lighting(
                                params.blocklightSuppression, params.heldLightSuppression));
     }
 
+    #if !defined DIMENSION_END && !defined DIMENSION_NETHER
+    // Moonlit outdoor shadows retain diffuse fill. Sky exposure prevents this
+    // from lifting enclosed caves; daylight keeps its existing shadow contrast.
+    float night = 1.0-smoothstep(-0.12,0.02,worldSunVector.y);
+    visibility = mix(visibility,vec3(1.0),night*0.30*skyLight*skyLight);
+    #endif
 	// 2. Local light: block light + handheld (held is purely camera-distance based).
 	float heldLight = held_light_strength(params.heldLightBase, playerPos);
 	lighting += block_lighting(

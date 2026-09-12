@@ -66,7 +66,7 @@ float astra_phase_mie(float cosineTheta) {
 	     / (8.0 * ASTRA_PI * (2.0 + g2) * base * sqrt(base));
 }
 
-vec3 astra_minishita_sky(vec3 worldDir) {
+vec3 astra_minishita_source(vec3 worldDir,vec3 sourceDir,float sourceStrength) {
 	// Two view samples cannot resolve the long grazing optical path, and negative
 	// rays can enter the solid planet. Continue the stable lower sky into the
 	// horizon instead of amplifying its erroneous olive extinction.
@@ -81,15 +81,6 @@ vec3 astra_minishita_sky(vec3 worldDir) {
 	vec3 observer = vec3(0.0, ASTRA_PLANET_RADIUS + 0.0008, 0.0);
 	float distanceToTop = astra_atmos_exit(observer, viewDir, ASTRA_ATMOS_RADIUS);
 
-	// Use whichever celestial body is above the horizon. The moon reuses the optical path at
-	// a much lower irradiance, avoiding a second integration and keeping this below the D2 budget.
-	float daylight = step(0.0, worldSunVector.y);
-	vec3 sourceDir = normalize(mix(-worldSunVector, worldSunVector, daylight));
-	// Dusk/dawn rolloff on the day gain (2026-09-06 visual round): the P0-1 calibration
-	// is sized for noon; without the rolloff the low sun's long-path olive radiance was
-	// also amplified 22x and read as yellow foil on the water surface from below.
-	float sourceStrength = mix(0.055 + 0.025 * moonProgress,
-		ASTRA_SKY_DAY_GAIN * mix(0.40, 1.0, sunProgress), daylight);
 	float mu = dot(viewDir, sourceDir);
 	float phaseR = astra_phase_rayleigh(mu);
 	float phaseM = astra_phase_mie(mu);
@@ -116,8 +107,24 @@ vec3 astra_minishita_sky(vec3 worldDir) {
 
 	vec3 radiance = (scatteredR * ASTRA_BETA_R * phaseR
 	               + scatteredM * ASTRA_BETA_M * phaseM) * sourceStrength;
+	return max(vec3(0.0),radiance);
+}
+vec3 astra_minishita_sky(vec3 worldDir) {
+    // Only twilight needs both sources. Fade residual sunlight below the horizon
+    // instead of switching the entire scattering direction at elevation zero.
+    float day=smoothstep(-0.16,0.08,worldSunVector.y);
+    vec3 radiance=vec3(0.0);
+    if(day>0.0) {
+        vec3 sun=normalize(vec3(worldSunVector.x,max(worldSunVector.y,0.01),worldSunVector.z));
+        radiance+=astra_minishita_source(worldDir,sun,
+                    ASTRA_SKY_DAY_GAIN*mix(0.40,1.0,sunProgress))*day;
+    }
+    if(day<1.0) {
+        vec3 moon=normalize(vec3(-worldSunVector.x,max(-worldSunVector.y,0.01),-worldSunVector.z));
+        radiance+=astra_minishita_source(worldDir,moon,0.055+0.025*moonProgress)*(1.0-day);
+    }
 	float night = 1.0 - skyVisibilityDay;
-	radiance += vec3(0.0035, 0.0065, 0.014) * night * (0.35 + 0.65 * max(viewDir.y, 0.0));
+	radiance += vec3(0.0035, 0.0065, 0.014) * night * (0.35 + 0.65 * max(normalize(worldDir).y, 0.0));
 	radiance *= mix(1.0, 0.58, rainStrength);
 
 	// Sky, reflections and fully fogged terrain share this continuation.

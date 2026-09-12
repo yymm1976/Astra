@@ -43,9 +43,6 @@ IRIS_PREAMBLE = """\
     for index, name in enumerate(RENDER_STAGES)
 ) + """\
 #define MC_HAND_DEPTH 0.125
-#define R11F_G11F_B10F 35898
-#define R8 33321
-#define RGBA16 32859
 """
 
 JAVA_SOURCE = r"""

@@ -1,5 +1,6 @@
 #ifndef ASTRA_END_GEOMETRY_GLSL
 #define ASTRA_END_GEOMETRY_GLSL
+#include "/lib/end_light.glsl"
 // Original Astra geometry. All lengths are virtual sky units, never world blocks.
 // The observer is always (0,0,0), including on the outer islands and in reflections.
 const float END_PI = 3.14159265359;
@@ -10,8 +11,8 @@ const float END_RING_INNER = 2.0;
 const float END_RING_SPAN = 5.6;
 // Both shepherds are in front of the source; the outer dust still extends behind it.
 const float END_SOURCE_DISTANCE = 6.8;
-const float END_SOURCE_SCALE = END_SOURCE_DISTANCE/4.4;
-const float END_LENS_RADIUS = END_SOURCE_DISTANCE*0.5;
+const float END_SOURCE_SCALE = END_SOURCE_DISTANCE/4.4*1.12;
+const float END_LENS_RADIUS = END_SOURCE_DISTANCE*0.5*1.12;
 const float END_HORIZON = 0.1847*END_SOURCE_SCALE;
 const int END_BODY_COUNT = 73;
 uniform int worldDay;
@@ -44,17 +45,27 @@ vec3 end_rotate_y(vec3 p,float a) {
     return vec3(cos(a)*p.x+sin(a)*p.z,p.y,-sin(a)*p.x+cos(a)*p.z);
 }
 mat3 end_body_basis(vec3 center,int id) {
+    #ifdef ASTRA_END_BODY_CACHE
+    int slot=75+id*3;
+    return mat3(texelFetch(colortex8,ivec2(slot,0),0).xyz,
+                texelFetch(colortex8,ivec2(slot+1,0),0).xyz,
+                texelFetch(colortex8,ivec2(slot+2,0),0).xyz);
+    #else
     if(id<66) return end_basis(normalize(center));
     vec3 up=vec3(0,1,0);
     vec3 x=normalize(cross(up,center));
     return mat3(x,up,cross(x,up));
+    #endif
 }
 // Even at closest precession alignment, the ring plane stays outside the horizon.
-vec3 end_light_direction() { return vec3(cos(radians(23.0)),sin(radians(23.0)),0); }
 vec3 end_source_position() { return end_light_direction()*END_SOURCE_DISTANCE; }
 vec3 end_ring_axis() {
+    #ifdef ASTRA_END_BODY_CACHE
+    return texelFetch(colortex8,ivec2(74,0),0).xyz;
+    #else
     float a=end_orbit_phase(float(END_PRECESSION_MINUTES)*60.0,END_PI-END_TAU*(17.5/36.0));
     return vec3(sin(radians(28.0))*cos(a),cos(radians(28.0)),sin(radians(28.0))*sin(a));
+    #endif
 }
 float end_window(float x,float a,float b,float aa) {
     return smoothstep(a-aa,a+aa,x)*(1.0-smoothstep(b-aa,b+aa,x));
@@ -69,6 +80,9 @@ vec3 end_orbit_position(mat3 basis,float u,float phase) {
 }
 // xyz = true centre, w = model scale. Each object's bounding sphere is 1.65*w.
 vec4 end_body(int id) {
+    #ifdef ASTRA_END_BODY_CACHE
+    return texelFetch(colortex8, ivec2(id + 1, 0), 0);
+    #else
     float f=float(id);
     mat3 b=end_basis(end_ring_axis());
     vec3 center; float diameter;
@@ -94,6 +108,7 @@ vec4 end_body(int id) {
         diameter=id==66 ? 9.0 : mix(3.0,7.2,end_hash(f+211.0));
     }
     return vec4(center,length(center)*tan(radians(diameter*0.5)));
+    #endif
 }
 float end_box(vec3 p,vec3 size) {
     vec3 d=abs(p)-size;

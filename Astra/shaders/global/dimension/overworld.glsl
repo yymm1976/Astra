@@ -1,5 +1,6 @@
 #ifndef ASTRA_GLOBAL_DIMENSION_OVERWORLD_GLSL
 #define ASTRA_GLOBAL_DIMENSION_OVERWORLD_GLSL
+#include "/lib/twilight.glsl"
 
 // Astra v1 - overworld sky/light facade.
 // Uniforms: worldSunVector, sunProgress, moonProgress, skyVisibilityDay, sunrise,
@@ -12,6 +13,7 @@ vec3 astra_sky_radiance(vec3 worldDir) {
 #else
 	vec3 sky = astra_minishita_sky(worldDir);
 #endif
+	sky += astra_twilight_sky(normalize(worldDir));
 #ifdef LIGHTNING_FLASH
 	// Sky-wide part of a thunderstorm flash. Before this the bolt only existed as a point
 	// light, so the terrain lit up while the sky behind it stayed black.
@@ -22,11 +24,14 @@ vec3 astra_sky_radiance(vec3 worldDir) {
 }
 
 vec3 astra_sky_ambient() {
-	vec3 dayAmbient = mix(vec3(0.12, 0.20, 0.34), vec3(0.23, 0.38, 0.68), sunProgress);
-	vec3 nightAmbient = mix(vec3(0.012, 0.020, 0.045), vec3(0.025, 0.045, 0.090), moonProgress);
+	vec3 dayAmbient = mix(vec3(0.22, 0.25, 0.32), vec3(0.23, 0.38, 0.68), sunProgress);
+	vec3 nightAmbient = mix(vec3(0.035, 0.050, 0.080), vec3(0.065, 0.090, 0.145), moonProgress) * 0.90;
 	// C1 owns the user strength multiplier. This interface returns the untuned HDR colour so
 	// every lighting consumer applies SKYLIGHT_STRENGTH exactly once.
-	vec3 ambient = mix(nightAmbient, dayAmbient, skyVisibilityDay);
+	// Twilight is diffuse illumination and persists across the sun/moon handoff.
+	float twilight = smoothstep(-0.20, 0.08, worldSunVector.y);
+	vec3 ambient = mix(nightAmbient, dayAmbient, twilight);
+	ambient += astra_twilight_tint() * (0.045 * astra_twilight_strength());
 	return mix(ambient, vec3(dot(ambient, vec3(0.25, 0.65, 0.10))) * 0.78, rainStrength * 0.55);
 }
 
@@ -47,12 +52,16 @@ vec3 astra_sky_reflection(vec3 worldDir, float roughness) {
 }
 
 vec3 astra_direct_light() {
-	vec3 sun = mix(vec3(1.30, 0.48, 0.17), vec3(1.05, 0.93, 0.78), sunProgress)
+	vec3 sun = mix(vec3(0.72, 0.38, 0.22), vec3(1.05, 0.93, 0.78), sunProgress)
 	         * (SUNLIGHT_STRENGTH * 0.01);
-	vec3 moon = mix(vec3(0.22, 0.30, 0.52), vec3(0.34, 0.43, 0.68), moonProgress)
-	          * (MOONLIGHT_STRENGTH * 0.01);
-	vec3 direct = mix(moon, sun, skyVisibilityDay);
-	return direct * mix(1.0, 0.22, astraRainFactor);
+	vec3 moon = mix(vec3(0.30, 0.40, 0.62), vec3(0.48, 0.61, 0.88), moonProgress)
+	          * (MOONLIGHT_STRENGTH * 0.0068);
+	// Match the actual shadow source, including Iris's dusk/dawn handoff.
+	vec3 source = normalize(view_player(lightVector));
+	float sunSource = step(0.0, dot(source, worldSunVector));
+	vec3 direct = mix(moon, sun, sunSource);
+	float horizon = smoothstep(0.08, 0.40, source.y);
+	return direct * horizon * mix(1.0, 0.22, astraRainFactor);
 }
 
 vec3 astra_overworld_sky(vec3 worldDir) {

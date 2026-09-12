@@ -206,7 +206,12 @@ vec3 apply_vibrance(vec3 color, float intensity) {
 }
 
 vec3 apply_contrast(vec3 color, float contrast) {
-    return (color - 0.5) * contrast + 0.5;
+    // Endpoint-preserving curve: a nonzero shadow must not become negative
+    // and get clipped to black by the final grade.
+    vec3 c = clamp(color, 0.0, 1.0);
+    vec3 low = 0.5 * pow(2.0 * c, vec3(contrast));
+    vec3 high = 1.0 - 0.5 * pow(2.0 * (1.0 - c), vec3(contrast));
+    return mix(low, high, step(vec3(0.5), c));
 }
 
 #endif
