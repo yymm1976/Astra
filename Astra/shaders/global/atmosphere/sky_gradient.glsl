@@ -29,9 +29,9 @@
 //  listed with the Astra input it is derived from; everything else is verbatim.
 //    sunFactor / sunVisibility / shadowTime
 //        verbatim from SdotU = worldSunVector.y (reference: dot(sunVec, upVec)).
-//    noonFactor      <- sunProgress            (reference: sqrt(max(sin(timeAngle*2pi),0));
-//                                               Astra precomputes sunProgress on the CPU with
-//                                               the same 0-at-horizon / 1-at-noon endpoints)
+//    noonFactor      <- sqrt of normalized solar elevation; geometric analogue
+//                       of the reference sqrt(max(sin(timeAngle*2pi),0)), with
+//                       Astra's tilted solar path divided out.
 //    nightFactor     <- 1.0 - skyVisibilityDay (reference: max(sin(-timeAngle*2pi),0);
 //                                               same 1-at-midnight / 0-at-noon endpoints)
 //    rainFactor      <- rainStrength           (reference smooths it: `smooth(1, rainStrength, 3, 3)`)
@@ -112,18 +112,21 @@ AstraSkyFactors astra_sky_factors() {
 	f.sunVisibility2 = f.sunVisibility * f.sunVisibility;   // composite.glsl:33
 
 	// lib/common.glsl:740-746
-	f.noonFactor      = sunProgress;                        // ASTRA MAP: see header
-	f.invNoonFactor   = 1.0 - f.noonFactor;
-	f.invNoonFactor2  = f.invNoonFactor * f.invNoonFactor;
+    // Use the geometric analogue of sqrt(sin(timeAngle*2pi)); sunProgress is a
+    // different easing curve and was prematurely neutralising the palette.
+    // square()/pow4() replace pow() with constant integer exponents: this function runs
+    // per sky pixel, and pow is a transcendental expansion on every vendor (lib/pow.glsl).
+	f.noonFactor      = sqrt(clamp(worldSunVector.y / cos(radians(sunPathRotation)),0.0,1.0));
+	f.invNoonFactor   = min(1.0-f.noonFactor,1.0-smoothstep(0.070,0.242,SdotU));
+	f.invNoonFactor2  = square(f.invNoonFactor);
 	f.nightFactor     = 1.0 - skyVisibilityDay;             // ASTRA MAP: see header
 	f.rainFactor      = astraRainFactor;                       // ASTRA MAP: see header
-	f.rainFactor2     = f.rainFactor * f.rainFactor;
+	f.rainFactor2     = square(f.rainFactor);
 	f.invRainFactor   = 1.0 - f.rainFactor;
 
 	// program/composite.glsl:34-36
 	float shadowTimeVar1 = abs(f.sunVisibility - 0.5) * 2.0;
-	float shadowTimeVar2 = shadowTimeVar1 * shadowTimeVar1;
-	f.shadowTime = shadowTimeVar2 * shadowTimeVar2;
+	f.shadowTime = pow4(shadowTimeVar1);
 	return f;
 }
 
@@ -157,6 +160,8 @@ AstraSkyPalette astra_sky_palette(AstraSkyFactors f) {
 	vec3 ndscWeatherM = vec3(-0.15, -0.3, -0.42) + vec3(0.0, 0.02, 0.08) * f.noonFactor;
 
 	// :36-40
+	// pow() is kept here: 2.9 is not an exact integer, so there is no multiply chain to
+	// fold it to and lib/pow.glsl's generic loop would be slower than the intrinsic.
 	vec3 noonUpSkyColor     = pow(skyColorM, vec3(2.9)) * (vec3(0.85, 0.92, 0.81) + f.rainFactor * nuscWeatherM);
 	vec3 noonMiddleSkyColor = skyColorM * (vec3(1.4, 1.3, 1.3) + f.rainFactor * nmscWeatherM)
 	                        + noonUpSkyColor * 0.25;
@@ -177,6 +182,7 @@ AstraSkyPalette astra_sky_palette(AstraSkyFactors f) {
 	p.sunsetDownP = sunsetDownSkyColorP;
 
 	// :51-54
+	// Same reasoning as noonUpSkyColor: 0.90 is not an exact integer exponent.
 	vec3 nightColFactor = 0.9 * vec3(0.07, 0.14, 0.24) * (1.0 - 0.5 * f.rainFactor) + skyColorNN;
 	p.nightUp     = pow(nightColFactor, vec3(0.90)) * 0.45;
 	p.nightMiddle = sqrt(p.nightUp) * 0.65;
@@ -241,7 +247,7 @@ vec3 astra_get_sky(float VdotU, float VdotS, float dither, bool doGlare, bool do
 
 			float visfactor = 0.075;
 			float glare = visfactor / (1.0 - (1.0 - visfactor) * VdotSM4) - visfactor;
-			glare *= 0.7;
+			glare *= 0.24;
 
 			// Astra declares isEyeInWater as int; the reference multiplies it directly.
 			float glareWaterFactor = float(isEyeInWater) * f.sunVisibility;

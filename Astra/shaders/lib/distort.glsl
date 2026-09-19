@@ -12,15 +12,23 @@ float get_distort_factor(vec2 pos) {
 
 // Shadow clip space distortion: packs resolution near the player
 vec3 distort(vec3 pos) {
+    #ifdef DIMENSION_END
+    return vec3(pos.xy,pos.z*0.5);
+    #else
     float factor = get_distort_factor(pos.xy);
     return vec3(pos.xy / factor, pos.z * 0.5);
+    #endif
 }
 
 vec3 undistort(vec3 pos) {
+    #ifdef DIMENSION_END
+    return vec3(pos.xy,pos.z/0.5);
+    #else
     // Analytic inverse of q = p / (length(p) + a). The image of finite
     // points is the open unit disk; callers must reject its unused corners.
     float factor = SHADOW_DISTORT_FACTOR / max(1.0 - length(pos.xy), 1e-5);
     return vec3(pos.xy * factor, pos.z / 0.5);
+    #endif
 }
 
 #endif

@@ -86,8 +86,8 @@ vec3 block_lighting(
 	float blocklightSuppression,
 	float heldLightSuppression
 ) {
-	float blockLightIntensity = pow(blockLight, 4.0) * (BLOCKLIGHT_STRENGTH * 0.01);
-	float heldLightIntensity  = pow(heldLight, 4.0);   // heldLight already carries HANDHELD_LIGHT_STRENGTH
+	float blockLightIntensity = pow4(blockLight) * (BLOCKLIGHT_STRENGTH * 0.01);
+	float heldLightIntensity  = pow4(heldLight);   // heldLight already carries HANDHELD_LIGHT_STRENGTH
 
 	#ifdef BLOCKLIGHT_SUPPRESSION
 		blockLightIntensity *= 1.0 - sqrt(skyLight) * blocklightSuppression;
@@ -97,6 +97,40 @@ vec3 block_lighting(
 	#endif
 
 	return BLOCKLIGHT_COLOR * min(1.0, blockLightIntensity + heldLightIntensity);
+}
+
+// ---------------------------------------------------------------------------
+// Local-light attenuation field, 0..1 = "no local light here".
+//
+// Night desaturation needs exactly the quantity block_lighting() already has to
+// build before it can tint: how much local light this fragment actually receives.
+// Returning it as a separate scalar lets diffuse.glsl desaturate the moonlight
+// response by how much torch light is present, without evaluating the block light
+// a second time and without splitting the emission the two sources are fused into
+// (the min(1, a+b) form above is what removes the seam between torch and held
+// light, so it must stay the only place they are combined).
+//
+// This is Steadfast's `1.0 - blockLight` term of NightDesaturation (its
+// environment/lighting/diffuse.glsl), generalised from the raw lightmap value to
+// Astra's two sources. Steadfast compares max(blockLight, heldLight) directly on
+// the lightmap because its lighting model has no suppression and no fourth-power
+// falloff; measured before those, a torch would fail to protect the ground it is
+// standing on.
+// ---------------------------------------------------------------------------
+float local_light_attenuation(
+	float skyLight,
+	float blockLight,
+	float heldLight,
+	float blocklightSuppression,
+	float heldLightSuppression
+) {
+	float blockLightIntensity = pow4(blockLight) * (BLOCKLIGHT_STRENGTH * 0.01);
+	float heldLightIntensity  = pow4(heldLight);
+	#ifdef BLOCKLIGHT_SUPPRESSION
+		blockLightIntensity *= 1.0 - sqrt(skyLight) * blocklightSuppression;
+		heldLightIntensity *= 1.0 - sqrt(max(skyLight, heldLightSuppression)) * blocklightSuppression;
+	#endif
+	return 1.0 - clamp(blockLightIntensity + heldLightIntensity, 0.0, 1.0);
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +161,9 @@ vec3 astra_lightning_sky_flash(vec3 worldDir, float skyLight) {
 	if (lightningBoltPosition.w < 0.5) return vec3(0.0);
 	float reach = smoothstep(0.02, 0.40, skyLight);
 	if (reach <= 0.0) return vec3(0.0);
-	float facing = clamp(dot(normalize(worldDir), normalize(lightningBoltPosition.xyz)), -1.0, 1.0);
+    vec3 bolt=lightningBoltPosition.xyz;
+    vec3 boltDirection=bolt*inversesqrt(max(dot(bolt,bolt),1e-4));
+	float facing = clamp(dot(normalize(worldDir), boltDirection), -1.0, 1.0);
 	float lobe = 0.35 + 0.65 * smoothstep(-0.4, 0.85, facing);
 	// LIGHTNING_INTENSITY is the point light's, tuned for inverse-square falloff over
 	// tens of blocks; a sky-wide term needs a far smaller coefficient or it turns the

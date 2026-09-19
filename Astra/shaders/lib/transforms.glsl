@@ -65,12 +65,23 @@ vec3 camera_relative_view(vec3 x) {
 // Do not add its translation a second time here.
 #ifdef DIMENSION_END
 #include "/lib/end_light.glsl"
+float end_shadow_extent() { return min(float(SHADOW_DISTANCE),192.0)*0.5; }
+float end_shadow_texel_size() { return 2.0*end_shadow_extent()/float(SHADOW_RESOLUTION); }
 vec3 end_shadow_view(vec3 playerPos) {
     vec3 light = end_light_direction();
     vec3 right = normalize(cross(vec3(0.0,1.0,0.0),light));
     vec3 up = cross(light,right);
-    return vec3(dot(playerPos,right),dot(playerPos,up),dot(playerPos,light))
+    float grid=end_shadow_texel_size();
+    vec2 cameraLight=vec2(dot(cameraPosition,right),dot(cameraPosition,up));
+    vec2 anchor=floor(cameraLight/grid+0.5)*grid;
+    // World-anchored texels: camera motion only shifts the map by whole texels.
+    vec2 xy=vec2(dot(playerPos,right),dot(playerPos,up))+cameraLight-anchor;
+    return vec3(xy,dot(playerPos,light))
          + vec3(0.0,0.0,shadowModelView[3].z);
+}
+vec3 end_shadow_ndc(vec3 playerPos) {
+    vec3 view=end_shadow_view(playerPos);
+    return vec3(view.xy/end_shadow_extent(),project_and_divide(shadowProjection,view).z);
 }
 #endif
 vec3 astra_shadow_light_direction() {
@@ -82,7 +93,7 @@ vec3 astra_shadow_light_direction() {
 }
 vec3 player_shadow(vec3 player_pos) {
     #ifdef DIMENSION_END
-    return project_and_divide(shadowProjection,end_shadow_view(player_pos));
+    return end_shadow_ndc(player_pos);
     #else
     vec3 shadow_pos = project_and_divide(shadowProjection,
         (shadowModelView * vec4(player_pos, 1.0)).xyz);

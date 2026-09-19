@@ -1,5 +1,6 @@
 #ifndef ASTRA_GLOBAL_LIGHTING_DIFFUSE_GLSL
 #define ASTRA_GLOBAL_LIGHTING_DIFFUSE_GLSL
+#include "/lib/twilight.glsl"
 
 // Astra v1 — global/lighting/diffuse.glsl
 // The main surface-lighting composer (design.md 4.1): ambient sky + local light + direct
@@ -13,6 +14,12 @@
 // _analysis/Steadfast-0.8.0/LICENSE.md. Redistribution is permitted only under that
 // license including Steadfast's Section 7 additional terms.
 // Publish gate: design.md 9.3 + escalations.md SC-14 (⏸ pending user decision).
+//
+// 2026-09-16 visual-experience round (docs/2026-09-16-shader-visual-experience-study.md):
+//   - night is expressed by lit colour and a light-protected desaturation, not by an
+//     extra distance darkening on top of the sky ambient (see night_desaturation()).
+//   - foliage gained the view-dependent transmission term the study asks for; it lives
+//     in sss.glsl and is blended into `visibility` here, so no second shadow read.
 //
 // Acceptance mapping (design.md 4.1 / tasks-advanced-2.md C1):
 //   仿原版方向性环境光  -> ambient_strength() (0.67 + N.y*0.33) applied to BOTH ambient terms
@@ -93,7 +100,7 @@ float ambient_strength(float worldNormalY) {
 vec3 ambient_sky_lighting(float skyLightStrength, float ambientStrength, vec3 skyAmbient) {
 	// Solas retains quadratic sky exposure under tree shade; the cubic response
 	// crushed partially exposed faces during the direct-light handoff.
-	float skyLight = skyLightStrength * skyLightStrength;
+	float skyLight = skyLightStrength * mix(0.25, 1.0, skyLightStrength);
 	return ambientStrength * (MIN_AMBIENT_COLOR + skyLight * skyAmbient * (SKYLIGHT_STRENGTH * 0.01));
 }
 
@@ -116,14 +123,24 @@ vec3 direct_lighting(
 	bool  subsurfaceScatter,
 	bool  isLeaves,
 	bool  isGlass,
-	vec3  visibility
+	vec3  visibility,
+	vec3  viewDir
 ) {
 	float ndotl = dot(worldNormal, worldLightVector);
 	float directLightStrength;
+	float sssTransmission = 0.0;
 
 	if (subsurfaceScatter) {
 		// Foliage / SSS material: light wraps around the surface (sss.glsl).
 		directLightStrength = sss_wrap(ndotl, isLeaves, SSS_STRENGTH * 0.01);
+		// The wrap above is independent of where the camera is, which is why a leaf
+		// seen against the sun was no brighter than the same leaf seen from the lit
+		// side. This is the missing view-dependent half of the reference's leaf
+		// model (Complementary mainLighting.glsl:241-254 subsurfaceHighlight), kept
+		// as a factor on `visibility` rather than as an added light so it can never
+		// escape the occlusion the wrap already paid for.
+		sssTransmission = sss_transmission(ndotl, viewDir, worldLightVector, isLeaves,
+		                                   skyLight, SSS_STRENGTH * 0.01);
 	} else if (isGlass) {
 		// Transparent: directional shading reads wrong, so use a fixed top-lit response
 		// (Steadfast's glass model, 0.2071 = 0.7071*0.33/1.13 tuned constant).
@@ -145,7 +162,18 @@ vec3 direct_lighting(
 		directLightStrength = smoothstep(-0.05, 0.05, ndotl);
 		// Blend toward Lambert at low elevations to avoid full-strength grazing bands.
 		float highSun = smoothstep(0.15, 0.50, worldLightVector.y);
-		directLightStrength *= mix(max(ndotl, 0.0), 1.0, highSun);
+        float grazing=max(ndotl,0.0);
+        #if !defined DIMENSION_END && !defined DIMENSION_NETHER
+        // A small forward-facing wrap catches sunrise on grass and stair tops;
+        // the existing facing gate still excludes back faces entirely.
+        // Complementary mainLighting.glsl: SIDE_SHADOWING uses a wrapped
+        // normal response, then sqrt2, instead of extinguishing grazing light.
+        float wrapped=clamp((ndotl+0.4)/1.4,0.0,1.0);
+        wrapped=wrapped*(2.0-wrapped);
+        grazing=mix(grazing,wrapped,astra_twilight_strength()
+                         *smoothstep(0.0,0.05,worldSunVector.y));
+        #endif
+		directLightStrength *= mix(grazing, 1.0, highSun);
 		// Turned away from the light -> no direct light and no shadow sample (design.md 5).
 		if (directLightStrength < 0.0001) {
 			return vec3(0.0);
@@ -154,10 +182,68 @@ vec3 direct_lighting(
 
 	// Visibility already comes from the shadow map (and skylight outside its
 	// coverage). Multiplying by vanilla skylight here attenuates open water twice.
+	//
+	// Foliage transmission: a leaf lit from behind still transmits, and the shadow
+	// map already says whether the light reaches it. Instead of adding light on top
+	// of the occluded value, the transmission lifts the floor that occlusion can
+	// pull the direct term down to, so a fully shadowed canopy keeps a fraction of
+	// the light rather than becoming opaque and the effect can never brighten a
+	// fragment past its own unshadowed direct light.
+	if (sssTransmission > 0.0)
+		visibility *= mix(vec3(mix(0.30, 0.62, sssTransmission)), vec3(1.0), sssTransmission);
 
 	// B1 returns the combined static-fallback + real-time + in-shadow-SSS multiplier as a
 	// vec3 (colored shadows tint per channel).
 	return directLightStrength * visibility;
+}
+
+// ---------------------------------------------------------------------------
+// Night expression: a light, local-light-protected desaturation of the surface.
+//
+// Steadfast expresses night with NIGHT_DESATURATION_EFFECT
+// (environment/lighting/diffuse.glsl NightDesaturation/Desaturate, and its
+// shaders.properties uniforms: desaturationIntensity = 0.66 * (1 - dayAmbientFade),
+// desaturationColor = vec3(0.33, 0.5, 1.0)). The user's complaint that Astra's
+// nights were carried by darkening the distance rather than by night colour is the
+// gap this closes, so the mechanism is adopted while the constants are not:
+//   - intensity 0.66 is a full third of the way to blue-grey; at Astra's ambient
+//     floor that reads as a filter over the whole night rather than as moonlight.
+//     A third of that is enough to separate moonlit ground from torched ground.
+//   - the effect is scaled by sky exposure, so caves, interiors and the dark keep
+//     their material colour - Steadfast's skyLight factor, which is also what keeps
+//     this off the Nether and off anything the End lights by its own palette.
+//   - local light removes it (local_light_attenuation, the same division of labour
+//     Steadfast's max(blockLight, heldLight) performs), so a torch's pool keeps the
+//     warm albedo that identifies it as firelight. It touches lit colour only, so
+//     emissive blocks and portals are untouched by construction.
+//   - it is deliberately NOT a replacement for readout in the dark: shadow
+//     interiors still get their light from the ambient rebalance in the composer,
+//     not from being left saturated.
+const float NIGHT_DESATURATION_INTENSITY = 0.20;
+// Kept close to neutral on purpose. Steadfast's vec3(0.33, 0.5, 1.0) drives the
+// desaturated result hard towards blue, which is right for its own night palette and
+// wrong here: Astra already has a cool night sky ambient, so a strongly blue luma would
+// turn the whole night into the "把所有东西染成蓝灰" the task rules out. This only
+// takes a little of the warm out, which is enough to tell moonlit ground from
+// torchlit ground.
+const vec3  NIGHT_DESATURATION_COLOR     = vec3(0.40, 0.50, 0.94);
+
+// `visibility` is the resolved shadow multiplier for this fragment. It gates the
+// effect because desaturation is a statement about which light is reaching the
+// surface, not about how much sky the surface can see: terrain in the moon's shadow
+// must keep its albedo, which is the same rule the local-light term below applies for
+// torchlight. Only the moonlit part of the night is allowed to lose its colour.
+float night_desaturation(float skyLight, float localAttenuation, vec3 visibility) {
+	float night = 1.0 - skyVisibilityDay;
+	// Night vision is the player asking for colour to survive the dark.
+	night *= 1.0 - clamp(nightVision, 0.0, 1.0);
+	float lit = dot(visibility, vec3(0.2126, 0.7152, 0.0722));
+	return NIGHT_DESATURATION_INTENSITY * night * skyLight * localAttenuation * lit;
+}
+
+vec3 desaturate_surface(vec3 color, float amount) {
+	float luma = dot(color, vec3(0.299, 0.587, 0.114));
+	return mix(color, luma * NIGHT_DESATURATION_COLOR, amount);
 }
 
 // Resolve transparent tint and occlusion from paired depths at the same texel.
@@ -196,20 +282,11 @@ vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
             filtered += transmission*transparentVisibility;
         }
         #else
-        for (int i = 0; i < SHADOW_FILTER_TAPS; ++i) {
-            float weight;
-            vec2 uv = shadow_filter_uv(shadowPos, i, weight);
-            ShadowTap tap = shadow_read_tap(uv, shadowPos.z);
-            vec3 transmission = vec3(0.0);
-            #ifdef COLORED_SHADOWS
-                transmission = tap.caster.gba;
-            #endif
-            if (tap.caster.r < 0.999) {
-                // Steadfast's air-side bed has no second water absorption.
-                transmission = isEyeInWater == 1 ? tap.caster.gba : vec3(1.0);
-            }
-            filtered += (vec3(tap.allVisibility)
-                + transmission * max(tap.opaqueVisibility - tap.allVisibility, 0.0)) * weight;
+        for (int lobe = 0; lobe < 4; ++lobe) {
+            vec2 offset = vec2((lobe & 1) == 0 ? -1.0 : 1.0,
+                               (lobe & 2) == 0 ? -1.0 : 1.0) * (float(SHADOW_SOFTNESS)*0.5);
+            vec2 uv = shadowPos.xy + offset / float(shadowMapResolution);
+            filtered += shadow_lobe_light(uv, shadowPos.z) * 0.25;
         }
         #endif
         return mix(vec3(fallback), filtered, coverage);
@@ -241,6 +318,9 @@ vec3 diffuse_lighting(
 ) {
 	// lightVector is view-space (frozen uniform); the lighting math is world-space.
 	vec3 worldLightVector = normalize(view_player(lightVector));
+	// Direction from the surface towards the camera. Straight from the rasterized
+	// position, so the view-dependent terms cost one normalize and nothing else.
+	vec3 viewDir = normalize(-playerPos);
 
 	// 1. Ambient sky. SSS material is shaded as if perpetually at 45° (0.7071) for ambient
 	//    too, matching how it is treated for direct light (Steadfast).
@@ -290,16 +370,47 @@ vec3 diffuse_lighting(
         vanilla = mix(1.0, vanilla * vanilla, clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0));
         sceneLight += solasMinLight * (1.0 - skyLight) + params.nightVision * vec3(0.2, 0.3, 0.2);
         float held = held_light_strength(params.heldLightBase, playerPos);
+        // The lake bed is lit by the same light as the bank it belongs to, and the
+        // same night colour rule applies to it. Skipping this made a night lake bed
+        // the one surface that stayed fully saturated under a desaturated night.
+        surfaceColor = desaturate_surface(surfaceColor, night_desaturation(skyLight,
+            local_light_attenuation(skyLight, blockLight, held,
+                                    params.blocklightSuppression, params.heldLightSuppression),
+            visibility));
         directRadiance = surfaceColor * direct * shadow * vanilla;
         return surfaceColor * (sceneLight * vanilla + block_lighting(skyLight, blockLight, held,
                                params.blocklightSuppression, params.heldLightSuppression));
     }
 
     #if !defined DIMENSION_END && !defined DIMENSION_NETHER
-    // Moonlit outdoor shadows retain diffuse fill. Sky exposure prevents this
-    // from lifting enclosed caves; daylight keeps its existing shadow contrast.
-    float night = 1.0-smoothstep(-0.12,0.02,worldSunVector.y);
-    visibility = mix(visibility,vec3(1.0),night*0.30*skyLight*skyLight);
+    // Outdoor diffuse fill softens contrast without removing cast shadows.
+    // Unexposed interiors still receive only the existing cave floor.
+    //
+    // Distance behaviour of the night (2026-09-16 visual-experience round). The user's
+    // report was "为了表现夜晚压暗远处，导致背光方块没有纹理" - dark distant blocks with
+    // no texture. Two terms were doing the same job:
+    //   - this floor, which trades cast shadow for ambient fill at night (0.52),
+    //   - the moonDistance ramp, applied to the ambient AND again to `direct` below.
+    // The ambient ramp keeps the distance gradient; the second application on the
+    // direct term was pure layered attenuation and is removed. The floor drops so the
+    // shadow the moon casts still reads, which is what puts texture back on the faces
+    // that face away from it. Night vision keeps the old forgiving value.
+    float night = (1.0-smoothstep(-0.12,0.02,worldSunVector.y))
+                * (1.0-clamp(params.nightVision,0.0,1.0));
+    float moonDistance=smoothstep(12.0,128.0,length(playerPos));
+    visibility = mix(visibility,vec3(1.0),
+                     night*0.40*skyLight*skyLight*(1.0-0.50*moonDistance));
+    // Attenuate sky illumination with distance before adding local lights.
+    // The moon remains directional; there is no view-facing spotlight.
+    vec3 caveFloor=ambientStr*MIN_AMBIENT_COLOR;
+    lighting=caveFloor+(lighting-caveFloor)*mix(1.0,mix(0.95,0.68,moonDistance),night);
+    // Outdoor horizon fill is independent of shadow visibility, so long
+    // shadows keep their shape while shaded terrain retains cool detail.
+    float twilightFill=astra_twilight_strength()*skyLight*skyLight
+        *(1.0-clamp(params.nightVision,0.0,1.0));
+    lighting += vec3(0.025,0.024,0.030)*twilightFill*ambientStr
+        *mix(1.0,0.65,smoothstep(32.0,160.0,length(playerPos)))
+        *(SKYLIGHT_STRENGTH*0.01);
     #endif
 	// 2. Local light: block light + handheld (held is purely camera-distance based).
 	float heldLight = held_light_strength(params.heldLightBase, playerPos);
@@ -319,9 +430,25 @@ vec3 diffuse_lighting(
 	vec3 direct = direct_lighting(
 		worldNormal, worldLightVector, playerPos, shadowPos,
 		skyLight, subsurfaceScatter, isLeaves, isGlass,
-		visibility * (subsurfaceScatter ? 0.7071 : 1.0));
+		visibility * (subsurfaceScatter ? 0.7071 : 1.0),
+		viewDir);
+	// The ambient term above already carries the whole night distance ramp
+	// (moonDistance); scaling the direct term by it as well darkened exactly the
+	// faces the moon was lighting, which is where the missing texture came from.
 	// Water tint/caustics are already part of each visibility tap.
 	directRadiance = surfaceColor * direct * params.directLightSurface;
+
+	// Night is carried by colour, not by removing light: see night_desaturation().
+	// Applied to the albedo, so it reaches ambient, local and direct light alike
+	// while the emissive add in program/scene.glsl (albedo * EMISSIVE_STRENGTH) and
+	// the block_lighting() emission - both added after this point - keep their own
+	// colour. Runs for glass and foliage too: those are exactly the surfaces whose
+	// night colour used to be decided entirely by the sky.
+	float localAttenuation = local_light_attenuation(
+		skyLight, blockLight, heldLight,
+		params.blocklightSuppression, params.heldLightSuppression);
+	surfaceColor = desaturate_surface(
+		surfaceColor, night_desaturation(skyLight, localAttenuation, visibility));
 
 	return surfaceColor * lighting + directRadiance;
 }

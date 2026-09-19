@@ -1,6 +1,8 @@
 // Astra E1. Only one output transfer; C6 grading consumes sRGB (SC-16).
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
+#include "/lib/transforms.glsl"
+#include "/lib/twilight.glsl"
 #include "/lib/encoding.glsl"
 #include "/lib/tonemap.glsl"
 #include "/global/post/grading.glsl"
@@ -8,11 +10,10 @@
 #include "/lib/solas_water.glsl"
 #include "/lib/water_buffer_formats.glsl"
 #ifdef UNDERWATER_PARTICLES
-    #include "/lib/transforms.glsl"
     #include "/global/water/absorption.glsl"
     #include "/global/water/particles.glsl"
 #endif
-#if defined BLOOM || defined DIMENSION_END
+#ifdef BLOOM
     #include "/global/post/bloom.glsl"
     uniform sampler2D colortex2;
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
@@ -21,7 +22,7 @@
     #endif
     const bool colortex2MipmapEnabled = true;
 #endif
-#if defined GODRAYS || defined ASTRA_UNDERWATER_SHAFTS
+#ifdef GODRAYS
 #ifndef DIMENSION_NETHER
 #ifndef DIMENSION_END
     uniform sampler2D colortex1;
@@ -32,12 +33,18 @@ uniform sampler2D colortex0;
 in vec2 texcoord;
 void main() {
     vec3 hdr = max(texture(colortex0, texcoord).rgb, vec3(0.0));
-    #if defined BLOOM || defined DIMENSION_END
+    #ifdef BLOOM
         #if !defined DIMENSION_NETHER && !defined DIMENSION_END
         if (isEyeInWater == 1) getBloom(hdr, texcoord, texture(depthtex0, texcoord).r);
         else
         #endif
-        hdr += bloom_composite(colortex2, texcoord, BLOOM_STRENGTH * 0.01);
+        {
+            float bloomStrength=BLOOM_STRENGTH*0.01;
+            #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+            bloomStrength*=1.0-0.28*astra_twilight_strength();
+            #endif
+            hdr += bloom_composite(colortex2,texcoord,bloomStrength);
+        }
     #endif
     #ifdef GODRAYS
     #ifndef DIMENSION_NETHER
@@ -67,6 +74,17 @@ void main() {
             hdr += water_particles(rayDir, sceneDistance, eyeSky, frameTimeCounter);
         }
     #endif
+    // Darkness belongs to the assembled scene: fog, clouds, water and the sky
+    // must not escape it through different render paths. Apply after bloom and
+    // shafts, before tone mapping, with one continuous distance response.
+    float dark=clamp(darknessFactor,0.0,1.0);
+    if (dark > 0.0) {
+        float depth=texture(depthtex0,texcoord).r;
+        float distanceToEye=depth >= 0.999999 ? 65536.0
+                            : length(screen_view(vec3(texcoord,depth)));
+        float obscured=smoothstep(3.0,28.0,distanceToEye);
+        hdr *= mix(1.0,mix(0.40,0.001,obscured),dark);
+    }
     vec3 displayColor = srgb_encode(apply_tonemap(apply_exposure(hdr)));
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
         if (isEyeInWater == 1) displayColor = solas_water_display(apply_exposure(hdr));

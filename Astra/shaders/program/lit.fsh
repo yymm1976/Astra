@@ -41,14 +41,25 @@ void main() {
     // Use the rasterized surface itself for lighting and waves. A depth-buffer
     // reconstruction is unnecessary here and can disagree with per-pass projection.
     vec3 playerPos = cameraRelativePosition;
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    // Before alpha rejection and material branches, for the entire quad.
+    vec2 rippleCoord=playerPos.xz/ASTRA_RIPPLE_TILE;
+    float rippleFootprint=max(length(dFdx(rippleCoord)),length(dFdy(rippleCoord)));
+    #endif
     vec3 viewPos = camera_relative_view(playerPos);
     vec3 normal = unpack_octahedral(faceData, 9);
     uint material = (faceData >> 18) & 15u;
     bool water = material == 1u;
-    bool iceTop = material == 9u && normal.y > 0.99;
+    bool ice = material == 9u;
+    bool iceTop = ice && normal.y > 0.99;
     #ifdef ASTRA_WATER_PASS
         // Evaluate derivatives before alpha rejection or divergent material flow.
-        WaterSurface waves = water_surface(playerPos + cameraPosition, normal, frameTimeCounter);
+        bool activeWaves=water;
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        // The submerged interface supplies its own Solas normal below.
+        activeWaves=activeWaves && isEyeInWater != 1;
+        #endif
+        WaterSurface waves = water_surface(playerPos + cameraPosition, normal, frameTimeCounter,activeWaves);
         if (water) {
             normal = waves.normal;
             #ifdef WATER_WAVES
@@ -125,17 +136,50 @@ void main() {
     #if defined ASTRA_WEATHER && (defined DIMENSION_NETHER || defined DIMENSION_END)
         discard;
     #endif
+    // Damp ground and standing water are separate signals (global/atmosphere/weather.glsl):
+    //   surfaceWet  - how damp, drives darkening and gloss only.
+    //   puddle      - sparse standing water, the only thing that drives a REFLECTION.
+    // Both are gated on the same rain envelope, so both clear when the rain stops.
+    //
+    // SC-39 (2026-09-17 correction). The first version of this wrote `surfaceWet` into
+    // colortex3.a and then let program/deferred.fsh derive the reflection weight from
+    // it (`smoothstep(0.30, 0.85, wetSurface)`). That is the wrong signal: `surfaceWet`
+    // is the BROAD damp mask, which saturates to ~1 across all rain-wet terrain, so the
+    // derived weight was 1 nearly everywhere and the expensive 96-tap puddle reflection
+    // ran as widely as before the change - the opposite of the stated intent, and the
+    // direct cause of the "泛白的反射块" the same round was supposed to remove. `puddle`
+    // was computed and then never used by anything.
+    //
+    // The sparse mask now travels to deferred through colortex0.a instead, which no
+    // other consumer of this pass reads (see the note at the write site below). The
+    // ripple normal keeps BOTH signals: its amplitude is the puddle width, so standing
+    // water carries the full ripple, damp ground carries a faint one, and dry ground is
+    // flat - which is also what lets deferred treat "this fragment has a ripple" as the
+    // "there is water here" test without a third channel.
     float puddle = 0.0;
+    float surfaceWet = 0.0;
     vec3 puddleNormal = geometricNormal;
     #if defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT && !defined DIMENSION_NETHER && !defined DIMENSION_END
-    if (material == 0u && isEyeInWater == 0 && wetness > 0.001) {
-        puddle = astra_puddle(playerPos + cameraPosition, geometricNormal, lightLevel.y);
-        // Wet-surface ripple field, from the same flipbook the water impact rings use, so
-        // the two never disagree about where it is raining.
-        vec2 ripple = astra_rain_ripple(playerPos + cameraPosition,
-                                       astra_rain_exposure(lightLevel.y));
+    if (material == 0u && isEyeInWater == 0 && astraRainFactor > 0.001) {
+        surfaceWet = astra_wet_ground(geometricNormal, lightLevel.y);
+        vec3 wetWorldPos = playerPos + cameraPosition;
+        // Standing water: unchanged coverage. The sky-exposure gate is applied inside
+        // astra_puddle on the fragment's own lightmap, so an overhanging leaf does not
+        // grow a puddle.
+        puddle = astra_puddle(wetWorldPos, geometricNormal, lightLevel.y);
+        // Ripples belong to BOTH: rain is striking the damp ground all around the
+        // patch, not only the puddle. `graze` damps the perturbation at shallow view
+        // angles (see astra_rain_ripple) - computed from the rasterized geometric
+        // normal, so it is derivative-free and safe on shoreline quads.
+        float graze = abs(dot(geometricNormal, normalize(playerPos)));
+        vec2 ripple = astra_rain_ripple(wetWorldPos, astra_rain_exposure(lightLevel.y),
+                                        rippleFootprint, graze, puddle);
         puddleNormal = normalize(vec3(ripple.x, 1.0, ripple.y));
-        albedo.rgb *= 1.0 - 0.16 * wetness * astraRainFactor * astra_rain_exposure(lightLevel.y);
+        // Damp darkening. BSL darkens by 0.15 + 0.5 * porosity of the PUDDLE factor
+        // (rainPuddles.glsl:80-85); Astra has no porosity map, so a flat 0.18 replaces
+        // it, scaled by how damp the fragment is. Uses the original 0.16 constant on
+        // the puddle term so standing water is the darker of the two.
+        albedo.rgb *= 1.0 - 0.18 * surfaceWet - 0.16 * puddle;
     }
     #endif
     vec3 directRadiance;
@@ -146,14 +190,59 @@ void main() {
         vec3 L = end_light_direction();
         vec3 V = -normalize(playerPos);
         vec3 H = normalize(L + V + vec3(1e-6));
+        // ------------------------------------------------------------------
+        // End stone: the narrow and broad lobes already existed and are kept.
+        // What they lacked is texture - every texel of a wall returned the same
+        // plastic gloss, because the term was a pure function of (normal, light,
+        // view). Complementary gives its end stone a per-texel roughness from the
+        // texture's red channel high powers (lib/materials/specificMaterials/
+        // terrain/endStone.glsl). The first attempt here derived that from the
+        // albedo alone and that is not enough: the end stone atlas cells are close
+        // to uniform, so pow(luma, 6) came out nearly constant across the block and
+        // the surface stayed plastic. What the block actually looks like is a few
+        // brighter mineral grains among matte rock, so the grain is reconstructed
+        // from two inputs:
+        //   - the albedo (already sampled for the diffuse pass - no extra texture
+        //     read), which biases the whole cell by how bright it is,
+        //   - a world-space hash on a four-per-block grid, which is the grain
+        //     itself. Fixed world coordinates, not a screen or frame hash, so the
+        //     pattern is static on the block, identical every frame and stable
+        //     under camera motion - it cannot read as noise or as flicker.
+        // ------------------------------------------------------------------
+        vec3 worldPos = playerPos + cameraPosition;
+        // Two per block: the end-stone atlas cell is 16 texels across, so its own
+        // grain is ~1/16 block, and a grid finer than the texture would only add
+        // shimmer. Two per block is also right at the resolvable edge at the shadow
+        // range, which is where the footprint fade below takes over.
+        float grainCell = fract(sin(dot(floor(worldPos * 2.0),
+                                         vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+        float grainMask = smoothstep(0.52, 0.90, grainCell);
+        float grainTone = clamp(dot(albedo.rgb, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
+        // Wide dynamic range on purpose: most of the block stays matte at 0.20 and
+        // the grains reach full gloss. That is what keeps this stone rather than
+        // plastic - the complaint was uniform sheen, and a narrow range would
+        // reproduce it.
+        float gloss = 0.20 + 0.80 * grainMask * mix(0.55, 1.0, grainTone);
+        // Micro-detail has to converge with the screen footprint or a distant wall
+        // turns into a field of flickering pixels. The texture footprint in atlas
+        // space, in texels per pixel, is the honest measure of what is resolvable;
+        // the same derivative-based idea Complementary uses for its generated
+        // normals. No noise, no per-frame randomisation.
+        float footprint = max(length(dFdx(texcoord)), length(dFdy(texcoord))) * 256.0;
+        gloss = mix(gloss, 0.48, smoothstep(0.6, 2.4, footprint));
         float visibility = 1.0;
         #ifdef SHADOWS
+        // Unchanged: the shadow the diffuse pass already respects. No second
+        // lighting evaluation, no black-hole reflection trace.
         visibility = mix(1.0, shadow_opaque_visibility(surfaceShadowPosition),
                          shadow_coverage(playerPos, surfaceShadowPosition));
         #endif
-        float sheen = pow(max(dot(normal, H), 0.0), 18.0)
+        float sheen = pow(max(dot(normal, H), 0.0), 24.0)
                     * max(dot(normal, L), 0.0) * visibility;
-        color += vec3(0.022, 0.023, 0.020) * sheen;
+        float broad = pow(max(dot(normal, H), 0.0), 5.0)
+                    * max(dot(normal, L), 0.0) * visibility;
+        color += vec3(0.055, 0.057, 0.049) * (sheen * mix(0.30, 1.70, gloss))
+               + vec3(0.010, 0.011, 0.009) * (broad * mix(0.75, 1.20, gloss));
     }
     #endif
     #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
@@ -168,14 +257,27 @@ void main() {
             #if !defined DIMENSION_NETHER && !defined DIMENSION_END
             if(water && isEyeInWater == 0 && geometricNormal.y > 0.9 && astraRainFactor > 0.01) {
                 // The shared ripple field already has a bounded slope amplitude.
+                // Same grazing damping as the wet-ground field above: on water the
+                // surface normal being perturbed is the wave normal, and at a shallow
+                // view angle that is what made distant rain streaks look torn.
                 float exposure = astra_rain_exposure(lightLevel.y);
-                vec2 ripple = astra_rain_ripple(playerPos + cameraPosition, exposure);
+                float waterGraze = abs(dot(geometricNormal, normalize(playerPos)));
+                // Standing water by definition: full ripple amplitude.
+                vec2 ripple = astra_rain_ripple(playerPos + cameraPosition, exposure,
+                                                rippleFootprint, waterGraze, 1.0);
                 normal = normalize(normal + vec3(ripple.x, 0.0, ripple.y));
             }
             #endif
-            float roughness = water ? waves.roughness : 0.08;
+            // Ice is NOT water with a different colour, and it must not share water's
+            // surface response: 0.08 was a near-mirror, which is exactly the "透明洞"
+            // read (the sky reflection swamped the texture). 0.24 sits inside the range
+            // astra_sky_reflection() already handles - it is bluer and softer than
+            // water's 0.035..0.135 and keeps the cel surface texture as the dominant
+            // signal. Below this, astra_water()'s !water branch uses `roughness` for the
+            // single reflection blend, so the whole ice response follows from here.
+            float roughness = water ? waves.roughness : 0.24;
             vec4 surface = astra_water(color, albedo.a, playerPos, viewPos, normal,
-                                       roughness, lightLevel.y, water, geometricNormal);
+                                       roughness, lightLevel.y, water, ice, geometricNormal);
             color = surface.rgb;
             albedo.a = surface.a;
         } else {
@@ -221,10 +323,43 @@ void main() {
         #endif
     #endif
     ASTRA_LIT_COLOR = vec4(max(color, vec3(0.0)), albedo.a);
+    // SC-39: the sparse standing-water mask rides in the GEOMETRY buffer's alpha channel
+    // (colortex3) from here to program/deferred.fsh.
+    //
+    // Which channel, and why. The first attempt used the scene colour's alpha
+    // (colortex0.a) on the stated reasoning that R11F_G11F_B10F leaves its A channel as
+    // unused padding. That is false - R11F_G11F_B10F is an RGB format with NO alpha
+    // channel at all, so the write is dropped and every read returns 1.0. The gate in
+    // deferred.fsh would then have passed on every pixel and re-created the very
+    // "reflection over the whole wet world" fault this change exists to remove, silently
+    // and with a comment claiming it was safe. Verified against the authoritative
+    // declaration: lib/water_buffer_formats.glsl sets colortex0Format = R11F_G11F_B10F.
+    //
+    // colortex3 is the correct carrier. It is not format-declared by this pack, so it
+    // keeps Iris's RGBA8 default - a real alpha channel - and its clear colour already
+    // writes an alpha of 1.0 (settings.glsl colortex3ClearColor), so the channel is
+    // established rather than undefined. Nothing reads colortex3.a: deferred.fsh takes
+    // only .r (packed skylight + hand flag) and .gb (the ripple normal).
+    //
+    // Written by every opaque writer so no stale value survives a frame:
+    //   - opaque terrain: the puddle coverage;
+    //   - the water pass: 0 (its own branch of gl_FragData[1] below, where .a currently
+    //     holds a constant 1.0 that has no reader);
+    //   - translucents and weather: 0, via the else-branch below, which keeps a puddle
+    //     an opaque-ground feature - correct, since standing water needs opaque ground.
+    //
+    // The HAND pass is excluded: its fragments carry the high bit in gl_FragData[1].r
+    // and are re-projected in deferred, so it must not also claim a puddle.
     #ifdef ASTRA_WATER_PASS
         gl_FragData[1] = water && abs(geometricNormal.y) > 0.9
             ? vec4(water_pack_surface_height(playerPos.y + cameraPosition.y), lightLevel.y, 1.0)
             : vec4(0.0);
+        // .a held a constant 1.0 with no consumer; it now carries the puddle mask. The
+        // water pass never computes one (its terrain branch is ASTRA_TRANSLUCENT), so
+        // this is 0 for water and ice, and for a non-water material in this pass - such
+        // as ice's side faces - it carries the opaque terrain's value if the fragment
+        // really is ground. material == 0u is the same test the terrain branch uses.
+        gl_FragData[1].a = material == 0u ? clamp(puddle, 0.0, 1.0) : 0.0;
     #endif
     #ifndef ASTRA_TRANSLUCENT
         // Seven light bits retain more precision than the 16 Minecraft light levels.
@@ -233,6 +368,9 @@ void main() {
         #ifdef ASTRA_HAND
             lightData |= 128u;
         #endif
-        gl_FragData[1] = vec4(float(lightData) / 255.0, encode_unit_vector(puddleNormal) * 0.5 + 0.5, puddle);
+        gl_FragData[1] = vec4(float(lightData) / 255.0, encode_unit_vector(puddleNormal) * 0.5 + 0.5, surfaceWet);
+        // Opaque ground only. `material == 0u` excludes water, glass, ice, leaves and the
+        // emissive groups, so the mask cannot appear on a surface that cannot hold water.
+        gl_FragData[1].a = material == 0u ? clamp(puddle, 0.0, 1.0) : 0.0;
     #endif
 }

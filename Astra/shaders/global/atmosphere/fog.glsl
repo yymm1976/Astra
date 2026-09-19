@@ -36,6 +36,49 @@ struct FogParams {
 	float eyeSkylight;      // smoothed skylight at the camera, 0..1
 };
 
+// ---------------------------------------------------------------------------
+// Valley mist: the density of the air as a function of ALTITUDE.
+//
+// The study's item D asks for fog with a height relationship - valleys and low
+// ground hold more haze, high ground less - and Photon gets it by integrating an
+// altitude density along the ray (include/fog/overworld/analytic.glsl). Astra
+// already had the integral form in program/scene.glsl's twilight haze
+// (`1.0 - smoothstep(96.0, 176.0, cameraPosition.y + playerPos.y)`), but it was
+// written twice: once there for the twilight window and once in mainFog, and it
+// produced a hard-edged band rather than a graded mist. This is that same term,
+// unresolved and shared, so the two call sites cannot drift apart.
+//
+// The coordinate is the ABSOLUTE world height of the fragment, taken from
+// cameraPosition.y + playerPos.y. That is what keeps the layer in the world: a
+// camera-relative term would slide the mist up and down with the player and read
+// as a screen overlay. Nothing here samples noise or marches a ray; it is two
+// smoothsteps and a mix, which is the cheap expression of what the references
+// spend a density integral on.
+//
+// Reference levels (world Y, sea level = 62/63). The boost is deliberately a quarter,
+// not a multiple: this multiplies a pow(d,3) fog curve that already reaches a fog
+// factor of ~0.5 at 200 blocks, so a large valley factor would put a wall of mist in
+// front of exactly the distant terrain the fog is supposed to give depth to.
+//   1.28 at and below Y=48   - valley floors and ravines, where mist collects
+//   1.05 at Y=100            - low ground
+//   0.96 at Y=150            - open ground at normal build height
+//   0.70 at Y=200            - hills
+//   0.42 at and above Y=260  - high mountains and the build limit
+float fog_valley_mist(float worldY) {
+	float below = smoothstep(48.0, 150.0, worldY);
+	float above = smoothstep(200.0, 260.0, worldY);
+	return mix(1.28, 0.96, below) * mix(1.0, 0.42, above);
+}
+// Complementary's mainFog weight for the low-altitude air, as a function of the same
+// height: 0.62 for dense low air, 0.22 for thin high air. Folding the valley mist into
+// this remap keeps the original end points exactly - above Y=150 it is still 0.22, and
+// at the valley floor it is still 0.62 - while the ground in between (where players
+// actually build) is graded rather than switched at a threshold. This is the pair the
+// old inline `1.0 - smoothstep(96, 176, y)` was approximating for both roles at once.
+float fog_morning_air_weight(float worldY) {
+	return mix(0.62, 0.22, clamp((fog_valley_mist(worldY) - 0.96) / 0.32, 0.0, 1.0));
+}
+
 // FogV2 (Steadfast): atmospheric pow(d,3) fog + render-distance border fog + a
 // skylight-driven switch into cave fog, with blindness / water / lava overrides.
 //
@@ -51,12 +94,16 @@ struct FogParams {
 //   borderFragDistance  distance used for the border ramp; differs from fragDistance
 //                       only for Voxy terrain (C5)
 //   skyLightStrength    fragment skylight, 0..1 where 1 is light level 15
+//   fragWorldY          ABSOLUTE world height of the fragment, for the valley mist.
+//                       Absolute, not camera-relative: a relative height would move
+//                       the mist layer with the camera (see fog_valley_mist).
 vec4 fog_v2(
 	out float skyFogStrength,
 	FogParams params,
 	float fragDistance,
 	float borderFragDistance,
-	float skyLightStrength
+	float skyLightStrength,
+	float fragWorldY
 ) {
 	#ifdef BORDER_FOG
 		float borderFog = smoothstep(
@@ -69,9 +116,18 @@ vec4 fog_v2(
 
 	// The pow(d,3) coefficient is precomputed on the CPU including the render-distance
 	// normalisation (design.md 5); FOG_DENSITY is the user's percentage on top.
+	//
+	// The altitude factor is the valley mist above. It multiplies the existing curve
+	// rather than adding a second fog layer, so nothing new is composited and the
+	// near field cannot go grey: the pow(d,3) curve is still ~0 at short range, and
+	// the C-FOG_DENSITY default is unchanged. It is evaluated for the fragment's own
+	// world height, so two points at the same distance but different altitude get
+	// different haze - which is the whole point of the term.
+	float fogValleyMist = fog_valley_mist(fragWorldY);
 	float atmosphereFog = pow(fragDistance, 3.0)
 		* atmosphereFogCoefficient
-		* (FOG_DENSITY * 0.01);
+		* (FOG_DENSITY * 0.01)
+		* fogValleyMist;
 
 	// Caves (and unlit interiors) switch to a dedicated colour. Taking the max of the
 	// fragment and camera skylight means a lit pocket inside a cave does not flip fog
@@ -136,13 +192,32 @@ vec4 fog_v2(
 // direction swings towards the sun, which is what gives the horizon its dawn/dusk
 // gradient. pow 4 keeps the effect around the sun instead of tinting the whole sky.
 //
-// viewDir is a NORMALISED world-space direction; sunGlowColor comes from the
+// 2026-09-16 visual-experience round: the warm lobe alone was not enough. BSL's fog
+// colour is a function of view direction, altitude angle AND the sun direction
+// (lib/atmospherics/fog.glsl fogColorM), so a haze layer reads as air rather than as
+// a coloured spotlight: the bank facing the sun is warm, the sides are neutral, and
+// the shaded side of the same valley is slightly cooler. That is the study's item D
+// ("朝阳方向偏暖，侧向较中性，背光方向稍冷"), and it is the difference between the fog
+// belonging to the same lighting as everything else and the fog being a separate
+// overlay with its own palette.
+//
+// `viewDir` is a NORMALISED world-space direction; sunGlowColor comes from the
 // atmosphere owner (D2) and is expected to already carry the sunrise intensity.
 #ifdef AIR_PERSPECTIVE
 vec3 fog_air_perspective(vec3 fogColor, vec3 viewDir, vec3 sunGlowColor) {
 	float sunAmount = max(dot(viewDir, worldSunVector), 0.0);
-	float horizon = max(sunrise, moonrise);
-	return fogColor + sunGlowColor * (pow(sunAmount, 4.0) * horizon);
+	float horizon = astra_twilight_strength();
+	vec3 result = fogColor + sunGlowColor * (pow(sunAmount, 4.0) * horizon);
+	// Direction asymmetry. The reference derives its cool side from the same sky
+	// colour it uses for everything else; here the existing horizon sky tint
+	// (astra_twilight_sky - the atmosphere's own away-from-sun term) supplies the
+	// tint, so no second twilight palette is introduced. It is scaled down because
+	// the term is already calibrated for the sky's own brightness.
+	float away = clamp(-dot(viewDir.xz, normalize(worldSunVector.xz + vec2(1e-5))), 0.0, 1.0);
+	float level = 1.0 - min(abs(viewDir.y) * 2.2, 1.0);   // strongest along the horizon
+	vec3 cool = astra_twilight_sky(viewDir) * 0.35;
+	result = mix(result, result + cool * level, away * horizon * 0.50);
+	return result;
 }
 #endif
 

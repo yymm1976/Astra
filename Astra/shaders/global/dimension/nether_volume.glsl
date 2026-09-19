@@ -86,9 +86,6 @@ vec4 astra_bliss_fog(
 
 	vec3 hazeColor = nether_palette(fogColor);
 
-	#if defined LPV_VL_FOG_ILLUMINATION && defined EXCLUDE_WRITE_TO_LUT
-    	float TorchBrightness_autoAdjust = mix(1.0, 30.0,  clamp(exp(-10.0*exposure),0.0,1.0)) / 5.0;
-	#endif
 
 	for (int i = 0; i < SAMPLECOUNT; i++) {
 		// Once the medium has absorbed essentially all of the light there is nothing left
@@ -142,10 +139,6 @@ vec4 astra_bliss_fog(
 			color += (ceilingSmoke - ceilingSmoke*ceilingSmokeVolumeCoeff) * (absorbance*0.5+0.5);
 			absorbance *= ceilingSmokeVolumeCoeff;
 
-		//------ LPV FOG EFFECT
-			#if defined LPV_VL_FOG_ILLUMINATION && defined EXCLUDE_WRITE_TO_LUT
-				color += LPV_FOG_ILLUMINATION(progressW-cameraPosition, dd, dL) * TorchBrightness_autoAdjust * absorbance;
-			#endif
 
 	}
 	return vec4(color, absorbance);

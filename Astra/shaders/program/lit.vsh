@@ -48,7 +48,16 @@ void main() {
     vec3 normal = mat3(gbufferModelViewInverse) * (gl_NormalMatrix * gl_Normal);
     normal = dot(normal, normal) > 1e-8 ? normalize(normal) : vec3(0.0, 1.0, 0.0);
     faceData = pack_octahedral(normal, 9) | (material << 18);
-    vec4 viewPos = gl_ModelViewMatrix * gl_Vertex;
+    vec4 vertex=gl_Vertex;
+    #ifdef ASTRA_SKY_TEXTURED
+    #if SUN_MOON_MODE == SUN_MOON_VANILLA
+    // Vanilla celestial quads lie in XZ at +/-100 Y. Scale around their centre,
+    // keeping the supplied moon atlas UVs and all eight phases intact.
+    if (renderStage == MC_RENDER_STAGE_SUN || renderStage == MC_RENDER_STAGE_MOON)
+        vertex.xz *= 1.12;
+    #endif
+    #endif
+    vec4 viewPos = gl_ModelViewMatrix * vertex;
     #ifdef ASTRA_WATER_PASS
         waterTangent = normalize(mat3(gbufferModelViewInverse) * (gl_NormalMatrix * at_tangent.xyz));
         waterBinormal = normalize(mat3(gbufferModelViewInverse) * (gl_NormalMatrix * cross(at_tangent.xyz, gl_Normal.xyz) * at_tangent.w));

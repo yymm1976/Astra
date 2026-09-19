@@ -53,6 +53,7 @@ vec4 water_shafts_march(vec2 uv) {
     visibility *= pow(VoU, 1.5);
     visibility *= mix(0.25 + VoL * 0.25, VoL * 0.45, time);
     visibility *= 1.0 - clamp(blindness, 0.0, 1.0);
+    if (visibility <= 0.0) return vec4(vec3(0.0),rayLength / 128.0);
 
     // IterationT 3.2 underwater volumetric fog uses a 40-block range rather than Solas'
     // 128; the shorter range plus the 1/max(3, d*0.1) attenuation below is what makes its
@@ -96,6 +97,7 @@ vec4 water_shafts_march(vec2 uv) {
         // Reference design point 1: modulate the beam by the water-surface caustics, cubed.
         // This is what turns an even cone into the soft banded columns the reference shows,
         // and because the same function drives the seabed caustics their phases agree.
+        if (shade <= 0.0) continue;
         shade *= astra_water_caustics_shaft_at(point + cameraPosition);
         // Reference design point 2: distance attenuation. Near the camera the beam is
         // crushed, which is the "walk closer and it disappears" behaviour.

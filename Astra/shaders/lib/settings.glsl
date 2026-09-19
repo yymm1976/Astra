@@ -55,7 +55,8 @@
 
 // --- SHADOWS ---
 #define SHADOW_FILTER_MODE 0 // [0 1]
-// 0 = existing sixteen software taps; 1 = four hardware comparison taps.
+// 0 = sixteen software depth comparisons in four gathers, with per-corner tint;
+// 1 = four hardware comparison taps with a centre-material approximation.
 #define SHADOWS // [false true]
 // Master switch for shadow map
 #define SHADOW_RESOLUTION 2048 // [512 1024 1536 2048 3072 4096]
@@ -220,14 +221,106 @@ const float sunPathRotation = -40.0;
 const int   noiseTextureResolution = 256;              // matches textures/noise.png
 
 // --- SC-13 (design.md 4.1): the three shadow engine knobs, semantics frozen there ---
-// Entity shadow distance is a RATIO of the terrain shadow distance, not a block count.
-// All three profiles resolve to 0.5 (48/96, 64/128, 96/192), so the option keeps the
-// stable meaning "entities cast shadows out to half the shadow distance".
-// SC-23 round-trip on real hardware: Iris' const parser accepts plain literals only
-// (NumberFormatException on `64 * (1.0 / 128)`), so the ratio ships pre-computed.
-// All three profiles resolve to 0.5 (48/96, 64/128, 96/192); if the profiles ever
-// diverge, this must become a per-profile literal again.
-const float entityShadowDistanceMul = 0.5;
+// Iris multiplies shadowDistance * shadowDistanceRenderMul * this ratio.
+// Literal table for all advertised options: Iris's directive reader cannot
+// evaluate arithmetic. Render multiplier is 1.5 above; keep it paired here.
+#if SHADOW_DISTANCE == 64
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.3333333333;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.5000000000;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.6666666667;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 1.0000000000;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 1.3333333333;
+#endif
+#elif SHADOW_DISTANCE == 80
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.2666666667;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.4000000000;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.5333333333;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.8000000000;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 1.0666666667;
+#endif
+#elif SHADOW_DISTANCE == 96
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.2222222222;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.3333333333;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.4444444444;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.6666666667;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 0.8888888889;
+#endif
+#elif SHADOW_DISTANCE == 112
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.1904761905;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.2857142857;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.3809523810;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.5714285714;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 0.7619047619;
+#endif
+#elif SHADOW_DISTANCE == 128
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.1666666667;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.2500000000;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.3333333333;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.5000000000;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 0.6666666667;
+#endif
+#elif SHADOW_DISTANCE == 160
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.1333333333;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.2000000000;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.2666666667;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.4000000000;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 0.5333333333;
+#endif
+#elif SHADOW_DISTANCE == 192
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.1111111111;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.1666666667;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.2222222222;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.3333333333;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 0.4444444444;
+#endif
+#else // SHADOW_DISTANCE == 256
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.0833333333;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.1250000000;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.1666666667;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.2500000000;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 0.3333333333;
+#endif
+#endif
 
 // Software retains exact depth/material pairing. Optional hardware comparison
 // filtering uses the surface consumer's explicitly approximate centre material.
@@ -242,9 +335,10 @@ const bool shadowHardwareFiltering1 = false;
 #endif
 
 // --- buffer formats (design.md 2.3) ---
-// SC-27 supersedes SC-25/26: this Iris build rejects active format consts even
-// in entry files. Keep Iris default formats; the design table is a future budget,
-// not the current allocation. Do not restore declarations in any include layer.
+// Iris accepts named format directives in entries or expanded includes.
+// Declare each buffer once per compilation unit; the symbolic format token
+// also needs a GLSL declaration. Scene/bloom formats: water_buffer_formats.glsl;
+// End data/sky formats: end_illumination.fsh and end_sky_buffer.fsh.
 
 // E1/E2 internal scheduling predicate; not a user option.
 #ifdef UNDERWATER_LIGHT_SHAFTS

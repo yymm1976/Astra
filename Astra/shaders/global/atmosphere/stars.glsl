@@ -62,8 +62,8 @@ vec3 astra_stars(vec2 starCoord, float VdotU, float VdotS,
 	star = max0(star);                   // :41
 	star *= star;                        // :42
 
-	star *= min1(VdotU * 3.0) * max0(1.0 - pow(abs(VdotS) * 1.002, 100.0));   // :44
-	star *= invRainFactor * pow2(pow2(invNoonFactor2)) * (1.0 - 0.5 * sunVisibility);  // :45
+	star *= min1(VdotU * 3.0) * max0(1.0 - pow100(abs(VdotS) * 1.002));   // :44
+	star *= invRainFactor * pow4(invNoonFactor2) * (1.0 - 0.5 * sunVisibility);  // :45
 
 	return 40.0 * star * vec3(0.38, 0.4, 0.5);   // :47
 }

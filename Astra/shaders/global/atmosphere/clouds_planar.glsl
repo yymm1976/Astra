@@ -51,9 +51,9 @@ uniform sampler2D complementaryCloudNoise;
 // lib/atmospherics/clouds/cloudCoord.glsl:4
 const float ASTRA_CLOUD_NARROWNESS = 0.07;
 // lib/atmospherics/clouds/reimaginedClouds.glsl:3-5
-const float ASTRA_CLOUD_STRETCH   = 4.2;
+const float ASTRA_CLOUD_STRETCH   = 9.0;
 const float ASTRA_CLOUD_TALLNESS  = ASTRA_CLOUD_STRETCH * 2.0;
-const float ASTRA_CLOUD_ROUNDNESS = 0.125;
+const float ASTRA_CLOUD_ROUNDNESS = 0.48;
 // lib/atmospherics/clouds/mainClouds.glsl:82 (CLOUDS_REIMAGINED branch)
 const float ASTRA_CLOUD_THRESHOLD_F = 4000.0;
 // lib/common.glsl:838 - CLOUD_ALT1 default 192
@@ -84,13 +84,19 @@ vec3 astra_modify_trace_pos(vec3 tracePos, float cloudAltitude) {
 
 // lib/atmospherics/clouds/reimaginedClouds.glsl:22-28 (Astra noise source, see header)
 float astra_2d_cloud_sample(vec2 pos) {
-	return texture(complementaryCloudNoise, astra_rounded_cloud_coord(pos, ASTRA_CLOUD_ROUNDNESS)).b;
+	// Density is sampled inside divergent cloud marches and sky visibility
+	// branches. Its base-level lookup must not depend on implicit derivatives.
+	return textureLod(complementaryCloudNoise, astra_rounded_cloud_coord(pos, ASTRA_CLOUD_ROUNDNESS), 0.0).b;
 }
 
 // lib/atmospherics/clouds/reimaginedClouds.glsl:7-20, without the colortex3 branch
 float astra_cloud_noise(vec3 tracePos, float cloudAltitude) {
 	vec3 tracePosM = astra_modify_trace_pos(tracePos, cloudAltitude);
-	return astra_2d_cloud_sample(tracePosM.xz);
+    // Broad density plus a smaller, rotated octave: soften Reimagined's
+    // square cells using Unbound's multi-scale density idea, without its
+    // nested 3D-noise march. The existing pack-owned noise stays in use.
+    vec2 detail=mat2(0.8,-0.6,0.6,0.8)*tracePosM.xz*2.7+vec2(31.7,9.3);
+	return 0.78*astra_2d_cloud_sample(tracePosM.xz)+0.22*astra_2d_cloud_sample(detail);
 }
 
 // lib/atmospherics/clouds/mainClouds.glsl:9-16, non-TAA branch
@@ -125,8 +131,8 @@ void astra_cloud_colors(AstraSkyFactors f, AstraSkyPalette p,
 	vec3 nightRainAmbientColor = vec3(0.16, 0.20, 0.3) * (0.75 + 0.6 * ASTRA_VS_BRIGHTNESS);
 
 	// :50-54 - noonFactorDM = noonFactor (non-COMPOSITE1 branch)
-	vec3 dayLightColor   = mix(sunsetClearLightColor, noonClearLightColor, f.noonFactor);
-	vec3 dayAmbientColor = mix(sunsetClearAmbientColor, noonClearAmbientColor, f.noonFactor);
+	vec3 dayLightColor   = mix(sunsetClearLightColor, noonClearLightColor, 1.0-f.invNoonFactor);
+	vec3 dayAmbientColor = mix(sunsetClearAmbientColor, noonClearAmbientColor, 1.0-f.invNoonFactor);
 
 	// :56-60
 	vec3 clearLightColor   = mix(nightClearLightColor, dayLightColor, f.sunVisibility2);
@@ -153,19 +159,14 @@ void astra_cloud_colors(AstraSkyFactors f, AstraSkyPalette p,
     // Warm illuminated edges over a cooler cloud body during the same twilight
     // envelope used by the sky and terrain (Solas separates these two colours).
     float twilight=astra_twilight_strength();
-    cloudLightColor=mix(cloudLightColor,cloudLightColor*vec3(1.12,0.88,0.72)
-                        +astra_twilight_tint()*0.18,twilight*0.65);
-    cloudAmbientColor=mix(cloudAmbientColor,cloudAmbientColor*vec3(0.92,0.94,1.04),twilight);
+    cloudLightColor=mix(cloudLightColor,astra_twilight_sunlight()*0.70,twilight);
+    cloudAmbientColor=mix(cloudAmbientColor,vec3(0.20,0.16,0.19)
+                         *mix(0.35,1.0,f.sunVisibility),twilight);
 }
 
 // ------------------------------------------------------------
 // Cloud colors come from the reference sky palette.
 vec4 astra_planar_cloud(vec3 worldDir) {
-	AstraSkyFactors f = astra_sky_factors();
-	AstraSkyPalette p = astra_sky_palette(f);
-	vec3 cloudAmbientColor, cloudLightColor;
-	astra_cloud_colors(f, p, cloudAmbientColor, cloudLightColor);
-
 	vec3 nPlayerPos = normalize(worldDir);
 	float VdotU = nPlayerPos.y;
 	float VdotS = dot(nPlayerPos, normalize(worldSunVector));
@@ -173,7 +174,7 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 
 	// ASTRA OWN: CLOUD_COVERAGE bias, zero at the default 50 so the default
 	// test is exactly the reference's `noise > threshold * 0.5 + 0.25`.
-	float coverageBias = mix(0.20, -0.20, CLOUD_COVERAGE * 0.01) - 0.04 - 0.28 * f.rainFactor;
+	float coverageBias = mix(0.20, -0.20, CLOUD_COVERAGE * 0.01) - 0.04 - 0.28 * astraRainFactor;
 
 	// lib/atmospherics/clouds/reimaginedClouds.glsl:33-41
 	float higherPlaneAltitude = ASTRA_CLOUD_ALTITUDE + ASTRA_CLOUD_STRETCH;
@@ -187,6 +188,8 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 	      minPlaneDistance = max(minPlaneDistance, 0.0);
 	float maxPlaneDistance = max(lowerPlaneDistance, higherPlaneDistance);
 	if (maxPlaneDistance < 0.0) return vec4(0.0);
+    if (minPlaneDistance * length(nPlayerPos.xz) > ASTRA_CLOUD_THRESHOLD_F)
+        return vec4(0.0);
 	float planeDistanceDif = maxPlaneDistance - minPlaneDistance;
 
 	// skyFade has no Astra equivalent -> skyFadeM is the reference's 1.0 (see header)
@@ -207,8 +210,9 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 	for (int i = 0; i < sampleCount; i++) {
 		tracePos += traceAdd;
 
-		float lTracePosXZ = length(tracePos.xz - cameraPosition.xz);
-		if (lTracePosXZ > ASTRA_CLOUD_THRESHOLD_F) break;   // :72
+		vec2 horizontalOffset=tracePos.xz-cameraPosition.xz;
+        float horizontalDistance2=dot(horizontalOffset,horizontalOffset);
+		if (horizontalDistance2 > ASTRA_CLOUD_THRESHOLD_F*ASTRA_CLOUD_THRESHOLD_F) break;
 
 		// lib/atmospherics/clouds/reimaginedClouds.glsl:17-19
 		float threshold = clamp(abs(ASTRA_CLOUD_ALTITUDE - tracePos.y) / ASTRA_CLOUD_STRETCH, 0.001, 0.999);
@@ -216,6 +220,16 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 		float noise = astra_cloud_noise(tracePos, ASTRA_CLOUD_ALTITUDE);
 		if (noise <= threshold * 0.5 + 0.25 + coverageBias) continue;
 
+        // Empty rays need density only, not the sky palette and cloud lighting.
+        // This march shades its first hit and exits; evaluate the colours here.
+        AstraSkyFactors f=astra_sky_factors();
+        AstraSkyPalette p=astra_sky_palette(f);
+        vec3 cloudAmbientColor,cloudLightColor;
+        astra_cloud_colors(f,p,cloudAmbientColor,cloudLightColor);
+        float twilight=astra_twilight_strength();
+        float sunward=cube(max(0.0,0.5+0.5*VdotS));
+        float horizonWarm=exp(-abs(VdotU)*3.0);
+        float lTracePosXZ=sqrt(horizontalDistance2);
 		// :94-95 - height within the sheet drives the lit-top / dark-bottom look
 		float cloudShading = 1.0 - (higherPlaneAltitude - tracePos.y) / ASTRA_CLOUD_TALLNESS;
 		      cloudShading = pow(max0(cloudShading), 0.8);
@@ -245,21 +259,58 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 		// :122
 		vec3 colorSample = cloudAmbientColor * 0.95 * (1.0 - 0.35 * cloudShading)
 		                 + cloudLightColor  * 0.9  * (0.1 + cloudShading);
+        float litEdge=clamp(cloudShading,0.0,1.0);
+        float upperLayer=clamp((tracePos.y-lowerPlaneAltitude)
+                              /max(2.0*ASTRA_CLOUD_STRETCH,1.0),0.0,1.0);
+        // Two-source edge lighting, one power each. The previous form keyed the warm
+        // edge off the SUN direction only, so at night the lit edge of a cloud pointed
+        // at a sun below the horizon and the moonlit side stayed flat. There is no
+        // second light march here: `light` and the two density samples above are
+        // unchanged, and this only decides which colour the existing lit edge takes.
+        // The moon lobe is the sun lobe evaluated about -worldSunVector, the moon's own
+        // direction - the same vector program/sky.fsh draws the disc along.
+        float moonward=cube(max(0.0,0.5-0.5*VdotS));
+        // Cooler body: the volume and the underside keep their own (blue-leaning)
+        // colour rather than drifting towards the sky's white, which is what let the
+        // cloud sheet dissolve into the sky at range.
+        vec3 coolBody=cloudAmbientColor*vec3(0.72,0.82,1.04)
+                     *mix(0.70,0.94,upperLayer);
+        // Warmer, tighter edge: a lower constant floor (0.18 -> 0.14) and a stronger
+        // litEdge coefficient (0.85 -> 0.95) so the rim separates from the body, and a
+        // light-facing gate that the moon can also satisfy. `litEdge` is cloudShading,
+        // i.e. light actually reaching the top of the first hit, so the underside of a
+        // cloud and a cloud turned away from the light cannot be brightened by this.
+        vec3 warmEdge=cloudLightColor*vec3(1.10,0.74,0.44)
+                     *(0.14+0.95*litEdge)*(0.30+0.70*max(sunward,moonward*0.70));
+        warmEdge+=astra_twilight_tint()*sunward*horizonWarm*(0.12+0.5*litEdge);
+        colorSample=mix(colorSample,coolBody+warmEdge,twilight*0.72);
 		// :123 - doGlare = isEyeInWater == 0, doGround = false (same as the sky)
-		vec3 cloudSkyColor = astra_get_sky(VdotU, VdotS, dither, isEyeInWater == 0, false, f, p);
+        // This colour depends on the view ray, never on the marching sample.
+        // Evaluate once, and only for rays that actually encounter a cloud.
+        vec3 cloudSkyColor=astra_get_sky(VdotU,VdotS,dither,isEyeInWater==0,false,f,p);
+        cloudSkyColor=astra_twilight_highlights(astra_twilight_atmosphere(cloudSkyColor,nPlayerPos));
+        colorSample=astra_twilight_highlights(colorSample);
 
 		// :127-132
 		float distanceRatio = (ASTRA_CLOUD_THRESHOLD_F - lTracePosXZ) / ASTRA_CLOUD_THRESHOLD_F;
 		float cloudFogFactor = pow2(clamp(distanceRatio, 0.0, 1.0)) * 0.707;
 		      cloudFogFactor = mix(1.0, cloudFogFactor, skyFadeM);
 		colorSample *= 1.0 - 0.2 * (1.0 - skyFadeM) * max(f.sunVisibility2, f.nightFactor);
-		colorSample = mix(cloudSkyColor, colorSample, cloudFogFactor * 0.707);
+        // Keep the nearby cloud's shaded body; the previous factor mixed at
+        // least half of the bright sky into even the nearest cloud.
+        // The ceiling drops 0.88 -> 0.80 for the same reason the body colour was
+        // cooled: at 0.88 a twilight cloud was four fifths sky, which is how the edge,
+        // the body and the sky became one white sheet. The distance-driven part of the
+        // blend is untouched - a distant cloud still converges to the atmosphere, which
+        // is what the perspective needs.
+		colorSample = mix(cloudSkyColor, colorSample, clamp(cloudFogFactor * mix(0.707,1.18,twilight),0.0,0.80));
 		// :132 - Astra's blindness is the vanilla darkness effect in [0,1]
 		colorSample *= pow2(1.0 - blindness);
 
 		// :134-137 - cloudMult is 1.0 (the lViewPosM branch has no Astra equivalent)
 		float cloudDistanceFactor = clamp(distanceRatio, 0.0, 0.75);
-		volumetricClouds.a = sqrt(cloudDistanceFactor * 1.33333);
+        float columnDensity=smoothstep(0.21+coverageBias,0.43+coverageBias,noise);
+		volumetricClouds.a = sqrt(cloudDistanceFactor * 1.33333)*columnDensity;
 		volumetricClouds.rgb = colorSample;
 		break;
 	}

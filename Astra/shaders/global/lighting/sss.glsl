@@ -23,19 +23,17 @@
 //     General Public License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
 //     _analysis/Steadfast-0.8.0/LICENSE.md.
 //
-// Reference parts NOT ported (recorded in docs/handoffs/terrain-foliage.md):
-//   - The reference's full-shadow-quality leaf model is flatter than any ndotl wrap:
-//     mainLighting.glsl:125-130 sets NdotLM = 1.0 for ALL subsurface materials, and the
-//     directional look comes from companion terms this file's frozen signature cannot see:
-//       :241-254  subsurfaceHighlight = pow(max(dot(-viewDir, lightVec), 0.0), 10.0)
-//                 * 0.6 (leaves) / 0.8 (other foliage) — the sun-through-the-leaf glow;
-//       :288-289  shadow-edge sky mix: leaves use NdotL * 0.4999 + 0.5, other foliage a
-//                 noonFactor-driven constant;
-//       :107-110  mode-1 (ground foliage) fallback NdotL = dot(upVec, lightVec) — needs
-//                 normal/light components, not ndotl alone.
-//     Porting them requires diffuse.glsl (public, C1) to pass view-dependent inputs into
-//     the sss call. Until the main task accepts that interface change, sss_wrap keeps its
-//     ndotl-only contract and the task-pointed :111-113 leaf form is the faithful subset.
+// Reference parts NOT ported before this round (recorded in docs/handoffs/terrain-foliage.md):
+//   - :241-254  subsurfaceHighlight = pow(max(dot(-viewDir, lightVec), 0.0), 10.0)
+//               * 0.6 (leaves) / 0.8 (other foliage) — the sun-through-the-leaf glow.
+//               THIS is what sss_transmission() below now supplies. It needed the
+//               view direction at the C1 entry point, which diffuse.glsl passes.
+//   - :288-289  shadow-edge sky mix: leaves use NdotL * 0.4999 + 0.5, other foliage a
+//               noonFactor-driven constant;
+//   - :107-110  mode-1 (ground foliage) fallback NdotL = dot(upVec, lightVec) — needs
+//               normal/light components, not ndotl alone.
+//     The last two still need inputs the frozen signature cannot see; the
+//     transmission term does not depend on them (it is a view/light relation only).
 //   - :112 (highlightMult *= NdotL) rides the reference's specular pipeline, not diffuse.
 //
 // Scope split with B1 (global/lighting/shadowmap.glsl), verbatim from its header:
@@ -87,6 +85,93 @@ float sss_wrap(float ndotl, bool isLeaves, float sssStrength) {
 	// Lambert end must be clamped too or a back-facing leaf at partial strength would
 	// return a negative factor and subtract light.
 	return mix(max(ndotl, 0.0), wrapped, sssStrength);
+}
+
+// ---------------------------------------------------------------------------
+// Forward transmission: the view-dependent half of foliage scattering.
+//
+// Why the wrap above is not enough: `wrapped` depends only on the surface normal
+// and the light, so a leaf seen from the lit side and the same leaf seen with the
+// sun behind it receive the same direct light. What makes a canopy read as
+// translucent at sunrise is that the second case is the bright one, and that is a
+// relation between the VIEW direction and the light direction, not the normal.
+//
+// Complementary's form (mainLighting.glsl:241-242, 250-254):
+//     float VdotL = dot(nViewPos, lightVec);
+//     float lightFactor = pow(max(VdotL, 0.0), 10.0) * float(isEyeInWater == 0);
+//     ... subsurfaceHighlight = lightFactor * 0.6 (leaves) / 0.8 (other foliage)
+//
+// Astra adaptation, and why this is a factor on occlusion instead of an added
+// light:
+//   - the reference applies its lightFactor as extra light on the shadowed side
+//     too (its leaves set NdotLM = 1.0 and it multiplies shadowMult by an in-shadow
+//     sky mix). Astra has just stopped paying for a flat scene, so this term is
+//     returned as a 0..1 factor that diffuse.glsl blends into `visibility`: an
+//     occluded leaf keeps a fraction of its direct light, and an unoccluded one can
+//     never be brightened past the light it already receives. That also means the
+//     effect costs no second shadow read - it reuses the one already fetched.
+//   - the normal still gates it (`ndotl > 0` is not required, but a surface the
+//     light cannot reach is already handled by the wrap's floor), and sky exposure
+//     gates it, so indoor and cave plants do not glow at dawn.
+//   - the reference gates it on the camera not being in water; that happens to be
+//     right here for a second reason - the underwater path has its own shading.
+//   - no noise, no per-frame dithering. The window is a function of the two
+//     directions only, so leaves brighten smoothly as the view swings towards the
+//     sun and never shimmer.
+//
+// Per-category (values are the reference's 0.6 / 0.8 with Astra's SSS strength on
+// top): leaves get a WIDER and softer lobe, ground foliage (grass blades, ferns,
+// flowers - single-layer, so a much longer mean free path) a TIGHTER and stronger
+// one. That is the "草叶和树叶分别控制强度、宽度" split.
+// SC-39 (2026-09-17 correction). This term was DEAD on arrival. The first version tested
+// `dot(viewDir, worldLightVector) > 0`, but diffuse.glsl builds
+//
+//     vec3 viewDir = normalize(-playerPos);      // surface -> camera
+//
+// while worldLightVector is `normalize(view_player(lightVector))`, the light direction as
+// the shadow matrix sees it, i.e. surface -> light (sunPosition/100 with sunPathRotation
+// applied, then the view->world transpose). Its world-space Y is positive at noon: the
+// codebase negates it elsewhere for exactly that reason (`worldSunVector.y` is the sun's
+// altitude in sky_gradient.glsl, and `vec3(0.72,0.88,1.25) * ... -worldSunVector` is how
+// sky.fsh places the moon opposite the sun). So dot(viewDir, worldLightVector) is about
+// -0.8 at noon, the `> 0.0` gate rejected it, and the whole transmission returned 0.0 for
+// every foliage fragment - the "added" effect was measurably absent, which is also why it
+// cost nothing.
+//
+// The reference's quantity is dot(nViewPos, lightVec) with nViewPos pointing from the
+// camera INTO the scene (normalize(viewPos) with viewPos the view-space fragment). That is
+// `-viewDir` in Astra's convention, so the correct test is `dot(-viewDir, worldLightVector)
+// > 0`, equivalently `dot(viewDir, worldLightVector) < 0`. Backlit foliage - sun behind the
+// leaf, camera looking towards the sun - is exactly the case where the light and the
+// surface->camera ray point the same way, and that is what this now selects.
+float sss_transmission(float ndotl, vec3 viewDir, vec3 worldLightVector, bool isLeaves,
+                       float skyLight, float sssStrength) {
+	if (sssStrength <= 0.0) return 0.0;
+	// Looking towards the light sees through the surface.
+	float vdotl = dot(-viewDir, worldLightVector);
+	if (vdotl <= 0.0) return 0.0;
+	// Leaves: exponent 10 as in the reference, which is already a broad lobe on a
+	// flat canopy. Grass: exponent 6, so the blades in a near-sunward view light up
+	// as a field rather than only the few leaves aimed exactly at the sun.
+	//
+	// Each exponent is written as its own literal so the compiler folds it to a
+	// multiply chain (lib/pow.glsl). Do NOT collapse these into one call with a
+	// ternary or a variable exponent: the generic exponentiation loop has to carry
+	// `mod`/`floor` bookkeeping and a loop-carried dependency, which on a foliage
+	// fragment costs more than the `pow()` it replaced - that mistake was made and
+	// measured in this round.
+	// vdotl^10 = (vdotl^2)^5. Written as two literal-exponent calls rather than one
+	// runtime exponent so both fold to multiply chains (lib/pow.glsl); a runtime
+	// exponent costs more than the pow() it would replace.
+	float lobe = isLeaves ? pow5(square(vdotl)) : pow6(vdotl);
+	// A grazing surface transmits least: the ray crosses more material. This is the
+	// same measured relation the wrap encodes, applied to the transmission.
+	float thickness = mix(0.35, 1.0, clamp(ndotl * 0.5 + 0.5, 0.0, 1.0));
+	// Sky exposure of the fragment: the lightmap already tells us whether this plant
+	// can see the sky at all, which is what excludes cave/interior plants.
+	float exposure = smoothstep(0.20, 0.75, skyLight);
+	float strength = (isLeaves ? 0.60 : 0.80) * sssStrength;
+	return clamp(lobe * thickness * exposure * strength, 0.0, 1.0);
 }
 
 #endif

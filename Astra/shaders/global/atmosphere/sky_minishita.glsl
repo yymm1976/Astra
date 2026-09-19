@@ -83,7 +83,7 @@ vec3 astra_minishita_source(vec3 worldDir,vec3 sourceDir,float sourceStrength) {
 
 	float mu = dot(viewDir, sourceDir);
 	float phaseR = astra_phase_rayleigh(mu);
-	float phaseM = astra_phase_mie(mu);
+	float phaseM = astra_phase_mie(mu) * 0.45;
 
 	vec2 opticalView = vec2(0.0);
 	vec3 scatteredR = vec3(0.0);

@@ -31,7 +31,8 @@ float end_ring_material(vec3 position,float footprint,out float line) {
     float flow=az-end_orbit_phase(3600.0/mix(1.0,0.62,clamp(u,0.0,1.0)),0.0);
     vec3 material=vec3(cos(flow),sin(flow),u*3.0);
     float resolved=1.0-smoothstep(0.003,0.018,footprint/max(radius,0.1));
-    float grit=mix(0.5,end_noise3(material*90.0),resolved);
+    float grit=0.5;
+    if (resolved > 0.0) grit=mix(grit,end_noise3(material*90.0),resolved);
     float density=end_ring_density(u,aa)*mix(0.76,1.0,grit);
     density*=mix(0.78,1.0,end_noise3(material*17.0));
     float clearing=1.0;

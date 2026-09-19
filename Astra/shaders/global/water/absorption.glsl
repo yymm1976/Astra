@@ -14,23 +14,18 @@ vec3 water_absorption_coefficient() {
     return vec3(0.055, 0.028, 0.010) * (WATER_ABSORPTION * 0.01);
 }
 vec3 water_surface_absorption() {
-    // Steadfast's appearance presets expressed per block of VERTICAL depth.
-    // These are an interface appearance control, not volume extinction.
-    // 2026-09-11 user A/B against Steadfast (shore view, same framing): Astra's near
-    // water measured v=0.27/s=0.70 against the reference's v=0.31/s=0.49 at the same
-    // hue (209deg vs 206deg). The hue was already right, so this was over-absorption,
-    // not a tint problem: a ~0.62x scale raises the value toward the reference and the
-    // more balanced green/blue ratio removes the excess saturation. Do not "fix" this
-    // by adding a blue tint - that would push the hue off the reference.
+    // Air-side appearance per block of vertical depth, separate from volume
+    // extinction. The balanced/tropical spectra retain green alongside blue;
+    // neither the daylight sky nor depth absorption should erase cyan shallows.
     #if WATER_CHARACTER == WATER_COLD
         // Colder water retains relatively more blue than the other types.
         vec3 coefficient = vec3(1.000, 0.2200, 0.0800);
     #elif WATER_CHARACTER == WATER_TROPICAL
         // Strongest red removal and longest green transport length.
-        vec3 coefficient = vec3(2.000, 0.1100, 0.0420);
+        vec3 coefficient = vec3(2.000, 0.0550, 0.0800);
     #else
         // Default: clear cyan shallows, teal middle depths, dark deep water.
-        vec3 coefficient = vec3(1.000, 0.1320, 0.0800);
+        vec3 coefficient = vec3(1.000, 0.0600, 0.1000);
     #endif
     return coefficient * (WATER_ABSORPTION * 0.01);
 }

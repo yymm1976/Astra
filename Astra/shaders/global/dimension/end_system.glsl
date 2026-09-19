@@ -52,19 +52,22 @@ vec3 end_surface_radiance(vec3 position,vec3 normal,vec3 ray,vec4 body,int id,
     vec3 light=normalize(end_source_position()-position);
     float lambert=max(dot(normal,light),0.0);
     float visibility=end_body_shadow(position+normal*body.w*0.012,light,body,id);
-    for(int i=0;i<END_BODY_COUNT;i++) {
-        if(i==id) continue;
-        float hit,cover; vec3 n;
-        if(end_body_intersect(position+normal*body.w*0.02,light,
-                              length(end_source_position()-position),bodies[i],i,0.0,hit,n,cover)) {
-            visibility=0.0;
-            break; // All solid bodies are opaque; further blockers cannot change this.
+    // Self-shadowed surfaces cannot be made darker by another opaque body.
+    if (visibility > 0.0) {
+        for(int i=0;i<END_BODY_COUNT;i++) {
+            if(i==id) continue;
+            float hit,cover; vec3 n;
+            if(end_body_intersect(position+normal*body.w*0.02,light,
+                                  length(end_source_position()-position),bodies[i],i,0.0,hit,n,cover)) {
+                visibility=0.0;
+                break; // All solid bodies are opaque; further blockers cannot change this.
+            }
         }
     }
     // Initialised because end_ring_hit() can return false without writing them;
     // the compiler rightly warns that the values would otherwise be undefined.
     float ringT = 0.0; vec3 ringP = vec3(0.0);
-    if(end_ring_hit(position+normal*body.w*0.02,light,length(end_source_position()-position),ringT,ringP))
+    if(visibility > 0.0 && end_ring_hit(position+normal*body.w*0.02,light,length(end_source_position()-position),ringT,ringP))
         visibility*=dot(end_ring_transmission(ringP,light,0.003),vec3(0.2126,0.7152,0.0722));
     float opposition=pow(max(dot(-ray,light),0.0),32.0);
     float rim=pow(1.0-max(dot(normal,-ray),0.0),20.0)*max(dot(normal,light),0.0);

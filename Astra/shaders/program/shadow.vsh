@@ -115,7 +115,7 @@ void main() {
 	tint = gl_Color;
 
     #ifdef DIMENSION_END
-    gl_Position = shadowProjection * vec4(end_shadow_view(eyeRelativePos),1.0);
+    gl_Position = vec4(end_shadow_ndc(eyeRelativePos),1.0);
     #else
 	gl_Position = gl_ProjectionMatrix * viewPos;
     #endif

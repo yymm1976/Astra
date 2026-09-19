@@ -10,6 +10,8 @@ const int colortex9Format = RGBA16F;
 in vec2 texcoord;
 /* RENDERTARGETS: 9 */
 void main() {
+    vec3 ray = normalize(view_player(screen_view(vec3(texcoord, 1.0))));
+    end_sky_ray_cone = max(length(dFdx(ray)),length(dFdy(ray)));
     // Include the reconstruction neighbourhood so foreground silhouettes cannot
     // pull unrendered texels into an adjacent sky pixel during upsampling.
     vec2 pixel = 1.0 / vec2(textureSize(depthtex0, 0));
@@ -27,7 +29,6 @@ void main() {
         }
     }
     if (skyDepth < 0.999999) { gl_FragData[0] = vec4(0.0); return; }
-    vec3 ray = normalize(view_player(screen_view(vec3(texcoord, 1.0))));
     vec3 color = astra_sky(ray);
     gl_FragData[0] = vec4(color, end_star_visibility);
 }

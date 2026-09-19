@@ -1,6 +1,4 @@
 // Adapted from Solas V2.2b getBloom.glsl by Septonious; see THIRD-PARTY.md.
-float pixelWidth = 1.0 / viewWidth;
-float pixelHeight = 1.0 / viewHeight;
 
 vec3 getBloomTile(float lod, vec2 bloomCoord, vec2 offset) {
 	float scale = exp2(lod);
@@ -27,14 +25,10 @@ void getBloom(inout vec3 color, vec2 coord, float z1) {
 	bloomStrength *= 1.0 - astraSolasTimeBrightness * 0.33 * eBS;
 	#endif
 
-	#if 2 == 0
-	color = mix(color, blur, 0.25 * bloomStrength);
-	#else
 	vec3 bloomContrast = vec3(exp2(2 * 0.25));
 	color = pow(color, bloomContrast);
 	blur = pow(blur, bloomContrast);
 	vec3 strengthFactor = pow(vec3(0.2 * bloomStrength), bloomContrast) * (2.0 - eBS);
 	color = mix(color, blur, strengthFactor);
 	color = pow(color, 1.0 / bloomContrast);
-	#endif
 }

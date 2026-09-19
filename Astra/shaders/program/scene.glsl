@@ -5,6 +5,13 @@
 #include "/lib/uniforms.glsl"
 #include "/lib/encoding.glsl"
 #include "/lib/transforms.glsl"
+// Integer-power helpers (square/cube/pow4../power). Included before every consumer:
+// global/lighting/sss.glsl's transmission lobe, global/atmosphere/sky_gradient.glsl's
+// runtime sky factors. See lib/pow.glsl for why this exists and what was measured.
+#include "/lib/pow.glsl"
+// twilight.glsl first: global/atmosphere/fog.glsl's directional term reuses
+// astra_twilight_sky() and astra_twilight_strength().
+#include "/lib/twilight.glsl"
 #include "/global/lighting/shadowmap.glsl"
 #include "/global/lighting/blocklight.glsl"
 #include "/global/lighting/sss.glsl"
@@ -39,11 +46,6 @@ vec3 astra_sky(vec3 worldDir) {
         #if CLOUD_MODE == CLOUD_PLANAR
             vec4 cloud = astra_planar_cloud(worldDir);
             sky = mix(sky, cloud.rgb, cloud.a);
-        #else
-            if (astraRainFactor > 0.01) {
-                vec4 cloud = astra_planar_cloud(worldDir);
-                sky = mix(sky, cloud.rgb, cloud.a * astraRainFactor);
-            }
         #endif
         return sky;
     #endif
@@ -84,8 +86,14 @@ vec3 astra_water_air_sky(vec3 direction) {
         float disk = 1.0 - smoothstep(0.009, 0.014, angle);
         float aureole = exp(-angle * angle / 0.0025);
         float daylight = skyVisibilityDay * smoothstep(0.0, 0.10, worldSunVector.y);
-        sky += astra_direct_light() * (disk * 12.0 + aureole * 0.30)
-             * daylight * (1.0 - rainStrength);
+        // The solar image seen through the water surface, from below. It uses the same
+        // luminance shoulder as the disc in program/sky.fsh: an underwater sun seen
+        // through Snell's window was the brightest thing in the frame and clipped to a
+        // white patch, and a hard clip there also removed the colour the user wants
+        // kept. Amplitudes are lower than before (12.0 / 0.30 -> 8.0 / 0.26) because
+        // the disc itself is no longer under-reading; the shape is unchanged.
+        sky += astra_scene_highlights(astra_direct_light()
+             * (disk * 8.0 + aureole * 0.26) * daylight * (1.0 - rainStrength));
     #endif
     return sky;
 }
@@ -105,6 +113,9 @@ vec3 astra_water_segment(vec3 radiance, vec3 start, vec3 finish, float skylight)
 vec4 astra_fog(vec3 playerPos, float skylight) {
     float distanceToCamera = length(playerPos);
     vec3 direction = playerPos / max(distanceToCamera, 1e-5);
+    // Absolute world height of the fragment: the valley mist lives in the world, not
+    // in camera space, so it must not move when the camera does.
+    float fragWorldY = cameraPosition.y + playerPos.y;
     float skyStrength;
     vec4 fog;
     #if defined DIMENSION_NETHER
@@ -115,16 +126,31 @@ vec4 astra_fog(vec3 playerPos, float skylight) {
     #else
         FogParams params = FogParams(MIN_AMBIENT_COLOR, astra_underwater_color(direction),
                                      clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0));
-        fog = fog_v2(skyStrength, params, distanceToCamera, distanceToCamera, skylight);
+        fog = fog_v2(skyStrength, params, distanceToCamera, distanceToCamera, skylight,
+                     fragWorldY);
     #endif
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-        if (isEyeInWater == 0 && blindness <= 0.0001 && fog.a > 0.0) {
+        if (isEyeInWater == 0 && blindness <= 0.0001) {
             #ifdef CAVE_FOG
                 float eyeSky = clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0);
                 float outdoorWeight = smoothstep(0.0, 0.25, max(skylight, eyeSky));
             #else
                 float outdoorWeight = 1.0;
             #endif
+            float morning=astra_twilight_strength()*outdoorWeight;
+            // Complementary mainFog: denser low-altitude air and a distance
+            // curve, with the down-sky colour as the atmospheric target.
+            // The altitude weight is now the shared valley-mist remap (fog.glsl)
+            // instead of an inline smoothstep, so the twilight haze, the atmospheric
+            // density curve and the morning air all read the same height field and
+            // cannot disagree about where the low air is. End points are unchanged:
+            // 0.62 at the valley floor, 0.22 above Y=150.
+            float fogAirWeight=fog_morning_air_weight(fragWorldY);
+            float morningFog=(1.0-exp(-pow(max(distanceToCamera-24.0,0.0)*0.003,1.4)))
+                            *morning*mix(0.22,0.62,fogAirWeight);
+            fog.a=1.0-(1.0-fog.a)*(1.0-morningFog);
+            if (fog.a<=0.0) return vec4(0.0);
+            skyStrength=mix(skyStrength,max(skyStrength,0.78),morning);
             float horizonConvergence = smoothstep(0.68, 0.98, fog.a) * outdoorWeight;
             if (skyStrength <= 0.0 && horizonConvergence <= 0.0)
                 return vec4(max(fog.rgb, vec3(0.0)), clamp(fog.a, 0.0, 1.0));
@@ -137,13 +163,16 @@ vec4 astra_fog(vec3 playerPos, float skylight) {
                 localFogSky = fog_air_perspective(
                     localFogSky, direction, astra_direct_light());
             #endif
+            // The shared sky already contains the sunrise lobe. Do not add
+            // a second solar glare to air and turn the valley white again.
+            localFogSky=mix(localFogSky,horizonSky,morning);
             #ifdef BIOME_TINT
                 // Biome colour belongs to thin local haze. Fade it away before the
                 // horizon converges to the atmosphere, preventing a persistent
                 // fogColor-derived green/yellow band at long range.
                 vec3 biomeFogSky = fog_biome_tint(
                     localFogSky, srgb_decode(max(fogColor, vec3(0.0))));
-                float biomeTintWindow = 1.0 - smoothstep(0.35, 0.82, fog.a);
+                float biomeTintWindow = (1.0 - smoothstep(0.35, 0.82, fog.a))*(1.0-0.75*morning);
                 localFogSky = mix(localFogSky, biomeFogSky, biomeTintWindow);
             #endif
             fog.rgb += localFogSky * skyStrength;
@@ -203,12 +232,9 @@ vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
         LightParams params = LightParams(astra_sky_ambient(), astra_direct_light(),
             nightVision, astraBlocklightSuppression, astraHeldLightBase,
             astraHeldLightSuppression, lightningBoltPosition);
-        // Match the light spectrum entering air-side water absorption, not just
-        // the absorption coefficients. Dry terrain keeps the public sky lighting.
-        if (isEyeInWater == 0 && shadow_water_depth(playerPos, shadowPos) > 0.0) {
-            water_reference_lighting(params.skyAmbient, params.directLightSurface);
-            params.directLightSurface *= max(skylight, 0.125 / 16.0);
-        }
+        // The bed receives the same incident daylight as the bank. A second
+        // reference palette made daytime transmission blue while torchlight
+        // stayed cyan. Interface absorption owns the water colour, once.
         if (isEyeInWater == 0 && astraRainFactor > 0.01) {
             float cloudLight = astra_cloud_transmission(playerPos + cameraPosition, normalize(view_player(lightVector)));
             params.directLightSurface *= mix(1.0, cloudLight, astraRainFactor * 0.75);

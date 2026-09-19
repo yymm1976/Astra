@@ -19,13 +19,9 @@ vec3 bh_Blackbody(float temperature) {
 }
 #include "/global/dimension/end_system.glsl"
 
-// Ray-march budget. Both of these were effectively unbounded before: 256 steps with two
-// geometry sweeps each. The reference implementation this orbit borrows from marches 50
-// steps and intersects no geometry inside the loop at all, so 48 strided sweeps of the
-// ring is already more thorough than the reference while staying inside a per-pixel
-// budget a laptop GPU can actually retire.
+// Retain the reduced integration budget from the performance follow-up.
+// Geometry uses conservative empty-space bounds, not extrapolated future chords.
 const int END_MARCH_STEPS       = 48;
-const int END_GEOMETRY_STRIDE   = 4;
 
 vec3 end_ray_acceleration(vec3 p,float angularMomentumSquared) {
     float r=length(p);
@@ -67,8 +63,18 @@ void end_disc_sample(vec3 p,vec3 ray,float stepLength,mat3 disc,float cone,
     transmission*=1.0-alpha;
 }
 float end_star_visibility = 0.0;
+#ifdef ASTRA_END_SKY_BUFFER
+// Set for the entire fragment quad before the depth visibility branch.
+float end_sky_ray_cone;
+#endif
 void astra_end_blackhole(inout vec3 color,vec3 originalRay,vec3 unusedLightDirection) {
+    // Per-call output, including every occluded/captured/iteration-cap exit.
+    end_star_visibility=0.0;
+    #ifdef ASTRA_END_SKY_BUFFER
+    float cone=max(end_sky_ray_cone,0.00002);
+    #else
     float cone=max(max(length(dFdx(originalRay)),length(dFdy(originalRay))),0.00002);
+    #endif
     vec3 source=end_source_position(), light=end_light_direction();
     vec4 bodies[END_BODY_COUNT];
     int bodyIndices[END_BODY_COUNT];
@@ -106,10 +112,16 @@ void astra_end_blackhole(inout vec3 color,vec3 originalRay,vec3 unusedLightDirec
     float angle=acos(clamp(dot(originalRay,light),-1.0,1.0));
     float shellWidth=max(radians(0.055),cone*0.5);
     float criticalAngle=asin(clamp(2.598076211*END_HORIZON/END_SOURCE_DISTANCE,0.0,1.0));
-    float shell=exp(-pow((angle-criticalAngle)/shellWidth,2.0));
-    float halo=exp(-pow((angle-criticalAngle)/radians(0.65),2.0))*0.10;
+    float shellOffset=(angle-criticalAngle)/shellWidth;
+    float haloOffset=(angle-criticalAngle)/radians(0.65);
+    float shell=exp(-shellOffset*shellOffset);
+    float halo=exp(-haloOffset*haloOffset)*0.10;
     bool shellDrawn=false, terminated=false, escapedLens=false;
     vec3 acceleration=end_ray_acceleration(p,angularMomentumSquared);
+    float emptyDistance=0.0;
+    vec3 ringAxis=end_ring_axis();
+    // At most two candidate segment queries per step (96 at 48 steps),
+    // plus entry/escape queries. Empty bounds skip these; this is not 12.
     for(int i=0;i<END_MARCH_STEPS;i++) {
         float r=length(p);
         float ds=clamp(r*0.085,0.006*END_SOURCE_SCALE,0.14*END_SOURCE_SCALE);
@@ -122,24 +134,26 @@ void astra_end_blackhole(inout vec3 color,vec3 originalRay,vec3 unusedLightDirec
         vec3 delta=next-p; float lengthStep=length(delta);
         vec3 ray=delta/max(lengthStep,1e-8);
         vec3 midpoint=(p+next)*0.5;
-        // Geometry is consumed at its actual distance, before/after disc emission.
-        //
-        // COST: this sweep is the single most expensive thing in the pack. It runs
-        // candidateCount body tests, each with a bounding-sphere reject and, on a hit,
-        // a 96-step surface search. Calling it every step - and twice per step, as it
-        // was - reached 512 sweeps per pixel, which is a GPU hang rather than a slow
-        // frame: at 1080p a full-screen End sky is on the order of 1e11 iterations.
-        // It is therefore strided: one sweep covers END_GEOMETRY_STRIDE segments, and
-        // the limit passed is the distance actually spanned since the last sweep, so
-        // nothing between sweeps is skipped over.
-        if(i % END_GEOMETRY_STRIDE == 0) {
-            if(end_scene_segment(source+p,ray,lengthStep*float(END_GEOMETRY_STRIDE),cone,bodies,bodyIndices,candidateCount,radiance,transmission)) { terminated=true; break; }
+        // Distance to the nearest conservative body bound is an empty-space
+        // guarantee in EVERY direction, including the curved ray's next segment.
+        if(emptyDistance<=lengthStep) {
+            emptyDistance=END_FAR;
+            for(int j=0;j<candidateCount;j++) {
+                vec4 body=bodies[bodyIndices[j]];
+                emptyDistance=min(emptyDistance,length(source+p-body.xyz)-body.w*1.65);
+            }
         }
+        int activeCount=emptyDistance>lengthStep+0.0001 ? 0 : candidateCount;
+        // The infinite ring plane is also a conservative bound for the finite ring.
+        bool geometryNeeded=activeCount>0 || abs(dot(source+p,ringAxis)+END_RING_HEIGHT)<=lengthStep+0.0001;
+        if(geometryNeeded && end_scene_segment(source+p,ray,lengthStep*0.5,cone,bodies,bodyIndices,activeCount,radiance,transmission)) { terminated=true; break; }
         end_disc_sample(midpoint,ray,lengthStep,disc,cone,radiance,transmission);
         if(!shellDrawn && (dot(next,nextVelocity)>=0.0 || length(next)<=END_HORIZON)) {
             radiance+=transmission*vec3(1.0,0.88,0.72)*(shell*1.8+halo*0.6);
             shellDrawn=true;
         }
+        if(geometryNeeded && end_scene_segment(source+midpoint,ray,lengthStep*0.5,cone,bodies,bodyIndices,activeCount,radiance,transmission)) { terminated=true; break; }
+        emptyDistance-=lengthStep;
         p=next; velocity=nextVelocity; acceleration=nextAcceleration;
         if(length(p)<=END_HORIZON) {
             // Art-directed compressed secondary star image requested by the brief.

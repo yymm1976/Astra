@@ -28,6 +28,9 @@ void main() {
 	vec4 cloud = texture(gtexture, texcoord) * tint;
 	cloud.rgb = srgb_decode(max(cloud.rgb, vec3(0.0)));
 	cloud.rgb *= mix(vec3(0.72), vec3(1.0), skyVisibilityDay);
+    vec3 direction=astra_cloud_world_direction();
+    vec3 morningCloud=astra_twilight_atmosphere(cloud.rgb,direction);
+    cloud.rgb=mix(cloud.rgb,morningCloud*mix(0.60,0.92,tint.r),astra_twilight_strength());
 	cloud.rgb = mix(cloud.rgb, vec3(dot(cloud.rgb, vec3(0.25, 0.65, 0.10))) * 0.72,
 	                rainStrength * 0.65);
 	#ifdef FANCY_TRANSLUCENTS

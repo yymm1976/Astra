@@ -19,6 +19,7 @@ uniform float sunProgress;             // 0 at sun horizon, 1 at zenith
 uniform float moonProgress;            // same, for the moon
 uniform float skyVisibilityDay;        // skylight collapse around dusk/dawn
 uniform float sunrise;                 // horizon glow factor while the sun crosses the horizon
+uniform float astraTwilightFactor;      // shared, rain-aware twilight envelope (also underwater)
 uniform float moonrise;                // same, for the moon
 uniform float borderFogDistance;       // == far
 uniform float atmosphereFogCoefficient;// pow(d,3) fog coefficient (distance-normalized)

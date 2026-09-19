@@ -43,7 +43,7 @@ float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
     vec3 endpoint = vec3(0.0);
     float weights = 0.0;
     float sideSum = 0.0;
-    int footprints = reflected ? 4 : 1;
+    int footprints = reflected && radius > 0.0 ? 4 : 1;
     for (int cone = 0; cone < 4; ++cone) {
         if (cone >= footprints) break;
         vec2 offset = reflected ? vec2((cone & 1) == 0 ? -radius : radius,
@@ -147,7 +147,8 @@ vec4 solas_underwater_interface(vec3 color, vec3 viewPos, vec3 normal, vec3 face
 }
 
 vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
-                 vec3 normal, float roughness, float skylight, bool water, vec3 geometricNormal) {
+                 vec3 normal, float roughness, float skylight, bool water,
+                 bool ice, vec3 geometricNormal) {
     vec3 incidentWorld = normalize(view_player(viewPos));
     vec3 geometric = normalize(geometricNormal);
     if (dot(incidentWorld, geometric) > 0.0) geometric = -geometric;
@@ -163,11 +164,40 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
     bool totalReflection;
     float fresnel = water_fresnel(max(dot(-incident, viewNormal), 0.0), eta, totalReflection);
     if (water && !belowWater) {
-        fresnel = (0.1 + 0.9 * pow(clamp(1.0 + dot(incident, viewNormal), 0.0, 1.0), 5.0)) * skylight;
+        // Preserve the bed instead of imposing a ten-percent sky coating.
+        fresnel = (0.025 + 0.975 * pow(clamp(1.0 + dot(incident, viewNormal), 0.0, 1.0), 5.0)) * skylight;
     }
     vec3 reflectedRay = reflect(incident, viewNormal);
     if (dot(reflectedRay, viewGeometric) <= 0.0) reflectedRay = reflect(incident, viewGeometric);
     vec3 reflectedWorld = normalize(view_player(reflectedRay));
+    // Ice is a separate material, so it gets a separate surface response: its own
+    // wider, weaker solar glint instead of water's, and a twilight-aware reflection
+    // tint so it joins the same sunrise/sunset lighting as the terrain beside it
+    // rather than staying a neutral sky mirror. Its texture still leads - this is a
+    // glint on top of the lit cel, not a coating over it.
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    if (ice && !belowWater) {
+        float iceAlign = max(dot(reflectedWorld, worldSunVector), 0.0);
+        float iceSharpness = mix(72.0, 30.0, clamp(roughness * 3.0, 0.0, 1.0));
+        float iceGlint = pow(iceAlign, iceSharpness) * solas_sun_visibility();
+        if (iceGlint > 0.002) {
+            // gated on the sun's own elevation, exactly as the water glint is: a
+            // sunset glint on ice is a real thing, a midnight one is not.
+            iceGlint *= smoothstep(0.0, 0.10, worldSunVector.y);
+            vec3 iceGlintColor = mix(vec3(1.00, 0.97, 0.92), vec3(1.30, 0.86, 0.46),
+                                     astra_twilight_strength());
+            color += iceGlintColor * (iceGlint * 0.22 * skylight);
+        }
+    }
+    #endif
+    if (!water) {
+        // Ice retains its lit texture; alpha blending supplies transmission.
+        // It needs neither the fluid refraction march nor its absorption.
+        vec3 iceReflection=astra_reflection_sky(reflectedWorld,roughness)*skylight;
+        color=mix(color,iceReflection,clamp(fresnel,0.035,0.28));
+        return vec4(max(astra_apply_medium(color,playerPos,skylight),vec3(0.0)),
+                    clamp(alpha,0.86,0.96));
+    }
     vec3 reflection = vec3(0.0);
     float reflectionWeight = 0.0;
     #ifdef SCREENSPACE_REFLECTIONS
@@ -183,10 +213,13 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
         }
     #endif
     if (reflectionWeight < 1.0) {
-        vec3 fallback = belowWater
-            ? astra_water_segment(vec3(0.0), playerPos, playerPos + reflectedWorld * 96.0, skylight)
-            : (water ? waterRef_SkyColor(reflectedWorld)
-                     : astra_reflection_sky(reflectedWorld, roughness)) * skylight;
+        vec3 fallback;
+        if (belowWater) {
+            fallback=astra_water_segment(vec3(0.0),playerPos,playerPos+reflectedWorld*96.0,skylight);
+        } else {
+            // One atmosphere for the visible sky and reflected sky, all day.
+            fallback=astra_reflection_sky(reflectedWorld,roughness)*skylight;
+        }
         reflection += fallback * (1.0 - reflectionWeight);
     }
     // Solar glint. waterRef_SkyColor carries the reference's atmospheric Mie lobe, which
@@ -201,7 +234,31 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
             // searing the view.
             float sharpness = mix(150.0, 42.0, clamp(roughness * 6.0, 0.0, 1.0));
             float glint = pow(sunAlign, sharpness) * solas_sun_visibility();
-            reflection += vec3(1.00, 0.96, 0.88) * glint * skylight * 0.85;
+            // Complementary's solar highlight is shadow-gated. A shaded bank
+            // must not get the same bright reflection stripe as open water.
+            if (glint>0.002) {
+                vec3 source=normalize(view_player(lightVector));
+                vec3 sunShadow=shadow_map_position(playerPos,geometric,dot(geometric,source));
+                vec3 visibility=surface_shadow_light(playerPos,sunShadow,skylight);
+                glint*=dot(visibility,vec3(0.2126,0.7152,0.0722));
+            }
+            // The warm light belongs in the REFLECTION, not spread over the river
+            // surface. The reflected sky already carries the sunrise lobe
+            // (astra_sky_radiance -> astra_twilight_sky), so a sunrise river warms
+            // through the sky path by itself. This lobe is the direct solar image on the
+            // water, which is why it may take the sun's own colour - and the sun's
+            // colour is already desaturated by astra_twilight_highlights() (twilight.glsl),
+            // which preserves luminance while compressing the peak. Reusing that here
+            // instead of a private (1.45, 0.83, 0.30) keeps ONE definition of "how warm
+            // the twilight sun is" and stops the glint from carrying more red than the
+            // sun it is a reflection of.
+            vec3 glintColor=mix(vec3(1.00,0.96,0.88),
+                                astra_twilight_highlights(astra_twilight_sunlight()),
+                                astra_twilight_strength());
+            // 0.85 -> 0.72: the glint is the narrowest, highest-energy term on the
+            // surface, so it is the one that should lose energy at dawn rather than
+            // gain it on top of a sky that is already bright.
+            reflection += glintColor * glint * skylight * mix(0.72,0.52,astra_twilight_strength());
         }
     #endif
     vec2 uv = gl_FragCoord.xy / vec2(viewWidth, viewHeight);
@@ -225,24 +282,25 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
                 }
             }
         #endif
-        vec3 deepFallback = belowWater
-            ? astra_water_air_sky(transmittedWorld)
-            : astra_water_segment(vec3(0.0), playerPos,
-                                  playerPos + transmittedWorld * 96.0, skylight);
-        vec3 geometricFallback = deepFallback;
-        // Geometric misses return to the entire unshifted optical path. This is
-        // a fallback only: it must not replace a valid refracted path merely
-        // because its own confidence is numerically larger.
-        if (!airMiss) {
+        // A fully accepted path needs no fallback scene/medium evaluation.
+        if (valid < 1.0) {
             vec3 straight = vec3(0.0);
-            float straightValid = water_sample_path(uv, viewPos, viewGeometric, false,
-                                     water && !belowWater, 0.0, skylight, straight);
-            geometricFallback = mix(deepFallback, straight, straightValid);
+            float straightValid=0.0;
+            if (!airMiss)
+                straightValid=water_sample_path(uv,viewPos,viewGeometric,false,
+                                               !belowWater,0.0,skylight,straight);
+            vec3 geometricFallback=straight;
+            if (straightValid < 1.0) {
+                vec3 deepFallback=belowWater
+                    ? astra_water_air_sky(transmittedWorld)
+                    : astra_water_segment(vec3(0.0),playerPos,
+                                          playerPos+transmittedWorld*96.0,skylight);
+                geometricFallback=mix(deepFallback,straight,straightValid);
+            }
+            transmitted=mix(geometricFallback,transmitted,valid);
         }
-        transmitted = mix(geometricFallback, transmitted, valid);
     }
     color = mix(transmitted, reflection, fresnel);
-    if (!water) color = mix(color, color * clamp(color + vec3(0.5), 0.0, 1.0), 0.08);
     // Exactly one eye-to-interface leg. Solar scattering for this leg is added
     // by composite/final, bounded by depthtex0, after translucent geometry.
     color = astra_apply_medium(color, playerPos, skylight);

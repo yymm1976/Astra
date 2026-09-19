@@ -199,7 +199,7 @@ float surface_height(vec2 worldPos, vec2 ddxWorldPos, vec2 ddyWorldPos, float ti
 			+ vec2(worldPos.x * stretch.x, dot(worldPos, stretch.zy));
 		float aa = surface_antialias(ddxWorldPos, ddyWorldPos, stretch);
 		float fade = 1.0;
-		float filteredHeight = mix(surface_noise(at), 0.5, aa);
+		float filteredHeight = aa >= 1.0 ? 0.5 : mix(surface_noise(at), 0.5, aa);
 		// Removing a layer means fading its variation, not its DC component. A
 		// distance-dependent mean shift otherwise moves the parallax intersection.
 		height += rippleMagnitude[i] * mix(0.5, filteredHeight, fade);
@@ -212,7 +212,7 @@ float surface_height(vec2 worldPos, vec2 ddxWorldPos, vec2 ddyWorldPos, float ti
 		float aa = surface_antialias(ddxWorldPos, ddyWorldPos, stretch);
 		float fade = 1.0;
 		// Reference order: antialias the height before the crest remap.
-		float filteredCrest = surface_crest(mix(surface_noise(at), 0.5, aa));
+		float filteredCrest = surface_crest(aa >= 1.0 ? 0.5 : mix(surface_noise(at), 0.5, aa));
 		height += crestMagnitude[i] * mix(0.5, filteredCrest, fade);
 	}
 
@@ -232,6 +232,12 @@ vec2 surface_gradient(vec2 worldPos, vec2 ddxWorldPos, vec2 ddyWorldPos, float t
 		float aa = surface_antialias(ddxWorldPos, ddyWorldPos, stretch);
 		float fade = 1.0;
 
+        if (aa >= 1.0) {
+            // Fully filtered variation is exactly zero. Keep its unresolved
+            // roughness energy without fetching an unused animated gradient.
+            unresolved += (0.43 * SURFACE_GRADIENT_STRENGTH * rippleMagnitude[i]) * length(stretch);
+            continue;
+        }
 		vec2 waveGradient = (SURFACE_GRADIENT_STRENGTH * rippleMagnitude[i])
 			* surface_noise_gradient(at);
 
@@ -252,6 +258,10 @@ vec2 surface_gradient(vec2 worldPos, vec2 ddxWorldPos, vec2 ddyWorldPos, float t
 		float fade = 1.0;
 
 		// crest 的链式法则：先取抗锯齿后的高度喂给 dCrest/dh，再对返回的梯度抗锯齿。
+        if (aa >= 1.0) {
+            unresolved += (0.43 * 2.22144147 * SURFACE_GRADIENT_STRENGTH * crestMagnitude[i]) * length(stretch);
+            continue;
+        }
 		float heightAt = mix(surface_noise(at), 0.5, aa);
 		vec2 waveGradient = (SURFACE_GRADIENT_STRENGTH * crestMagnitude[i])
 			* surface_noise_gradient(at) * surface_crest_derivative(heightAt);
@@ -285,7 +295,7 @@ vec2 surface_parallax(vec2 worldPos, vec2 ddxWorldPos, vec2 ddyWorldPos, float t
 	return worldPos;
 }
 
-WaterSurface water_surface(vec3 worldPos, vec3 baseNormal, float time) {
+WaterSurface water_surface(vec3 worldPos, vec3 baseNormal, float time, bool active) {
 	WaterSurface surface;
 	vec3 faceNormal = normalize(baseNormal);
 	surface.normal = faceNormal;
@@ -295,6 +305,9 @@ WaterSurface water_surface(vec3 worldPos, vec3 baseNormal, float time) {
 #ifdef WATER_WAVES
 	vec2 ddx = dFdx(worldPos.xz);
 	vec2 ddy = dFdy(worldPos.xz);
+    // The whole quad supplies derivatives before any early return. Subsequent
+    // wave samples use this explicit footprint, including shoreline pixels.
+    if (!active || abs(faceNormal.y) <= 0.999) return surface;
 
 	float heightScale = WATER_WAVE_HEIGHT * 0.01;
 	float waveTime = time * (WATER_WAVE_SPEED * 0.01);
@@ -307,13 +320,22 @@ WaterSurface water_surface(vec3 worldPos, vec3 baseNormal, float time) {
 		/ max(length(toSurface), 1e-5);
 	float distanceToCamera = length(toSurface);
 
-	vec2 offsetPosition = surface_parallax(worldPos.xz, ddx, ddy, waveTime, tangentView, distanceToCamera);
     float parallaxStrength = clamp((48.0 - distanceToCamera) / 24.0, 0.0, float(abs(faceNormal.y) > 0.999));
-    vec2 position = mix(worldPos.xz, offsetPosition, parallaxStrength);
+    vec2 position=worldPos.xz;
+    if (parallaxStrength > 0.0) {
+        vec2 offsetPosition=surface_parallax(position,ddx,ddy,waveTime,tangentView,distanceToCamera);
+        position=mix(position,offsetPosition,parallaxStrength);
+    }
 
 	float unresolved;
 	// The reference reuses the geometric footprint for the final normal.
 	vec2 minusGradient = surface_gradient(position, ddx, ddy, waveTime, distanceToCamera, unresolved);
+    #if !defined DIMENSION_END && !defined DIMENSION_NETHER
+    if (isEyeInWater==0) {
+        // Far ripples should not split the warm sky into bright parallel ribbons.
+        minusGradient*=mix(1.0,0.58,smoothstep(24.0,144.0,distanceToCamera));
+    }
+    #endif
 
 	// minusGradient = -∇H（噪声空间 y 即世界 Z），故世界法线 = (-∂H/∂x, 1, -∂H/∂z)；
 	// 符号已烘进 surface_gradient 的减法里（Steadfast 同形）。
@@ -322,8 +344,11 @@ WaterSurface water_surface(vec3 worldPos, vec3 baseNormal, float time) {
 		1.0,
 		minusGradient.y * heightScale));
 	surface.normal = upwardNormal * sign(faceNormal.y);
-    // Steadfast does not add a distance-dependent roughness lobe.
     surface.roughness = 0.0;
+    #if !defined DIMENSION_END && !defined DIMENSION_NETHER
+    if (isEyeInWater==0)
+        surface.roughness=0.035+0.10*sqrt(clamp(unresolved*0.08,0.0,1.0));
+    #endif
 #endif
 
     // Select sideways geometry after all derivatives, including parallax and

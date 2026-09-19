@@ -1,11 +1,11 @@
 // Adapted from Solas V2.2b computeBloom.glsl by Septonious; see THIRD-PARTY.md.
-float pixelHeight = 0.8 / min(360.0, viewHeight);
-float pixelWidth = pixelHeight / (viewWidth / viewHeight);
-vec2 viewSize = vec2(1.0 / viewWidth, 1.0 / viewHeight);
 
 const float weight[6] = float[6](0.0556, 0.1667, 0.2777, 0.2777, 0.1667, 0.0556);
 
 vec3 getBloomTile(float lod, vec2 bloomCoord, vec2 offset) {
+    float pixelHeight=0.8/min(360.0,viewHeight);
+    float pixelWidth=pixelHeight/(viewWidth/viewHeight);
+    vec2 viewSize=1.0/vec2(viewWidth,viewHeight);
 	vec3 bloom = vec3(0.0);
 
 	float scale = exp2(lod);
@@ -27,6 +27,7 @@ vec3 getBloomTile(float lod, vec2 bloomCoord, vec2 offset) {
 }
 
 vec3 computeBloom(vec2 texCoord) {
+    vec2 viewSize=1.0/vec2(viewWidth,viewHeight);
 	vec2 bloomCoord = texCoord * viewHeight * 0.8 / min(360.0, viewHeight);
 	vec3 blur =  getBloomTile(1.0 + 1.0, bloomCoord, vec2(0.0   , 0.0 ) + vec2( 0.5, 0.0) * viewSize);
 	     blur += getBloomTile(2.0 + 1.0, bloomCoord, vec2(0.50  , 0.0 ) + vec2( 4.0, 0.0) * viewSize);

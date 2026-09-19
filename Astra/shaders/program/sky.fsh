@@ -60,31 +60,68 @@ void main() {
 	#if defined(DIMENSION_NETHER) || defined(DIMENSION_END)
 		discard;
 	#else
-		// Astra owns the star field in skybasic, so the vanilla star draw is always suppressed.
+		// Astra owns the star field, so the vanilla star draw is always suppressed.
 		if (renderStage == MC_RENDER_STAGE_STARS) discard;
 
 		#if SUN_MOON_MODE == SUN_MOON_VANILLA
 			vec4 celestial = texture(gtexture, texcoord) * tint;
+            if (celestial.a <= 0.001 || max(max(celestial.r,celestial.g),celestial.b) <= 0.001) discard;
 			celestial.rgb = srgb_decode(max(celestial.rgb, vec3(0.0)));
-            float throughCloud = astra_cloud_transmission(cameraPosition, normalize(worldSunVector));
-            celestial.a *= mix(1.0, throughCloud * 0.25, astraRainFactor);
+            if (renderStage == MC_RENDER_STAGE_SUN)
+                celestial.rgb *= mix(vec3(2.0,1.90,1.65),vec3(2.0,1.28,0.56),astra_twilight_strength());
+            // The sun/moon sprite owns its own ceiling. The vanilla atlas sun is a
+            // hard-edged square, and 2.0x on the linear white sprite put every channel
+            // far past the tonemapper's knee, where the disc flattened to a white
+            // rectangle with no readable limb. This is the SAME luminance shoulder the
+            // sky uses (twilight.glsl): the square body stays square and stays at the
+            // brightness the multiplier above asked for, while the sprite's edge
+            // texels - which are dimmer - keep their relative values, so the outline
+            // reads. No new pass and no new render target: one function call on four
+            // pixels of sky per frame.
+            celestial.rgb = astra_scene_highlights(celestial.rgb);
+            vec3 celestialDirection=astra_sky_world_direction();
+            float throughCloud = astra_cloud_transmission(cameraPosition,celestialDirection);
+            celestial.a *= throughCloud * mix(1.0,0.25,astraRainFactor);
             gl_FragData[0] = celestial;
 		#else
 			vec3 worldDir = astra_sky_world_direction();
 			if (renderStage == MC_RENDER_STAGE_SUN) {
-				gl_FragData[0] = astra_procedural_disc(
-					worldDir, worldSunVector, 0.00873,
-					vec3(7.5, 4.8, 2.3) * mix(0.55, 1.0, sunProgress));
+                // Separate controls, which is what the task asks for: the DISC profile
+                // lives here (peak, limb and colour), the near glow lives in the sky
+                // gradient's glare lobe, and the wide diffusion lives in
+                // global/post/bloom.glsl. Before this the disc was a flat multiply,
+                // so "make the sun brighter" and "make the glow wider" were the same
+                // edit and the only way to see the shape was to blow the frame out.
+                //
+                // (8.0, 7.0, 5.2) day / (6.2, 4.2, 1.8) twilight. The compression is
+                // the shared single-factor shoulder (twilight.glsl), so the disc's
+                // channel ratios survive and its brightness falls monotonically to the
+                // ceiling as the multiplier rises. Peak after compression: 3.14 day,
+                // 2.61 twilight - above the tonemapper's knee, which is what keeps a
+                // sun-staring frame bright, but no longer 6.7x above it.
+                vec3 disc = mix(vec3(8.0,7.0,5.2),vec3(6.2,4.2,1.8),astra_twilight_strength());
+                gl_FragData[0] = astra_procedural_disc(
+					worldDir, worldSunVector, 0.028,
+                    astra_scene_highlights(disc));
 			} else if (renderStage == MC_RENDER_STAGE_MOON) {
+                // The moon keeps its phase mask (astra_procedural_moon) and its cooler
+                // colour; only its ceiling moves with the disc's, for the same reason.
+                vec3 disc = vec3(0.72, 0.88, 1.25) * (0.55 + 0.45 * moonProgress);
 				gl_FragData[0] = astra_procedural_moon(
 					worldDir, -worldSunVector, 0.0096,
-					vec3(0.72, 0.88, 1.25) * (0.55 + 0.45 * moonProgress));
+                    astra_scene_highlights(disc));
 			} else {
 				discard;
 			}
         #endif
         #if SUN_MOON_MODE != SUN_MOON_VANILLA
-        gl_FragData[0].a *= mix(1.0, astra_cloud_transmission(cameraPosition, normalize(worldSunVector)) * 0.25, astraRainFactor);
+        if (gl_FragData[0].a<=0.0) discard;
+        #if CLOUD_MODE == CLOUD_PLANAR
+        // The celestial pass is after skybasic: attenuate the disc by the
+        // same visible cloud sheet, also in clear weather.
+        gl_FragData[0].a *= 1.0-astra_planar_cloud(astra_sky_world_direction()).a;
+        #endif
+        gl_FragData[0].a *= mix(1.0,0.22,astraRainFactor);
         #endif
     #endif
 #else
@@ -93,10 +130,16 @@ void main() {
 		gl_FragData[0]=vec4(0.0,0.0,0.0,1.0);
 		return;
 	#endif
-	// gbuffers_skybasic also receives vanilla star geometry. Drawing an opaque atmosphere on
-	// those triangles would cover the sky; our cell field is already part of the SKY draw.
+	// gbuffers_skybasic also receives vanilla star geometry. It must not cover
+	// celestial sprites; Astra supplies its own stars with the atmosphere.
 	if (renderStage == MC_RENDER_STAGE_STARS) discard;
+	#if !defined DIMENSION_NETHER && CLOUD_MODE != CLOUD_VANILLA
+		// Keep celestial radiance over black. The expensive sky/cloud evaluation
+		// happens in deferred, after opaque terrain has established visibility.
+		gl_FragData[0] = vec4(0.0,0.0,0.0,1.0);
+	#else
 	vec3 worldDir = astra_sky_world_direction();
 	gl_FragData[0] = vec4(astra_sky(worldDir), 1.0);
+	#endif
 #endif
 }

@@ -70,8 +70,12 @@ float shadow_uv_coverage(vec3 shadowPos) {
                        min(shadowPos.y, 1.0 - shadowPos.y));
     float margin = shadowTexelSpread + 1.5 / float(shadowMapResolution);
     if (shadowPos.z <= 0.0 || shadowPos.z >= 1.0) return 0.0;
+    #ifdef DIMENSION_END
+    return smoothstep(margin,margin*2.0,border);
+    #else
     float radialBorder = 0.5 * (1.0 - length(shadowPos.xy * 2.0 - 1.0));
     return smoothstep(margin, margin * 2.0, min(border, radialBorder));
+    #endif
 }
 float shadow_coverage(vec3 playerPos, vec3 shadowPos) {
     return shadow_map_fade(playerPos) * shadow_uv_coverage(shadowPos);
@@ -91,12 +95,18 @@ ShadowTap shadow_read_tap(vec2 uv, float referenceDepth) {
     vec2 edge = 0.5 / vec2(size);
     vec2 coord = clamp(uv, edge, 1.0-edge);
     tap.allVisibility = texture(shadowtex0, vec3(coord, referenceDepth));
-    tap.opaqueVisibility = texture(shadowtex1, vec3(coord, referenceDepth));
+    // Opaque casters are a subset of all casters. A fully visible footprint
+    // cannot acquire an opaque shadow in the second map.
+    tap.opaqueVisibility = 1.0;
+    if (tap.allVisibility < 1.0)
+        tap.opaqueVisibility = texture(shadowtex1, vec3(coord, referenceDepth));
     // Material data is resolved once by the surface consumer, after all four lobes.
     #else
     ivec2 pixel = clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1);
     tap.allVisibility = step(referenceDepth, texelFetch(shadowtex0, pixel, 0).r);
-    tap.opaqueVisibility = step(referenceDepth, texelFetch(shadowtex1, pixel, 0).r);
+    tap.opaqueVisibility = 1.0;
+    if (tap.allVisibility < 1.0)
+        tap.opaqueVisibility = step(referenceDepth, texelFetch(shadowtex1, pixel, 0).r);
     // No tint/height can contribute when both visibility results agree. Air-side
     // water still needs R even with coloured shadows off, to preserve transmission.
     if (tap.opaqueVisibility > tap.allVisibility)
@@ -104,6 +114,49 @@ ShadowTap shadow_read_tap(vec2 uv, float referenceDepth) {
     #endif
     return tap;
 }
+#if SHADOW_FILTER_MODE == 0
+// Gather returns (01,11,10,00); reorder to (00,10,01,11), matching the
+// original software corners. Compare every depth BEFORE weighting it.
+vec4 shadow_corner_weights(vec2 f) {
+    return vec4((1.0-f.x)*(1.0-f.y), f.x*(1.0-f.y),
+                (1.0-f.x)*f.y, f.x*f.y);
+}
+vec4 shadow_gather_visibility(sampler2D depths, vec2 uv, float referenceDepth) {
+    vec2 edge = 0.5 / vec2(textureSize(depths, 0));
+    return step(vec4(referenceDepth), textureGather(depths, clamp(uv,edge,1.0-edge), 0).wzxy);
+}
+vec3 shadow_lobe_light(vec2 uv, float referenceDepth) {
+    ivec2 size = textureSize(shadowtex0, 0);
+    vec2 edge = 0.5 / vec2(size);
+    uv = clamp(uv, edge, 1.0-edge);
+    vec2 location = uv * vec2(size) - 0.5;
+    vec4 weights = shadow_corner_weights(fract(location));
+    vec4 allVisibility = shadow_gather_visibility(shadowtex0, uv, referenceDepth);
+    vec3 light = vec3(dot(allVisibility, weights));
+    if (all(equal(allVisibility, vec4(1.0)))) return light;
+
+    vec4 opaqueVisibility = shadow_gather_visibility(shadowtex1, uv, referenceDepth);
+    vec4 transparentWeight = max(opaqueVisibility-allVisibility, vec4(0.0)) * weights;
+    // Preserve each corner's discrete caster, including mixed water/glass
+    // edges. The hardware mode's centre-material approximation is not used.
+    if (any(greaterThan(transparentWeight, vec4(0.0)))) {
+        ivec2 corner = ivec2(floor(location));
+        for (int i=0; i<4; ++i) {
+            if (transparentWeight[i] <= 0.0) continue;
+            ivec2 pixel = clamp(corner+ivec2(i & 1, (i >> 1) & 1), ivec2(0), size-1);
+            vec4 caster = texelFetch(shadowcolor0, pixel, 0);
+            vec3 transmission = vec3(0.0);
+            #ifdef COLORED_SHADOWS
+                transmission = caster.gba;
+            #endif
+            if (caster.r < 0.999)
+                transmission = isEyeInWater == 1 ? caster.gba : vec3(1.0);
+            light += transmission * transparentWeight[i];
+        }
+    }
+    return light;
+}
+#endif
 // Volume samples have no receiver plane. Filter visibility, never raw depth,
 // so a texel crossing cannot switch an entire integrated light column at once.
 float shadow_opaque_visibility(vec3 shadowPos) {
@@ -113,18 +166,11 @@ float shadow_opaque_visibility(vec3 shadowPos) {
     vec2 edge = 0.5 / vec2(size);
     return texture(shadowtex1, vec3(clamp(shadowPos.xy,edge,1.0-edge),shadowPos.z));
     #else
-    vec2 location = shadowPos.xy * vec2(size) - 0.5;
-    ivec2 corner = ivec2(floor(location));
+    vec2 edge = 0.5 / vec2(size);
+    vec2 location = clamp(shadowPos.xy, edge, 1.0-edge) * vec2(size) - 0.5;
     vec2 f = fract(location);
-    float visibility = 0.0;
-    for (int y = 0; y < 2; ++y) {
-        for (int x = 0; x < 2; ++x) {
-            ivec2 pixel = clamp(corner + ivec2(x,y), ivec2(0), size - 1);
-            vec2 w = mix(vec2(1.0) - f, f, vec2(x,y));
-            visibility += step(shadowPos.z, texelFetch(shadowtex1, pixel, 0).r) * w.x * w.y;
-        }
-    }
-    return visibility;
+    return dot(shadow_gather_visibility(shadowtex1, shadowPos.xy, shadowPos.z),
+               shadow_corner_weights(f));
     #endif
 }
 // Same four lobe positions in both modes: four hardware comparison coordinates,
@@ -151,11 +197,16 @@ vec2 shadow_filter_uv(vec3 shadowPos, int index, out float weight) {
 #endif
 
 vec3 shadow_map_position(vec3 playerPos, vec3 worldNormal, float ndotl) {
+    #ifdef DIMENSION_END
+    // Fixed world-space offset; a camera-relative radial bias moves the edge.
+    float bias=end_shadow_texel_size()*0.30+0.015;
+    #else
     vec3 raw = player_shadow(playerPos);
     // Steadfast's normal offset is paired with its radial projection. All PCF
     // taps compare the same Z; no screen-derivative plane inversion is involved.
     float bias = 1.5 * length(raw.xy)
                + SHADOW_DISTORT_FACTOR * (1.0 - max(ndotl, 0.0));
+    #endif
     vec3 shadowPos = distort(player_shadow(playerPos + worldNormal * bias)) * 0.5 + 0.5;
     shadowPos.z -= 0.00001;
     return shadowPos;

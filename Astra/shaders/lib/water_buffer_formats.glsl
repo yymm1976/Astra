@@ -10,6 +10,9 @@ const int R11F_G11F_B10F = 0;
 const int RGBA16 = 0;
 #endif
 const int colortex0Format = R11F_G11F_B10F;
+// Bloom prefilter carries HDR energy. Packed RGB float uses the same 32 bits
+// per texel as default RGBA8, while preserving radiance above one.
+const int colortex2Format = R11F_G11F_B10F;
 const int colortex4Format = R11F_G11F_B10F;
 // Solas bloom uses eighth-root encoding, requiring its reference precision.
 const int colortex7Format = RGBA16;

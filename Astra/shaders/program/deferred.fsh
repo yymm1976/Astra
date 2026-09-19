@@ -54,7 +54,12 @@ vec3 puddle_reflection(vec3 playerPos, vec3 normal) {
             if(hd < 0.999999 && error >= 0.0 && error < 0.10 && length(hp-start)>0.06) {
                 float edge=smoothstep(0.0,0.06,min(min(uv.x,1.0-uv.x),min(uv.y,1.0-uv.y)));
                 float rangeFade=1.0-smoothstep(80.0,96.0,float(i));
-                result=mix(result,texture(colortex0,uv).rgb,edge*rangeFade);
+                // The reflected hit is another pixel of the same scene, so it is
+                // subject to the same highlight ceiling. Without this, a reflection of
+                // the sun or of a bright sky region re-entered the frame above the
+                // shoulder and was handed to the tonemapper unclipped twice.
+                result=mix(result,astra_scene_highlights(texture(colortex0,uv).rgb),
+                           edge*rangeFade);
                 break;
             }
         }
@@ -65,7 +70,7 @@ vec3 puddle_reflection(vec3 playerPos, vec3 normal) {
     return result;
 }
 vec3 rainy_air(vec3 endPoint) {
-    if(astraRainFactor < 0.01 || isEyeInWater != 0) return vec3(0.0);
+    if(astraRainFactor < 0.01 || isEyeInWater != 0 || skyVisibilityDay <= 0.0) return vec3(0.0);
     float access = smoothstep(0.35,0.85,float(eyeBrightnessSmooth.y)/240.0);
     if(access <= 0.0) return vec3(0.0);
     vec3 L = normalize(view_player(lightVector));
@@ -80,7 +85,9 @@ vec3 rainy_air(vec3 endPoint) {
         #ifdef SHADOWS
         vec3 sp = distort(player_shadow(p))*0.5+0.5;
         sp.z -= 0.00002;
-        lit *= mix(1.0,shadow_opaque_visibility(sp),shadow_coverage(p,sp));
+        float coverage = shadow_coverage(p,sp);
+        if (lit > 0.0 && coverage > 0.0)
+            lit *= mix(1.0,shadow_opaque_visibility(sp),coverage);
         #endif
         sum += lit * exp(-t*0.008);
     }
@@ -89,6 +96,10 @@ vec3 rainy_air(vec3 endPoint) {
 }
 #endif
 void main() {
+    #ifdef DIMENSION_END
+    vec3 ray=normalize(view_player(screen_view(vec3(texcoord,1.0))));
+    float cone=max(length(dFdx(ray)),length(dFdy(ray)));
+    #endif
     vec3 source = texture(colortex0, texcoord).rgb;
     float depth = texture(depthtex0, texcoord).r;
     vec3 displayed = source;
@@ -98,11 +109,42 @@ void main() {
         vec3 playerPos = view_camera_relative(screen_view(vec3(texcoord, depth)));
         float skylight = float(lightData & 127u) / 127.0;
         #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-        vec4 surface = texelFetch(colortex3,ivec2(gl_FragCoord.xy),0);
-        if(surface.a > 0.001 && isEyeInWater == 0 && (lightData & 128u) == 0u) {
+        // colortex3: r = packed skylight (+hand flag), gb = wet/ripple normal (whose
+        // amplitude is the standing-water width), a = the sparse standing-water mask
+        // itself (program/lit.fsh).
+        //
+        // SC-39 (2026-09-17 correction, twice over). This gate was rewritten in the round
+        // and got the signal wrong: it read the BROAD damp mask and derived a
+        // standing-water weight from it with smoothstep(0.30, 0.85, wet). The damp mask
+        // saturates to ~1 across all rain-wet terrain, so that weight was ~1 nearly
+        // everywhere and the expensive puddle_reflection() (up to 96 depth taps plus a
+        // six-step refine) still ran over the whole damp world - the exact "泛白的反射块"
+        // symptom the round claimed to fix. The value computed for this purpose, the
+        // sparse astra_puddle() coverage, was written nowhere.
+        //
+        // The next attempt then carried the mask in colortex0.a, which does not exist:
+        // colortex0Format is R11F_G11F_B10F, an RGB format, so that write is dropped and
+        // this read would have returned 1.0 for every pixel - the same fault again with a
+        // different cause. The mask now travels in colortex3.a, which is RGBA8 by default
+        // and whose alpha no consumer reads.
+        //
+        // The ripple tilt is kept as a second, independent confirmation, so a fragment
+        // whose mask is a rounding error above the threshold still cannot produce a
+        // reflection on a normal that shows no water.
+        vec4 surface = texelFetch(colortex3, ivec2(gl_FragCoord.xy), 0);
+        float standingWater = clamp(surface.a, 0.0, 1.0);
+        if (standingWater > 0.15 && isEyeInWater == 0 && (lightData & 128u) == 0u) {
             vec3 n = decode_unit_vector(surface.gb*2.0-1.0);
+            // Reflection only from a surface that can actually reflect sky: a wall
+            // sheds the water, and a downward-facing quad reflects the ground.
+            float upFacing = smoothstep(0.55, 0.92, n.y);
+            // Ripple presence. The normal's vertical component is 1 where
+            // astra_rain_ripple wrote nothing (dry ground), so a 1/400 tilt in it is
+            // already a fully formed ripple.
+            float rippled = clamp((1.0 - n.y) * 400.0, 0.0, 1.0);
             float fresnel = 0.025+0.975*pow(1.0-max(dot(n,-normalize(playerPos)),0.0),5.0);
-            source = mix(source,puddle_reflection(playerPos,n),surface.a*fresnel);
+            source = mix(source,puddle_reflection(playerPos,n),
+                         standingWater*upFacing*rippled*fresnel);
         }
         #endif
         displayed = astra_apply_medium(source, playerPos, skylight);
@@ -113,15 +155,25 @@ void main() {
     #if defined DIMENSION_END || defined DIMENSION_NETHER
     if (depth >= 0.999999) {
         #ifdef DIMENSION_END
-        vec3 ray = normalize(view_player(screen_view(vec3(texcoord, 1.0))));
         vec4 sky = texture(colortex9, texcoord);
-        float cone = max(length(dFdx(ray)), length(dFdy(ray)));
-        displayed = sky.rgb + end_starfield(ray, end_light_direction(), cone) * sky.a
-                  * (1.0-max(blindness,darknessFactor)) * (1.0-0.18*end_eclipse());
+        displayed = sky.rgb;
+        float starVisibility = sky.a * (1.0-max(blindness,darknessFactor));
+        if (starVisibility > 0.0)
+            displayed += end_starfield(ray, end_light_direction(), cone) * starVisibility
+                       * (1.0-0.18*end_eclipse());
         #else
         displayed = astra_sky(normalize(view_player(screen_view(vec3(texcoord, 1.0)))));
         #endif
         source = displayed;
+    }
+    #endif
+    #if !defined DIMENSION_END && !defined DIMENSION_NETHER && CLOUD_MODE != CLOUD_VANILLA
+    if (depth >= 0.999999) {
+        vec3 skyRay = normalize(view_player(screen_view(vec3(texcoord,1.0))));
+        // Sun/moon were drawn additively over black in skytextured; their
+        // phase texture and cloud transmission are already present in source.
+        displayed = astra_sky(skyRay) + source;
+        source = displayed; // Refraction/SSR background must also contain sky.
     }
     #endif
     gl_FragData[0] = vec4(displayed, 1.0);

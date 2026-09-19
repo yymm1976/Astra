@@ -1,108 +1,62 @@
 #!/usr/bin/env python3
-"""Static per-pass cost census: rank passes by texture-fetch work.
+"""Loop source inventory, not an execution-cost or GPU-safety estimator.
 
-We have been guessing at hotspots. This walks each entry's include tree, counts the
-texture fetches that actually execute per pixel, weights loop bodies by their trip
-count, and multiplies by the pass's pixel count so a half-resolution pass is not
-compared against a full-resolution one on equal terms.
-
-It is a heuristic, not a profiler: it cannot see branches, early-outs, or driver
-reordering. Its job is to rank candidates for measurement, so the next optimisation
-is chosen from data rather than from a guess.
+No preprocessing, call-graph expansion or branch probabilities are available.
+Never label lexical fetch sites as fetches/pixel, nor guess symbolic bounds.
 """
-from __future__ import annotations
-
-import re
-import sys
 from pathlib import Path
+import re
 
-SHADERS = Path("Astra/shaders")
-FETCH = re.compile(r"\b(texture|textureLod|texelFetch|textureGrad|textureProj)\s*\(")
-LOOP = re.compile(r"for\s*\(\s*(?:int|uint)\s+\w+\s*=\s*\w+\s*;\s*\w+\s*<\s*([A-Za-z_0-9]+)")
-INCLUDE = re.compile(r'#include\s+"([^"]+)"')
+SHADERS = Path(__file__).resolve().parents[2] / "Astra" / "shaders"
+COMMENTS = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
+CALL = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
+LOOP = re.compile(r"\b(for|while)\s*\(")
+FETCH = re.compile(r"\b(?:texture\w*|texelFetch\w*)\s*\(")
 
-# Relative pass resolution, from shaders.properties size.buffer lines. 1.0 = screen.
-RES = {"default": 1.0}
+def closing(text, start, left, right):
+    depth = 0
+    for pos in range(start, len(text)):
+        if text[pos] == left:
+            depth += 1
+        elif text[pos] == right:
+            depth -= 1
+            if depth == 0:
+                return pos
+    return len(text) - 1
 
-
-def resolve(base: Path, inc: str) -> Path | None:
-    for cand in (SHADERS / inc.lstrip("/"), base / inc):
-        if cand.is_file():
-            return cand
-    return None
-
-
-def expand(path: Path, seen: set[Path]) -> list[tuple[Path, int]]:
-    """Return (file, line) for every #include reachable from path."""
-    out: list[tuple[Path, int]] = []
-    if path in seen:
-        return out
-    seen.add(path)
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return out
-    for n, line in enumerate(text.splitlines(), 1):
-        m = INCLUDE.search(line)
-        if m:
-            sub = resolve(path.parent, m.group(1))
-            if sub:
-                out.append((sub, n))
-                out.extend(expand(sub, seen))
-    return out
-
-
-def count_fetches(path: Path) -> int:
-    """Texture fetches per pixel, with loop bodies weighted by their trip count."""
-    text = path.read_text(encoding="utf-8", errors="replace")
-    total = 0.0
-    for n, line in enumerate(text.splitlines(), 1):
-        if line.lstrip().startswith("//"):
+def main():
+    print("Source inventory: configurations may include inactive code.")
+    print("Fetch sites are lexical, NOT fetches/pixel; nested bodies overlap.")
+    print("Calls are listed, not expanded. Symbolic bounds remain symbolic.\n")
+    for path in sorted(SHADERS.rglob("*")):
+        if path.suffix not in {".glsl", ".fsh", ".vsh", ".csh"}:
             continue
-        c = len(FETCH.findall(line))
-        if not c:
-            continue
-        weight = 1.0
-        m = LOOP.search(line)
-        if m:
-            token = m.group(1)
-            if token.isdigit():
-                weight = int(token)
-            elif token == "SHADOW_FILTER_TAPS":
-                weight = 4
-            elif token == "UNDERWATER_SHAFT_SAMPLES":
-                weight = 7
-            elif token == "SAMPLECOUNT":
-                weight = 16
-            else:
-                weight = 4  # unknown bound: assume a small fixed loop
-        total += c * weight
-    return int(round(total))
-
-
-def main() -> int:
-    entries = sorted(p for p in SHADERS.rglob("*.fsh") if "program" not in p.parts
-                     and p.parent.name in ("shaders", "world-1", "world1"))
-    rows = []
-    for e in entries:
-        seen: set[Path] = set()
-        # Dedupe: expand() appends a file before recursing, so a module reachable by two
-        # include paths is listed twice even though it compiles once.
-        files = [(e, 0)] + list(dict.fromkeys(expand(e, seen)))
-        own = sum(count_fetches(f) for f, _ in files)
-        real = [f for f, _ in files if "program" in f.parts or "global" in f.parts
-                or "lib" in f.parts]
-        rows.append((own, len(files), len(real), e))
-    rows.sort(reverse=True)
-    print(f"{'fetches/px':>10} {'files':>6} {'modules':>8}  entry")
-    for own, nf, nr, e in rows[:18]:
-        print(f"{own:>10} {nf:>6} {nr:>8}  {e.relative_to(SHADERS)}")
-    print()
-    print(f"entries scanned: {len(rows)}")
-    print("NOTE heuristic: branch/early-out blind, and a loop that CALLS a fetching")
-    print("     function is not multiplied by its trip count. Ranks candidates only.")
+        source = path.read_text(encoding="utf-8", errors="replace")
+        source = COMMENTS.sub(lambda m: re.sub(r"[^\n]", " ", m.group()), source)
+        for match in LOOP.finditer(source):
+            begin = source.index("(", match.start())
+            end = closing(source, begin, "(", ")")
+            start = end + 1
+            while start < len(source) and source[start].isspace():
+                start += 1
+            if start >= len(source):
+                continue
+            stop = (closing(source, start, "{", "}") + 1
+                    if source[start] == "{" else source.find(";", start) + 1)
+            body = source[start:stop]
+            calls = sorted(set(CALL.findall(body)) - {"if", "for", "while", "switch"})
+            line = source.count("\n", 0, match.start()) + 1
+            header = " ".join(source[begin+1:end].split())
+            print(f"{path.relative_to(SHADERS)}:{line}: ({header})")
+            print(f"  fetch sites: {len(FETCH.findall(body))}; calls: {', '.join(calls)}")
+    print("\nManual workload context, not a runtime bound:")
+    print("End lens: 48 steps, at most 96 candidate-segment calls plus entry/escape.")
+    print("Each segment also traverses candidates/body geometry; 96 is NOT total work.")
+    print("Empty bounds and early exits reduce actual work; no branch probability assumed.")
+    print("End illumination: only slot 0 runs 256 disc samples, not all 294 slots.")
+    print("Puddle SSR: up to 96 steps on tagged puddle pixels.")
+    print("End sky geometry: 0.75 x 0.75 buffer; stars at full size.")
     return 0
 
-
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())
