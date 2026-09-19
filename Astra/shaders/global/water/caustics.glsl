@@ -34,7 +34,9 @@ vec3 solas_water_normal(vec3 worldPos, vec3 face, vec3 tangent, vec3 binormal,
     float y = (solas_water_height(worldPos, vec2(0.0, -0.5)) - solas_water_height(worldPos, vec2(0.0, 0.5))) / 0.5;
     return normalize(tangent * x + binormal * y + face * (1.0 - x*x - y*y - fresnel * 0.5));
 }
-#endif
+// The include guard used to close here, leaving the geometric caustics below
+// unprotected - any second include of this file would have redefined them
+// (consolidated review E1 / Qoder F-19). The guard now closes at end of file.
 
 // ---------------------------------------------------------------------------
 // Geometric caustics, ported from IterationT 3.2.0
@@ -109,11 +111,6 @@ float astra_water_caustics_focus(vec3 worldPos) {
     return mix(caustics * 0.16 + 0.2, 1.0, 0.3 - 0.3 * float(isEyeInWater));
 }
 
-// Underwater shaft modulation. The reference multiplies its volumetric march by
-// caustics^3, which is what turns an even cone into the soft banded columns the user
-// described. Kept here so shafts and seabed caustics share one field (their world phases
-// therefore match, which is the whole point of the reference's shared normal source).
-float astra_water_caustics_shaft_at(vec3 poseWorld) {
-    float c = astra_water_caustics_focus(poseWorld);
-    return c * c * c;
-}
+// The former astra_water_caustics_shaft_at (focus cubed) is gone: the shaft march
+// now uses the cheap solas_water_caustics field directly (consolidated review B3).
+#endif

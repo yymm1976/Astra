@@ -35,7 +35,7 @@ float decode_water_height(float encoded) {
 }
 
 #ifdef SHADOWS
-#if SHADOW_FILTER_MODE == 1
+#if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
 uniform sampler2DShadow shadowtex0;
 uniform sampler2DShadow shadowtex1;
 const int SHADOW_FILTER_TAPS = 4;
@@ -91,7 +91,7 @@ ShadowTap shadow_read_tap(vec2 uv, float referenceDepth) {
     ivec2 size = textureSize(shadowtex0, 0);
     ShadowTap tap;
     tap.caster = vec4(1.0,0.0,0.0,0.0);
-    #if SHADOW_FILTER_MODE == 1
+    #if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
     vec2 edge = 0.5 / vec2(size);
     vec2 coord = clamp(uv, edge, 1.0-edge);
     tap.allVisibility = texture(shadowtex0, vec3(coord, referenceDepth));
@@ -161,7 +161,7 @@ vec3 shadow_lobe_light(vec2 uv, float referenceDepth) {
 // so a texel crossing cannot switch an entire integrated light column at once.
 float shadow_opaque_visibility(vec3 shadowPos) {
     ivec2 size = textureSize(shadowtex1, 0);
-    #if SHADOW_FILTER_MODE == 1
+    #if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
     // Hardware compares each of the four depths BEFORE linear filtering.
     vec2 edge = 0.5 / vec2(size);
     return texture(shadowtex1, vec3(clamp(shadowPos.xy,edge,1.0-edge),shadowPos.z));
@@ -176,7 +176,7 @@ float shadow_opaque_visibility(vec3 shadowPos) {
 // Same four lobe positions in both modes: four hardware comparison coordinates,
 // or sixteen software corners. Material IDs and height codes are never interpolated.
 vec2 shadow_filter_uv(vec3 shadowPos, int index, out float weight) {
-    #if SHADOW_FILTER_MODE == 1
+    #if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
     vec2 offset = vec2((index & 1) == 0 ? -1.0 : 1.0,
                        (index & 2) == 0 ? -1.0 : 1.0) * (float(SHADOW_SOFTNESS) * 0.5);
     weight = 0.25;

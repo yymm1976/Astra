@@ -77,7 +77,8 @@ float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
                 float weight = sw.x * sw.y * accept;
                 vec3 color = texelFetch(colortex4, pixel, 0).rgb;
                 if (inWater) color = isEyeInWater == 0
-                    ? water_surface_medium(color, dot(origin - point, faceNormal))
+                    ? water_surface_medium(color, dot(origin - point, faceNormal),
+                                           astra_water_incident(skylight))
                     : water_medium(color, length(point - origin), astra_water_incident(skylight));
                 radiance += color * weight;
                 endpoint += point * weight;
@@ -92,7 +93,8 @@ float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
         // nearest-depth anchor alone instead of jumping to the deep fallback.
         vec3 color = texelFetch(colortex4, anchorPixel, 0).rgb;
         if (inWater) color = isEyeInWater == 0
-            ? water_surface_medium(color, dot(origin - anchor, faceNormal))
+            ? water_surface_medium(color, dot(origin - anchor, faceNormal),
+                                   astra_water_incident(skylight))
             : water_medium(color, length(anchor - origin), astra_water_incident(skylight));
         radiance = color;
         endpoint = anchor;
@@ -165,7 +167,7 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
     float fresnel = water_fresnel(max(dot(-incident, viewNormal), 0.0), eta, totalReflection);
     if (water && !belowWater) {
         // Preserve the bed instead of imposing a ten-percent sky coating.
-        fresnel = (0.025 + 0.975 * pow(clamp(1.0 + dot(incident, viewNormal), 0.0, 1.0), 5.0)) * skylight;
+        fresnel = (0.025 + 0.975 * pow5(clamp(1.0 + dot(incident, viewNormal), 0.0, 1.0))) * skylight;
     }
     vec3 reflectedRay = reflect(incident, viewNormal);
     if (dot(reflectedRay, viewGeometric) <= 0.0) reflectedRay = reflect(incident, viewGeometric);

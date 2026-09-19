@@ -184,13 +184,14 @@ vec3 direct_lighting(
 	// coverage). Multiplying by vanilla skylight here attenuates open water twice.
 	//
 	// Foliage transmission: a leaf lit from behind still transmits, and the shadow
-	// map already says whether the light reaches it. Instead of adding light on top
-	// of the occluded value, the transmission lifts the floor that occlusion can
-	// pull the direct term down to, so a fully shadowed canopy keeps a fraction of
-	// the light rather than becoming opaque and the effect can never brighten a
-	// fragment past its own unshadowed direct light.
+	// map already says whether the light reaches it. The transmission LIFTS the
+	// occlusion toward unshadowed - capped at 1.0 so it can never brighten a
+	// fragment past its own unshadowed direct light, and a fully occluded canopy
+	// keeps a fraction of the light instead of going black. (The previous form
+	// multiplied visibility by a factor below 1.0 for every t < 1 - a darkening
+	// term wearing a gain's name; consolidated review D1 / Qoder F-08.)
 	if (sssTransmission > 0.0)
-		visibility *= mix(vec3(mix(0.30, 0.62, sssTransmission)), vec3(1.0), sssTransmission);
+		visibility = mix(visibility, vec3(1.0), sssTransmission * 0.35);
 
 	// B1 returns the combined static-fallback + real-time + in-shadow-SSS multiplier as a
 	// vec3 (colored shadows tint per channel).
@@ -260,7 +261,7 @@ vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
         float coverage = shadow_coverage(playerPos, shadowPos);
         if (coverage <= 0.0) return vec3(fallback);
         vec3 filtered = vec3(0.0);
-        #if SHADOW_FILTER_MODE == 1
+        #if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
         vec2 visibility = vec2(0.0);
         for (int i = 0; i < SHADOW_FILTER_TAPS; ++i) {
             float weight;
@@ -355,13 +356,12 @@ vec3 diffuse_lighting(
         #endif
         float NoL = max(dot(worldNormal, worldLightVector), 0.0);
         vec3 shadow = clamp(visibility * clamp(NoL * 1.01 - 0.01, 0.0, 1.0), 0.0, 1.0);
-        // astraSolasShadowFade was gating this blend and it evaluates to ZERO at noon
-        // (it is a horizon-glare fade: 1 at sunrise/sunset, 0 at sunAngle 0.5). Underwater
-        // at midday that removed the entire direct term, so `shadow` - and with it the
-        // projected caustic network - had no effect at all. The result was the flat blue
-        // ambient wash the user reported as "no caustics, everything is blue". Direct light
-        // is gated by the sun's elevation instead, and the glare factor stays where it
-        // belongs, in solas_water_fog.
+        // astraSolasShadowFade (a horizon-glare fade: 0 while the sun sits at the
+        // horizon, 1 while it is clear of it) used to gate this blend. It no longer
+        // does: direct light is gated by the sun's elevation instead (the term below),
+        // and the glare factor stays where it belongs, in solas_water_fog. Note the
+        // sunAngle convention, 0.25 = noon: shadowFade's zero sits AT the horizon
+        // crossings, not at noon - an earlier comment here had the two backwards.
         float underwaterSun = smoothstep(-0.02, 0.16, worldSunVector.y);
         vec3 sceneLight = mix(ambient * skyLight * skyLight, direct,
             shadow * (1.0 - wetness * 0.75) * underwaterSun);
@@ -373,7 +373,11 @@ vec3 diffuse_lighting(
         // The lake bed is lit by the same light as the bank it belongs to, and the
         // same night colour rule applies to it. Skipping this made a night lake bed
         // the one surface that stayed fully saturated under a desaturated night.
-        surfaceColor = desaturate_surface(surfaceColor, night_desaturation(skyLight,
+        // facingAway pixels carry the fake visibility = 1.0 from the shadow-fetch
+        // skip; without this gate they would take the MAXIMUM desaturation while
+        // being the surfaces that receive no moonlight at all - the exact surfaces
+        // the night rule says keep their albedo (consolidated review D3 / Qoder F-44).
+        surfaceColor = desaturate_surface(surfaceColor, facingAway ? 0.0 : night_desaturation(skyLight,
             local_light_attenuation(skyLight, blockLight, held,
                                     params.blocklightSuppression, params.heldLightSuppression),
             visibility));
@@ -447,8 +451,10 @@ vec3 diffuse_lighting(
 	float localAttenuation = local_light_attenuation(
 		skyLight, blockLight, heldLight,
 		params.blocklightSuppression, params.heldLightSuppression);
+	// Same facingAway gate as the underwater branch above: the skip's neutral
+	// visibility must not read as "fully moonlit" here (consolidated review D3).
 	surfaceColor = desaturate_surface(
-		surfaceColor, night_desaturation(skyLight, localAttenuation, visibility));
+		surfaceColor, facingAway ? 0.0 : night_desaturation(skyLight, localAttenuation, visibility));
 
 	return surfaceColor * lighting + directRadiance;
 }

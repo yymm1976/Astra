@@ -6,7 +6,6 @@
 
 #include "/lib/colors.glsl"
 #include "/lib/encoding.glsl"
-#include "/lib/noise.glsl"
 // Included from scene.glsl, which already guards on DIMENSION_NETHER; the option
 // itself uses a plain #ifdef so Iris registers the boolean (SC-28).
 #ifdef NETHER_VOXEL_LIGHT

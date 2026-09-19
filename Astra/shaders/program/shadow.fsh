@@ -62,7 +62,13 @@ void main() {
         // the rest of the surface stays close to neutral. The floor term is the dark
         // water base the reference keeps at 0.3; without it the whole seabed went dim.
         shadowTint = mix(vec3(1.0), pow(waterTint, vec3(0.75)), 0.20 + 0.80 * min(focus, 1.0));
-        shadowTint *= (0.30 + focus * 1.5) * (1.0 - pow(albedo.a, 32.0));
+        // x^32 as an explicit squaring chain: pow() with a literal integer exponent is
+        // a transcendental expansion, and this runs on every shadow-caster pixel
+        // (consolidated review E7 / Qoder F-36). No pow.glsl here - this TU does not
+        // include scene.glsl, so the helpers are not in scope.
+        float a2 = albedo.a * albedo.a;
+        float a32 = a2 * a2; a32 = a32 * a32; a32 = a32 * a32; a32 = a32 * a32;
+        shadowTint *= (0.30 + focus * 1.5) * (1.0 - a32);
     }
     #endif
     shadowData = vec4(waterHeight, shadowTint);

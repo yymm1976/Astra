@@ -154,11 +154,7 @@ vec3 apply_grading(vec3 displayColor) {
 // unconditional.
 // ------------------------------------------------------------
 vec3 apply_vignette(vec3 displayColor, vec2 screenUV) {
-	#if defined DIMENSION_END
-		vec2 offset=(screenUV-0.5)*2.0;
-		float falloff=clamp(dot(offset,offset)*0.5,0.0,1.0);
-		return displayColor*(1.0-0.08*falloff);
-	#elif defined VIGNETTE
+	#if defined VIGNETTE
 		vec2 offset = screenUV - 0.5;
 		// Falloff here is the exponent itself, not Mellow's "2 - falloff"
 		// inversion, so larger means tighter. Distance is measured in UV space,
@@ -166,10 +162,18 @@ vec3 apply_vignette(vec3 displayColor, vec2 screenUV) {
 		// off-by-default effect, and it keeps this slot free of a viewSize
 		// uniform (the Z3 uniform set is frozen, SC-14).
 		float falloff = pow(length(offset) * VIGNETTE_STRENGTH, VIGNETTE_FALLOFF);
-		return displayColor * (1.0 - min(falloff, 1.0));
-	#else
-		return displayColor;
+		displayColor *= 1.0 - min(falloff, 1.0);
 	#endif
+	#if defined DIMENSION_END
+		// End-only void preservation: a fixed, small corner falloff that keeps the
+		// sky's edges from banding against pure black. It is ADDITIVE over the user's
+		// vignette option instead of preempting it - the option now does what it says
+		// in the End too (consolidated review D5 / Qoder F-27 / Hunyuan C2).
+		vec2 eOffset=(screenUV-0.5)*2.0;
+		float eFalloff=clamp(dot(eOffset,eOffset)*0.5,0.0,1.0);
+		displayColor*=(1.0-0.08*eFalloff);
+	#endif
+	return displayColor;
 }
 
 // ------------------------------------------------------------
@@ -179,17 +183,19 @@ vec3 apply_vignette(vec3 displayColor, vec2 screenUV) {
 // clip edge. The overshoot is absorbed by the 8-bit write.
 // ------------------------------------------------------------
 vec3 apply_output_dither(vec2 screenPos, vec3 displayColor) {
-	#if defined DIMENSION_END
-		// Half an 8-bit code each way, attenuated at black to preserve the void.
-		float darkGate=smoothstep(0.0,0.025,max(displayColor.r,max(displayColor.g,displayColor.b)));
-		return displayColor+(dither(screenPos)-0.5)*(1.0/255.0)*darkGate;
-	#elif defined DITHERING
+	#if defined DITHERING
 		// Static IGN: lib/dither.glsl is fixed to animate = false because Astra has
-		// no TAA to average temporal noise (design 2.4).
-		return displayColor + (dither(screenPos) - 0.5) * GRADING_DITHER_STRENGTH;
-	#else
-		return displayColor;
+		// no TAA to average temporal noise (design 2.4). The user's option now applies
+		// in the End as well (consolidated review D5 / Qoder F-27).
+		displayColor += (dither(screenPos) - 0.5) * GRADING_DITHER_STRENGTH;
 	#endif
+	#if defined DIMENSION_END
+		// End-only void preservation: half an 8-bit code each way, attenuated at
+		// black, additive over the option above.
+		float darkGate=smoothstep(0.0,0.025,max(displayColor.r,max(displayColor.g,displayColor.b)));
+		displayColor+=(dither(screenPos)-0.5)*(1.0/255.0)*darkGate;
+	#endif
+	return displayColor;
 }
 
 // ------------------------------------------------------------

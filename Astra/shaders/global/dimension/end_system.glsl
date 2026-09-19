@@ -25,8 +25,8 @@ vec3 end_starfield(vec3 direction,vec3 lightDir,float cone) {
             vec2 h=end_hash2(c+face*401.0);
             if(h.x>0.055) continue;
             vec2 center=c+0.15+0.7*end_hash2(c+face*419.0+37.0);
-            float radius=0.11+0.10*pow(h.y,8.0), width=max(radius,footprint*0.55);
-            float flux=0.045+0.22*pow(h.y,8.0);
+            float radius=0.11+0.10*pow8(h.y), width=max(radius,footprint*0.55);
+            float flux=0.045+0.22*pow8(h.y);
             float profile=exp(-dot(p-center,p-center)/(width*width))*radius*radius/(width*width);
             vec3 tint=mix(vec3(0.84,0.90,1.0),vec3(0.97,0.98,1.0),h.y);
             if(h.x<0.055/9.0) tint=vec3(1.0,0.89,0.75);

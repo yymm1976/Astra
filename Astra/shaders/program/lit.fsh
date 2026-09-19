@@ -46,6 +46,12 @@ void main() {
     vec2 rippleCoord=playerPos.xz/ASTRA_RIPPLE_TILE;
     float rippleFootprint=max(length(dFdx(rippleCoord)),length(dFdy(rippleCoord)));
     #endif
+    #ifdef DIMENSION_END
+    // End-stone texture footprint, in atlas texels per pixel. Computed before any
+    // material branch: derivatives inside `if (material == 11u)` would be non-uniform
+    // across quads that straddle materials (consolidated review A4).
+    float endStoneFootprint = max(length(dFdx(texcoord)), length(dFdy(texcoord))) * 256.0;
+    #endif
     vec3 viewPos = camera_relative_view(playerPos);
     vec3 normal = unpack_octahedral(faceData, 9);
     uint material = (faceData >> 18) & 15u;
@@ -228,7 +234,10 @@ void main() {
         // space, in texels per pixel, is the honest measure of what is resolvable;
         // the same derivative-based idea Complementary uses for its generated
         // normals. No noise, no per-frame randomisation.
-        float footprint = max(length(dFdx(texcoord)), length(dFdy(texcoord))) * 256.0;
+        // The texture footprint in atlas space, in texels per pixel, is the honest measure
+        // of what is resolvable; hoisted above because derivatives inside a flat-varying
+        // branch are non-uniform (consolidated review A4).
+        float footprint = endStoneFootprint;
         gloss = mix(gloss, 0.48, smoothstep(0.6, 2.4, footprint));
         float visibility = 1.0;
         #ifdef SHADOWS
@@ -237,9 +246,13 @@ void main() {
         visibility = mix(1.0, shadow_opaque_visibility(surfaceShadowPosition),
                          shadow_coverage(playerPos, surfaceShadowPosition));
         #endif
-        float sheen = pow(max(dot(normal, H), 0.0), 24.0)
+        float h = max(dot(normal, H), 0.0);
+        float h2 = h * h;
+        float h4 = h2 * h2;
+        float h8 = h4 * h4;
+        float sheen = h8 * h8 * h8
                     * max(dot(normal, L), 0.0) * visibility;
-        float broad = pow(max(dot(normal, H), 0.0), 5.0)
+        float broad = pow5(h)
                     * max(dot(normal, L), 0.0) * visibility;
         color += vec3(0.055, 0.057, 0.049) * (sheen * mix(0.30, 1.70, gloss))
                + vec3(0.010, 0.011, 0.009) * (broad * mix(0.75, 1.20, gloss));
@@ -287,7 +300,7 @@ void main() {
         // Opaque ice precedes the copy; its top uses analytic reflection (design 4.3).
         if (iceTop) {
             vec3 ray = reflect(normalize(playerPos), normal);
-            float f = 0.0204 + 0.9796 * pow(1.0 - max(dot(-normalize(playerPos), normal), 0.0), 5.0);
+            float f = 0.0204 + 0.9796 * pow5(1.0 - max(dot(-normalize(playerPos), normal), 0.0));
             color = mix(color, astra_reflection_sky(ray, 0.08), f);
         }
         #if defined ASTRA_TRANSLUCENT || !defined ASTRA_SCENE_COPY
@@ -323,30 +336,30 @@ void main() {
         #endif
     #endif
     ASTRA_LIT_COLOR = vec4(max(color, vec3(0.0)), albedo.a);
-    // SC-39: the sparse standing-water mask rides in the GEOMETRY buffer's alpha channel
+    // SC-39 (2026-09-17, corrected by the 2026-09-20 consolidated review F-01): the
+    // sparse standing-water mask rides in the GEOMETRY buffer's alpha channel
     // (colortex3) from here to program/deferred.fsh.
     //
     // Which channel, and why. The first attempt used the scene colour's alpha
     // (colortex0.a) on the stated reasoning that R11F_G11F_B10F leaves its A channel as
     // unused padding. That is false - R11F_G11F_B10F is an RGB format with NO alpha
-    // channel at all, so the write is dropped and every read returns 1.0. The gate in
-    // deferred.fsh would then have passed on every pixel and re-created the very
-    // "reflection over the whole wet world" fault this change exists to remove, silently
-    // and with a comment claiming it was safe. Verified against the authoritative
-    // declaration: lib/water_buffer_formats.glsl sets colortex0Format = R11F_G11F_B10F.
+    // channel at all, so the write is dropped and every read returns 1.0. Verified
+    // against the authoritative declaration: lib/water_buffer_formats.glsl sets
+    // colortex0Format = R11F_G11F_B10F.
     //
-    // colortex3 is the correct carrier. It is not format-declared by this pack, so it
-    // keeps Iris's RGBA8 default - a real alpha channel - and its clear colour already
-    // writes an alpha of 1.0 (settings.glsl colortex3ClearColor), so the channel is
-    // established rather than undefined. Nothing reads colortex3.a: deferred.fsh takes
-    // only .r (packed skylight + hand flag) and .gb (the ripple normal).
+    // colortex3 is the carrier. It is not format-declared by this pack, so it keeps
+    // Iris's RGBA8 default - a real alpha channel - and its clear colour writes an
+    // alpha of 0.0, the mask's own zero (settings.glsl colortex3ClearColor).
     //
-    // Written by every opaque writer so no stale value survives a frame:
-    //   - opaque terrain: the puddle coverage;
-    //   - the water pass: 0 (its own branch of gl_FragData[1] below, where .a currently
-    //     holds a constant 1.0 that has no reader);
-    //   - translucents and weather: 0, via the else-branch below, which keeps a puddle
-    //     an opaque-ground feature - correct, since standing water needs opaque ground.
+    // The ONLY writer is the opaque terrain branch below. An intermediate revision also
+    // overwrote gl_FragData[1].a inside the water pass; that slot is colortex5
+    // (RENDERTARGETS 0,5), whose alpha is the water-surface VALIDITY flag read by
+    // program/water_state.fsh - the overwrite zeroed the flag and, through the
+    // SRC_ALPHA blend on colortex5, dropped the packed surface height in .rgb as well.
+    // The water pass never computes a puddle (its terrain branch is ASTRA_TRANSLUCENT),
+    // so it has nothing to say in colortex3 and does not touch it. Translucents and
+    // weather likewise only write colortex0; a puddle stays an opaque-ground feature,
+    // which is correct since standing water needs opaque ground.
     //
     // The HAND pass is excluded: its fragments carry the high bit in gl_FragData[1].r
     // and are re-projected in deferred, so it must not also claim a puddle.
@@ -354,12 +367,6 @@ void main() {
         gl_FragData[1] = water && abs(geometricNormal.y) > 0.9
             ? vec4(water_pack_surface_height(playerPos.y + cameraPosition.y), lightLevel.y, 1.0)
             : vec4(0.0);
-        // .a held a constant 1.0 with no consumer; it now carries the puddle mask. The
-        // water pass never computes one (its terrain branch is ASTRA_TRANSLUCENT), so
-        // this is 0 for water and ice, and for a non-water material in this pass - such
-        // as ice's side faces - it carries the opaque terrain's value if the fragment
-        // really is ground. material == 0u is the same test the terrain branch uses.
-        gl_FragData[1].a = material == 0u ? clamp(puddle, 0.0, 1.0) : 0.0;
     #endif
     #ifndef ASTRA_TRANSLUCENT
         // Seven light bits retain more precision than the 16 Minecraft light levels.
@@ -368,7 +375,7 @@ void main() {
         #ifdef ASTRA_HAND
             lightData |= 128u;
         #endif
-        gl_FragData[1] = vec4(float(lightData) / 255.0, encode_unit_vector(puddleNormal) * 0.5 + 0.5, surfaceWet);
+        gl_FragData[1] = vec4(float(lightData) / 255.0, encode_unit_vector(puddleNormal) * 0.5 + 0.5, 0.0);
         // Opaque ground only. `material == 0u` excludes water, glass, ice, leaves and the
         // emissive groups, so the mask cannot appear on a surface that cannot hold water.
         gl_FragData[1].a = material == 0u ? clamp(puddle, 0.0, 1.0) : 0.0;

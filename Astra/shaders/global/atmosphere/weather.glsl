@@ -1,12 +1,11 @@
 #ifndef ASTRA_WEATHER_GLSL
 #define ASTRA_WEATHER_GLSL
-#include "/lib/noise.glsl"
 float astra_rain_exposure(float skyLight) {
     // pow(.., 16) required skyLight > 0.95, i.e. fully exposed noon terrain, which made
     // both puddles and the water impact rings vanish under any overcast sky. The user's
     // rain round is exactly that situation, so the curve is relaxed to a still-selective
     // but usable range.
-    return pow(clamp(skyLight, 0.0, 1.0), 4.0)
+    return pow4(clamp(skyLight, 0.0, 1.0))
          * smoothstep(0.0, 0.15, rainfall) * smoothstep(0.10, 0.20, temperature);
 }
 // Short rain envelope. Both wet signals - standing water and damp ground - are driven
@@ -70,7 +69,7 @@ float astra_wet_ground(vec3 normal, float skyLight) {
 }
 // Rain impact ripples.
 //
-// Astra generates its own flipbook rather than shipping anyone else's artwork: three
+// Astra generates its own flipbook rather than shipping anyone else's artwork: two
 // 128x7680 sheets (sixty 128x128 frames) built by qa/tools/gen_rain_ripple.py from an
 // explicit model of expanding, decaying circular wavelets, differentiated into a normal
 // map. Local UV stays inside one frame; only the frame index selects time.

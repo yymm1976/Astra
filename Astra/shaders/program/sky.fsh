@@ -133,9 +133,11 @@ void main() {
 	// gbuffers_skybasic also receives vanilla star geometry. It must not cover
 	// celestial sprites; Astra supplies its own stars with the atmosphere.
 	if (renderStage == MC_RENDER_STAGE_STARS) discard;
-	#if !defined DIMENSION_NETHER && CLOUD_MODE != CLOUD_VANILLA
-		// Keep celestial radiance over black. The expensive sky/cloud evaluation
-		// happens in deferred, after opaque terrain has established visibility.
+	// The nether joins the "black here, composed in deferred" path: its deferred pass
+	// recomputes astra_sky for every sky pixel and overwrote this one, so this was a
+	// full-screen double evaluation (consolidated review D6 / Qoder F-22). The End
+	// returned black above for the same reason.
+	#if defined DIMENSION_NETHER || (!defined DIMENSION_END && CLOUD_MODE != CLOUD_VANILLA)
 		gl_FragData[0] = vec4(0.0,0.0,0.0,1.0);
 	#else
 	vec3 worldDir = astra_sky_world_direction();

@@ -15,17 +15,20 @@ vec3 water_absorption_coefficient() {
 }
 vec3 water_surface_absorption() {
     // Air-side appearance per block of vertical depth, separate from volume
-    // extinction. The balanced/tropical spectra retain green alongside blue;
-    // neither the daylight sky nor depth absorption should erase cyan shallows.
+    // extinction. The 2026-09-20 consolidated review (C1) re-orders every spectrum so
+    // GREEN is absorbed FASTER than blue past the shallow band: the transmission then
+    // converges on deep blue with depth - the shallow-to-deep cyan-green to deep-blue
+    // transition - instead of freezing on teal-green. COLD keeps its original
+    // ordering (it was already blue-deep).
     #if WATER_CHARACTER == WATER_COLD
-        // Colder water retains relatively more blue than the other types.
         vec3 coefficient = vec3(1.000, 0.2200, 0.0800);
     #elif WATER_CHARACTER == WATER_TROPICAL
-        // Strongest red removal and longest green transport length.
-        vec3 coefficient = vec3(2.000, 0.0550, 0.0800);
+        // Strongest red removal; green survives the shallow band for the Caribbean
+        // cyan, blue wins the deep end.
+        vec3 coefficient = vec3(2.000, 0.0800, 0.0550);
     #else
-        // Default: clear cyan shallows, teal middle depths, dark deep water.
-        vec3 coefficient = vec3(1.000, 0.0600, 0.1000);
+        // Default: clear cyan shallows, teal middle depths, deep blue water.
+        vec3 coefficient = vec3(1.000, 0.1000, 0.0600);
     #endif
     return coefficient * (WATER_ABSORPTION * 0.01);
 }
@@ -52,12 +55,26 @@ vec3 water_transport(vec3 radiance, float distanceInWater, vec3 incidentLight, v
 vec3 water_medium(vec3 radiance, float distanceInWater, vec3 incidentLight) {
     return water_transport(radiance, distanceInWater, incidentLight, water_extinction());
 }
-// Air-side appearance: the reference uses (vertical depth + 1) / 16, not the
-// much longer grazing view path. Do not add the blue underwater volume source
-// to this branch.
-vec3 water_surface_medium(vec3 radiance, float verticalDepth) {
+// Air-side appearance. Historically this branch was pure absorption ("do not add the
+// blue underwater volume source") - that prohibition stopped a grey-blue wash but also
+// made deep water converge on a black, green-tinted bed: with no in-scatter the water
+// never reads as a BODY, and the no-hit fallback path shaded it as exactly zero
+// (consolidated review C2 / F-06 / F-40, superseding the old rule; the underwater
+// VOLUME source is still not used here - the fill below uses the surface spectrum's
+// own equilibrium colour).
+// The +1 block offset keeps knee-deep water visibly tinted; the cap at 24 blocks lets
+// the deep end keep darkening instead of freezing at 16.
+vec3 water_body_color() {
+    // The water's own colour as seen from air, scaled by daylight at the call site.
+    // Blue-dominant so the (1 - transmission) fill turns deep water blue, not black.
+    return vec3(0.020, 0.160, 0.300);
+}
+vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight) {
     float depth = max(verticalDepth, 0.0);
-    float appearanceDepth = clamp(depth + 1.0, 0.0, 16.0);
-    return radiance * exp(-appearanceDepth * water_surface_absorption());
+    float appearanceDepth = clamp(depth + 1.0, 0.0, 24.0);
+    vec3 transmission = exp(-appearanceDepth * water_surface_absorption());
+    // Single-scattering fill: as the bed fades, the water's own colour takes over.
+    return radiance * transmission
+         + water_body_color() * clamp(incidentLight, 0.0, 2.0) * (1.0 - transmission);
 }
 #endif

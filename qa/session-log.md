@@ -839,3 +839,14 @@ P1-5（`composite2` 的 GODRAYS 门控）、P2-4（静态阴影兜底）也都�
 
 ### 验证
 `compile_glsl.py` 全三档 `linked=267 failed=0 compute=27`；PERFORMANCE/ULTRA 两档 `160/160`；关闭 AIR_PERSPECTIVE/BIOME_TINT 与关闭 SHADOWS/SSS_FOLIAGE/WATER_CAUSTICS/BLOOM/HANDHELD_LIGHTING＋硬件 PCF 各 `80/80`；`check_pack.py` 0 FAIL / 1 WARN / 10 PASS。实例同步：修改 8 个文件后复核 `Missing 0 / 差异 0 / 多余 0`。仍未取得游戏画面与帧率，不宣称画面结论。
+
+## 2026-09-20 三方审查汇总修复（GLM-5.3-Flash 执行）
+
+依据 docs/2026-09-20-final-consolidated-review.md（三方报告 GLM/Qoder/混元四 交叉核验后的最终工单）。修复前快照 = `ef90edb`。
+
+- **缓冲与门控**：lit.fsh 撤销 SC-39 对 colortex5.a 的覆写（有效性语义恢复，blend 连带 rgb 失效一并解除）；colortex3 清屏 alpha 1.0→0.0；deferred 积水门四个权重因子并入调用门（水面/半透明/天空像素不再白跑 96 步反射）。
+- **水下光束**：方向门改用折射后太阳（正午俯视恢复可见）；采样铺满 40 格；内切圆改方形；焦散调制从 72-fetch focus 立方降为 10-fetch 曲线并夹 [0.25,1]；衰减/增益重标定；resolve 启用 rayLength 距离加权（兑现 SC-33）；colortex1 恒 0.5。
+- **水色**：BALANCED/TROPICAL 谱序改为绿吸收>蓝（深水收敛蓝）、深度上限 16→24、空气侧加受控水体单次散射（深水回退不再恒零），design.md SC-40 登记分工修订，lang 写明三档观感。
+- **语义方向**：植被透光乘子改"只加不减"（mix 至 1.0，×0.35·t）；晨雾权重端点反转修正；背光面退出夜间失色。
+- **其他**：final 水下重复 tonemap 消除；End 暗角/抖动改叠加式；下界天空去双算；caustics 守卫闭合；noise.glsl/noisetex/noise.png、sunrise/moonrise、biome 平滑 uniform、astraRipple3、surfaceWet 死存储等死链清理；字面整数 pow 迁移（fog/end_system/shadow.fsh/lit/deferred/water/weather/end/overworld/bloom_resolve/twilight 部分）；srgb_decode 函数内钳负；colortex7=0.25；SSS_STRENGTH 默认对齐 60；THIRD-PARTY 计数与 README 事实更正；新增 09-17 返工归档与 qa/open-premises.md。
+- **验证**：`compile_glsl.py` 全档 `linked=267 failed=0 compute=27`（qa/glsl-consolidated-fixes.log）；`check_pack.py` 0 FAIL / 1 WARN / 10 PASS。视觉类改动（光束标定、水色、植被透光、晨雾方向）需实机对拍，未宣称画面结论。

@@ -2,6 +2,7 @@
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
 #include "/lib/transforms.glsl"
+#include "/lib/pow.glsl"
 #include "/lib/twilight.glsl"
 #include "/lib/encoding.glsl"
 #include "/lib/tonemap.glsl"
@@ -85,9 +86,17 @@ void main() {
         float obscured=smoothstep(3.0,28.0,distanceToEye);
         hdr *= mix(1.0,mix(0.40,0.001,obscured),dark);
     }
-    vec3 displayColor = srgb_encode(apply_tonemap(apply_exposure(hdr)));
+    // Underwater uses Solas' own display curve (its domain keeps the reference's
+    // gamma-blend order). The two paths are exclusive, so pick one up front - the
+    // previous shape computed the full Uchimura+sRGB chain first and discarded it for
+    // every underwater pixel (consolidated review D4 / Hunyuan A1). TONEMAP_OPERATOR
+    // applies to the air path only; lang documents that.
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-        if (isEyeInWater == 1) displayColor = solas_water_display(apply_exposure(hdr));
+    vec3 displayColor = isEyeInWater == 1
+        ? solas_water_display(apply_exposure(hdr))
+        : srgb_encode(apply_tonemap(apply_exposure(hdr)));
+    #else
+    vec3 displayColor = srgb_encode(apply_tonemap(apply_exposure(hdr)));
     #endif
     displayColor = apply_grading(displayColor);
     displayColor = apply_vignette(displayColor, texcoord);

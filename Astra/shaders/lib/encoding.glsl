@@ -17,7 +17,9 @@ vec3 srgb_encode(vec3 c) {
 }
 
 vec3 srgb_decode(vec3 c) {
-    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+    // Clamped inside so a negative input cannot reach pow() - callers no longer have
+    // to remember the guard themselves (consolidated review E8 / Qoder F-39).
+    return mix(c / 12.92, pow(max((c + 0.055) / 1.055, vec3(0.0)), vec3(2.4)), step(vec3(0.04045), c));
 }
 
 float get_luminance(vec3 color) {

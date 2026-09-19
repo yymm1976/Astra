@@ -40,7 +40,7 @@ vec3 astra_sky(vec3 worldDir) {
     #if defined DIMENSION_NETHER
         return nether_sky(worldDir, nether_atmosphere_tint(fogColor));
     #elif defined DIMENSION_END
-        return end_sky(worldDir, end_void_tint(cameraPosition.y), frameTimeCounter);
+        return end_sky(worldDir);
     #else
         vec3 sky = astra_overworld_sky(worldDir);
         #if CLOUD_MODE == CLOUD_PLANAR
@@ -54,7 +54,7 @@ vec3 astra_reflection_sky(vec3 worldDir, float roughness) {
     #if defined DIMENSION_NETHER
         return nether_sky(worldDir, nether_atmosphere_tint(fogColor));
     #elif defined DIMENSION_END
-        vec3 sky=end_sky(normalize(worldDir),END_VOID_COLOR,frameTimeCounter);
+        vec3 sky=end_sky(normalize(worldDir));
         return mix(sky,END_SKY_LIGHT_COLOR*0.002,clamp(roughness*roughness,0.0,1.0));
     #else
         return astra_sky_reflection(worldDir, roughness);
@@ -104,7 +104,7 @@ vec3 astra_water_air_sky(vec3 direction) {
 // interface is outside this volume and correctly receives no water sun source.
 vec3 astra_water_segment(vec3 radiance, vec3 start, vec3 finish, float skylight) {
     if (isEyeInWater == 0)
-        return water_surface_medium(radiance, start.y - finish.y);
+        return water_surface_medium(radiance, start.y - finish.y, astra_water_incident(skylight));
     vec3 delta = finish - start;
     float distanceInWater = length(delta);
     vec3 result = water_medium(radiance, distanceInWater, astra_water_incident(skylight));
@@ -209,7 +209,7 @@ vec3 astra_apply_medium(vec3 color, vec3 playerPos, float skylight) {
         // nether fog already produced and adds its own in-scatter once. Both layers
         // owning their own transmittance is intended layering, not double absorption
         // (T_combined = exp(-(d1+d2)L)); the density scales live in nether_volume.glsl.
-        vec4 volume = astra_bliss_fog(camera_relative_view(playerPos),0.5,0.5);
+        vec4 volume = astra_bliss_fog(camera_relative_view(playerPos),0.5);
         result = result*volume.a + volume.rgb;
     }
     #endif

@@ -44,13 +44,21 @@ vec4 water_shafts_march(vec2 uv) {
     float eyeDistance = max(length(viewPos), 1e-4);
     float sun = solas_sun_visibility();
     float time = astraSolasTimeBrightness;
-    float VoU = 1.0 - pow(clamp(ray.y, 0.0, 1.0), 1.5);
-    float VoL = pow(clamp(dot(ray, normalize(view_player(lightVector))), 0.0, 1.0), 1.5);
+    // Forward scattering against the sun direction REFRACTED through the flat water
+    // interface. The previous gate used the AIR sun vector: at noon the eye-to-pixel
+    // ray points down while the sun points up, so dot(ray, airSun) <= 0 for every
+    // seabed view and the beams were exactly zero at the hour they should be
+    // strongest. The refracted direction at noon points down-and-sunward, which is
+    // where the beams physically live; looking up at the surface still fails the gate
+    // on its own, so the separate VoU term is gone (consolidated review B1 /
+    // Qoder F-03 / Hunyuan B1; convention note: sunAngle 0.25 = noon).
+    vec3 sunWorld = normalize(view_player(lightVector));
+    vec3 refractSun = refract(sunWorld, vec3(0.0, -1.0, 0.0), 1.0 / 1.2);
+    float VoL = pow(clamp(dot(ray, refractSun), 0.0, 1.0), 1.5);
     // Forward scattering only, and daylight only: shafts must not appear when looking
     // away from the sun, and must not peak at dusk.
     float sunGate = smoothstep(-0.02, 0.16, worldSunVector.y);
     float visibility = sunGate * 0.85;
-    visibility *= pow(VoU, 1.5);
     visibility *= mix(0.25 + VoL * 0.25, VoL * 0.45, time);
     visibility *= 1.0 - clamp(blindness, 0.0, 1.0);
     if (visibility <= 0.0) return vec4(vec3(0.0),rayLength / 128.0);
@@ -64,7 +72,10 @@ vec4 water_shafts_march(vec2 uv) {
     // away from the eye is deliberate (it is the "walk closer and the beam vanishes"
     // behaviour), but the range label must not overstate the reach.
     const float maxDist = 40.0;
-    float minDist = maxDist / float(UNDERWATER_SHAFT_SAMPLES) * 0.5;
+    // Samples span the full [0, maxDist] interval. The previous "* 0.5" placed the last
+    // sample near maxDist/2, leaving the outer half of the beam unsampled
+    // (consolidated review B2 / Hunyuan 11.1.3).
+    float minDist = maxDist / float(UNDERWATER_SHAFT_SAMPLES);
     float maxCurrentDist = min(rayLength, maxDist);
     float dither = texture(solasWaterNoise, gl_FragCoord.xy / 512.0).b;
     vec3 integral = vec3(0.0);
@@ -74,7 +85,11 @@ vec4 water_shafts_march(vec2 uv) {
         // Scale by the ray length so currentDist is measured along the view ray.
         vec3 point = view_camera_relative(viewPos * (currentDist / eyeDistance));
         vec3 pos = distort(player_shadow(point)) * 0.5 + 0.5;
-        if (length(pos.xy * 2.0 - 1.0) >= 1.0) continue;
+        // Square bounds: the distorted shadow map fills the full [0,1] square and the
+        // End receiver branch already treats it that way. The old inscribed circle
+        // unconditionally discarded the 21.5% of samples that land near the edges
+        // (consolidated review B2 / Hunyuan 11.1.3).
+        if (max(abs(pos.x * 2.0 - 1.0), abs(pos.y * 2.0 - 1.0)) >= 1.0) continue;
         // Distance-weighted: far samples dominate, which is the reference's soft falloff.
         float weight = pow((currentDist / maxDist) / float(UNDERWATER_SHAFT_SAMPLES),
                            1.0 - time * 0.5);
@@ -89,30 +104,33 @@ vec4 water_shafts_march(vec2 uv) {
         // softening, caustics or phase work could fix a reversed visibility term.
         // Matches global/lighting/shadowmap.glsl (`step(referenceDepth, stored)`) and the
         // reference's own texture2DShadow.
-        #if SHADOW_FILTER_MODE == 1
+        #if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
         float shade = shadow_opaque_visibility(pos);
         #else
         float shade = clamp((texture(shadowtex1, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);
         #endif
-        // Reference design point 1: modulate the beam by the water-surface caustics, cubed.
-        // This is what turns an even cone into the soft banded columns the reference shows,
-        // and because the same function drives the seabed caustics their phases agree.
         if (shade <= 0.0) continue;
-        shade *= astra_water_caustics_shaft_at(point + cameraPosition);
-        // Reference design point 2: distance attenuation. Near the camera the beam is
-        // crushed, which is the "walk closer and it disappears" behaviour.
-        shade /= max(3.0, currentDist * 0.1);
+        // Caustic banding from the cheap 5-height curvature field: 10 fetches instead
+        // of the 72-fetch 3x3 focus that previously ran per sample (504-720 fetches per
+        // pixel). Clamped to [0.25, 1] so the field shapes the beam without crushing
+        // it. Independent of WATER_CAUSTICS - the shadow-colour tint below carries that
+        // option's contribution (consolidated review B3 / Qoder F-04 #1).
+        float caustic = clamp(solas_water_caustics(point + cameraPosition), 0.0, 1.0);
+        shade *= mix(0.25, 1.0, caustic);
+        // Distance attenuation. Near the camera the beam is crushed, which is the
+        // "walk closer and it disappears" behaviour; floor 3.0 -> 2.0 and slope
+        // 0.1 -> 0.06 as part of the 2026-09-20 recalibration (consolidated review B4,
+        // needs in-game A/B).
+        shade /= max(2.0, currentDist * 0.06);
         vec3 col = texture(shadowcolor0, pos.xy).gba;
         integral += shade * clamp(col * col, 0.0, 4.0) * weight;
     }
     integral *= visibility;
-    // Reference design point 3: the scattering phase uses the sun direction REFRACTED
-    // through the water interface, not the air sun direction. Getting this wrong splits
-    // the beam peak away from the sun the surface and sky agree on.
-    vec3 sunWorld = normalize(view_player(lightVector));
-    vec3 refractSun = refract(sunWorld, vec3(0.0, -1.0, 0.0), 1.0 / 1.2);
-    integral *= mix(0.35, 1.0, pow(clamp(dot(refractSun, ray), 0.0, 1.0), 2.0));
-    integral *= mix(solasWaterSqrt, solasWaterSqrt * solasWeather, wetness) * (4.0 + sun * 8.0);
+    // The gate above already phases against the REFRACTED sun direction; the previous
+    // second phase term applied the same direction twice with two different interface
+    // normals and is gone (consolidated review B1).
+    integral *= mix(solasWaterSqrt, solasWaterSqrt * solasWeather, wetness)
+             * (6.0 + sun * 14.0);
     // Positive exponent keeps the zero-light case defined at extreme settings.
     integral = pow(integral, vec3(max(1.0 - pow(length(integral), 1.25) * 0.25, 0.01)));
     return vec4(pow(clamp(integral / 128.0, 0.0, 1.0), vec3(0.25)), rayLength / 128.0);
@@ -121,12 +139,22 @@ vec4 water_shafts_march(vec2 uv) {
 vec3 water_shafts_resolve(sampler2D shaftMap, vec2 uv, float rayLength) {
     vec2 pixel = 1.0 / vec2(textureSize(shaftMap, 0));
     vec3 encoded = vec3(0.0);
+    float weights = 0.0;
     const vec2 offsets[4] = vec2[4](vec2(1.5, 0.5), vec2(-0.5, 1.5), vec2(-1.5, -0.5), vec2(0.5, -1.5));
     for (int i = 0; i < 4; ++i) {
-        vec2 offset = offsets[i];
-        encoded += texture(shaftMap, clamp(uv + offset * pixel, pixel * 0.5, 1.0 - pixel * 0.5)).rgb;
+        vec2 tapUV = clamp(uv + offsets[i] * pixel, pixel * 0.5, 1.0 - pixel * 0.5);
+        // Distance-aware weights, per design.md SC-33 ("distance-weighted
+        // reconstruction"): a tap whose own geometry sits at a very different depth
+        // than this pixel's ray length belongs to another surface and must not bleed
+        // into the beam. The rayLength parameter was previously accepted and ignored
+        // (consolidated review B5 / Qoder F-13).
+        float tapDepth = textureLod(depthtex0, tapUV, 0.0).r;
+        float tapDist = tapDepth < 1.0 ? length(screen_view(vec3(tapUV, tapDepth))) : 1.0e5;
+        float weight = exp(-abs(tapDist - rayLength) * 0.25);
+        encoded += textureLod(shaftMap, tapUV, 0.0).rgb * weight;
+        weights += weight;
     }
-    return pow(encoded * 0.25, vec3(4.0)) * 128.0;
+    return pow(encoded / max(weights, 1e-5), vec3(4.0)) * 128.0;
 }
 #endif
 #endif

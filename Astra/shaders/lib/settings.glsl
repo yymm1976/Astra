@@ -73,8 +73,9 @@
 // Skylight-based static shadow approximation outside shadow distance
 #define SSS_FOLIAGE // [false true]
 // Foliage translucency approximation
-#define SSS_STRENGTH 100 // [0 10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200]
-// Foliage SSS strength, %
+#define SSS_STRENGTH 60 // [0 10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200]
+// Foliage SSS strength, % (60 = the BALANCED profile value; the raw defaults must stay
+// identical to that profile so "raw defaults = BALANCED" holds as a benchmark anchor)
 
 // --- SKY ---
 #define SKY_MODE 1 // [0 1]
@@ -218,7 +219,8 @@ const float shadowDistanceRenderMul = 1.5;             // retain upstream caster
 const float shadowIntervalSize   = 0.5;
 // Both Steadfast and Solas use this orbit; Iris applies it to sky and shadow matrices.
 const float sunPathRotation = -40.0;
-const int   noiseTextureResolution = 256;              // matches textures/noise.png
+// noisetex/noise.png were removed: nothing sampled them (consolidated review E4).
+const int   noiseTextureResolution = 256;              // engine default kept explicit
 
 // --- SC-13 (design.md 4.1): the three shadow engine knobs, semantics frozen there ---
 // Iris multiplies shadowDistance * shadowDistanceRenderMul * this ratio.
@@ -354,7 +356,10 @@ const bool shadowHardwareFiltering1 = false;
 // SC-23: clear colors must be 4-arg constructors with plain literal components
 // (Iris parses each argument with Float.parseFloat - no expressions, no 1-arg splat).
 const vec4 colortex0ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
-const vec4 colortex3ClearColor = vec4(0.498, 0.0, 0.0, 1.0);  // 127/255 skylight marker
+// Alpha of this clear colour is the standing-water mask's own ZERO: sky, water-surface
+// and translucent pixels keep it, so a 1.0 here would open deferred's puddle gate on
+// every one of them (consolidated review A2 / F-42). The .r marker is unchanged.
+const vec4 colortex3ClearColor = vec4(0.498, 0.0, 0.0, 0.0);  // 127/255 skylight marker
 const vec4 shadowcolor0ClearColor = vec4(1.0, 1.0, 1.0, 1.0);
 const vec4 colortex5ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
 const vec4 colortex6ClearColor = vec4(0.0, 0.0, 0.0, 0.0);

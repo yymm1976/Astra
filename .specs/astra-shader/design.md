@@ -507,3 +507,15 @@ E1–E4 不整体标完成：本次完成可由源码确认的修复与书面裁
 水面在 translucent pass 中以 `depthtex1`（排除透明几何的 opaque depth）配对 deferred 的 `colortex4`；`depthtex0` 保留给透明绘制完成后的最近深度、final 粒子和水下光束边界。折射界面侧判断在 ±0.02 格内连续化；折射路径失效时混合到未偏移的完整 opaque 光路，再由该路径自己的有效度退到深水/天空，不允许未偏移路径以更高置信度无条件覆盖有效折射。
 
 透明水面阴影覆盖定义为 `max(opaqueVisibility - allVisibility, 0)`。禁止 `opaqueVisibility * (1 - allVisibility)`：两张 PCF 图在同一不透明边缘均为 0.5 时，乘积会凭空产生 0.25 的水面透光。焦散在水面下 0.15–0.75 格建立后再衰减，避免量化水高边界成为最亮处；波层距离 LOD 只衰减相对均值的变化，不得改变视差高度的 DC 分量。
+
+## SC-40 决议补登（2026-09-20 三方审查汇总，见 docs/2026-09-20-final-consolidated-review.md）
+
+**决议：E1/E2。** 以下偏离与例外自本轮起登记在案，均为已发生事实的追认或修订：
+
+- **水色分工修订（覆盖 §4.3/SC-34 的"空气侧只做吸收"禁令）**：空气侧在吸收之外增加受控的水体单次散射项（`water_body_color × (1−T)`），空气侧观感目标定为"青绿→深蓝的深度行程 + 菲涅尔反射叠加"；水下体积源仍然不进入空气侧路径。
+- **lit varying 预算重订（覆盖 §3.2 的 9 标量冻结）**：按 pass 组合上限计——基础 9（texcoord/lightcoord/tint/faceData）+ 位置/阴影 6（cameraRelativePosition/surfaceShadowPosition）+ 水面切线系 10，逐顶点预投影是性能取舍；新增位置/shadow varying 必须过闸门。
+- **"零 compute/零彩光"边界修订（覆盖 §0/§2.1）**：下界体素彩色光（9 个 compute 阶段 + 3 张自定义图像）自 NETHER_VOXEL_LIGHT 起为一等公民例外。
+- **global→global 子分层承认（覆盖 §3.2 决议字句）**：大气（clouds_planar/stars→sky_gradient）与末地（end→end_blackhole→end_system→end_ring→end_geometry）两条单向链合法；校验器须补 global 内部边规则。
+- **SKY_MODE 出厂=渐变（覆盖 §4.2 的 Minishita 默认）**：Complementary 渐变移植为出厂天空，Minishita 为可选手动档；在其获得天穹 LUT 之前不得改回默认（逐像素 2 视采样 + 1 光采样积分不可接受）。
+- **deferred 恒开重申（§2.2 旧条件作废，沿 SC-34-F1）**：ASTRA_SCENE_COPY 与三维度 deferred 常开是现行契约；条件化属未来演进，须先改本条。
+- **colortex5 语义重申**：RG=水面高度、B=天光、A=水面有效性标志（water_state.fsh 消费），任何 pass 不得挪作他用。

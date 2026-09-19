@@ -33,7 +33,7 @@ vec3 puddle_reflection(vec3 playerPos, vec3 normal) {
         float t = min(float(i+1)*stepT, 1.0);
         vec2 uv = mix(a,b,t);
         if(any(lessThan(uv,vec2(0.002))) || any(greaterThan(uv,vec2(0.998)))) break;
-        float d = texture(depthtex0,uv).r;
+        float d = textureLod(depthtex0,uv,0.0).r;
         vec3 p = mix(qa,qb,t)/mix(ka,kb,t);
         vec3 prev = mix(qa,qb,previousT)/mix(ka,kb,previousT);
         float sceneZ = screen_view(vec3(uv,d)).z;
@@ -42,13 +42,13 @@ vec3 puddle_reflection(vec3 playerPos, vec3 normal) {
             for(int j=0;j<6;++j) {
                 float mid=(lo+hi)*0.5;
                 vec2 mUV=mix(a,b,mid);
-                float md=texture(depthtex0,mUV).r;
+                float md=textureLod(depthtex0,mUV,0.0).r;
                 float mz=(mix(qa,qb,mid)/mix(ka,kb,mid)).z;
                 if(md < 0.999999 && mz <= screen_view(vec3(mUV,md)).z) hi=mid;
                 else lo=mid;
             }
             uv=mix(a,b,hi);
-            float hd=texture(depthtex0,uv).r;
+            float hd=textureLod(depthtex0,uv,0.0).r;
             vec3 hp=mix(qa,qb,hi)/mix(ka,kb,hi);
             float error=screen_view(vec3(uv,hd)).z-hp.z;
             if(hd < 0.999999 && error >= 0.0 && error < 0.10 && length(hp-start)>0.06) {
@@ -58,7 +58,7 @@ vec3 puddle_reflection(vec3 playerPos, vec3 normal) {
                 // subject to the same highlight ceiling. Without this, a reflection of
                 // the sun or of a bright sky region re-entered the frame above the
                 // shoulder and was handed to the tonemapper unclipped twice.
-                result=mix(result,astra_scene_highlights(texture(colortex0,uv).rgb),
+                result=mix(result,astra_scene_highlights(textureLod(colortex0,uv,0.0).rgb),
                            edge*rangeFade);
                 break;
             }
@@ -76,7 +76,7 @@ vec3 rainy_air(vec3 endPoint) {
     vec3 L = normalize(view_player(lightVector));
     float distanceToEye = min(length(endPoint),100.0);
     vec3 ray = normalize(endPoint);
-    float phase = 0.06 + 0.94*pow(max(dot(ray,L),0.0),8.0);
+    float phase = 0.06 + 0.94*pow8(max(dot(ray,L),0.0));
     float sum = 0.0;
     for(int i=0;i<10;++i) {
         float t = (float(i)+0.5)*distanceToEye/10.0;
@@ -128,9 +128,12 @@ void main() {
         // different cause. The mask now travels in colortex3.a, which is RGBA8 by default
         // and whose alpha no consumer reads.
         //
-        // The ripple tilt is kept as a second, independent confirmation, so a fragment
+        // The ripple tilt is kept as a second, monotone gate, so a fragment
         // whose mask is a rounding error above the threshold still cannot produce a
-        // reflection on a normal that shows no water.
+        // reflection on a normal that shows no water. It is NOT an independent signal:
+        // the ripple amplitude itself scales with the same puddle mask
+        // (global/atmosphere/weather.glsl), so this sharpens the threshold rather than
+        // adding information (consolidated review F-16).
         vec4 surface = texelFetch(colortex3, ivec2(gl_FragCoord.xy), 0);
         float standingWater = clamp(surface.a, 0.0, 1.0);
         if (standingWater > 0.15 && isEyeInWater == 0 && (lightData & 128u) == 0u) {
@@ -142,9 +145,16 @@ void main() {
             // astra_rain_ripple wrote nothing (dry ground), so a 1/400 tilt in it is
             // already a fully formed ripple.
             float rippled = clamp((1.0 - n.y) * 400.0, 0.0, 1.0);
-            float fresnel = 0.025+0.975*pow(1.0-max(dot(n,-normalize(playerPos)),0.0),5.0);
-            source = mix(source,puddle_reflection(playerPos,n),
-                         standingWater*upFacing*rippled*fresnel);
+            float fresnel = 0.025+0.975*pow5(1.0-max(dot(n,-normalize(playerPos)),0.0));
+            // Every factor gates the CALL, not just the mix weight: puddle_reflection
+            // costs up to 96 depth samples plus a refine, and GLSL evaluates mix
+            // arguments unconditionally. Water-surface, translucent and sky-clear
+            // pixels all reach this branch (colortex3 keeps its clear values there),
+            // so without the weight gate they each pay the march for a result whose
+            // upFacing is zero (consolidated review A3 / Qoder F-15 / F-42).
+            float weight = standingWater*upFacing*rippled*fresnel;
+            if (weight > 0.001)
+                source = mix(source,puddle_reflection(playerPos,n), weight);
         }
         #endif
         displayed = astra_apply_medium(source, playerPos, skylight);

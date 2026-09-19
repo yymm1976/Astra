@@ -18,8 +18,10 @@ vec3 astra_twilight_atmosphere(vec3 baseSky, vec3 direction) {
     if (twilight <= 0.0) return baseSky;
     float facing=dot(direction.xz,worldSunVector.xz)
                  /max(length(direction.xz)*length(worldSunVector.xz),1e-5);
-    float solar=pow(max(dot(direction,worldSunVector),0.0),16.0);
-    float warm=pow(clamp(0.5+0.5*facing,0.0,1.0),2.0);
+    // Integer exponents as squaring chains per lib/pow.glsl; the 180/1400 halo
+    // exponents below stay on pow() - they have no foldable chain.
+    float solar=square(square(square(square(max(dot(direction,worldSunVector),0.0)))));
+    float warm=square(clamp(0.5+0.5*facing,0.0,1.0));
     float height=max(direction.y,0.0);
     vec3 horizon=mix(vec3(0.34,0.22,0.23),vec3(1.12,0.57,0.22),warm);
     vec3 middle=mix(vec3(0.22,0.20,0.28),vec3(0.62,0.32,0.20),warm);
@@ -43,10 +45,11 @@ vec3 astra_twilight_sky(vec3 direction) {
     float facing=dot(view,sun);
     float horizon=exp(-abs(direction.y-0.025)*7.0)
                  * smoothstep(-0.30,-0.08,direction.y);
-    float warm=pow(max(0.0,0.5+0.5*facing),3.0);
-    float opposite=pow(max(-facing,0.0),2.0);
+    float warm=cube(max(0.0,0.5+0.5*facing));
+    float opposite=square(max(-facing,0.0));
     float forward=max(dot(direction,worldSunVector),0.0);
-    float halo=pow(forward,24.0);
+    float f2=forward*forward; float f4=f2*f2; float f8=f4*f4;
+    float halo=f8*f8*f8;
     float gold=pow(forward,180.0);
     float core=pow(forward,1400.0);
     float upper=smoothstep(0.10,0.65,direction.y);

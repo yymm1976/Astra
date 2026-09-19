@@ -42,17 +42,18 @@ float astra_bliss_cloud(in vec3 pos){
 	float Erosion = astra_bliss_density(samplePos * 400	- frameTimeCounter*10 - Wind*10) *0.7+0.3 ;
 
     float RoofToFloorDensityFalloff = exp(max(100-pos.y,0.0) / -15);
-	float FloorDensityFalloff = pow(exp(max(pos.y-31,0.0) / -3.0),2);
+	float FloorDensityFalloff = square(exp(max(pos.y-31,0.0) / -3.0));
 
 	float Output = max((RoofToFloorDensityFalloff - Plumes * (1.0-Erosion)) * 2.0,	clamp((FloorDensityFalloff - floorPlumes*0.5) * Erosion ,0.0,1.0) );
     
 	return Output;
 }
 
+// The dither2 parameter was never read by the body and is gone
+// (consolidated review E5 / Qoder F-52).
 vec4 astra_bliss_fog(
 	vec3 viewPosition,
-	float dither,
-	float dither2
+	float dither
 ){
 
 
@@ -105,7 +106,7 @@ vec4 astra_bliss_fog(
 		float clearArea = 1.0 - min(max(1.0 - length(progressW - cameraPosition) / 24.0,0.0),1.0);
 
 		//------ PLUME EFFECT
-			float plumeDensity = min(densityVol * pow(min(max(100.0-progressW.y,0.0)/30.0,1.0),4.0), pow(clamp(1.0 - length(progressW-cameraPosition)/borderFogDistance,0.0,1.0),5.0));
+			float plumeDensity = min(densityVol * pow4(min(max(100.0-progressW.y,0.0)/30.0,1.0)), pow5(clamp(1.0 - length(progressW-cameraPosition)/borderFogDistance,0.0,1.0)));
 			plumeDensity *= 0.22 * ASTRA_NETHER_PLUME_SCALE;
 			float plumeVolumeCoeff = exp(-plumeDensity*dd*dL);
 
@@ -116,10 +117,9 @@ vec4 astra_bliss_fog(
 
 		//------ HAZE EFFECT
 			// dont make haze contrube to absorbance.
-			float hazeDensity = 0.001 * ASTRA_NETHER_HAZE_SCALE;
-			#ifndef ReflectedFog
-				hazeDensity *= 0.65;
-			#endif
+			// The Bliss ReflectedFog gate is defined nowhere in this pack, so the 0.65
+			// was unconditional; the dead guard is gone (consolidated review E5).
+			float hazeDensity = 0.00065 * ASTRA_NETHER_HAZE_SCALE;
 			float hazeVolumeCoeff = exp(-hazeDensity*dd*dL);
 			
 			vec3 hazeLighting = hazeColor;
@@ -127,7 +127,7 @@ vec4 astra_bliss_fog(
 			color += (hazeLighting - hazeLighting*hazeVolumeCoeff) * absorbance;
 
 		//------ CEILING SMOKE EFFECT
-			float ceilingSmokeDensity = 0.001 * pow(min(max(progressW.y-40.0,0.0)/50.0,1.0),3.0);
+			float ceilingSmokeDensity = 0.001 * cube(min(max(progressW.y-40.0,0.0)/50.0,1.0));
 			ceilingSmokeDensity *= 0.60 * ASTRA_NETHER_CEILING_SCALE;
 			float ceilingSmokeVolumeCoeff = exp(-ceilingSmokeDensity*dd*dL);
 			

@@ -42,7 +42,8 @@ const vec3 BLOCKLIGHT_COLOR = vec3(4.4, 2.9, 1.7);
 // Cave-floor minimum ambient. Two parts:
 //   MIN_AMBIENT_TINT  — the cool blue-ish direction of "darkness that is not pure black"
 //                       (Steadfast minAmbientMinishita = 0.005 * vec3(0.33, 0.8, 1.0)).
-//   MIN_AMBIENT       — the user option (settings.glsl, default 5 = 0.05).
+//   MIN_AMBIENT       — the user option (settings.glsl, default 8 = 0.008; the
+//                       referenced Steadfast value 5 = 0.005).
 // The product reproduces Steadfast's minAmbientMinishita exactly at MIN_AMBIENT = 5:
 //   (5 * 0.001) * vec3(0.33, 0.8, 1.0) = vec3(0.00165, 0.004, 0.005).
 const vec3 MIN_AMBIENT_TINT  = vec3(0.33, 0.8, 1.0);

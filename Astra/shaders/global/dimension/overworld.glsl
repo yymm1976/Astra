@@ -64,7 +64,7 @@ vec3 astra_sky_reflection(vec3 worldDir, float roughness) {
         float bias=mix(0.20,-0.20,CLOUD_COVERAGE*0.01)-0.04-0.28*astraRainFactor;
         float coverage=smoothstep(0.21+bias,0.43+bias,density)
                        *(1.0-smoothstep(2400.0,4000.0,travel));
-        float toward=pow(max(dot(safeDir,worldSunVector),0.0),3.0);
+        float toward=cube(max(dot(safeDir,worldSunVector),0.0));
         vec3 body=vec3(0.18,0.15,0.17)+astra_twilight_sunlight()*(0.08+0.13*toward);
         reflectedSky=mix(reflectedSky,body,coverage*morning*0.70);
     }

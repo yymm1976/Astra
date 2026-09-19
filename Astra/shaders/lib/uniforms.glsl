@@ -18,30 +18,24 @@ uniform vec3  worldSunVector;          // world-space SUN direction (independent
 uniform float sunProgress;             // 0 at sun horizon, 1 at zenith
 uniform float moonProgress;            // same, for the moon
 uniform float skyVisibilityDay;        // skylight collapse around dusk/dawn
-uniform float sunrise;                 // horizon glow factor while the sun crosses the horizon
 uniform float astraTwilightFactor;      // shared, rain-aware twilight envelope (also underwater)
-uniform float moonrise;                // same, for the moon
 uniform float borderFogDistance;       // == far
 uniform float atmosphereFogCoefficient;// pow(d,3) fog coefficient (distance-normalized)
 uniform float dayUnderwaterFogFade;    // underwater fog day/night ramp
 uniform float windStrength;            // base wind strength (rain-aware); WAVING_FOLIAGE_STRENGTH scales in-shader
 uniform vec4  windTheta;               // XYZ = direction thetas, W = magnitude theta
 uniform float godraysExposure;         // base exposure * view-angle fade * offscreen fade
-uniform float biomeTemperatureSmooth;  // temporally smoothed biome temperature
-uniform float biomeHumiditySmooth;     // temporally smoothed biome humidity
 
 // ------------------------------------------------------------
 // Iris/OptiFine built-ins referenced by lib/ and global/ (declared once here so a
 // module never depends on which pass happens to include it first)
 // ------------------------------------------------------------
 uniform sampler2D solasWaterNoise;
-// Rain ripple flipbooks (shaders.properties customTexture.astraRipple1..3).
+// Rain ripple flipbooks (shaders.properties customTexture.astraRipple1/2).
 uniform sampler2D astraRipple1;
 uniform sampler2D astraRipple2;
-uniform sampler2D astraRipple3;
 uniform float temperature;
 uniform float rainfall;
-uniform sampler2D noisetex;            // lib/noise.glsl (texture.noisetex, 256x256)
 uniform int   frameCounter;            // lib/dither.glsl
 uniform float frameTimeCounter;        // lib/noise.glsl wind/water scroll
 uniform vec3  cameraPosition;          // world-space camera

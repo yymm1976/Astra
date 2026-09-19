@@ -22,7 +22,7 @@
 //     (design.md 4.2; Refrax is the stated inspiration, the implementation is ours).
 //
 // Uniforms: atmosphereFogCoefficient, borderFogDistance, isEyeInWater, blindness,
-//           worldSunVector, sunrise, moonrise (lib/uniforms.glsl)
+//           worldSunVector (lib/uniforms.glsl)
 // Consts:   FOG_DENSITY, SKY_FOG_STRENGTH, UNDERWATER_FOG_DENSITY, BORDER_FOG,
 //           CAVE_FOG, AIR_PERSPECTIVE, BIOME_TINT, BIOME_TINT_STRENGTH (lib/settings.glsl)
 // Owner: B2. Consumers: program/lit.fsh (E1), program/sky.fsh (D2), program/deferred.fsh (E2).
@@ -60,10 +60,10 @@ struct FogParams {
 // factor of ~0.5 at 200 blocks, so a large valley factor would put a wall of mist in
 // front of exactly the distant terrain the fog is supposed to give depth to.
 //   1.28 at and below Y=48   - valley floors and ravines, where mist collects
-//   1.05 at Y=100            - low ground
-//   0.96 at Y=150            - open ground at normal build height
-//   0.70 at Y=200            - hills
-//   0.42 at and above Y=260  - high mountains and the build limit
+//   1.11 at Y=100            - low ground
+//   0.96 from Y=150 to Y=200 - open ground at normal build height
+//   0.68 at Y=230            - hills
+//   0.40 at and above Y=260  - high mountains and the build limit
 float fog_valley_mist(float worldY) {
 	float below = smoothstep(48.0, 150.0, worldY);
 	float above = smoothstep(200.0, 260.0, worldY);
@@ -71,12 +71,13 @@ float fog_valley_mist(float worldY) {
 }
 // Complementary's mainFog weight for the low-altitude air, as a function of the same
 // height: 0.62 for dense low air, 0.22 for thin high air. Folding the valley mist into
-// this remap keeps the original end points exactly - above Y=150 it is still 0.22, and
-// at the valley floor it is still 0.62 - while the ground in between (where players
-// actually build) is graded rather than switched at a threshold. This is the pair the
-// old inline `1.0 - smoothstep(96, 176, y)` was approximating for both roles at once.
+// this remap keeps the original end points exactly - at the valley floor it is still
+// 0.62, and above Y=150 it is still 0.22 - while the ground in between (where players
+// actually build) is graded rather than switched at a threshold. The previous form
+// had the two endpoints swapped: valleys came out 0.22 and hilltops 0.62, so morning
+// fog stacked on ridges and drained from valleys (consolidated review D2 / Qoder F-09).
 float fog_morning_air_weight(float worldY) {
-	return mix(0.62, 0.22, clamp((fog_valley_mist(worldY) - 0.96) / 0.32, 0.0, 1.0));
+	return mix(0.22, 0.62, clamp((fog_valley_mist(worldY) - 0.96) / 0.32, 0.0, 1.0));
 }
 
 // FogV2 (Steadfast): atmospheric pow(d,3) fog + render-distance border fog + a
@@ -124,7 +125,7 @@ vec4 fog_v2(
 	// world height, so two points at the same distance but different altitude get
 	// different haze - which is the whole point of the term.
 	float fogValleyMist = fog_valley_mist(fragWorldY);
-	float atmosphereFog = pow(fragDistance, 3.0)
+	float atmosphereFog = cube(fragDistance)
 		* atmosphereFogCoefficient
 		* (FOG_DENSITY * 0.01)
 		* fogValleyMist;
@@ -153,7 +154,7 @@ vec4 fog_v2(
 		// Blindness is just a very strong, very black fog.
 		atmosphereFog = max(
 			0.85,
-			1.0 - exp(-pow(fragDistance * blindness * 0.5, 2.0)));
+			1.0 - exp(-square(fragDistance * blindness * 0.5)));
 		fogColor = vec3(0.0);
 		skyFogStrength = 0.0;
 	} else if (isEyeInWater == 1) {
@@ -171,7 +172,7 @@ vec4 fog_v2(
 	} else if (isEyeInWater == 2) {
 		// Lava: same exponential shape, but with a high floor, since you are not meant
 		// to see much while submerged in it.
-		atmosphereFog = max(0.85, 1.0 - exp(-pow(fragDistance * 0.5, 2.0)));
+		atmosphereFog = max(0.85, 1.0 - exp(-square(fragDistance * 0.5)));
 		fogColor = vec3(1.0, 0.05, 0.0);
 		skyFogStrength = 0.0;
 	}
@@ -207,7 +208,7 @@ vec4 fog_v2(
 vec3 fog_air_perspective(vec3 fogColor, vec3 viewDir, vec3 sunGlowColor) {
 	float sunAmount = max(dot(viewDir, worldSunVector), 0.0);
 	float horizon = astra_twilight_strength();
-	vec3 result = fogColor + sunGlowColor * (pow(sunAmount, 4.0) * horizon);
+	vec3 result = fogColor + sunGlowColor * (pow4(sunAmount) * horizon);
 	// Direction asymmetry. The reference derives its cool side from the same sky
 	// colour it uses for everything else; here the existing horizon sky tint
 	// (astra_twilight_sky - the atmosphere's own away-from-sun term) supplies the
@@ -222,8 +223,9 @@ vec3 fog_air_perspective(vec3 fogColor, vec3 viewDir, vec3 sunGlowColor) {
 #endif
 
 // Biome tint (design.md 4.2): a gentle pull of the fog colour towards the biome's
-// palette. Temperature/humidity are already temporally smoothed on the CPU (Z3), so
-// the caller only has to hand over the resolved colour.
+// palette. The colour comes straight from the engine's fogColor at the call site; the
+// CPU-smoothed temperature/humidity uniforms were removed - they never had a shader
+// consumer (consolidated review E2 / Qoder F-28).
 #ifdef BIOME_TINT
 vec3 fog_biome_tint(vec3 fogColor, vec3 biomeFogColor) {
 	return mix(fogColor, biomeFogColor, BIOME_TINT_STRENGTH * 0.01);

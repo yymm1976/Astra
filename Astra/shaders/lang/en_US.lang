@@ -105,7 +105,7 @@ option.SCREENSPACE_REFLECTIONS.comment=Enables SSR on water and ice top faces; f
 option.SCREENSPACE_REFRACTION.comment=Enables refraction under the water surface with per-tap depth and side rejection.
 option.REFRACTION_STRENGTH.comment=Adjusts the distortion strength of the refracted background. Water depth does not amplify it further.
 option.WATER_ABSORPTION.comment=Determines how fast water absorbs light colors underwater; 0 = off.
-option.WATER_CHARACTER.comment=Determines the water color palette.
+option.WATER_CHARACTER.comment=Water color by depth. Cold: blue from the shallows down. Balanced: cyan-green shallows fading to deep blue. Tropical: bright cyan shallows, blue depths.
 option.WATER_CAUSTICS.comment=Enables caustic light patterns on the seafloor, cast along with shadows and fading with depth.
 option.UNDERWATER_PARTICLES.comment=Enables suspended particles while underwater.
 option.FANCY_TRANSLUCENTS.comment=Enables premultiplied-alpha blending for water and translucent blocks; lets reflections and refraction mix freely.

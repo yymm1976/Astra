@@ -20,9 +20,11 @@
 | P0 | 0 | 未发现新的挂死/崩溃路径（09-11 的 End 黑洞挂死已修，见 commit 7e3b1e7） |
 | P1 | 14 | 阻塞发布 |
 | P2 | 22 | 影响可移植性与帧率 |
-| P3 | 16 | 记录待处理 |
+| P3 | 15 | 记录待处理 |
 
-数量为**交叉核验后的终值**。原始审查交出的 12/12/13 之外，`docs/2026-09-20-glm53flash-full-review.md` 与 `docs/2026-09-20-hunyuan-full-review.md` 两份外部报告里有 15 条经我对源码逐条复算成立、且我原先漏掉的结论（F-40 … F-54）。判定与采纳理由见 §10。
+数量为**交叉核验后的终值**：原始审查交出 12 / 12 / 13，交叉核验新增 2 / 10 / 3（F-40 … F-54），另有 1 条（F-38）被我自己的复算推翻并从 P3 中撤回，因此 P3 是 15 而不是 16。新增的 15 条里，出处并不全在外部报告：F-40、F-51、F-53 是我在复核过程中补算出来的，F-41、F-47 只有一半来自外部，其余来自 `docs/2026-09-20-glm53flash-full-review.md` 与 `docs/2026-09-20-hunyuan-full-review.md`。逐条判定、采纳理由与分档分歧见 §10。
+
+**用本报告行号前必读**：审查收尾期间工作树被另一条执行线推进（HEAD `7e3f51c` → `ef90edb` + 未提交修复），上表的**分级与条数不受影响**，但若干行号已漂移、若干条目已修 —— 状态表与漂移清单在 §9.1。
 
 **先做三件事**：① 修 `program/lit.fsh:362`（一条语句同时废掉 colortex5/colortex6 两条链）；② 删掉 `global/water/light_shafts.glsl:54` 的相位项或改为与观测方向解耦；③ 重写 `global/water/absorption.glsl:16-31` 的光谱次序并给空气侧加体散射项。三处都是可验证的小改动，且分别对应"两个未实现需求"的主因。
 
@@ -42,7 +44,7 @@
 
 1. **主管线契约建立在一组互斥的 pass 顺序断言上**（P1，见 F-01 的姊妹项 F-02）。`design.md:90/:493` 与 `docs/2026-09-13-astra-full-audit.md:698` 断言"deferred 先于半透明"，而 `program/deferred.fsh:107-108` 消费的 HAND 高 1bit 由 `gbuffers_hand` 写入——手部在所有半透明之后绘制。两者不可能同时为真。这是全包唯一一处"架构级未决前提"，它决定了 colortex4 是本帧还是上一帧、决定了天空回填是否会出黑条。
 2. **一条语句承载三种语义**：`gl_FragData[1]` 在不同 `#ifdef` 分支下分别指向 colortex3 与 colortex5（`lit.fsh:23/27`），于是 `:362` 与 `:374` 看起来是同一段代码的复制，实际写到两个不同缓冲。这是本次最严重的两处缺陷的共同成因。
-3. **计算/控制流内使用隐式 LOD 采样**：`program/deferred.fsh:36,45,51`、`program/end_sky_buffer.fsh:63` 在 `if/break` 分支里用 `texture(...)`。`global/atmosphere/weather.glsl:82-84` 已经用了正确的 `textureLod`，说明包内知道这条规则，只是漏了三处。
+3. **循环体内使用隐式 LOD 采样**（见 F-14，本条引证已在交叉核验中重做）：对全部 245 个着色器文件做花括号配平扫描，循环体内的裸 `texture()` 只有 4 处，其中**唯一落在开了 mipmap 的缓冲上**的是 `global/water/bloom_capture.glsl:21` 采 `colortex0`（`program/water_bloom.fsh:5` 声明了 `colortex0MipmapEnabled = true`），且它处在逐像素 `if` 的分支内 —— 同包 `global/post/bloom.glsl:107` 对同一语义已写成 `textureLod(…, 0.0)`，属可实现而未实现。其余 3 处采的是未开 mipmap 的缓冲，只在跨驱动行为上有风险。
 
 ---
 
@@ -293,9 +295,10 @@ vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight
 `absorption.glsl:55-62`，且被注释明确禁止（详见 §4.3）。
 建议：见 §4.4；同时更新 `design.md:79`。
 
-**F-07 composite3 同缓冲读写 + 对线性 HDR 施加 Solas gamma 界**
-`program/water_composite.fsh:13`（读 colortex0）与 `:11`（写 colortex0）；`:23` 的 `clamp(color,0,1)`；`lib/solas_water.glsl:110` 的 `color*color + shafts` 把光束加在已含雾的结果之后。
-为什么重要：同缓冲读写是 UB；gamma 界在 `R11F_G11F_B10F` 线性流程里会截掉所有高光，随后 bloom 与 tonemap 都拿不到被截的信息。
+**F-07 composite3 对线性 HDR 施加 Solas gamma 界（附带一处同缓冲读写的规范性争议）**
+`program/water_composite.fsh:13`（读 colortex0）→ `:26`（写 colortex0，`RENDERTARGETS: 0` 在 `:11`）；`:23` 的 `clamp(color,0,1)`；`lib/solas_water.glsl:110` 的 `color*color + shafts` 把光束加在已含雾的结果之后。
+为什么重要（主体）：`:23` 的 gamma 界在 `R11F_G11F_B10F` 线性流程里把所有 >1 的 radiance 截平，随后 `water_bloom` 与 tonemap 都拿不到被截的信息 —— 水下画面里亮部（阳光斑、光束、发光方块）的能量在 bloom 之前就被削掉，这是可复现的视觉后果。
+次要（规范性，非缺陷）：本 pass 在同一绘制命令里读写 colortex0。GL 框架的 framebuffer feedback 条款把这种用法列为未定义行为，而 `docs/2026-09-13-astra-full-audit.md` §12.9 的缓冲契约矩阵对同一处给出的结论是"无同 pass 反馈；flip 由引擎按'写入才翻转'管理"。两说并存，我无法在读码层面裁定，因此**不把它算作缺陷、也不据它提级别**；需要实机确认（把 `:23` 的 clamp 去掉后看水下亮部是否回归，即可同时验证 F-07 主体与这条反馈是否真的无害）。
 建议：见 §3.7 Step 5。
 
 **F-08 叶片/草的透光项是变暗**
@@ -330,8 +333,12 @@ vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight
 建议：见 §3.7 Step 4。
 
 **F-14 发散控制流内的隐式 LOD 采样**
-`deferred.fsh:36,45,51`、`end_sky_buffer.fsh:63`。
-建议：`textureLod(..., 0.0)`，参照 `weather.glsl:82-84` 的既有写法。
+全包只有 4 处 `texture()` 落在循环体内（对 `Astra/shaders/**` 全部 245 个 `.glsl/.fsh/.vsh/.csh` 做花括号配平扫描得到），逐处核对控制流是否一致、所读缓冲是否开 mipmap：
+1. **`global/water/bloom_capture.glsl:21` `texture(colortex0, sampleCoord)` —— 唯一真正危险的一处。** 它在 `:15` 的逐像素 `if (abs(bloomCoord.x - 0.5) < padding.x && abs(bloomCoord.y - 0.5) < padding.y)` 里套 6×6 循环，控制流按像素发散；而 `colortex0` 是全包**唯一显式开启 mipmap 生成的场景缓冲**（`program/water_bloom.fsh:5 const bool colortex0MipmapEnabled = true;`）。同一操作的另一个实现 `global/post/bloom.glsl:107` 写的是 `textureLod(src, coord, 0.0)` —— 包里对同一件事存在两种写法，走偏的那一份恰好压在唯一有 mip 链的缓冲上。
+2. `program/final.fsh:57`（3×3 邻域取 `colortex1`，包在 `:52` 的 `if (isEyeInWater == 0 && godraysExposure > 0.0)` 里）、`program/end_sky_buffer.fsh:24`（`:21` 的 `if` + `:26`/`:28` 的数据依赖 `break`）、`global/water/light_shafts.glsl:110,125`（march 循环内，`:112` 有 `continue`）—— 同样非一致，但 `colortex1`/`depthtex0`/`shadowtex1`/`shadowcolor0` 均未开 mipmap，今天在画面上不可见。
+为什么重要：GLSL 规定隐式 LOD 的偏导数只在**整个 2×2 quad 控制流一致**时才有定义。第 1 处驱动可以选到非 0 层级 ⇒ 跨厂商/跨驱动可能出现不一致的水下 bloom（而 `water_bloom.fsh:10` 的 `if (isEyeInWater != 1) discard;` 意味着这条路径只在潜水中跑，日常截图看不到）。第 2 类今天只是规范违规，但谁给那些缓冲加上 mipmap，谁就立刻复制同一个 bug。
+建议：四处统一 `textureLod(..., 0.0)`，范式就在 `global/post/bloom.glsl:107`，不需要另立风格。
+**引证订正**：本条原稿写的是 `deferred.fsh:36,45,51` + `end_sky_buffer.fsh:63`，两处都错 —— `deferred.fsh:36/45/51` 本来就是 `textureLod(depthtex0,...,0.0)`，`end_sky_buffer.fsh` 全文 34 行、`:63` 不存在。GLM 第二轮指出引证不成立是对的，我采纳并重推。但 GLM 据此降级的理由（"所涉目标均未开 mipmap"）不成立：`water_bloom.fsh:5` 就写在包里。重推后的站点保住 P2。判定全文见 §10。
 
 **F-15 积水反射门控只有 1/4 真正生效**
 `deferred.fsh:146-147`：`puddle_reflection()` 是函数实参，在 `if` 外无条件求值；`:140/:144/:145` 三个因子只乘进 `mix` 权重。`session-log.md:811` 的"96 步回到稀疏水坑"只对 `standingWater>0.15` 成立。
@@ -384,12 +391,12 @@ vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight
 - **F-35** `lib/colors.glsl:45-47`："default 5 = 0.05" 与实现不符（默认 `MIN_AMBIENT=8`、`:49` 乘 `0.001` → 0.008），"exactly at MIN_AMBIENT = 5" 在默认值下是所引 Steadfast 值的 1.6 倍。
 - **F-36** `lib/pow.glsl:47` 注释 "9 multiplies in total" 与代码不符：`pow100` 的写法要 15 次乘（`pow32` 未共享中间量），只有编译器 CSE 后才接近 9。同时 `:31` 声明的规则未在树内执行。**计数更正（交叉核验后）**：原报告写"残留 6 处"是漏计。用"剥注释 + 括号配平 + 第二参数为整数值字面量（含 `vec3(n)`）且 n≥2"的扫描器重跑 `Astra/shaders/**`，实为 **38 处 / 16 个文件**：`lib/twilight.glsl` 7、`global/atmosphere/fog.glsl` 4、`global/dimension/end_system.glsl` 4、`global/dimension/nether_volume.glsl` 4、`global/dimension/nether.glsl` 3、`program/lit.fsh` 3、其余 9 个文件各 1–2（`light_shafts.glsl` 2、`solas_water.glsl` 2、`deferred.fsh` 2、`weather.glsl`/`end.glsl`/`end_geometry.glsl`/`overworld.glsl`/`bloom_resolve.glsl`/`shadow.fsh`/`water.glsl` 各 1）。指数直方图（指数×出现次数）：2×10、3×6、4×5、5×5、8×4、16×1、20×1、24×2、32×2、180×1、1400×1。原报告点到的 6 处（`fog.glsl:127,210`、`end_system.glsl:28,29`、`bloom_resolve.glsl:9`）全部为真，只是不完整；GLM 报告的"23 处"同样是漏计——正则类扫描会漏掉跨行写法的 `pow(\n x,\n 3.0)`。迁移可行性注意两点：180/1400 两个指数（`twilight.glsl:50,51`）超出 `pow.glsl` 现有链范围，需先补助手；`shadow.fsh:65` 的 `pow(albedo.a, 32.0)` 在阴影 pass 每个 caster 像素上执行，属高优先级。**扫描方法本身也踩了一次坑，记下来免得下次复算再掉进去**：先剥 `/* */` 再剥 `//`，会把行注释里的字样（`shadow.fsh:16` 写的 `program/* is the only lib entry`）当成块注释起点，吞掉后面半个文件，第一次跑因此少计 1 处（38→37）。正确顺序：先剥 `//`（保留换行以维持行号准确），再在剩余文本里标 `/* */` 区间。该文件目前仍未跟踪（`git status` 里的 `?? lib/pow.glsl`）。
 - **F-37** `Astra/THIRD-PARTY.md` 台账漂移：缺 `lib/pow.glsl` 行；`:40` 仍把 N1 写法记为 `ENTITY_SHADOW_DISTANCE * (1.0 / SHADOW_DISTANCE)`（已被 `settings.glsl:227-323` 的字面量表取代）；`:86` 把 `astraRainFactor` 记为 `smooth(71, rainStrength, 3, 3)`，实际 `shaders.properties:307` 是 `..., 3, 0.8)`；条数与表头也不一致。注意 `qa/tools/check_pack.py:603-680` 的台账规则只匹配 `// From ` 前缀，因此没有该行的文件（如 pow.glsl）天然逃过校验 —— 这是工具盲区，不是巧合。
-- **F-38** `lib/water_buffer_formats.glsl:6-11` 的 `#ifndef R11F_G11F_B10F / RGBA16` 空守卫永真（Iris 与 GLSL 都没有第二定义点），`= 0` 分支从不参与求值。
+- **F-38（交叉核验后撤销，不计入统计）** `lib/water_buffer_formats.glsl:6-11` 我原记为"`#ifndef R11F_G11F_B10F / RGBA16` 空守卫永真，`= 0` 分支从不参与求值"。复算结果与结论相反：`grep -rn "define R11F_G11F_B10F"` / `"define RGBA16\b"` 全包 0 命中 ⇒ 守卫**恒成立**，`:7`/`:10` 的 `const int … = 0;` 恰恰是必执行分支。而这正是 `:3-5` 注释写明的用意 —— Iris 按**标识符文本**读 `const int colortex0Format = R11F_G11F_B10F;` 的格式名，GLSL 端却要求该标识符有声明，`0` 这个数值永不参与语义。`program/end_sky_buffer.fsh:6-9` 对 `RGBA16F` 用的是同一套写法，说明这是包内一致的约定而不是漏写。原描述里"永真"为真、"从不参与求值"为假，两句自相矛盾 ⇒ **整条撤回**，P3 由 16 减为 15。判定全文见 §10。
 - **F-39** `lib/encoding.glsl:19-21` 的 `srgb_decode` 未钳负底数（`pow((c+0.055)/1.055, 2.4)`），而同文件 `:16` 的 `srgb_encode` 有 `max(c, vec3(0.0))`。当前不构成可见缺陷：`mix` 会同时求值两侧但负底数分支的结果被丢弃，且唯一调用点 `program/scene.glsl:174` 自带 `max(fogColor, vec3(0.0))`。风险在于这依赖"调用方自觉钳位"，任何新调用点漏写就走到驱动相关的 UB。建议函数内钳，删调用点的外层 `max`。
 
 ### 交叉核验后新增（F-40 … F-54）
 
-这 15 条不在我第一轮清单里，来自两份外部报告与我在复核过程中补算的算术，全部经我逐条读源码确认后收录（判定与出处映射见 §10）。分档与 §1 的 14 / 22 / 16 一致：新增 P1 2 条、P2 10 条、P3 3 条。
+这 15 条不在我第一轮清单里，来自两份外部报告**与我自己在复核过程中补算的算术**（F-40、F-51、F-53 全部来自后者；F-41、F-47 各有一半来自后者），全部经我逐条读源码确认后收录（判定与出处映射见 §10）。分档与 §1 的 **14 / 22 / 15** 一致：本小节新增 P1 2 条、P2 10 条、P3 3 条；P3 的 15 是原集合里的 F-38 在交叉核验中被我撤回后的数字。
 
 #### P1
 
@@ -428,7 +435,7 @@ vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight
   3. `deferred.fsh:136` 的门是三个条件：`standingWater > 0.15 && isEyeInWater == 0 && (lightData & 128u) == 0u`。`:135` 是 `clamp(surface.a,0,1)` ⇒ 这些像素 **1.0 > 0.15 成立**。外层 `:111` 只有维度判断（`!NETHER && !END`），**没有任何选项开关**；`:106` 的 `depth < 0.999999` 只挡住纯天空。`isEyeInWater == 0` 挡掉了水下视角，`(lightData & 128u)` 也挡不住：这些像素的 `colortex3.r` 同样是清屏值 0.498 → `round(0.498·255)=127` → 高位为 0。⇒ **空气侧看水时的水面像素，加上户外全部半透明像素，三门全过。**
   4. `:137` `n = decode_unit_vector(surface.gb*2.0-1.0) = decode_unit_vector((-1,-1)) = (0,0,-1)` ⇒ `n.y = 0` ⇒ `:140` `upFacing = smoothstep(0.55,0.92,0.0) = 0` ⇒ `:147` 的 mix 权重恒 0，**视觉结果确实正确**。
   5. 但 `:146` 是 `mix(source, puddle_reflection(playerPos,n), 0.0)` —— GLSL 先求值实参，`puddle_reflection()`（`:14` 的 `astra_reflection_sky` + `:32` 的最多 96 次 `depthtex0` 取样 + `:41-48` 的 6 步细化）整条**已经跑完**。循环有两个与几何相关的早退点（`:24` 的 `reach <= 0.05 || start.z >= -0.06`、`:27` 的 `pixels < 1.0`、`:34` 的出屏 break），**它们在水面像素上是否真的触发无法靠读码断定**，只能实测；能静态确定的是：`:14` 的 `astra_reflection_sky` 在任何路径下都执行（它本身是一次天顶积分 + `:20` 的 `smoothstep`），而分支进入与否完全由那个 1.0 的清屏 alpha 决定。
-  6. **这不是"没人想到"，是"想到了、修法无效"**。`lit.fsh:344-349` 的注释逐字列出计划：`the water pass: 0 (its own branch of gl_FragData[1] below)`、`translucents and weather: 0, via the else-branch below`。两条都不成立：`gbuffers_water.fsh:3-4` **同时**定义 `ASTRA_TRANSLUCENT` 与 `ASTRA_WATER_PASS`，于是水面 pass 走 `RENDERTARGETS: 0,5` —— `:362` 的 `gl_FragData[1].a = …` 落在 **colortex5** 而不是 colortex3；而 `:364` 的 `#ifndef ASTRA_TRANSLUCENT` 块又因为水面无条件定义了 `ASTRA_TRANSLUCENT` 而被整块跳过。七个纯半透明程序（`gbuffers_weather`、`_particles_translucent`、`_entities_translucent`、`_block_translucent`、`_beaconbeam`、`_clouds`、`_hand_water`，各自 `:3` 只定义 `ASTRA_TRANSLUCENT`）只声明一个目标，`gl_FragData[1]` 根本不绑定任何缓冲。**"把非地形的掩码归零"这一意图 100% 落空。** 成因与 F-01 完全同一个机制：Iris 按 `RENDERTARGETS` 列表重映射 `gl_FragData[i]` 的下标，写者以为自己在写第三张缓冲。
+  6. **这不是"没人想到"，是"想到了、修法无效"**。`lit.fsh:344-349` 的注释逐字列出计划：`the water pass: 0 (its own branch of gl_FragData[1] below)`、`translucents and weather: 0, via the else-branch below`。两条都不成立：`gbuffers_water.fsh:3-4` **同时**定义 `ASTRA_TRANSLUCENT` 与 `ASTRA_WATER_PASS`，于是水面 pass 走 `RENDERTARGETS: 0,5` —— `:362` 的 `gl_FragData[1].a = …` 落在 **colortex5** 而不是 colortex3；而 `:364` 的 `#ifndef ASTRA_TRANSLUCENT` 块又因为水面无条件定义了 `ASTRA_TRANSLUCENT` 而被整块跳过。七个纯半透明程序（`gbuffers_weather`、`_particles_translucent`、`_entities_translucent`、`_block_translucent`、`_beaconbeam`、`_clouds`、`_hand_water`，各自 `:3` 只定义 `ASTRA_TRANSLUCENT`）只声明一个目标，`gl_FragData[1]` 根本不绑定任何缓冲。**"把非地形的掩码归零"这一意图 100% 落空。** 成因与 F-01 完全同一个机制：Iris 按 `RENDERTARGETS` 列表重映射 `gl_FragData[i]` 的下标，写者以为自己在写第三张缓冲。其中"水面 pass 的 `:362` 写到 colortex5"这条**就是 F-01 本身**，不重复计项；本条只补 F-01 没写的两点：水面块整体被 `:364` 的 `#ifndef ASTRA_TRANSLUCENT` 跳过（因为 `ASTRA_TRANSLUCENT` 与 `ASTRA_WATER_PASS` 同时定义），以及七个纯半透明程序在 `RENDERTARGETS: 0` 下**根本没有第二个输出**，注释里"translucents and weather: 0, via the else-branch below"指的那条分支对它们不存在。
   7. 同一段里两处注释与代码直接相反：`deferred.fsh:128` "whose alpha no consumer reads"、`lit.fsh:341` "Nothing reads colortex3.a"，而**同一函数体的 `:135` 就是那个读者**、也是全包唯一读者。F-42 的门之所以开着，恰恰因为有人读了它 —— 两句断言若成立，这个缺陷反而不会存在。
   为什么重要：这是本次核验中**量级最大的一项确定性浪费**，且不依赖天气、不依赖选项：空气侧看水时，每个水面像素与每个户外半透明像素（雨丝、云、粒子、半透明实体、信标、玻璃）都在做一次注定被丢弃的屏幕空间反射 —— `astra_reflection_sky` 部分无条件执行，march 部分的迭代次数待实测。水下视角被 `isEyeInWater == 0` 排除在外，所以这一条与 §3 的水下光束问题是两回事。README:32 承诺的"均衡 ≥90 FPS @1080p"正是在这条路径上测的。更深一层的代价是**证据可信度**：SC-39 那一轮三次返工全在调门控的语义（读错了掩码），最后一次改的是"掩码搬到哪张缓冲"，没有一次检查门控的默认值，也没有一次核对"归零写到底写进了哪张缓冲"，而新加的注释还把不成立的结论又写成了前提。
   建议：三选一，代价从低到高——① `colortex3ClearColor.a` 改 `0.0`（掩码的"无覆盖"本就该是 0，`.r` 的 127 标记不动）；② 把 `:140` 的 `upFacing` 提到 `:136` 的门控里（先解法线再决定要不要 march）；③ 两者都做，并给"清屏值必须等于该通道语义的零值"加一条 `check_pack` 规则（§7.2#3）。注意 ① 需要先确认没有其他读取点把 colortex3.a==0 当成"未知"以外的含义 —— 目前全包唯一读者是 `:135`。无论选哪个，第 6、7 三步都要一起处理：`lit.fsh:344-349` 的"三条写入路径"清单必须按 `RENDERTARGETS` 实际重映射改写（水面 pass 的 `.a` 落在 colortex5，纯半透明 pass 无第二目标），`deferred.fsh:128` 与 `lit.fsh:341` 的"无读者"断言要删 —— 否则下一轮审查仍会按这两句话把门控判成安全的。
@@ -511,7 +518,8 @@ vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight
 | 水面高度 UNORM16 `0.5 - worldY/2048` | `design.md:92` | **已被实现取代，文档未更新** | `shadowmap.glsl:28-35` 改成 R8 ±64 方块窗口 |
 | SC-33 光束：16/24/32 步、48 方块、`shadowcolor0.R` 验证、距离加权重建 | `design.md:292` | **四项全不符** | `:67`（4–10 步）、`:66`（40 方块）、`:105`（只读 .gba）、`:121-130`（rayLength 未用） |
 | 吸收按方块、无 32 方块平台、无二次雾 | `design.md:269` / SC-34 | 一致 | `absorption.glsl:6-8,42-51` |
-| deferred 启用条件 | `design.md:90` | **不符**：无条件启用 | `shaders.properties:68`（root）、`:69`、`:70` |
+| deferred 启用条件 | `design.md:90` | **蓝图内部两条款互斥，实现与后者一致** | `:90` 要求"开启条件为 `SCREENSPACE_REFLECTIONS \|\| SCREENSPACE_REFRACTION \|\| WATER_ABSORPTION > 0`"，而 `:493`（SC-34-F1，2026-09-07）明文废止它："旧'由三个水效果开关决定副本'的文字不再描述实际行为……`ASTRA_SCENE_COPY` 与三维度 deferred 已在接手时常开"。实现按 `:493`（`shaders.properties:68-70` 无条件启用）。**我原记为"不符"是错的** —— 不符的是文档自己，不是代码。判定见 §10 |
+| colortex3 负载冻结 | `design.md:92` + `:115` | **实现扩了负载，文档未更新** | `:92`"colortex3 只由不透明 lit 写 skylight+HAND标识"、`:115`（SC-35 R8 位域决议）"其余用途仍为 skylight，不加缓冲或 varying"。实际 `lit.fsh:378` 还写了 `.gb` 八面体涟漪法线，SC-39 又加了 `.a` 积水掩码（`deferred.fsh:135` 读）。三项都不需要新 varying，所以没有触发 SC-14 的冻结条款，但"只写 skylight"这句话已经不等成立于默认配置 |
 | 水体状态供给地形光照/焦散 | `shaders.properties:45-46`、`design.md:81` | **假** | F-10 |
 | 反射 28–96 方块淡出 | `design.md:286` | **未生效** | `surface.glsl:201,213,233,258` `fade=1.0` |
 | 焦散 0.15–0.75 强度带 | `design.md:509` | 一致 | `caustics.glsl:72`（0.70）、`:109` |
@@ -570,9 +578,9 @@ vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight
 
 | 模式 | 既往 | 本次新增实例 |
 |---|---|---|
-| **注释断言 ↔ 代码相反** | 09-16 抓到 3 个、09-17 修复时又抓到 4 个 | F-01（`lit.fsh:341/346-349` 三句全伪）、F-04（`:29-35` 说"参考实现不做硬跳过"，`:100` 做了）、F-28（`:225-226` 承诺 CPU 平滑，无人消费）、F-29（properties 说 3 层，代码 2 层）、F-30/F-34/F-35/F-36/F-37（注释与数值/台账不符） |
+| **注释断言 ↔ 代码相反** | 09-16 抓到 3 个、09-17 修复时又抓到 4 个 | F-01（`lit.fsh:341/346-349` 三句全伪）、F-04（`:29-35` 说"参考实现不做硬跳过"，`:100` 做了）、F-28（`:225-226` 承诺 CPU 平滑，无人消费）、F-29（properties 说 3 层，代码 2 层）、F-30/F-34/F-35/F-36/F-37（注释与数值/台账不符）、**GLM N-1（`diffuse.glsl:357-359` HEAD 版把 `astraSolasShadowFade` 的正午与晨昏整个说反；我按 `properties:311` 的表达式独立复算：`sunAngle=0.25`→1.0、`0.0/0.5`→0.0，注释声称的"ZERO at noon / 1 at sunrise"两处皆反）** |
 | **控制项不生效（假旋钮）** | `SHADOW_FILTER_MODE` 双分支长期只跑一支 | F-27（末地吃掉 VIGNETTE/DITHERING）、F-11（`fade=1.0` 使 LOD 分支永不进入）、F-20（`SUN_MOON_DISCS` 零引用）、F-24（profile 把不达标的默认值固化） |
-| **死链（写了没人读 / 该有人读没人写）** | `shadow_water_depth()` 长期 0 调用者 | F-10（colortex5→water_state→colortex6 整链断裂）、F-32（两个 CPU uniform 每帧算完就丢）、F-33（`lib/noise.glsl` 整文件 + 一张未绑定的 png）、F-21（`:371` 死写）、F-38（永真守卫） |
+| **死链（写了没人读 / 该有人读没人写）** | `shadow_water_depth()` 长期 0 调用者 | F-10（colortex5→water_state→colortex6 整链断裂）、F-32（两个 CPU uniform 每帧算完就丢）、F-33（`lib/noise.glsl` 整文件 + 一张未绑定的 png）、F-21（`:371` 死写）。（原列在此处的 F-38 已撤回，理由见 §5 该条与 §10） |
 | **证据缺口** | `qa/benchmarks.md` 全空 | 仍是全空；新增：F-31 的两条 Iris 语义前提无实机工件、F-02 的 pass 顺序无实机探针、§4 的水色无逐深度色相表 |
 
 一条判断：**这个包的瓶颈不是写代码的手速，是没有"生效性"证据。** 现有校验链 `compile_glsl.py` → `check_pack.py`(11 项) → `cost_census.py`（两个自陈盲区、且未接门禁）只回答"能不能编译"，从不回答"这条语句有没有产生它声称的结果"。§9 里的每一条 P1 都不是"没实现"，而是"实现了但接错"——后者恰恰是编译类工具永远抓不到的。因此 §7.2#3/#4 提的两条工具化建议（控制项必须有消费点；带数值的注释必须配一条可运行断言）优先级高于任何新增视觉特性。
@@ -587,20 +595,47 @@ vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight
 
 **Python 离线复算**：§4.2 与 §4.4 的两张色相表、§3.1 的相位积、§3.2 的衰减链量级、`ENTITY_SHADOW_DISTANCE` 8×5 比值表（全部算术正确）。
 
-**配置层子审查的结论经我逐条复核后纳入**（F-27/F-28/F-29/F-30/F-32/F-33/F-34/F-35/F-36/F-38/F-39），其中我修正了子报告的两处：
+**配置层子审查的结论经我逐条复核后纳入**（F-27/F-28/F-29/F-30/F-32/F-33/F-34/F-35/F-36/F-39；F-38 当时一并纳入、在交叉核验阶段被我自己的复算推翻并撤回，见 §5 与 §10），其中我修正了子报告的两处：
 - F-34：子报告给"包络 −14°..+14°"，我按 `properties:214-215` 重算为 **−9°..+14°**（`asin(-0.156)=-8.97°`、`asin(0.242)=+14.0°`），±4° 是拐点而非端点。
 - F-33：子报告判"若引擎无别名则为编译期失败点"，实际该采样器不被任何活跃代码路径使用（`lib/noise.glsl` 三个函数零调用），因此不构成编译风险，降级为 P3 卫生项。
 - 我另将子报告的 F-39 由 P2 降为 P3：`mix` 两侧虽都求值，但负底数分支的结果被丢弃，且唯一调用点已钳位 —— 属"依赖调用方自觉"的可移植性风险，非当前缺陷。
 - **未纳入**：子报告称 `shadowmap.glsl:162-196` 的软件分支 `shadow_filter_uv` 为死代码，但我 grep 到 `diffuse.glsl:267` 有一个真实调用点，且该函数定义在 `shadowmap.glsl:178`。二者矛盾且我无法在不改代码的前提下确定其预处理归属，故该条整体剔除，不作为结论。
 
-**交叉核验阶段新增的复算（第二轮）**：`lit.fsh:22-28` 的三种 `RENDERTARGETS` 分配与 `deferred.fsh:136` 门控的组合（F-42 的关键，两份外部报告都只推了一半）；`settings.glsl:357` 的 `colortex3ClearColor`；`decode_unit_vector((-1,-1))` 与 `((0,0))` 两种输入的手工展开（后者对应 `shaders.properties` 无 `clear.` 指令时的默认行为差异）；`program/nether_light.csh` 全文 65 行与 `compile_glsl.py:113-121/293-300/370` 的计数逻辑（用于解释 "27"）；`SKY_MODE`→`SKY_GRADIENT` 的宏求值链（`settings.glsl:20-21,80` → `overworld.glsl:11-15` → 三档 profile）；README 九行的逐条对表（F-41）；`END_BODY_COUNT=73` 与 `end_blackhole.glsl:79-81/175` 的数组构造次数；8 处 `global → global` include 的行号；`water_bloom.fsh:1/11` 与 `size.buffer.colortex7` 缺失。**第三轮（F-42 写者侧追证）**：`lit.fsh:336-378` 全段注释与两条 `gl_FragData[1]` 写入点、`deferred.fsh:124-150` 的完整门控与读取、`grep -rn "ASTRA_WATER_PASS\|ASTRA_TRANSLUCENT" Astra/shaders/` 的 define 归属扫描（`gbuffers_water.fsh:3-4` 两者皆定义，其余七个半透明程序只定义 `ASTRA_TRANSLUCENT`）、`check_pack.py:747-822` 的引擎常量规则。
+**交叉核验阶段新增的复算（第二轮）**：`lit.fsh:22-28` 的三种 `RENDERTARGETS` 分配与 `deferred.fsh:136` 门控的组合（F-42 的关键，两份外部报告都只推了一半）；`settings.glsl:357` 的 `colortex3ClearColor`；`decode_unit_vector((-1,-1))` 与 `((0,0))` 两种输入的手工展开（后者对应 `shaders.properties` 无 `clear.` 指令时的默认行为差异）；`program/nether_light.csh` 全文 65 行与 `compile_glsl.py:113-121/293-300/370` 的计数逻辑（用于解释 "27"）；`SKY_MODE`→`SKY_GRADIENT` 的宏求值链（`settings.glsl:20-21,80` → `overworld.glsl:11-15` → 三档 profile）；README 九行的逐条对表（F-41）；`END_BODY_COUNT=73` 与 `end_blackhole.glsl:79-81/175` 的数组构造次数；8 处 `global → global` include 的行号；`water_bloom.fsh:1/11` 与 `size.buffer.colortex7` 缺失。
 
-**本报告自身的更正记录（被推翻的三条，保留在此以便复算者对照）**：
+**第三轮（F-42 写者侧追证）**：`lit.fsh:336-378` 全段注释与两条 `gl_FragData[1]` 写入点、`deferred.fsh:124-150` 的完整门控与读取、`grep -rn "ASTRA_WATER_PASS\|ASTRA_TRANSLUCENT" Astra/shaders/` 的 define 归属扫描（`gbuffers_water.fsh:3-4` 两者皆定义，其余七个半透明程序只定义 `ASTRA_TRANSLUCENT`）、`check_pack.py:747-822` 的引擎常量规则。
+
+**第四轮（外部报告判定 + 自我更正）**：`find Astra/shaders \( -name '*.glsl' -o -name '*.fsh' -o -name '*.vsh' -o -name '*.csh' \)`（245 个文件）+ 花括号配平的"循环体内 `texture()`"扫描（F-14 重推，得 4 个站点）；`grep -rn "MipmapEnabled" Astra/shaders/`（3 处：`water_bloom.fsh:5` colortex0、`composite1.fsh:20` 与 `final.fsh:23` colortex2）；`git show HEAD:Astra/shaders/global/lighting/diffuse.glsl`（验证 GLM F4 在 HEAD 上成立）；`python` 复算 `properties:311` 的 `astraSolasShadowFade` 曲线（GLM N-1）；`grep -rn "define R11F_G11F_B10F"`（0 命中，F-38 撤回的依据）；`.specs/astra-shader/design.md:88-93/113-116/488-495`（§6 两行更正）。
+
+**计数口径差异的澄清（9 vs 10，三方都说过、都不算错）**：`find` 到的 `.csh` **文件**是 10 个 —— `world-1/shadowcomp.csh` + `shadowcompA–H.csh`（9 个 Iris 注册入口）再共享同一份 65 行本体 `program/nether_light.csh`。我说"9 个已注册 compute 阶段"数的是**入口**，外部报告说"10 个 .csh"数的是**文件**；`compile_glsl.py` 按 profile 计数，所以"27 compute"= 9 × 3 档。README `:20` 的"零 compute"这个断言本身仍然为假（F-41）。
+
+### 9.1 审查期间工作树发生变动（引证漂移，务必先读这一节再用本报告的行号）
+
+本报告主体写于 HEAD `7e3f51c`。收尾阶段（同一台机器、同一工作目录）工作树被另一条执行线推进：HEAD 变为 **`ef90edb` "Checkpoint the September 16-17 shader rounds and the review reports before consolidated fixes"**，其上有 **36 个已跟踪文件改动（+386 / −272）+ 3 个未跟踪新文件**（`docs/2026-09-20-final-consolidated-review.md`、`qa/open-premises.md`、`qa/glsl-consolidated-fixes.log`），内容正是三方审查清单的落地。实测文件 mtime 窗口为 **01:49–02:04 且在我复核期间仍在推进**（最后一次观察到 `program/final.fsh` 于 02:04:50 被改，晚于我上一版报告落盘 17 秒）。我未修改任何代码文件（本次全程只写 `docs/2026-09-20-qoder-full-review.md`），但**我的行号与"是否已修"两件事因此同时过期**。实测到的影响：
+
+| 条目 | 当前工作树状态 | 我怎么确认的 |
+|---|---|---|
+| F-01 | **已修** | `lit.fsh:355-356` 注释已改为承认 colortex5.a 是 validity 标志，`:367` 的写法换成分支内三元 |
+| F-03 | **已修** | `light_shafts.glsl:57` 改用 `refractSun`，`:62` 变成 `mix(0.25+VoL*0.25, VoL*0.45, time)`，`:61` 新增 `sunGate` |
+| F-14 站点 1（GLM F3 同类） | F-3 类已修：`lit.fsh:50-51` 把 footprint 提到 material 分支外、`:240` 改用 `endStoneFootprint`；F-14 的四个站点在未触碰文件里，**仍开放** | `git status` 未列 `bloom_capture.glsl`/`end_sky_buffer.fsh`；重读源码 |
+| F-15 / F-42 | **已修** | `settings.glsl:362` 现为 `colortex3ClearColor = vec4(0.498,0,0,**0.0**)`（正是我给的两个方案之一）；`deferred.fsh:147` 起注释"Every factor gates the CALL, not just the mix weight" |
+| F-27 | **已修** | `grading.glsl` 的 End 分支不再抢占 `#elif` 链，改为叠加在选项结果之上 |
+| F-33 | **已修（连文件一起删）** | `lib/noise.glsl` 与 `shaders/textures/noise.png` 在工作树中为 ` D` |
+| F-44（GLM F4） | **已修** | `diffuse.glsl:380`/`:457` 现为 `facingAway ? 0.0 : night_desaturation(...)` |
+| F-45（GLM F7 / hunyuan A1） | **已修** | `final.fsh:89-95` 改成互斥分支，注释直接署名"consolidated review D4 / Hunyuan A1" |
+| GLM N-1（shadowFade 注释反向） | **已修** | `diffuse.glsl:359-364` 新注释语义正确，并自述"an earlier comment here had the two backwards" |
+| F-05 / F-06 / F-07 / F-11 / F-40 | **仍开放**（F-05/F-06 所在文件已被改，需重读后另判） | `surface.glsl:201,213,233,258` 四处 `fade = 1.0;` 逐字仍在；`water_composite.fsh:23` 的 `clamp(color,0.0,1.0)` 逐字仍在 |
+
+**已知的行号漂移点**（当前树实测，供后续引用改正文时用）：`colortex3ClearColor` 由 `settings.glsl:357` → **`:362`**；`astraSolasTimeBrightness` 由 `properties:304` → **`:310`**、`astraSolasShadowFade` → **`:311`**、`astraRainFactor` 由 `:307` → **`:314`**。本报告 §3.1、F-37 与 §9 首轮回执里引用的旧行号是那之前的树，**结论不变、定位需用新行号**。
+
+**这条记录本身也是一个发现**：三方审查报告与代码注释现在互相引用（代码里已出现 "Qoder F-04 #1"、"consolidated review B3/B4/D4/F-16"、"Hunyuan A1"），但没有任何一处记录"修的是哪个 commit 的代码"。审查报告若不以 commit 为锚，修复进行中被引用的行号就会静默失效 —— 这正是本包"注释断言 ↔ 代码相反"模式的文档版。建议：`qa/session-log.md` 的每条修复带上 base commit，报告类文件在页眉写"审于 <commit>"。
+
+### 9.2 本报告自身的更正记录（被推翻的三条，保留在此以便复算者对照）
 - "colortex3 的清屏值来自 `shaders.properties`"——这个前提只存在于我的草稿笔记，**发布文本里没有这句**，因此它不构成"报告自我更正"，只记为一次避免：写 F-42 前实查 `grep "^clear\." shaders.properties` = 零条指令，值在 `lib/settings.glsl:357`。旁证：`qa/tools/check_pack.py:747-751` 的 `ENGINE_CONST_NAMES` 与 `:810` 的 `name.endswith("ClearColor")` 把所有 `*ClearColor` 源内常量纳入 SC-23"必须归约为字面量"的引擎常量校验，说明本包把源内 `const vec4` 当作唯一的清屏机制。这条前提若被推翻（即 Iris 不识别源内 `colortexNClearColor`），F-42 的第 1 步不成立、门不会开 —— 属于需要实机确认的两处之一，已在 §10 的"待实机"清单里。
 - 我曾判定 GLM F2 的 `n.y = 0` 是数值错误、"实际应为 −1"。复算 `decode_unit_vector((-1,-1)) = (0,0,-1)` 后确认：**y 分量确实是 0，GLM 无误**，我这条"更正"本身是错的，已删除。真正的差异在影响面（不止雨丝，见 F-42 第 2、3 步），不在符号。
 - 我曾把 hunyuan 的"`linked=267 / compute=27` 本次实跑"视为可疑（与 09-13 03:14 的 `qa/glsl-audit-fixes.log` 首行逐字相同，而 `docs/` 下没有 09-20 的工件）。复核计数逻辑后撤回该怀疑：入口清单自 09-13 起未增删文件，重跑**必然**得到同一组数字，因此这条相同**不能**作为"未实跑"的证据。我在 §10 里把它降级为"无法证伪的来源声明"，并保留"缺工件、建议把日志与报告同批入库"这一条。
 
-**只读约束的自证**：`Astra/` 下按 mtime 排序的最新文件是 `shaders/global/atmosphere/weather.glsl`（09-17 00:58），早于本次审查三天；本次唯一新增文件为本文档。工作区在会话开始时即有 38 个着色器文件处于已修改状态（见会话初始 `git status` 快照），那些改动不来自本次审查。**两轮补充（F-40…F-54、§7 扩展、§10）同样只写了这一个文件**，`Astra/` 与 `.specs/` 未被触碰。
+**只读约束的自证（本节已按实测重写，第一版在此处写错过）**：我第一版写的是"`Astra/` 下按 mtime 排序的最新文件是 `weather.glsl`（09-17 00:58），早于本次审查三天"。这句现在是**错的**：`find Astra .specs qa docs -type f -newermt "2026-09-20 01:40"` 实测出 30+ 个 `Astra/` 文件，外加 `.specs/astra-shader/design.md`、`Astra/README.md`、`Astra/THIRD-PARTY.md`、`qa/` 下两个新日志，全部落在 **01:49–02:04**。原因是另一条执行线在我收尾期间按 `docs/2026-09-20-final-consolidated-review.md` 的工单落地修复（详见 §9.1），不是本次审查的动作。可复算的判别方式只有一条：**本次会话我唯一写过、也是唯一新增的普通文件是 `docs/2026-09-20-qoder-full-review.md`**（其余两轮补充同样只改这一个路径）；`Astra/`、`.specs/`、`qa/` 下的每一个改动都能在 `ef90edb` 之上的未提交 diff 里找到对应的工单编号（A1…G2）。会话开始时工作区即已有 38 个着色器文件处于已修改状态（见会话初始 `git status` 快照），那批改动同样不来自本次审查。
 
 **未覆盖范围（诚实声明）**
 1. 未做 GPU 实机验证：本机验证链只有 NVIDIA（RTX 4050 / 572.83），F-02 的 pass 顺序、AMD/Intel 上的同缓冲读写行为都**必须靠实机探针定论**，我给的是"该做哪个实验"，不是结论。

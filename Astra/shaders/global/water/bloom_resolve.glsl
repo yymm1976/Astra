@@ -6,7 +6,11 @@ vec3 getBloomTile(float lod, vec2 bloomCoord, vec2 offset) {
 	float resScale = 1.25 * min(360.0, viewHeight) / viewHeight;
 	vec3 bloom = texture2DLod(colortex7, (bloomCoord / scale + offset) * resScale, 0.0).rgb;
 
-	return pow(bloom, vec3(8.0)) * 256.0;
+	// x^8 as an explicit multiply chain (x^2, x^4, x^8): literal-integer pow() is a
+	// transcendental expansion (consolidated review E7). No pow.glsl in this TU.
+	vec3 bloom2 = bloom * bloom;
+	vec3 bloom8 = (bloom2 * bloom2) * (bloom2 * bloom2);
+	return bloom8 * 256.0;
 }
 
 void getBloom(inout vec3 color, vec2 coord, float z1) {

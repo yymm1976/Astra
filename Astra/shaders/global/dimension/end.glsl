@@ -13,14 +13,16 @@ const vec3 END_SKY_LIGHT_COLOR = vec3(0.34,0.39,0.52);
 const vec3 END_AMBIENT_COLOR = vec3(0.043,0.055,0.077);
 const vec3 END_VOID_COLOR = vec3(0.000015,0.000025,0.00006);
 vec3 end_void_tint(float y) { return END_VOID_COLOR; }
-vec3 end_sky(vec3 dir, vec3 voidTint, float time) {
+// The voidTint/time parameters were never consumed by the body and are gone
+// (consolidated review E5 / Qoder F-52).
+vec3 end_sky(vec3 dir) {
     vec3 sky=vec3(0);
     astra_end_blackhole(sky,normalize(dir),end_light_direction());
     return sky*(1.0-max(blindness,darknessFactor));
 }
 vec4 end_fog(out float skyFogStrength, float distanceToEye, float borderDistance, vec3 playerPos) {
     skyFogStrength = 0.0;
-    float f = 1.0 - exp(-2.0 * pow(borderDistance / max(borderFogDistance, 1.0), 4.0) * (END_FOG_DENSITY * 0.01));
+    float f = 1.0 - exp(-2.0 * pow4(borderDistance / max(borderFogDistance, 1.0)) * (END_FOG_DENSITY * 0.01));
     vec3 c = END_VOID_COLOR;
     float dark = max(blindness, darknessFactor);
     if (dark > 0.0) { f = max(f, 1.0-exp(-distanceToEye * dark * 0.1)); c *= 1.0-dark; }
