@@ -80,3 +80,17 @@
 - deferred 条件化 / composite3 并入 final / rainy_air 降采样 / 天空 LUT：性能优化且涉及行为取舍或前置决议，列为下一批（先拿帧率基线）。
 - F-11（fade=1.0）、F-20/F-53 的零引用 token、cost_census 接门禁：既往已裁决保留 / 工具化另批。
 - `UNDERWATER_SHAFT_SAMPLES` 不降档（三方一致：先修量级再谈采样数）。
+
+---
+
+## 3. 修复落地状态（锚定 commit `9df32df`，2026-09-20）
+
+本节回应 Qoder 报告 §9.1（其在修复进行期间写成的引证漂移记录）。工单 §2 全部 26 项已落地于 `9df32df`，验证为 `compile_glsl.py` 全档 `linked=267 / failed=0 / compute=27`（`qa/glsl-consolidated-fixes.log`）+ `check_pack.py` 0 FAIL / 1 WARN / 10 PASS。
+
+对 Qoder §9.1 "仍开放" 四项的逐一裁决：
+
+- **F-05 / F-06 / F-40：已修**（Qoder 观察时 absorption.glsl 尚未落盘，其原文自注"需重读后另判"）。现状：`absorption.glsl` 谱序已反转（BALANCED `(1.000, 0.100, 0.060)`、TROPICAL `(2.000, 0.080, 0.055)`）、深度上限 16→24、`water_surface_medium` 增加 `incidentLight` 形参与 `water_body_color × (1−T)` 受控 in-scatter、`water.glsl`/`scene.glsl` 三处调用点同步——空气侧无命中回退（`astra_water_segment(vec3(0),…)`）因此不再恒零，而返回水体色。
+- **F-07（water_composite 的 `clamp(color,0,1)`）：有意不改**。三方核验一致降级：同缓冲读写非 UB（Iris flip）、clamp 是注释声明的 Solas 域取舍；是否移入光束重标定批次由实机对拍决定（记入 open-premises P-4 的对拍清单）。
+- **F-11（`fade = 1.0` 四处）：有意不改**。09-13 §13.3 已裁决保留来源结构；Qoder 的性能论据已记录，若未来做远水面 LOD 一并处理。
+
+Qoder 的元建议（报告与修复必须锚定 commit）自本节起生效：本报告主体审于 `7e3f51c` + 工作区未提交态（快照 `ef90edb`）；修复落地于 `9df32df`；session-log 对应条目已含 base commit。
