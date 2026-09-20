@@ -422,7 +422,17 @@ vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight
   | `:40` | `surface.glsl` / `raytrace.glsl` 无人认领 | 两者已被 `program/water.glsl:12`、`:13` include 并接线 | 源码 |
 
   另经我核对为**真**、不该被算作错误的两条：`:12` 的"七分类"（`properties` 里 `^screen.` 恰 7 条）、`lang/` 下 `zh_CN.lang` 与 `en_US.lang` 均存在。
-  为什么重要：README 是唯一面向用户的发布物，`build健康度`之外的每一条都在替包"承诺"它当前不提供的东西；`:24` 与 `:5` 尤其危险 —— 前者是验收口径，后者是色调裁决的靶子。
+  为什么重要：README 是唯一面向用户的发布物。除了"构建是否健康"这一条可以留给工具兜底，其余每一行都是包在对外的承诺；承诺与出厂配置不符，用户按 README 验收就会判错 —— `:24` 是验收口径，`:5` 是色调裁决的靶子，这两行风险最高。
+
+  **修复后复测（工单 F4 执行后，我重新读了一遍 README 与 `properties`）**：9 行里 **6 行已改对** —— `:5` 三对标方向已按 SC-24 更正（水面 ≈ Steadfast、水下 ≈ Solas）、`:20` 已写"9 个 compute 阶段 + 3 张自定义图像"、`:24` 已改为实值 100/100/102、`:31` 流畅档已写 192 格（实体 48）、`:33` 极致档已写 256 格 / 8 texel 并补注"均衡档同为平面云"、`:39` 状态段已重写成"182 个编译入口、52/54 模块可达 + lit/final 已接线"。**仍有 3 行失实**：
+
+  | 仍失实的行 | 现文本 | 实测 | 证据 |
+  |---|---|---|---|
+  | `:22` | "大气：Minishita 迷你物理大气（≈200 FLOPs）" | 默认与三档 profile 全是 `SKY_MODE=1` = SKY_GRADIENT，Minishita 仍需手动切 | `settings.glsl:81`、`properties:171-173` |
+  | `:32` | 均衡档"godrays 关，其余全开" | 均衡档另有 `!UNDERWATER_PARTICLES`、`!VOXY_SUPPORT`、`!VIGNETTE` | `properties:172` |
+  | `:40` | "`surface.glsl` 与 `raytrace.glsl` 无人认领" | 两者已被 `program/water.glsl:12`、`:13` include 并接线出图 | 源码 |
+
+  另记一条：`:39` 新写入的"52/54 模块可达"里的 **54 与我自己的静态复算对不上**（我复算 53，见 §10.5 的口径仲裁表），这个数字现在被 README 当作对外口径，需要用 `check_pack.py` 实际跑一遍确认，不要停在"抄报告"。
   建议：整节重写"特性 / 三档 Profile / 已知问题 / 开发状态"四节，并把每条数值改成从 `properties` 抄来的实值（可让 `check_pack.py` 加一条 README↔profile 交叉断言，见 §7.2#3）。
   来源：hunyuan A2 提出（其计数为 7 处 + 1 次要），本表为我逐条独立复算的结果，条目集合与出处均与其不完全相同。
 
@@ -624,7 +634,8 @@ vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight
 | F-44（GLM F4） | **已修** | `diffuse.glsl:380`/`:457` 现为 `facingAway ? 0.0 : night_desaturation(...)` |
 | F-45（GLM F7 / hunyuan A1） | **已修** | `final.fsh:89-95` 改成互斥分支，注释直接署名"consolidated review D4 / Hunyuan A1" |
 | GLM N-1（shadowFade 注释反向） | **已修** | `diffuse.glsl:359-364` 新注释语义正确，并自述"an earlier comment here had the two backwards" |
-| F-05 / F-06 / F-07 / F-11 / F-40 | **仍开放**（F-05/F-06 所在文件已被改，需重读后另判） | `surface.glsl:201,213,233,258` 四处 `fade = 1.0;` 逐字仍在；`water_composite.fsh:23` 的 `clamp(color,0.0,1.0)` 逐字仍在 |
+| F-05 / F-06 / F-40 | **已修**（终态；我观察时 `absorption.glsl` 尚未落盘） | `absorption.glsl` 谱序反转 + `:74` 深度上限 `clamp(depth+1.0,0.0,24.0)` + `:72-78` 受控 in-scatter，逐项见 §10.7 C1/C2 |
+| F-07 / F-11 | **开放，有意不改**（工单 §3 裁决，我接受） | `surface.glsl` 四处 `fade = 1.0;` 逐字仍在；`water_composite.fsh:23` 的 `clamp(color,0.0,1.0)` 逐字仍在。裁决理由见 §10.6 |
 
 **已知的行号漂移点**（当前树实测，供后续引用改正文时用）：`colortex3ClearColor` 由 `settings.glsl:357` → **`:362`**；`astraSolasTimeBrightness` 由 `properties:304` → **`:310`**、`astraSolasShadowFade` → **`:311`**、`astraRainFactor` 由 `:307` → **`:314`**。本报告 §3.1、F-37 与 §9 首轮回执里引用的旧行号是那之前的树，**结论不变、定位需用新行号**。
 
@@ -644,4 +655,172 @@ vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight
 4. `docs/2026-09-16-*.md` 两份研究文档作为背景阅读，未逐条核对其中引用的外部包数据。
 5. F-02 的四种后果中，(a)(b) 是条件推断（取决于 deferred 的真实位置），已在正文标注；(c)(d) 是代码可直接读出的重复作用。
 
-**工作区状态提示（不属代码缺陷，但影响可发布判定）**：`git status --porcelain` = 74 项未提交变更（含未跟踪的 `lib/pow.glsl`），`qa/` 下 140+ 份日志。建议先把 §5 的 P1 修完、把基准数字填进 `qa/benchmarks.md`，再一次性提交，否则下一次审查无法区分"已验证的改动"与"半程改动"。
+**工作区状态提示（本节已按终态重写）**：我上一版写的是"`git status --porcelain` = 74 项未提交变更"。该状态在 02:05–02:12 之间被另一条执行线收束：修复批次提交为 **`9df32df` "Fix the defects from the three-way shader review"**（40 文件 / +440 / −276），随后 **`3b5ac22` "Anchor the consolidated report to the fix commit and close Qoder's provisional items"** 给合并工单加了 §3 落地状态节。当前实测：HEAD = `3b5ac22`，`git status --porcelain` 只剩 ` M docs/2026-09-20-qoder-full-review.md`（本报告），`qa/*.log` 160 份、`qa/` 共 172 项 —— 日志堆积这条仍然成立，只是不再与"半程改动"混在一起。
+
+---
+
+## 10. 交叉核验：两份外部审查 + 由它们派生的合并工单
+
+### 10.0 核验方法与纪律
+
+**被审对象是四份产物，不是两份**：GLM 第一轮、混元四、GLM 第二轮核验（176 行）、由它们派生的**合并工单**（`2026-09-20-final-consolidated-review.md`）。后两份是在读到我第一版报告之后写的，所以它们既是被核验对象，也包含对我主张的裁判 —— 我不接受"两份外部报告互相印证"当作证据，每条主张都必须落到源码、工具输出或 git 对象上。
+
+三条纪律：
+
+1. **回到源码，不回到报告**。复算全部用 `grep`/`sed`/`git show <commit>:<path>`/实跑 `check_pack.py` 完成，结论随附可复算手段。
+2. **"已修"一律当作待核验主张**。合并工单 §3 声明"26 项全部落地"，本节逐项开文件验，验不过的写进 10.7。
+3. **对自己用同一把尺**。交叉核验推翻了我 1 条（F-38）、换掉了 1 条的论据（F-14）、修正了 1 条的机制描述（F-01 的 blend 部分），全部记在 10.5，不做静默替换。
+
+本轮新增的实测手段（前两版没有）：`python qa/tools/check_pack.py` 全量实跑（先确认该脚本零写入：全文无 `open(` 与 `write_text`）；`git log` / `git show --stat` 定位修复 commit 与其文件清单；对 245 个着色器文件做花括号配平的"循环体内隐式 LOD 采样"扫描。
+
+### 10.1 三份外部产物的可信度
+
+| 产物 | 主张密度 | 我实测的准确率 | 独有价值（我原来缺的） | 缺陷 |
+|---|---|---|---|---|
+| GLM r2 | 高：39 行判决表 + 4 处外部包取证 | 复核其中 36 行，**35 行同意**，1 行判错（F-14） | `sunAngle` 约定取证（Solas `shaders.properties:92-101` + `lib/atmosphere/volumetricLight.glsl:86`）；`astraSolasShadowFade` 曲线数值反驳（N-1） | 给我 F-14 的旧引证打了"属实 ✓"却没打开那三行；降级理由"目标均未开 mipmap"为假 |
+| 混元四 | 高：每条带文件:行，自带"我不采信"清单 | 抽查 20+ 条无捏造；`#version` 普查 10/159 精确复算通过 | `design.md:306` + `:425` 蓝图证据链（决定 F-27 分档）；主动撤回自己 §12.6 与"理论可见"两处判断 | 焦散 72 次/样本略低（我复算 74–76）；模块数 54 与工具实测 53 不符 |
+| 合并工单 | 中：结论 8 条 + 工单 26 项 + §3 落地声明 | 26 项里 **25 项实测落地**、1 项名义落地（E9）；README 更正 6/9 行 | 三方收敛的执行载体；**采纳了我的 4 条撤回**（composite3 非 UB、`#ifndef` 格式守卫非"永真无意义"、关焦散不会黑光束、deferred 恒开已在 `design.md:493` 登记）—— 核验真的发生了 | E9 目标文件选错；修复提交里未记 base commit（它 §3 已承认并归因于我的元建议） |
+
+**总评**：三方都是实测而非捏造。分歧集中在**分档**与**口径**，不在事实本身 —— 这恰好是"无 P0、构建健康"结论的可信度来源。
+
+### 10.2 数字与口径仲裁
+
+| 主张 | 各方数值 | 我实测 | 裁决 |
+|---|---|---|---|
+| 编译入口数 | 我 182 / 工单 267 | `check_pack.py` 实跑：`182 compiled entries`；267 = 89 个参与 profile 编译的入口 × 3 档 | **都对，口径不同**。182 = `is_entry`（`check_pack.py:286-292`：`.vsh/.fsh` 且顶层目录 ∉ {lib,global}）；267 = 按 profile 展开的链接数 |
+| compute 数 | 9（我）/ 10（混元）/ 27（日志） | `find` 得 10 个 `.csh`：9 个 Iris 注册入口（`world-1/shadowcomp.csh` + `shadowcomp[A-H].csh`）共享 65 行本体 `program/nether_light.csh`；日志 `compute=27` = 9×3 | **都对，三方各数一层**（入口 / 文件 / 档） |
+| lib/global 模块数 | 54（GLM、混元、README `:39`）/ 我静态复算 53 | 工具实跑：`53 lib/global modules, 51 reachable, 2 waiting on their owner task, 0 unwired-and-unregistered` | **53 成立，54 是错的**。README 新写的"52/54"两个数都不对，应为 **51/53**；2 个 pending 是 `voxy_opaque.glsl` / `voxy_translucent.glsl`（owner C5） |
+| 每样本焦散采样 | GLM r1 18 → 更正 72（我 + 混元） | `astra_water_caustics_focus` = 3×3 循环 × `astra_wave_normal_at`（4 次 `solas_water_height`）× 每次 2 个 `textureLod` = **72**；加焦点自身基准高度 2 次 = **74**；march 样本再加 `shadowtex1` + `shadowcolor0` = **76/样本** | 72 基本对（漏基准 2 次）；**GLM 的 18 确认漏算**，三方已共同更正 |
+| 每像素总采样 | 工单 §1.7 "504–720" | 7 样本档峰值 7×76 = **532**、10 样本档 **760**；循环内两处 `continue` + 一处 `break` 使**均值低于峰值** | 方向对、端点略偏低。宜写"约 0.53–0.76 k 峰值，均值受剔除影响更小" |
+| `pow()` 站点 | 我 6 / GLM 23 / 混元 ~30 | 未做第四次普查 | **不裁决**：这是 grep 口径差（是否含 `pow(vec3,…)`、注释、`pow.glsl` 内部）。实质问题已由 E7 收口：整数幂迁移完成，`twilight.glsl:53-54` 的 180/1400 保留 `pow` 并在 `:22` 注明"无折叠链" |
+| `#version` 分布 | 混元：10 个 430、其余 159 个 400 | `grep -rl "^#version 430"` = **10**、`400` = **159**；相加 169 而带版本行的文件是 170，差的一个是 `program/lit_voxy.fsh:1 #version 460 core` | 混元精确。补两条它没说的：这是**全包唯一的 `core` profile**，且 `192 − 22 = 170`（22 个无版本行的都是 `program/` 下由维度壳提供 `#version` 的共享本体）。`460 core` 归入 10.8 的 P-3 追加项 |
+| `decode_unit_vector((-1,-1)).y` | GLM 说 0，我第一版说"应为 −1" | 复算确认 **0** | GLM 对，我的"更正"是错的（§9.2 已记） |
+| 出厂分级值 | README 原称 112/115/104 | `settings.glsl` = 100/100/102，三档 profile 同值 | README 已改对 |
+
+### 10.3 对 GLM r2 的判定
+
+**采信（它补上我缺的东西）**
+
+- §1 `sunAngle` 约定取证。本轮唯一一条"用外部包源码钉死本项目隐式约定"的证据，直接支撑 `light_shafts.glsl:53-54` 现在写进注释的"sunAngle 0.25 = noon"。它进 `qa/open-premises.md` P-5 时被标为"高置信、未实机直接观测"，这个定性我认同。
+- §6 N-1（`astraSolasShadowFade` 注释把正午/晨昏写反）。我用 `python` 复算 `properties:311` 表达式：0.5 处为 1.0、两处地平线为 0.0，注释语义确实反向。我原来把它归在 F-34/F-35 那类"注释失实"里，**GLM 单独拎出来是对的**，修复见 `diffuse.glsl:359-364`。
+- §0.1 对我 39 条的判决（33 成立 / 3 部分 / 1 表述错误 / 2 与既往裁决重合）。逐条回判：那"1 条表述错误"指 F-38，与我自己的撤回一致；"2 条重合"指 F-11 与 deferred 恒开类，我接受；3 条"部分成立"我认为是影响面描述偏保守，不算错。
+
+**不采信（三条）**
+
+- §2 F-14 行的"属实 ✓"：它照抄我给的 `deferred.fsh:36,45,51` 而未打开文件 —— `git show ef90edb:Astra/shaders/program/deferred.fsh` 显示那三行在修复前**已是** `textureLod(…, 0.0)`。
+- 同条的降级前提"所涉目标（`depthtex0` / `colortex0`）均未开 mipmap"：`colortex0` 开了 —— `program/water_bloom.fsh:5` 有 `const int colortex0MipmapEnabled = true;`，而 `global/water/bloom_capture.glsl:21` 正是在循环里裸 `texture(colortex0, …)`。**正确结论是"站点从 4 缩到 1，那 1 处成立"**，不是"无 mipmap 所以无意义"。两方各错一次，落点见 10.5#1。
+- §7 第一批"properties colortex5 blend 改 off"：机制描述对，但 A1 删除 `lit.fsh:362` 后**已非必要**，见 10.5#2。
+
+### 10.4 对混元四的判定
+
+- **C2（我的 F-27，判 P1）**：**采纳，且是决定性的**。`design.md:306` 把"暗角（默认）"列入"明确不做"、`:425` 再写"默认无暗角/颗粒/色差"，末地硬编码 0.08 暗角因而不只是"旋钮失灵"，而是与蓝图决议冲突 —— GLM 降它为 Minor 时缺的正是这条。裁决见 10.6。
+- **C1（blend 表）**：机制正确（src.a=0 时连 rgb 一起丢），但和我一样只在 `:362` 存在的前提下成立。修正见 10.5#2。
+- **C3（我的 F-08 二次曲线，并声明不是 09-16 方向修复的重复）**：采信。它主动排除"重复计数"，是核验表里少见的自觉。
+- **C4（我的 F-15）+ 撤回自己 §12.6 的"受控"结论**：认可。
+- **`:773` 把自己"理论可见"降为"不可见边缘"**：接受，与我给的 0.06–0.5 区间一致。
+- **`:804` 对我 F-07 判"❌ 不采信 UB → P3"**：接受，与我自己的撤回同向。
+- **`:808` 的 `#version` 普查**：精确复算通过（10 / 159），见 10.2。
+
+### 10.5 我自己被推翻或需要修正的（按重要性）
+
+1. **F-14 引证是错的**（§2 第 3 条与 §5 原条目已按实测重写）。我发布的是 `deferred.fsh:36,45,51` + `end_sky_buffer.fsh:63`，前者早已是 `textureLod`，后者位于一个 34 行的文件里、根本不存在。重推：245 文件花括号配平扫描得循环体内裸 `texture()` 仅 4 处，唯一落在开了 mipmap 缓冲上的是 `global/water/bloom_capture.glsl:21`；同包 `global/post/bloom.glsl:107` 对同一语义已写成 `textureLod(…, 0.0)`。⇒ 论据整体替换，严重度维持 P3。**根因与 §8 同源：我没有打开自己引用的行。**
+2. **F-01 关于 blend 的爆炸半径描述过头**（三方都沿用了这句话）。实测：`lit.fsh:367-369` 的有效分支写 `vec4(高度, lightLevel.y, 1.0)`，**src.a = 1.0 ⇒ `SRC_ALPHA` 退化为恒等写入**；无效分支写 `vec4(0.0)` ⇒ rgb 保留 dst、a = 0，而唯一读者 `program/water_state.fsh:19` 的 `if (data.a < 0.5) continue;` 正好筛掉它。所以"rgb 一起丢"只在 `:362` 那次错误覆写的前提下成立（该前提当时确实成立）；A1 之后 `properties:59` 的 blend 已是**惰性的**。⇒ 该子项 P1 → P3，处方从"blend 改 off"改成"要么 `= off` 一次性了结，要么在 `lit.fsh:367` 注明这个 `1.0` 是契约不是取值"。
+3. **F-38 撤回**。Iris 按**标识符文本**读取 `const int colortexNFormat = R11F_G11F_B10F;`，`#ifndef` 垫片只为让 GLSL 编译通过；`grep -rn "define R11F_G11F_B10F"` = 0 命中即证。合并工单已把这条写进"已否决主张"。
+4. **§9 的只读自证第一版为假**（"Astra/ 最新文件 mtime = 09-17 00:58"），已按 `find … -newermt "2026-09-20 01:40"` 重写，并给出可复算判别式：本次会话我唯一写过的文件是 `docs/2026-09-20-qoder-full-review.md`。
+5. **"合并工单没留验证工件"这条撤回一半**。我上一轮看到 `qa/glsl-consolidated-fixes.log` 是 0 字节，据此写"修完没留证据"。该文件在 **02:10:49** 落盘为 192 字节：`linked=267 / failed=0 / compute=27`，`OPENGL_RENDERER = NVIDIA RTX 4050 Laptop / 4.6.0 NVIDIA 572.83`。观测在当时为真、结论已过期 ⇒ 改记为：**工件存在，且与我实跑的 `check_pack.py`（0 FAIL / 1 WARN / 10 PASS）互洽**。
+
+### 10.6 分档分歧与裁决
+
+| 条目 | 我 | GLM | 混元 | 终判 | 依据 |
+|---|---|---|---|---|---|
+| F-27 末地抢占暗角/抖动 | P1 | Minor | P1（C2） | **P1** | `design.md:306/:425` 属蓝图"明确不做"；假旋钮 + 契约破坏双成立 |
+| F-01 blend 子项 | P1 | 必修 | 必修 | **拆档**：写错缓冲 = P1（已修）；blend = P3（惰性，留探针） | 10.5#2 的恒等性证明 |
+| F-42 colortex3 清屏 alpha | P2 | F2 的扩大版 | C4 | **P2，已修** | 实效是性能不是画面：`settings.glsl:362` 现 `.a=0.0`、`deferred.fsh:155-157` 权重进门控 |
+| F-11 `fade = 1.0` | P2 | 既往已裁决保留 | P2（`:806` 引我的论据） | **维持"记录在案、本轮不改"** | 09-13 §13.3 已裁决保留来源结构；重开需要新论据，我没有 |
+| F-02 pass 顺序 | P1 未决 | 需探针 | ⚠️ 需实机 | **不动代码，等探针** | 三方一致；`open-premises` P-1 |
+| F-07 水合成域 | P2 | — | ❌ 不采信 UB → P3 | **P3，有意不改** | Iris flip 机制；`clamp` 是注释声明的 Solas 域取舍 |
+| §7.1 优化排序 | 先关掩码门 | C6 主张先做别的 | — | **先门控后重构** | 工单实际执行顺序即如此（A2/A3 先于 deferred 条件化），且 A3 是零行为风险的 |
+
+### 10.7 合并工单 26 项的实测落地台账
+
+逐项开文件核对（HEAD `3b5ac22`；`9df32df` 的文件清单来自 `git show --stat`）：
+
+| 项 | 判定 | 我看到的证据 |
+|---|---|---|
+| A1 | ✅ | `lit.fsh:339-365` 注释重写为承认 colortex5.a 是 validity 标志；`:367-369` 改分支内三元；surfaceWet 死存储已删 |
+| A2 | ✅ | `settings.glsl:362` `colortex3ClearColor = vec4(0.498,0,0,0.0)` |
+| A3 | ✅ | `deferred.fsh:155-157` `float weight = standingWater*upFacing*rippled*fresnel; if (weight > 0.001)` |
+| B1 | ✅ | `light_shafts.glsl:55-57` `refractSun` 前置、`VoL` 用折射后方向；循环后的第二段相位项与 `pow(VoU,1.5)` 已删（`:129-131` 注记） |
+| B2 | ✅ | `:78` `minDist = maxDist / samples`（`×0.5` 去掉）；`:92` 内切圆改方形判据 |
+| B3 | ✅ | `:118-119` 改用 `solas_water_caustics` + `mix(0.25,1.0,caustic)`；`caustics.glsl:114` 注释确认 `astra_water_caustics_shaft_at` 已删（全包 grep 零命中） |
+| B4 | ✅ | `:124` `shade /= max(2.0, currentDist * 0.06)`；`:133` `* (6.0 + sun * 14.0)` |
+| B5 | ✅ | `:139` `water_shafts_resolve(…, float rayLength)` 形参启用，`:153` `exp(-abs(tapDist - rayLength) * 0.25)` |
+| B6 | ✅ | `shaders.properties:14` `size.buffer.colortex1=0.5 0.5` |
+| C1 | ✅ | `absorption.glsl` 谱序反转（BALANCED `(1.000,0.100,0.060)`、TROPICAL `(2.000,0.080,0.055)`）；`:74` 深度上限 `clamp(depth+1.0, 0.0, 24.0)` |
+| C2 | ✅ | `:48-56` `water_transport/water_medium` 增 `incidentLight`；`:67` `water_body_color()`；`:72-78` `+ water_body_color()*clamp(incidentLight,0,2)*(1-T)` —— 这正是 F-40 的恒零回退被填上 |
+| C3 | ✅ | `design.md:511` 起 "SC-40 决议补登（2026-09-20 三方审查汇总）" |
+| C4 | ◐ | 我只验到 `check_pack` #3：`zh_CN.lang` / `en_US.lang` 各 67 titles + 67 comments 全覆盖；**三档水性格文案的具体措辞我未逐字核对** |
+| D1 | ✅ | `diffuse.glsl:344-345` `facingAway` 判据 + visibility 只加不减 |
+| D2 | ✅ | `fog.glsl:79` `fog_morning_air_weight` 端点、`scene.glsl:148` 直接消费该权重 |
+| D3 | ✅ | `diffuse.glsl:380`/`:457` `facingAway ? 0.0 : night_desaturation(...)`；`:359-364` 注释重写 |
+| D4 | ✅ | `final.fsh:89+` 互斥分支，注释署名"consolidated review D4 / Hunyuan A1" |
+| D5 | ✅ | `grading.glsl:156-175` End 分支改为叠加在选项结果之上（`:170` 注记"the option now does what it says"） |
+| D6 | ✅ | `sky.fsh:138` 注记"full-screen double evaluation (consolidated review D6 / Qoder F-22)" |
+| E1 | ✅ | `caustics.glsl` 守卫 `#endif` 移到文件尾（tail 可见） |
+| E2/E3 | ✅ | `biomeTemperatureSmooth` / `biomeHumiditySmooth` / `sunrise` / `moonrise` 全包 grep 零命中 |
+| E4 | ✅ | `lib/noise.glsl` 与 `textures/noise.png` 在 `9df32df` 中删除；`THIRD-PARTY.md:29/:92` 同步登记 |
+| E5 | ✅ | `nether_volume.glsl:52` 注记 `dither2` 已删；全包 grep 仅剩该注释 |
+| E6 | ✅ | `SHADOW_FILTER_HARDWARE` 7 处命中，字面量 `== 1` 已替 |
+| E7 | ✅ | `lib/pow.glsl` 已接线（`final.fsh:5`、`scene.glsl:11`），`THIRD-PARTY.md:25` 登记；`twilight.glsl:22` 注明 180/1400 保留 `pow` 的理由 |
+| **E9** | **❌ 名义落地** | 工单点名 `deferred.fsh` / `end_sky_buffer.fsh`，但 `deferred.fsh:36/45/51` 在 `9df32df` **之前**已是 `textureLod`（`git show ef90edb` 可证）、`end_sky_buffer.fsh:18/24` 仍是裸 `texture(depthtex0,…)`；而唯一真正的站点 `global/water/bloom_capture.glsl:21`（采 `colortex0`，该缓冲开了 mipmap）**未改，且该文件不在 `9df32df` 的 40 个文件里**。⇒ 该项改的是已经正确的行，漏了唯一需要改的行。实际影响：P3（`depthtex0` 无 mipmap，故 `end_sky_buffer` 那两处只是风格；`bloom_capture` 那一处才是 F-14 的全部内容） |
+| E8/E10/E11 | ✅ | `encoding.glsl:19-22` `srgb_decode` 函数内 `max(...,0.0)`；`world-1/shadow.vsh:2-4` 补了 `#version 430` 的理由注释（`imageAtomicMax` 需 420+） |
+| F1–F3、F5 | ✅ | `properties:25` `size.buffer.colortex7=0.25 0.25`；`settings.glsl:76` `SSS_STRENGTH 60`（对齐 BALANCED，即 F-30）；`THIRD-PARTY.md:25/:29/:92` 三处漂移修正 + `pow.glsl` 行；`design.md:511` 汇总决议 |
+| F4 | ◐ | README 9 行里 6 行改对、3 行仍失实，另新引入 1 个错数（"52/54" 应为 51/53）。逐行见 F-41 的"修复后复测"表 |
+| G1/G2 | ✅ | `docs/2026-09-17-sc39-puddle-reflection.md` 存在；`qa/open-premises.md` 存在且已扩到 P-6 |
+
+**溯源密度**：源码与配置里现在有 **39 处** `"consolidated review"` 注释把改动回连到工单编号（`grep -rn "consolidated review" Astra/shaders | wc -l`）。这是我本轮见到的**最有效的流程改进** —— 上一节说的"注释断言 ↔ 代码相反"模式，至少在被修的这批里已经可追溯。
+
+**修复自身引入的两条新失实**（属于 F-41 那类问题在源码层的复现，P3）：`light_shafts.glsl:67` 仍以现在时写着"the 1/max(3, d*0.1) attenuation below"，而 `:124` 实际是 `max(2.0, currentDist*0.06)`；`:69-73` 仍以现在时描述"step of maxDist/samples*0.5 … about 17 blocks"，而 `:78` 已去掉 `*0.5`。两处注释描述的正是本次修掉的旧行为。
+
+### 10.8 未决前提：对 `qa/open-premises.md` P-1…P-6 的复核与追加
+
+三方一致认可的 6 条我逐条看过，判定为**都是真未决、没有一条是凑数的**。其中 **P-6 正是我 §9.2 第一条留的"需实机确认"**（源内 `colortexNClearColor` 是否被 Iris 识别为清屏指令），已被采纳并给出了比我更好的判据：旧清屏 `.r=0.498` 造成的"天空像素 skylight=127"长期可观察，说明机制生效 ⇒ 风险极低。该条闭环。
+
+我要追加 4 条（按证伪成本从低到高）：
+
+| 编号 | 未决前提 | 最便宜的证伪手段 |
+|---|---|---|
+| **P-7** | `blend.gbuffers_water.colortex5`（`properties:59`）与 `lit.fsh:367` 那个字面 `1.0` 之间的隐式契约：一旦有人把有效分支的 `.a` 改成任意分数，packed 水面高度会静默与 dst 混合 | 静态即可判定，无需实机；修法两选一（`= off` 或加注释），成本 < 1 分钟 |
+| **P-8** | README `:39` 对外口径"52/54 模块可达"与工具实测"51/53"不符（另 3 行 profile 事实仍失实） | 跑一次 `check_pack.py` 即可关闭 —— **不该挂"待实机"** |
+| **P-9** | B4 的重标定（`/max(2.0,d*0.06)` 与 `×(6+14·sun)`）只有编译证据、无画面证据；`UNDERWATER_SHAFT_SAMPLES` 按三方共识未降档 ⇒ 水下最贵单项的量级改了、代价没改 | 实机 A/B 一帧（与 P-4 同批） |
+| **P-10** | E9 未落地 ⇒ F-14 的唯一站点（`bloom_capture.glsl:21` 采开了 mipmap 的 `colortex0`）仍开放 | 改成 `textureLod(…, 0.0)`，一行；或与 `global/post/bloom.glsl:107` 对齐 |
+| **P-3 追加** | 267 项编译证据全部来自 NVIDIA 4.6/572.83；`program/lit_voxy.fsh:1` 是唯一的 `#version 460 core`，且 `VOXY_SUPPORT` 在全部三档 profile 都是 `!VOXY_SUPPORT`、`voxy.json` 为空占位 | 他厂驱动跑一次 `compile_glsl.py`；顺带确认该 460 入口在非 Voxy 路径下是否也必须通过 |
+
+**对这些台账的一条元建议**：给 `open-premises.md` 加一列"证伪成本"。P-7/P-8/P-10 都是"跑一条命令或改一行就能关掉"的，混在 P-1/P-4 这类必须实机的条目里，会让整张表看起来比实际更重。
+
+### 10.9 必要性权衡：明确不该做的事
+
+交叉核验的另一半是否定。以下 6 条我不建议执行，理由各自给出：
+
+1. **不要照 GLM §7 / 混元 §13 去把 colortex5 的 blend 改成 `off`**（当作"必修"那种改法）。10.5#2 已证明它在 A1 之后是惰性的；改了不会有任何画面变化，反而抹掉一条能暴露"字面 1.0 契约"被破坏的回归探针。要做的是加注释，不是改配置。
+2. **不要在拿到帧率基线之前动 deferred 条件化、composite3 并入 final、rainy_air 降采样、天空 LUT**。工单已把它们推到下一批，我认为这个判断是对的：这四项都涉及行为取舍，而本包至今 `qa/benchmarks.md` 全空 —— 没有基线的优化只能靠猜测排序。
+3. **不要再加 `pow` 助手去追"混元 ~30 站点"**。整数幂已经迁完，剩下的是 `180.0` / `1400.0` 这类非折叠链指数，`pow.glsl` 帮不上；`twilight.glsl:22` 已经把这个决定写下来了。
+4. **不要降 `UNDERWATER_SHAFT_SAMPLES`**。三方一致：先修量级再看采样数。B4 的画面证据（P-9）没拿到之前降采样，等于用未知换未知。
+5. **不要给 F-11 补"修复"**。09-13 §13.3 已裁决保留来源结构；我的性能论据已记录在案，重开需要新信息（比如未来做远水面 LOD）。
+6. **不要再出第四份汇总报告**。三方收敛已完成、26 项工单已落地 25 项 —— 现在缺的是画面和帧数，不是文档。下一份产出应该是 `qa/benchmarks.md` 的实数和 A/B 截图，任何新的审查文档在这个包里的边际价值已经低于一次实机。
+
+### 10.10 合并后的唯一下一步顺序
+
+把 10.7 的缺口、10.8 的未决、10.9 的禁区压成一条队列（每条都能单独验证，且不需要新的决议）：
+
+1. **关零风险项**（一次提交）：P-10 `bloom_capture.glsl:21` → `textureLod(…, 0.0)`；P-7 `lit.fsh:367` 的 `1.0` 契约注释；P-8 README 三行 profile 事实 + "51/53"；清掉 `light_shafts.glsl:67/69-73` 两段与代码相反的注释。
+2. **拿基线**：跑三档各一次基准，把数字填进 `qa/benchmarks.md`。这一步决定 §7.1 里所有结构性优化的排序，**在它之前不要动管线**。
+3. **实机对拍**（与 2 同批出图）：B4 光束量级、C1/C2 水色青绿→深蓝、D1 植被透光、D2 晨雾端点 —— 这四项在工单里就标了"需实机对拍"，是本轮唯一没有画面证据的行为改动。
+4. **一次会话做三个探针**：P-1 hand/deferred 真实顺序（F-02）、P-6 关 colortex3 掩码后门是否真的不再进积水门、P-9 的水下 A/B。
+5. 拿到 2/3 的数字之后，再决定是否执行 §7.1 的结构性优化与 `UNDERWATER_SHAFT_SAMPLES` 降档。
+
+### 10.11 计数收口
+
+§5 实际列出 **52 条** F-编号条目（F-01…F-54 中 F-25、F-26 未使用），分档 14 P1 / 22 P2 / 15 P3 = 51 条有效主张 + F-38 撤回后正文保留作对照。经交叉核验：**维持 51 条中 48 条**；修正论据 2 条（F-14 换站点、F-01 拆档）；撤回 1 条（F-38）；由外部报告补强或升档 3 条（F-27 经混元 C2 钉在 P1、F-01 经 GLM/混元补出 blend 机制、F-08 经混元 C3 排除重复计数）。截至 `3b5ac22`，51 条中**已由工单执行关闭 24 条**，余下 27 条中约半数是本轮明确"有意不改"（F-07/F-11/F-02 与 deferred 条件化一类），真正需要新动作的集中在 10.10 的第 1 步（4 项，零风险）与第 2、3 步（测量，不改代码）。
+
+**三方审查的净结论未变：无 P0；构建健康（`linked=267 / failed=0 / compute=27` + `check_pack` 0 FAIL / 1 WARN / 10 PASS，均本轮实测或复核工件）；两个长期未实现的水效果已按 §3/§4 的根因改到源码里，但没有任何一条改动经过实机验证。** 该说的到此说完。若需要，我可以按 §3.7 与 §4.4 出一份"实机对拍清单"（每步看什么、什么算通过），那份清单的优先级现在高于任何新的静态审查。

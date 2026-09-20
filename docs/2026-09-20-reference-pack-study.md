@@ -1,12 +1,14 @@
-# 参考光影源码研究：Unbound r5.9.3 / Reimagined r5.9.3 / Steadfast 0.8.0（2026-09-20）
+# 参考光影源码研究：Unbound r5.9.3 / Reimagined r5.9.3 / Steadfast 0.8.0 / Solas V3.7b（2026-09-20）
 
-**性质**：只读研究。素材取自 `C:\Users\杨铭\Desktop\光影包`——**该目录为空**（`光影`、`MC模组开发/光影` 亦无相关内容；实例与 Downloads 均无更新版本）。因此沿用 09-16 性能研究的既定方法从 Modrinth 官方 API 取最新版：
+**性质**：只读研究。**素材更新（同日晚）**：用户澄清 `C:\Users\杨铭\Desktop\光影包` 是为下载准备的空目录——已向其中下载 **9 个参考包的 Modrinth 最新 release**（zip + 解压源码 + `manifest.json`）；目录中另有**并行的 Qoder 会话**下载的 20 个包（jar 形式，`_downloads/`、各 slug 目录与 `_meta/` 子代理解析简报），两者互补、均可用。本轮新增研究基于：
 
 | 包 | 最新版（Modrinth 实查） | 本地素材 |
 |---|---|---|
-| Complementary Reimagined | **r5.9.3（2026-09-15，即最新）** | 已有：`_analysis/performance-study-2026-09-16/complementary-reimagined` |
-| Complementary Unbound | **r5.9.3（2026-09-15，即最新）** | **本轮下载**：`_analysis/study-2026-09-20/ComplementaryUnbound_r5.9.3/`（468 文件） |
+| Complementary Reimagined | **r5.9.3（2026-09-15，即最新）** | `光影包/complementary-reimagined-source/` |
+| Complementary Unbound | **r5.9.3（2026-09-15，即最新）** | `光影包/complementary-unbound-source/`（另 `_analysis/study-2026-09-20/` 有副本） |
 | Steadfast | **0.8.0（即最新）** | 已有：`_analysis/Steadfast-0.8.0` |
+| Solas | **V3.7b（2026-08-23）——比 Astra 移植所参考的 V2.2b 新** | `光影包/solas-shader-source/`（§4 新增研究） |
+| BSL / Photon / MakeUp / Mellow / Rethinking Voxels | 各自最新 | `光影包/*-source/`（09-16 研究已覆盖，本轮未重读） |
 
 **与既有研究的关系**：09-16 两份研究已覆盖性能成本链与视觉体验（Astra 也已吸收其大部分建议）。本报告聚焦**新角度**：以 09-20 修复后的 Astra 现状（光束重标定、水色行程、colortex 状态链、死链清理）为基线，只列**尚未吸收且可执行**的学习点。许可提示：Complementary 系为 License 1.7（专有）——以下全部按"思路级"处理，落地时重写，发布前过 design.md §9.3 闸门；Steadfast 部分沿用既有 GPLv3 台账规则。
 
@@ -62,7 +64,36 @@
 2. **侧面/非竖直面**：几何深度不可靠，改用**背景天光作为深度代理**：`waterDepth = (−15/16)·skylight + 1`（单条 FMA）。**Astra 缺这个**：`water_sample_path` 用 `dot(origin−point, faceNormal)`，竖直水壁（瀑布/流水侧面）上该值≈0，几乎不吃吸收。借鉴点明确：非上向水面用背景 skylight 代理深度（colortex3 的 skylight 现成）。
 3. **未命中几何（射线出水面/深水）**：不回退黑值——**假设满水深**（`waterDepth = 0.25 + 0.75·min(−z/24, 1)`）并按距离衰减背景。Astra 09-20 修复后该路径返回固定的水体色（24 格满深），但没有 Steadfast 的近场缓释：瀑布背后、浅水贴地平线处会偏浓。借鉴点：在未命中分支加同一近场缓释（24 格内按距离线性减浅）。
 
-## 4. 对 Astra 的行动建议（按价值排序）
+## 4. Solas V3.7b（2026-08-23）：Astra 水系参考的新版本
+
+Astra 的水下雾/焦散/光带移植自 Solas **V2.2b**；官方已演进到 **V3.7b**。逐文件对照结论：
+
+### 4.1 【最重要】VL 的水下分支被完全重写——正是 Astra 09-20 光束修复的官方同向答案
+
+`lib/atmosphere/volumetrics.glsl`（305 行，取代 2.2b 的 127 行 `volumetricLight.glsl`）：
+
+- **水下专用强度曲线**（`calculateVLParameters:56`）：`isEyeInWater==1` 时 `intensity = (1 + 2·VoL²)·(0.25 + 1.75·sunVisibility)`——VoL 以**平方软瓣**进入且基线为 1（**永不归零**），只由太阳可见度定总量。2.2b 把空气与水下共用一套 `VoL` 硬门，正是 Astra 移植后"正午水下光带恒零"的病根；官方在 3.7b 按同样的诊断改掉了。Astra 09-20 修复（折射太阳门）与它殊途同归，可把这条曲线**当标定参照**：我们的 `mix(0.25+0.25VoL, 0.45VoL, time)` 白天端仍会归零，官方的下限 1 + 平方瓣更稳。
+- **水下放宽朝上惩罚**（`:58`）：`VoU 因子 = fmix(pow4(1−VoU), 0.125 + timeBrightness·0.5, isEyeInWater==1)`——水下朝上看的衰减有 0.125 地板，不是硬压。Astra 已删 VoU 项，行为相当，记录备查。
+- **水下光带走透明阴影的彩色透射**（`:235`）：`vlSample = shadow1·(1−shadow0)·shadowCol²·mix(0.25, waterColor·len, 水下) + shadow0·vlCol·(水上)`——水下样本用 **shadowtex1/shadowcolor0 的水面透射色**照亮，空气样本才用 opaque 阴影。Astra 09-20 修复读 `shadowcolor0.gba` 染色，同向；官方还乘了 `shadowCol²` 能量衰减与 `waterColor` 混合，值得对拍。
+- **指数距离分布**（`:190-194`）：`currentDist = exp2(dither)`，每样本 `×2`——1,2,4,8…格的对数步进。近场密、远场疏，7 个样本即可覆盖 64+ 格。Astra 目前是均匀步进铺满 40 格；对数分布是备选方案（近岸细节更密）。
+- **运行时采样数与射程**（`:182-189`）：`sampleCount = VL_SAMPLES + int(sunVisibility·(4−dfade·3+wetness·3))`；`maxDist = shadowDistance + 128 + 天气项`，再除以 `1+vlDistanceFactor`。运行时 int 上界 + 全 `texture2DShadow`（比较采样器，无需显式 LOD）——与 Complementary 的做法互证可行。
+- `vlSamplePersistence` **不是时域持久化**：它是逐射线的衰减整形指数（`pow(强度, persistence)`，`:33,62`）——名字易误读，Astra 不需要（我们已有显式 weight）。
+
+### 4.2 waterFog 的谱序吸收（独立佐证）
+
+`lib/water/waterFog.glsl:1-10`：透射乘子 `colorMult.r ×= (1−abs)`、`g ×= (1−abs²·0.5)`、`b ×= (1−abs³·0.5)`——红线性、绿二次、蓝三次，**红衰最快、蓝衰最慢**，再叠一条独立雾曲线。这与 Astra 09-20 把谱序改为"绿吸收>蓝、深水收敛蓝"**方向完全一致**，且给出了另一种参数化（按衰减次数而非每格系数）。可作为 Astra `water_surface_absorption` 的对照标定。
+
+### 4.3 焦散：算法未变，新增三档质量模式
+
+`lib/water/waterCaustics.glsl`：核心仍是 Astra 已移植的 5-tap 曲率法（`WATER_NORMAL_OFFSET` 差分、`(dxA·−dxB + dyA·−dyB)`，倍率 48——Astra 用 96 约两倍），但 `getWaterHeightMap` 新增 `WATER_NORMALS 1/2/3` 三档：2/3 档改采 .r 通道、平方增强与各向异性剪切，用**更少的纹理通道换不同细节/成本档**。Astra 的焦散目前单档——若要给 `WATER_CAUSTICS` 加质量档，这是现成范式。`waterNormals.glsl` 同套模式。
+
+### 4.4 其余
+
+- VL 颜色随时刻向天空色混合：`vlCol = fmix(lightCol, nSkyColor, timeBrightness·0.75)·0.1`（`:131`）——正午光带偏白、晨昏偏暖，Astra 光带目前固定 Solas 染色，可试同款。
+- LPV 彩色雾与 VL 同 march 复用（`#ifdef LPV_FOG`，体素采样在同循环内）——Astra 下界体素光的未来演进方向（一次 march 两用）。
+- 云影直接调制 VL 样本（`VC_SHADOWS` 段）——"云隙光"效果，Astra 的 `astra_cloud_transmission` 已有等价物，官方把它接进了光带循环。
+
+## 5. 对 Astra 的行动建议（按价值排序）
 
 | # | 借鉴项 | 来源 | 落点 | 建议批次 |
 |---|---|---|---|---|
@@ -72,12 +103,17 @@
 | 4 | dimension.properties + world0 按维度禁 pass / 尺寸收放 | Unbound | 新增 world0 + dimension.properties | v1.1 决议（推翻/扩展 SC-3） |
 | 5 | 反射/光束分辨率用户选项 | Unbound REFLECTION_RES | properties + 尺寸指令 | v1.1 |
 | 6 | shadowcolor 染色 ×4 缩放试验 | Unbound | 光束颜色路径 | 随 #1 对拍 |
-| 7 | TAA 完整参考实现 | Unbound taa.glsl | — | v2（design 2.4 闸门重议时） |
+| 7 | 水下光束强度曲线改软平方瓣+下限（`(1+2·VoL²)·(0.25+1.75·sun)`），透明阴影透射色² 染色 | **Solas 3.7b** volumetrics | light_shafts 标定（替换 09-20 的 mix 门） | v1.1，随 #1 一起对拍 |
+| 8 | 光束采样改指数距离分布（exp2 起步 ×2/样本） | **Solas 3.7b** | light_shafts | v1.1 备选（与 #2 二选一或叠加） |
+| 9 | 光束颜色随时刻向天空色混合（`fmix(lightCol, skyCol, timeBrightness·0.75)`） | **Solas 3.7b** | light_shafts 颜色 | v1.1，一行 |
+| 10 | 水雾透射谱序对照标定（R 线性/G²/B³ 参数化） | **Solas 3.7b** waterFog | absorption 标定参照 | 标定用，不落地 |
+| 11 | 焦散/水面法线质量档（通道切换 ×平方 ×剪切三范式） | **Solas 3.7b** waterCaustics/Normals | WATER_CAUSTICS 加档时 | v2（加选项时） |
+| 12 | TAA 完整参考实现 | Unbound taa.glsl | — | v2（design 2.4 闸门重议时） |
 
 **不建议**：照搬 100+ 调色板滑块（违背 design 3.3）；现在引入 TAA（design 2.4 未重议）。
 
 ## 附：素材与许可
 
-- 新增素材：`_analysis/study-2026-09-20/ComplementaryUnbound_r5.9.3/`（Modrinth CDN 直下，553KB，468 文件；`_analysis/` 不入库）。
-- 许可口径不变：Complementary 系（Reimagined/Unbound）= License 1.7 专有，全部按**思路级**吸收，落地代码须自写并过 design §9.3 发布闸门；Steadfast 派生按 GPLv3 + §7 台账规则。
-- `Desktop/光影包` 与 `Desktop/光影` 均为空目录；若用户后续放入新的包（如 EuphoriaPatches 或其他新包），可在此基础上续作。
+- 本轮素材：`C:\Users\杨铭\Desktop\光影包\`——9 个 zip + `*-source/` 解压 + `manifest.json`（Modrinth CDN 直下，含发布日期与许可 id）；另存在并行 Qoder 会话下载的 20 个 jar 包与 `_meta/` 子代理解析产出（`_meta/analysis/<slug>.md`），后续可与本报告交叉引用。项目内副本：`_analysis/study-2026-09-20/ComplementaryUnbound_r5.9.3/`。
+- **Solas V2.2b ↔ V3.7b 差异提示**：Astra 的水下三件套（水雾/焦散/光带）移植自 V2.2b；V3.7b 已把 VL 水下分支重写（§4.1）。移植台账（THIRD-PARTY.md 的 Solas 行）的行号引用仍指 V2.2b，若后续按 §4 吸收 3.7b 思路，登记时须注明版本。
+- 许可口径不变：Complementary 系（Reimagined/Unbound）= License 1.7 专有，全部按**思路级**吸收，落地代码须自写并过 design §9.3 发布闸门；Steadfast 派生按 GPLv3 + §7 台账规则；Solas 未声明（默认版权），维持既有"思路级+登记"处理。
