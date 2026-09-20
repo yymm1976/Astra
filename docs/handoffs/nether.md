@@ -71,7 +71,7 @@ C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\_analysis\Complementary
 本文件此前登记的 H-001、H-002 建立在同一个**错误前提**上：以为下界的 `lit.fsh` 会走
 `global/lighting/diffuse.glsl` 的 `diffuse_lighting()`。核实源码后该前提不成立，两条均**撤回**。
 
-**依据**（`program/scene.glsl:171-201`，`astra_light()`）：
+**依据**（`program/scene.glsl:171-201`，`astra_light()`；**行号为撰写当时**，见下条更正）：
 
 ```glsl
 #if defined DIMENSION_NETHER
@@ -97,6 +97,16 @@ C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\_analysis\Complementary
 - **H-002 撤回**：`program/scene.glsl:190-193` 的 `water_reference_lighting()` 位于 `#else`
   分支内，下界不可达。`reference_light.glsl` 虽然在第 15 行被所有维度 include，但里面只有
   纯函数、无副作用、下界不调用它。
+
+**2026-09-21 复核（上面的行号不重写，就地登记）**：`astra_light()` 现为
+`program/scene.glsl:218-250`，下界早返回在第 **225** 行——H-001 的论证照旧成立。
+`reference_light.glsl` 的 include 现在在 `scene.glsl:22`。上表引的那行
+`if (isEyeInWater == 0 && shadow_water_depth(...))` **在今天的源码里已经不存在**：
+`shadow_water_depth()`（`global/lighting/shadowmap.glsl:225`）与
+`water_reference_lighting()`（`global/water/reference_light.glsl:123`）经逐字节全包扫描
+各只有 1 处出现，都是定义本身，全包零调用者。于是 H-002 的结论比当初的论证更强——
+不只是"下界不可达"，而是所有维度都不再经过它。两条撤回都不需要翻案；改动的只是
+证据的行号，以及"上表那段代码是当前源码"这一条不再成立。
 
 ---
 

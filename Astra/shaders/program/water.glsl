@@ -240,10 +240,12 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
         }
         reflection += fallback * (1.0 - reflectionWeight);
     }
-    // Solar glint. waterRef_SkyColor carries the reference's atmospheric Mie lobe, which
-    // is broad, so on the surface the sun reads as a weak wash (user: "太阳在水面上的反射
+    // Solar glint. The broad sky reflection above (astra_reflection_sky) carries a wide
+    // atmospheric lobe, so on the surface the sun reads as a weak wash (user: "太阳在水面上的反射
     // 有点弱"). This adds the narrow specular lobe: sharp when the waves are smooth, wider
     // as roughness grows, and gated by the sun's elevation.
+    // Corrected 2026-09-21: this comment used to blame waterRef_SkyColor for the broad
+    // lobe. Nothing in global/water/reference_light.glsl is reachable from this pass.
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
         if (water && !belowWater) {
             float sunAlign = max(dot(reflectedWorld, worldSunVector), 0.0);

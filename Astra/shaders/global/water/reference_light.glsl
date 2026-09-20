@@ -18,6 +18,12 @@
 
 // Adapted for the water path only from Steadfast 0.8.0 minishita.glsl
 // and shaders.properties. Functions/constants are prefixed; public sky is independent.
+// Unreachable as a whole (measured 2026-09-21, survey 11.F-10): of the 19 waterRef_*
+// names defined here, none appears in any other file except one comment in
+// program/water.glsl, and that comment is itself stale (see the note there). The
+// include at program/scene.glsl:22 therefore compiles dead code in every pass.
+// Removal is not a cleanup call: it also has to retire the Third-party registration
+// for this file and the H-002 handoff entry that quotes it.
 float waterRef_CornetteShanks(float mu) {
 	const float PI = 3.14159274;
 	const float g = 0.76;
@@ -120,6 +126,7 @@ vec3 waterRef_SkyColor(vec3 worldDir) {
 }
 
 // Same light-direction quadrature as Steadfast shaders.properties st_*.
+// No call site anywhere in the pack (measured 2026-09-21); see the file header.
 void water_reference_lighting(out vec3 ambient, out vec3 direct) {
     vec3 eye = vec3(0.0, waterRef_EYE_HEIGHT_UNIT, 0.0);
     float reverse;
