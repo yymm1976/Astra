@@ -59,7 +59,13 @@ public class IrisPropertyInspection {
   Properties properties=resolved(output);
   for(String key:new TreeSet<>(properties.stringPropertyNames())) {
    String value=properties.getProperty(key);
-   if(key.endsWith(".enabled"))System.out.println("GATE "+key+"="+value+" EFFECTIVE="+gate(options,value));
+   if(key.endsWith(".enabled")) {
+    // Iris has a parser for the "program." family and for nothing else that ends in
+    // ".enabled"; any other spelling is never read at load time.
+    if(key.startsWith("program."))
+     System.out.println("GATE "+key+"="+value+" EFFECTIVE="+gate(options,value));
+    else System.out.println("DEADGATE "+key+"="+value);
+   }
    else if(key.startsWith("size.buffer."))System.out.println("BUFFER "+key+"="+value);
   }
   // Echo every profile token back through the store the loader will read. A name Iris
@@ -131,22 +137,24 @@ def profiles():
 
 
 def parse_output(stdout):
-    """tier -> (gates, buffers, echoes), plus the option names the loader discovered"""
+    """tier -> (gates, buffers, echoes, dead gates), plus the option names the loader discovered"""
     tiers, known = {}, {"bool": set(), "str": set()}
     current = None
     for line in stdout.splitlines():
         kind, _, body = line.partition(" ")
         if kind == "===TIER":
             current = body.strip()
-            tiers[current] = ({}, {}, {})
+            tiers[current] = ({}, {}, {}, set())
         elif kind == "KNOWN":
             name, _, value = body.partition("=")
             known[name].add(value)
         elif current:
-            gates, buffers, echoes = tiers[current]
+            gates, buffers, echoes, dead = tiers[current]
             if kind == "GATE":
                 key, _, rest = body.partition("=")
                 gates[key] = rest.partition("EFFECTIVE=")[2]
+            elif kind == "DEADGATE":
+                dead.add(body.partition("=")[0])
             elif kind == "BUFFER":
                 key, _, value = body.partition("=")
                 buffers[key] = value
@@ -221,12 +229,18 @@ public class Iris {
             return result.returncode
         tiers, known = parse_output(result.stdout)
 
-    parsed = {t: tiers.get(t, ({}, {}, {})) for t in TIER_ORDER}
+    parsed = {t: tiers.get(t, ({}, {}, {}, set())) for t in TIER_ORDER}
     gates = {t: parsed[t][0] for t in TIER_ORDER}
     buffers = {t: parsed[t][1] for t in TIER_ORDER}
     on = {t: {k for k, v in gates[t].items() if v == "true"} for t in TIER_ORDER}
     if not all(gates[t] for t in TIER_ORDER):
         failures.append("the parser returned no pass gates for at least one tier")
+    # A gate spelled outside the program.* family is not a gate: the loader never sees it,
+    # so the pass runs in every tier while the properties file says otherwise.
+    dead = sorted({k for t in TIER_ORDER for k in parsed[t][3]})
+    if dead:
+        failures.append("gate-shaped key(s) Iris never reads, so the pass dispatches in every "
+                        "tier: " + ", ".join(dead))
 
     # 0. A #define with a value list is only an option if the loader found it.
     declared = declared_options()

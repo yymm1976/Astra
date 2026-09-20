@@ -3,9 +3,9 @@
 check_pack.py reporting 0 FAIL says nothing by itself - a rule that cannot be broken
 also cannot hold. Each scenario below copies the working pack into a temporary
 directory, injects exactly one defect of the class survey 6 (P2-10, P2-11) watched a
-reference pack ship, and asserts the owning check reports it and nothing else does.
-Two scenarios inject nothing: the pack as it stands, and a prose mention of a buffer
-name, which is normal and must stay clean.
+reference pack ship or P2-18 watched this pack ship, and asserts the owning check
+reports it and nothing else does. Two scenarios inject nothing: the pack as it stands,
+and a prose mention of a buffer name, which is normal and must stay clean.
 
 Usage:  python qa/tools/test_gate_sensitivity.py
 Exit code = number of scenarios that did not behave as specified.
@@ -20,6 +20,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 ROOT = Path(tempfile.mkdtemp(prefix="astra-gate-"))
 SHADERS = "Astra/shaders"
+PROPS = f"{SHADERS}/shaders.properties"
 
 
 def fresh(tag):
@@ -111,6 +112,39 @@ def s8_prose_buffer_mention(dst):
     return None
 
 
+def s9_namespaced_blend_key(dst):
+    patch(dst, PROPS, "blend.shadow=off", "blend.shadow=off\nblend.world-1/shadow=off")
+    return ("16", "blend.world-1/shadow")
+
+
+def s10_root_gate_without_folder_mirror(dst):
+    patch(dst, PROPS, "program.world1/shadow.enabled=SHADOWS\n", "")
+    return ("16", "does not reach this folder")
+
+
+def s11_gate_hidden_by_own_ifdef(dst):
+    # the shape the pack shipped before P2-18: the gate only exists once the option is on
+    patch(dst, PROPS, "program.world-1/shadowcomp.enabled=NETHER_VOXEL_LIGHT",
+          "#ifdef NETHER_VOXEL_LIGHT\n"
+          "program.world-1/shadowcomp.enabled=NETHER_VOXEL_LIGHT\n"
+          "#endif")
+    return ("16", "sits inside a NETHER_VOXEL_LIGHT branch")
+
+
+def s12_gate_names_missing_pass(dst):
+    patch(dst, PROPS, "program.world1/deferred1.enabled=true",
+          "program.world1/deferred1.enabled=true\n"
+          "program.world-1/gbuffers_nonexistent.enabled=true")
+    return ("16", "exists in neither world-1/ nor the pack root")
+
+
+def s13_gate_names_unknown_folder(dst):
+    patch(dst, PROPS, "program.world1/prepare.enabled=true",
+          "program.world1/prepare.enabled=true\n"
+          "program.world9/composite.enabled=true")
+    return ("16", "unknown dimension folder world9")
+
+
 SCENARIOS = [
     ("baseline-no-defect", s0_baseline, None),
     ("prose-buffer-mention-control", s8_prose_buffer_mention, None),
@@ -121,6 +155,15 @@ SCENARIOS = [
     ("vendor-file-absent-from-ledger", s5_unregistered_vendor_file, ("15", "vendor/renderpearl/LICENSE.txt")),
     ("vendor-dir-without-licence", s6_vendor_dir_without_licence, ("15", "no licence text beside it")),
     ("licence-text-outside-vendor", s7_licence_text_outside_vendor, ("15", "carries licence text")),
+    ("namespaced-blend-key", s9_namespaced_blend_key, ("16", "blend.world-1/shadow")),
+    ("root-gate-without-folder-mirror", s10_root_gate_without_folder_mirror,
+     ("16", "does not reach this folder")),
+    ("gate-hidden-by-own-ifdef", s11_gate_hidden_by_own_ifdef,
+     ("16", "sits inside a NETHER_VOXEL_LIGHT branch")),
+    ("gate-names-missing-pass", s12_gate_names_missing_pass,
+     ("16", "exists in neither world-1/ nor the pack root")),
+    ("gate-names-unknown-folder", s13_gate_names_unknown_folder,
+     ("16", "unknown dimension folder world9")),
 ]
 
 
@@ -138,7 +181,7 @@ for name, inject, expect in SCENARIOS:
     applied = inject(dst)
     assert applied == expect, f"{name}: scenario did not apply as written"
     code, fails, details = run(dst)
-    collateral = [f"{cid} {title[:60]}" for cid, title in fails if cid not in ("14", "15")]
+    collateral = [f"{cid} {title[:60]}" for cid, title in fails if cid not in ("14", "15", "16")]
     if expect is None:
         ok = code == 0 and not fails
         detail = "0 FAIL" if ok else f"{len(fails)} FAIL"

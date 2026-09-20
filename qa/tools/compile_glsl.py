@@ -401,7 +401,7 @@ def main() -> int:
     parser.add_argument("--match", help="compile only entries whose relative path contains this text")
     parser.add_argument("--no-compute", action="store_true",
                         help="skip .csh entries, mirroring what Iris does when every "
-                             "compute.*.enabled condition is false")
+                             "program.<world>/shadowcomp*.enabled condition is false")
     parser.add_argument("--undef", nargs="*", default=[], metavar="MACRO",
                         help="compile-time profile override: remove these option defines")
     parser.add_argument("--set", action="append", default=[], metavar="MACRO=VALUE",

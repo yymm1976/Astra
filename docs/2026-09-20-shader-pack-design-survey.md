@@ -838,14 +838,14 @@ Astra 现状：`Astra/shaders/global/lighting/shadowmap.glsl:202 bias = end_shad
 - **许可证**：Steadfast GPLv3 + §7b/§7c 附加条款 → 可修改但须保持附加义务（`python qa/tools/provenance_steadfast.py` 前后对账）。表达式自写。
 - **验证**：`water_path_probe.py` 覆盖瀑布、浅水贴地平线、平视三种边界。
 
-### P2-18 · `dimension.properties` 按维度裁剪管线
+### P2-18 · `dimension.properties` 按维度裁剪管线（已执行 · 见 11.F-4）
 
 - **现状**：Astra 所有维度跑同一套管线，下界/末地无专属 pass 但也不关掉主世界专属 pass。
-- **依据**：Complementary Unbound `dimension.properties`（`dimension.world0=*`）+ `shaders.properties:95-112`（§2.1 新增 bullet）——按维度禁用/启用 pass，缓冲尺寸跟随维度配置。
-- **做法**：新增 `dimension.properties` + `world0=*`；下界/末地关掉主世界专属大气 pass；colortex1 在闲置维度的分配可省。
-- **成本**：纯配置层，零 GLSL 改动。
+- **依据**：Complementary Unbound `dimension.properties`（`dimension.world0=*`）+ `shaders.properties:95-112`（§2.1 新增 bullet）——按维度禁用/启用 pass。原文附加的"缓冲尺寸跟随维度配置"经复核**不成立**（见下）。
+- **做法**：按维度关掉闲置管线 pass 用 `program.<world>/<pass>.enabled=` 一条键即可，且**不需要 `dimension.properties`**：`world0`/`world-1`/`world1` 三个目录名是 `ShaderPack` 构造器里的遗留缺省映射，仅在 `dimension.properties` 缺失或为空时生效——新写一个只声明 `world0=*` 的文件反而会顶掉这条缺省分支。colortex1 在闲置维度的分配**省不掉**：`size.buffer.*` 以裸缓冲名为键，`ShaderProperties` 没有目录上下文，四个参照包也零处使用带 world 前缀的 `size.buffer.`；`blend.*`、`texture.*`、`image.*`、`uniform.*` 同理，带 `<world>/` 前缀即永远查不到。
+- **成本**：纯配置层，零 GLSL 改动。本条真实收益在下界那 9 个 `shadowcomp*` compute 调度。
 - **许可证**：Iris API 事实 → **无风险**。
-- **验证**：各维度 pass 启用表 + `cost_census.py` 闲置缓冲显存。
+- **验证**：`check_pack.py` 第 16 项（键族与维度目录一致性）+ `inspect_iris_properties.py`（各维度 pass 启用表）+ 矩阵门；`cost_census.py` 的闲置缓冲显存一项因上述键限制而不可达，已撤销。
 
 ### P2-19 · 光束 / 反射分辨率用户选项
 
@@ -963,8 +963,8 @@ python _meta/final_sweep.py              # → 九项：加粗冲突/加粗不�
 # 借鉴报告逐条核验（37 项检查，须 cd 到光影包根；Windows 加 PYTHONIOENCODING=utf-8）
 set PYTHONIOENCODING=utf-8 && python _meta/verify_reference_study.py   # → 27 真 / 4 行号错 / 2 不成立 / 1 文件错 / 1 机理错 / 1 参数化描述错 / 1 需修正
 # Astra 侧门禁（本仓库内；P0-1、P2-10、P2-11 与 P2-12 的实测数字全部由下列命令复现，Windows 加 PYTHONIOENCODING=utf-8）
-python qa/tools/check_pack.py              # → 15 项，含 #12 档位取值差量、#13 选项消费者/分支符号（P2-12）、#14 缓冲声明活性/唯一/有读者（P2-11）、#15 lib/vendor 隔离与许可正文（P2-10）
-python qa/tools/test_gate_sensitivity.py   # → #14/#15 的灵敏度自证：9 个场景在临时副本上注入既有缺陷形态，断言逐条精确触发且两个对照仍全绿
+python qa/tools/check_pack.py              # → 16 项，含 #12 档位取值差量、#13 选项消费者/分支符号（P2-12）、#14 缓冲声明活性/唯一/有读者（P2-11）、#15 lib/vendor 隔离与许可正文（P2-10）、#16 按维度裁剪用的键 Iris 是否解析（P2-18）
+python qa/tools/test_gate_sensitivity.py   # → #14/#15/#16 的灵敏度自证：14 个场景在临时副本上注入既有缺陷形态，断言逐条精确触发且两个对照仍全绿
 python qa/tools/inspect_iris_properties.py # → 驱动已安装的 iris-fabric-1.11.2 解析器，逐档解出 pass 门与缓冲尺寸后差分
 python qa/tools/compile_glsl.py            # → 全量编译门
 python qa/tools/compile_glsl.py --matrix   # → P2-12 选项穷举门：83 行二组合覆盖阵列 × 89 入口（--matrix-rows N 截断，截断即非零退出）
@@ -1096,7 +1096,7 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 | P2-15 反射八度减半 | **中低价值** | 反射路径无质量降级成立（`clouds_planar`/`refraction`/`raytrace` 无 isReflection 分支）；收益限于反射像素 |
 | P1-16 光束时域自适应 | **中价值，前提修正后采纳** | 两处前提更正（11.D-5/6）；状态像素须用新 1×1 缓冲；前置修复并入真正的 mipmapped 站点 |
 | P1-17 水吸收侧代理 | **中价值，采纳** | 垂直壁问题成立（`water.glsl:80/:96` 的几何深度）；文件归属与 miss 分支描述已更正（11.D-7/8）；Steadfast §7 义务对账要求合理 |
-| P2-18 按维度裁剪 | **中低价值，采纳** | properties 已有 8 条维度专用 `false` 门（`:46-49/:62-63/:67-68`），本条是把已有机制系统化 |
+| P2-18 按维度裁剪 | **中低价值，采纳 · 已执行（见 11.F-4）** | properties 已有 8 条维度专用 `false` 门（两个维度目录各 `composite`/`composite2`/`composite3`/`composite4`），本条是把已有机制系统化；"缓冲尺寸跟随维度配置"不成立——`size.buffer.*` 以裸缓冲名为键（见 §6 P2-18 做法条） |
 | P2-19 光束/反射分辨率选项 | **中低价值，建议与 P2-14 合并** | 硬编码 0.5/0.25 成立（`shaders.properties:14,19`）；与 P2-14 同属分辨率粒度 |
 | P2-20 光束标定 | **中价值，采纳** | 强度门复核成立（`light_shafts.glsl:62`）；Solas ARR 与"禁止 DRM 宏"约束到位 |
 
@@ -1140,6 +1140,7 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 
 - 取值差量 15 / 7 / 19（原 10 / 5 / 13），67 个 token 中 19 个随档变化；201 条 profile 赋值全部被 Iris 的选项存储接受。
 - PERFORMANCE→BALANCED 确实多调度 **14 个 pass 门**：9 条 `compute.world-1/shadowcomp*` 加 `composite1`、`composite4`、`world-1/shadow`、`world-1/composite1`、`world1/composite1`（开启门数 10 → 24）。
+  【2026-09-20 P2-18 复核更正】那 9 条当时拼作 `compute.world-1.shadowcomp*.enabled`，而 Iris 根本没有 `compute.*` 键族——真实引擎里下界的 9 步 compute 在三档全都派发。把同一份包按旧拼写在临时副本上重跑本工具：`+5 gate(s) on / 15 on in BALANCED`；按 `program.world-1/shadowcomp*.enabled` 改写后才是 `+14 / 24 on`。工具随之收紧：`.enabled` 结尾的键只有 `program.` 前缀计入门，其余单独报 `DEADGATE` 并 FAIL。详见 11.F-4。
 - 三档 colortex1 解出 0.25 / 0.5 / 0.5，证明逐档选项图真的到达了预处理器（colortex1 是这条链上的金丝雀）。
 - 编译门：`python qa/tools/compile_glsl.py` 默认按三档各展开一遍全部 89 个入口（80 顶点/片元对 + 9 compute），实机驱动结果 `linked=267 failed=0 compute=27`，exit 0——新档位 token 与 `#ifdef DITHERING` 改写后三档都能编译链接。
 - 结构门：`python qa/tools/check_pack.py` 12 项检查 0 FAIL / 11 PASS / 1 WARN（该 WARN 与 P0-1 无关）。
@@ -1213,6 +1214,38 @@ P2-10 的第 15 项四条规则：目录与 README 必须存在；`lib/vendor/**
 收尾门：`python qa/tools/check_pack.py` → 15 项 0 FAIL / 14 PASS / 1 WARN（WARN 仍是 #4 接线登记，与本条无关）；`python qa/tools/compile_glsl.py` 默认三档扫描 `linked=267 failed=0 compute=27`，exit 0，日志 `qa/glsl-2026-09-20-t3-compliance.log`。矩阵门未重跑，按 F-2 定的成本规则：本轮零 GLSL 语义改动、选项声明与值域一字未动。
 
 本条初稿被报告自己的三道门抓出两处，均已按实测改正：第 14 项报 60 条，而初稿的锚点清单漏了 `Astra/shaders/program/end_illumination.fsh:11`（`colortex8ClearColor`）只列到 12 条缓冲声明、于是写成 59——教训是"门报的数字要按门的输出抄，不按记忆写"；`final_sweep.py` 第 8 项又把正文里指代"通用形式"的那个双字词当成未替换记号报红（该词本身出现在正文即命中，故此处不复述），改写后九项全绿、引用门 515 条与四类硬失败 0 不变。
+
+**F-4 · T4 执行 P2-18 按维度裁剪管线**
+
+原文的三条做法（新增 `dimension.properties`、按维度覆盖属性、buffer 分配跟随维度）实测下来只有一条半可执行，其余两条在 Iris 1.11.2 里根本没有对应的机制。先把引擎事实钉死（全部为 `iris-fabric-1.11.2+mc26.2` 字节码实测，非文档推断）：
+
+1. `world0` / `world1` / `world-1` 三个目录名到维度的映射，只在 `dimension.properties` **缺失或为空**时由 `Files.exists` + `putIfAbsent` 填入默认值。也就是说包内不写这个文件才有默认映射，写一份不完整的反而会把没列出的维度变成未映射。结论：Astra 维持现状，**不新增 `dimension.properties`**，按维度裁剪全部走目录 + `program.` 命名空间。
+2. `loadProperties(Path, String, Iterable<StringPair>)` 对 `shaders.properties` 只读根目录那一份，第三个参数是包选项列表而不是维度目录 ⇒ **不存在 `<world>/shaders.properties` 合并**，"按维度覆盖属性"没有任何入口。
+3. 属性查找键是 `ProgramSource.getName()`，即裸 pass 名。因此 `size.buffer.*`、`blend.*`、`texture.*`、`image.*`、`uniform.*` 都不接受 `<world>/` 前缀——写成前缀形态会被存进一个永远没人查的名字下。只有 `program.` 一族带命名空间。
+4. `compute.*` 键族在 1.11.2 完全没有解析器，任何拼法都是死键。
+
+包侧改动两处，都是"把不生效的写法换成生效的写法"，不改任何视觉意图：
+
+- 删 46 条 `blend.world*/…` 键（`Astra/shaders/shaders.properties`）。逐条核对过替身：`blend.shadow=off`（`:72`）、`blend.gbuffers_water.colortex5`（`:73`）、8 个半透明 pass 在 `#ifdef FANCY_TRANSLUCENTS` 两臂下的 root 形态（`:91-109`）、5 个 pass 的 `.colortex3=off`（`:110-114`），值一字不差。这些名空间键此前从未被查表命中，删掉后 GPU 状态零变化；真实收益是消灭了 46 条"看起来按维度配过、实际与根块各写各的"漂移源。
+- 9 条 Nether 光照 compute 门改写为 `program.world-1/shadowcomp{,A..H}.enabled=NETHER_VOXEL_LIGHT`（`:330-338`），并从 `#ifdef NETHER_VOXEL_LIGHT` 内部搬到外部——只在选项已经打开之后才存在的门开不了任何东西（事实 4 同时否掉了旧拼法 `compute.world-1/shadowcomp*.enabled`）。`image.*` 与 `iris.features.optional` 仍留在 `#ifdef` 内（`:344-349`），因为加载器会拒绝声明图像却没有 `CUSTOM_IMAGES` 特性标志的包。文件 375 行 → 349 行；目录限定 `program.` 门 25 条，非 `program.` 名空间键 0 条。
+
+**测量工具自身是 F-1 高报的根因，已一并收紧。** `qa/tools/inspect_iris_properties.py` 原本把任何以 `.enabled` 结尾的键都算作 pass 门，于是 9 条死键被计入"+14"。现在 Java 侧探测器只在 `program.` 前缀时输出 `GATE`，其余 `.enabled` 键单独输出 `DEADGATE`，Python 侧把 `DEADGATE` 汇成第四项并在有残留时直接 FAIL：「gate-shaped key(s) Iris never reads, so the pass dispatches in every tier」。负例已实测：把当前包复制到临时副本、按旧拼写还原那 9 条，工具报 `+5 gate(s) on / 15 on in BALANCED` 并 FAIL；改回 `program.` 拼法后才是 `+14 / 24 on`，且 9 条 shadowcomp 门在 PERFORMANCE 解出 `EFFECTIVE=false`。F-1 的原始记录已在 11.F-1 对应条就地更正。
+
+新增 `qa/tools/check_pack.py` 第 16 项 `check_dimension_gating()`（`:1468-1565`），检查项 15 → 16，四条 FAIL 规则：名空间前缀出现在非 `program.` 键族；目录限定门指向未知维度目录或"目录与根都没有该 pass"；root 条件门没有目录镜像（root 门到不了维度目录，Iris 只匹配带目录前缀的键）；门条件标识符与该键自身外层的正向 `#if/#ifdef` 集合有交集（本轮搬出 `#ifdef` 的九条 shadowcomp 门正是这一类）。另两类只报 NOTE。第一类是 6 条 pass 文件只存在于包根的目录门（`program.world-1|world1/composite2|composite3|composite4.enabled=false`，`:56-59`、`:75`、`:79`；这三个 pass 在根目录 vsh+fsh 成对齐全，两个维度目录里一份都没有）。这类门的意义取决于 Iris 是否让维度目录按 pass 回落到根源码——**但两种读法下 Astra 的可观察结果相同**：若无回落，这些门只是冗余（目录本来就没这个 pass）；若有回落，`false` 恰恰就是压住根源码所需的那一句。所以包不依赖这个未定行为，NOTE 只登记不判定。顺带把问题缩小了但没关闭：`ShaderPack` 只存一个 `base` ProgramSet 加一张 `NamespacedId → ProgramSetInterface` 的 `overrides` 表，`getProgramSet(dim)` 在有目录时整体返回该目录的集合、否则返回 `base`；`ProgramSet.get(ProgramId)` 只查自家 `EnumMap`，`ProgramFallbackResolver` 的唯一回落是 `ProgramId.getFallback()`（同族改名，不是根源码）。按 pass 合并根集合若存在，只可能在维度 ProgramSet 的构造参数（那个 `Function<AbsolutePackPath, String>` 源读取器）里，本轮没有解析到那一层。参照包侧这个形态很常见：RedHat 的 `world-1`/`world1` 各省掉 `gbuffers_water`，`just-colored-lighting` 三个目录各省掉 `dh_shadow` 与 `gbuffers_line`，而根目录都照常发货。第二类 NOTE 是"每维度 buffer 尺寸不可表达"这条——`size.buffer.*` 按裸名索引，所以 P2-18 验收里的"buffer 分配跟随维度配置"在 1.11.2 无法实现，改由键族规则关闭而不是假装做到。
+
+顺带修掉一处会让新门永不报警的校验器缺陷：SC-30（`qa/tools/check_pack.py:1005-1050`）的 `gated_programs` 现在只从 `program.*.enabled` 收集（`:1016-1020`）。旧写法同样照单收任何 `.enabled`，那 9 条死键会让 shadowcomp 阶段"看起来有门"，`:1047` 的"整个阶段没有开关条件"警告就永远不响——死键正是靠这个假象藏了很久的。
+
+门的灵敏度：`python qa/tools/test_gate_sensitivity.py` → **14/14 按预期**。第 16 项新增五个负例（`s9` 名空间 blend 键、`s10` root 门缺目录镜像、`s11` 门被自身 `#ifdef` 藏住、`s12` 门指向不存在的 pass、`s13` 门指向未知维度目录），仍在 `copytree` 出的临时副本上注入、真实包零改动，F-3 那九个场景一并复跑无回归。
+
+未采纳与不成立（P2-18 原文做法不照搬）：
+
+- "新增 `dimension.properties` 以按维度裁剪管线"→ 与事实 1 相反：默认映射恰恰依赖这个文件不存在，裁剪能力全部来自 `program.<world>/<pass>.enabled`，加文件只会引入风险。
+- "buffer 分配跟随维度配置"与"按维度覆盖 blend"→ 与事实 2、3 冲突，引擎侧不可表达。per-dimension blending 的正确出口是着色器源码自己写混合结果，已把这句连同实测出处写进 `shaders.properties:68-71` 的注释，防止后人再把键加回来。
+- 原文未区分 `program.` 与 `compute.*`，直接把两者都当可用指令族；事实 4 使这条验收只能通过 `program.` 形态达成。
+
+待实机：本轮关掉的是"三档全派发"这个形态，改不动的是它造成的后果能否被观察到。`Astra/shaders/program/nether_light.csh:12-16` 无条件声明 `usampler3D` / `sampler3D` / `writeonly image3D`，并以 `ivec3(8,8,8)` 派发 512 组；旧拼写下门从不生效、而 `image.*` 又随选项被预处理掉，因此"往未配置的图像单元写"在真实引擎里三档都存在过。改写后该路径在选项关闭时不再加载，是否留下过 GL 错误或性能差只能进游戏对照，记在收尾清单里。
+
+收尾门：`python qa/tools/check_pack.py` → **16 项 0 FAIL / 15 PASS / 1 WARN**（WARN 仍是 #4 include 图接线登记，与本条无关），#16 报「32 program gate(s) (25 folder-qualified), 0 inert namespaced directive(s)」，并把上面那类门登记成「6 folder gate(s) whose pass file exists only at the pack root … 6 of them read a literal false, which switches the pass off either way」；`python qa/tools/inspect_iris_properties.py` 退出 0，三档门阶梯 `+14 / 24 on`；`python qa/tools/test_gate_sensitivity.py` → 14/14；`python qa/tools/compile_glsl.py --matrix --jobs 3` → `RESULT_ALL batches=11 rows=83 entries_per_row=89 linked=7387 failed=0`，exit 0，日志 `qa/glsl-2026-09-20-t4-dimension.log`（本轮改了 `shaders.properties` 的条件与门，按 F-2 定的成本规则矩阵门必须重跑）；`qa/iris-properties-resolved.txt` 重生成 328 行，`:308-316` 为九条 `program.world-1/shadowcomp*.enabled=1`，`compute.*` 行已归零。
 
 
 

@@ -66,6 +66,7 @@
 2. 同因：`shadow.vsh` 的体素写入缺 420+ 守卫，`NETHER_VOXEL_LIGHT` 是全局选项，导致主世界与末地阴影着色器也声明 `uimage3D` 并编译失败（离线编译 3 处 FAIL）。已加 `DIMENSION_NETHER &&` 守卫。
 3. 离线编译工具的 Iris 前置宏与 Iris 1.11.2 不一致：`MC_RENDER_STAGE_SUN/MOON/CUSTOM_SKY` 写成 3/4/7，真实枚举序数是 4/5/3（`WorldRenderingPhase`）。这会让 `program/sky.fsh` 的星/日/月分支永久不命中。已按枚举全量重写并在 `check_pack.py` 加 SC-31 防漂移。
 4. `compile_glsl.py` 只编译 vsh/fsh 对，`.csh` 零覆盖；`check_pack.py` 对 `image.*`/`compute.*`/`features.*` 一无所知。两者已扩展。
+   - 【2026-09-20 P2-18 复核】`compute.*` 那一族键 Iris 根本没有解析器（`ShaderProperties` 里无对应处理分支），所以本条"已扩展"的门在校验一个引擎不读的键；`check_pack.py` 第 11/16 项已改判 `program.<world>/<pass>.enabled`。
 5. `iris.features.required=CUSTOM_IMAGES` 会在特性不可用时弹 `FeatureMissingErrorScreen` 并整体禁用光影；已改 `optional` 并把 `image.*` 指令放进 `#ifdef NETHER_VOXEL_LIGHT`（否则 Iris 对“有 image 无特性位”直接抛 `IllegalStateException`）。
 6. 台账 astra-only 计数停在 16，实算 22；`astraSolas*` 记为 9 条，实为 11 条。已更正。
 7. `lib/water_buffer_formats.glsl` 的 `const int colortex*Format` 曾被记为“Iris 禁止”，实为误判：Bliss 与 Complementary 两个参考包都这么写。SC-27 规则已改为“名称合法 + 字面量或全大写 token + 每缓冲仅一处声明”。

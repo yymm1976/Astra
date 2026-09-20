@@ -7,7 +7,7 @@
 
 | # | 项 | 对应验收 | 1.21.x | 26.1/26.2 | 备注 |
 |---|---|---|---|---|---|
-| 1 | Iris 加载零编译错误（最新日志 0 error）；离线等价门：`python qa/tools/check_pack.py`（15 项 0 FAIL）+ `python qa/tools/compile_glsl.py --matrix`（83 行穷举 0 failed） | §8.1 / 调研 P2-11/P2-12 | | | |
+| 1 | Iris 加载零编译错误（最新日志 0 error）；离线等价门：`python qa/tools/check_pack.py`（16 项 0 FAIL，含 #16 维度门键族）+ `python qa/tools/compile_glsl.py --matrix`（83 行穷举 0 failed） | §8.1 / 调研 P2-11/P2-12/P2-18 | | | |
 | 2 | 三维度（主世界/下界/末地）正常进入渲染 | §8.1 | | | |
 | 3 | 三档 profile 一键切换且设置生效 | §8.6 | | | |
 | 4 | zh_CN 设置界面全覆盖、无 raw key | §8.6 | | | |

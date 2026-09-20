@@ -1005,17 +1005,19 @@ def check_iris_parser_contracts():
     # SC-30: compute shaders live at <stage>/<name>.csh; Iris reads the ShadowComposite,
     # Setup and Final stages, so a stray .csh is dead weight no compile step would catch.
     # Include-only helpers (program/*.csh) are fine when a stage file includes them.
-    # A stage with no compute.<stage>.<name>.enabled condition cannot be switched off
-    # from shaders.properties, so it always burns GPU time.
+    # A stage with no program.<name>.enabled condition cannot be switched off from
+    # shaders.properties, so it always burns GPU time. The name Iris compares carries the
+    # world folder for a dimension stage; "compute.<stage>.<name>.enabled" is not parsed by
+    # any Iris handler at all (P2-18), so gating through it does nothing.
     compute_dir = {"shadowcomp", "setup", "final"}
     compute_files = sorted(PACK.rglob("*.csh"))
-    enabled_stages = set()
+    gated_programs = set()
     for line in logical_lines(properties_text):
-        if not line.startswith("compute.") or "=" not in line:
+        if not line.startswith("program.") or "=" not in line:
             continue
         key, value = (part.strip() for part in line.split("=", 1))
         if key.endswith(".enabled") and value:
-            enabled_stages.add(key[len("compute."):-len(".enabled")])
+            gated_programs.add(key[len("program."):-len(".enabled")])
     for path in compute_files:
         parts = path.relative_to(PACK).parts
         stem = path.stem
@@ -1035,14 +1037,14 @@ def check_iris_parser_contracts():
                 c.warn(f"{pk(path)}: include-only compute module that no other compute "
                        f"shader includes")
             continue
-        is_stage_file = len(parts) == 2 and base and base.group(1) in compute_dir
+        is_stage_file = (len(parts) in (1, 2)) and base and base.group(1) in compute_dir
         if not is_stage_file:
             c.fail(f"{pk(path)}: '{stem}' is not a compute stage Iris loads "
                    f"(expected {', '.join(sorted(compute_dir))})")
             continue
-        stage_key = f"{parts[0]}.{stem}"
-        if stage_key not in enabled_stages:
-            c.warn(f"{pk(path)}: no compute.{stage_key}.enabled condition; the whole stage "
+        stage_key = stem if len(parts) == 1 else f"{parts[0]}/{stem}"
+        if stage_key not in gated_programs:
+            c.warn(f"{pk(path)}: no program.{stage_key}.enabled condition; the whole stage "
                    f"is built and dispatched unconditionally")
     if compute_files and "COMPUTE_SHADERS" not in set(feature_required) | set(feature_optional):
         c.warn("compute shaders present but no iris.features.*=COMPUTE_SHADERS declaration")
@@ -1447,6 +1449,122 @@ def check_vendor_isolation():
     return c
 
 
+# ------------------------------------------------------- dimension gating
+
+# Iris 1.11.2 takes a "<world>/" namespace on exactly one directive family: program.
+# Everything else is stored under the key text as written and looked up by a bare name -
+# ShaderProperties resolves blend overrides with blendModeOverrides.get(ProgramSource
+# .getName()) and PackDirectives with scaleOverrides.containsKey(<buffer>) - so a
+# namespaced blend./size./texture./image./uniform. key can never match a program, and
+# several of them make Iris's own properties parser throw. program.* is the exception
+# because ShaderPack derives the disabled-program name from the path text, world folder
+# included. Measured on iris-fabric-1.11.2+mc26.2 (survey P2-18, 2026-09-20).
+WORLD_FOLDER = re.compile(r"world-?\d+")
+NAMESPACED_KEY = re.compile(r"^(?P<family>[A-Za-z.]+?)\.(?P<folder>world-?\d+)/")
+PROPERTIES_IF = re.compile(r"^#if(def|ndef)?\s+\S")
+OPTION_IDENTS = re.compile(r"\b[A-Z][A-Z0-9_]{2,}\b")
+
+
+def check_dimension_gating():
+    c = Check(16, "per-dimension pipeline trimming uses keys Iris parses (survey P2-18)")
+    folders = sorted(p.name for p in PACK.iterdir()
+                     if p.is_dir() and WORLD_FOLDER.fullmatch(p.name))
+    if not folders:
+        c.note("no dimension folders in the pack - nothing to gate per dimension")
+        return c
+
+    def pass_stems(folder=None):
+        base = PACK if folder is None else PACK / folder
+        return {p.stem for p in base.iterdir()
+                if p.is_file() and p.suffix in (".vsh", ".fsh", ".csh")}
+
+    root_passes = pass_stems()
+    folder_passes = {f: pass_stems(f) for f in folders}
+
+    gates = {}                 # program name -> [(lineno, value, enclosing option names)]
+    dead_namespaced = []
+    branch_stack = []          # identifiers the enclosing #if/#ifdef tests positively
+    _, properties_text = parse_properties()
+    for lineno, line in enumerate(logical_lines(properties_text), 1):
+        if PROPERTIES_IF.match(line):
+            head = line.split()[0]
+            idents = set() if head == "#ifndef" else {
+                x for x in OPTION_IDENTS.findall(line) if x != "DEFINED"}
+            branch_stack.append(idents)
+            continue
+        if line.startswith("#else"):
+            branch_stack[-1:] = [set()]
+            continue
+        if line.startswith("#endif"):
+            if branch_stack:
+                branch_stack.pop()
+            continue
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = (part.strip() for part in line.split("=", 1))
+        match = NAMESPACED_KEY.match(key)
+        if match and match.group("family") != "program":
+            dead_namespaced.append((lineno, key))
+        if key.startswith("program.") and key.endswith(".enabled"):
+            enclosing = set().union(*branch_stack) if branch_stack else set()
+            gates.setdefault(key[len("program."):-len(".enabled")], []).append(
+                (lineno, value, enclosing))
+
+    for lineno, key in dead_namespaced:
+        c.fail(f"shaders.properties:{lineno}: {key} - only program.* accepts a <world>/ "
+               f"namespace, so Iris never looks this key up; per-dimension behaviour has to "
+               f"come from the shader sources")
+
+    root_gates = {n: v for n, v in gates.items() if "/" not in n}
+    folder_gates = {n: v for n, v in gates.items() if "/" in n}
+    inherited = []
+    for name, entries in sorted(folder_gates.items()):
+        folder, _, stem = name.partition("/")
+        if folder not in folder_passes:
+            c.fail(f"shaders.properties:{entries[0][0]}: program.{name}.enabled names the "
+                   f"unknown dimension folder {folder}/")
+            continue
+        if stem not in folder_passes[folder] | root_passes:
+            c.fail(f"shaders.properties:{entries[0][0]}: program.{name}.enabled gates a pass "
+                   f"that exists in neither {folder}/ nor the pack root")
+        elif stem not in folder_passes[folder]:
+            inherited.append(name)
+
+    for name, entries in sorted(root_gates.items()):
+        conditional = [v for _, v, _ in entries if v not in ("true",)]
+        if not conditional:
+            continue
+        for folder in folders:
+            if name not in folder_passes[folder]:
+                continue
+            if f"{folder}/{name}" not in folder_gates:
+                c.fail(f"{folder}/{name}: the root gate program.{name}.enabled="
+                       f"{'/'.join(conditional)} does not reach this folder - Iris matches "
+                       f"the folder-qualified name, so the pass runs unconditionally here")
+
+    for name, entries in sorted(gates.items()):
+        for lineno, value, enclosing in entries:
+            hidden = enclosing & set(OPTION_IDENTS.findall(value))
+            if hidden:
+                c.fail(f"shaders.properties:{lineno}: program.{name}.enabled={value} sits "
+                       f"inside a {'/'.join(sorted(hidden))} branch, so the gate disappears "
+                       f"exactly when the pass needs switching off")
+
+    c.note(f"dimension folders {', '.join(folders)}; {len(gates)} program gate(s) "
+           f"({len(folder_gates)} folder-qualified), {len(dead_namespaced)} inert "
+           f"namespaced directive(s)")
+    if inherited:
+        off = [n for n in inherited if all(v == "false" for _, v, _ in folder_gates[n])]
+        c.note(f"{len(inherited)} folder gate(s) whose pass file exists only at the pack root "
+               f"({', '.join(sorted(inherited))}): redundant if a dimension folder drops a pass "
+               f"it does not ship, load-bearing if Iris inherits the root source instead - "
+               f"{len(off)} of them read a literal false, which switches the pass off either way")
+    c.note("per-dimension buffer sizing is not expressible on Iris 1.11.2 - size.buffer.* is "
+           "keyed by the bare buffer name - so P2-18's allocation clause is closed by "
+           "check_dimension_gating's namespaced-key rule instead")
+    return c
+
+
 def main():
     print(f"Astra pack validator | pack={rel(PACK)} | python={sys.version.split()[0]}")
     print("=" * 72)
@@ -1465,6 +1583,7 @@ def main():
     check_option_consumers()
     check_buffer_declarations()
     check_vendor_isolation()
+    check_dimension_gating()
     for c in CHECKS:
         c.render()
     print("=" * 72)

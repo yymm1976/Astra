@@ -35,7 +35,7 @@
 `dimension.properties`（`dimension.world0=*`）+ `shaders.properties:95-112`：
 
 - world0 通配**所有模组维度**；`#if SHADOW_QUALITY == -1 → program.world0/shadow.enabled=false` 等写法按选项**整条禁用 pass**（分维度三行各写一遍）。
-- 对 Astra 的两个直接价值：① 模组维度（SC-3 决定 v1 继承根层=主世界语义）至少可以关掉下界/末地专属 pass；② 09-13 §13.3 认为"properties 尺寸指令不能按维度收窄"（T7），而 Complementary 证明**按维度禁用/启用 pass** 是一等公民机制——colortex1 在下界/末地的闲置分配、deferred 条件化（汇总工单的"下一批"项）都有正解路径了。v1.1 候选。
+- 对 Astra 的两个直接价值：① 模组维度（SC-3 决定 v1 继承根层=主世界语义）至少可以关掉下界/末地专属 pass；② ~~09-13 §13.3 认为"properties 尺寸指令不能按维度收窄"（T7），而 Complementary 证明按维度禁用/启用 pass 是一等公民机制~~ ——T4 复核后**只成立一半**：按维度禁用/启用 pass 确是一等公民（`program.<world>/<pass>.enabled`），但"colortex1 在下界/末地的闲置分配可省"仍无解，维度目录只覆盖 program 源，全包只有一份 `shaders.properties`。deferred 条件化仍走 pass 门这条路。
 
 ### 1.4 昂贵 pass 的分辨率做成用户选项
 
@@ -50,7 +50,7 @@
 - **shadowcolor1 × 4.0**（`:221`）：染色阴影透射色在 VL 里乘 4 补偿能量——Astra 的 `caster.gba` 直接使用，水下光束若偏暗可试同款缩放（与 09-20 B4 重标定互补）。
 - **每时段调色板滑块**（`shaders.properties:68`：LIGHT_NOON/MORNING/NIGHT/RAIN × RGB 等 100+ 滑块）：与 Astra"风格集中在 grading.glsl 单文件"的哲学相反。**不建议照搬**（违背 design 3.3 的少而精），仅记录为艺术管线对照。
 - **GetSky 同样逐像素调用**（`mainFog.glsl`/`reflectionBackground.glsl` 都调）：说明 Astra 的雾/反射逐像素天空成本与一线包同级——汇总报告"天空 LUT"仍是对 Photon 的**超车项**而非补课项，优先级可保持中位。
-- **`world0` + `dimension.properties` 还承载 buffer 尺寸差异化的可能**（尺寸指令放 world 壳内），T7 的彻底解法。
+- ~~**`world0` + `dimension.properties` 还承载 buffer 尺寸差异化的可能**（尺寸指令放 world 壳内），T7 的彻底解法。~~ **T4 复核推翻**：`ShaderPack` 只在根目录读一次 `shaders.properties`，维度目录仅提供 program 源覆盖；`size.buffer.*` 以裸缓冲名为键，带 `<world>/` 前缀即查不到。四个参照包里带 world 前缀的 `size.buffer.` 也是 0 处。
 
 ## 2. Reimagined vs Unbound（同为 r5.9.3）
 
