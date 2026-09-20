@@ -5,6 +5,10 @@
 # Python bytecode (qa/tools/check_pack.py imports provenance_steadfast)
 __pycache__/
 
+# bloom_lod_probe.py dumps every frame as RGBA32F floats (283 MB per run); the tool
+# regenerates them, only results.json and the baselines are evidence worth keeping
+qa/bloom-lod-probe/*.f32
+
 # OS junk
 Thumbs.db
 .DS_Store

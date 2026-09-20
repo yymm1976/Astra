@@ -1002,7 +1002,7 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 | 「VP 11,388 行 > Astra 9,559 行」 | **净代码口径下反转** | VP 净 7,004（许可头 4,384）< Astra 9,804 |
 | JCL 注释比 0.378 / 最长行 18,043 = 混淆 | **是打包风格** | `//[枚举]` 被 `census.py:91` 计入注释；纯注释行比 0.139；长行是 OptiFine 枚举滑杆 |
 | JCL `stuff/` 作者名文件构成侵权嫌疑 | **排除** | 是作者自己另一工程的三份近重复副本（difflib 0.974/0.905），风险为自我重复（7,900 行 / 34% 包体） |
-| 借鉴报告 #1「循环体已全显式 LOD」 | **不成立（证据已更正）** | 结论仍成立但站点指错过：`light_shafts.glsl:110,125` 的 `shadowtex1`/`shadowcolor0` 全包无 mipmap 声明，隐式 LOD 只取 level 0，无害。真站点是 `global/water/bloom_capture.glsl:21`——`colortex0` 经 `program/water_bloom.fsh:5` 开 mip，该行在双重循环内、外层 `:15` 是数据相关 `if`，属未定义行为。正确修法是把 `lod` 参数显式传下去（`textureLod(colortex0, sampleCoord, lod)`）而非 `texelFetch`——`getBloomTile` 的整个 mip 选择本来就靠 `exp2(lod)` 缩放坐标 + 梯度推导，`texelFetch` 会绕过它（§6 P1-16） |
+| 借鉴报告 #1「循环体已全显式 LOD」 | **不成立（证据已更正）** | 结论仍成立但站点指错过：`light_shafts.glsl:110,125` 的 `shadowtex1`/`shadowcolor0` 全包无 mipmap 声明，隐式 LOD 只取 level 0，无害。真站点是 `global/water/bloom_capture.glsl:21`——`colortex0` 经 `program/water_bloom.fsh:5` 开 mip，该行在双重循环内、外层 `:15` 是数据相关 `if`，属未定义行为。正确修法是把 mip level 显式命名下去而非 `texelFetch`——`getBloomTile` 的整个 mip 选择本来就靠 `exp2(lod)` 缩放坐标 + 梯度推导，`texelFetch` 会绕过它（§6 P1-16）。〔2026-09-20 执行期更正〕本报告原写的 `textureLod(colortex0, sampleCoord, lod)` 逐字采用不成立：梯度推出来的 level 带一项分辨率补偿，实测 λ = `lod + log2(pixelHeight * viewHeight)`，裸传 `lod` 在 1080p 短 1.26 个 level（11.F-7） |
 | 借鉴报告「Unbound 多出 TAA + 体素化 + 3D 云 + SSR/反射缓冲 + textRendering」 | **部分描述错** | TAA + 体素化 + textRendering 确为 Unbound 独有；但 SSR/反射缓冲（colortex7/8）与 3D 云在 Complementary 共享 `lib/` 中已存在，不是 Unbound「多出」 |
 | 借鉴报告「`lib/common.glsl:120-121` 两张反射缓冲尺寸声明」 | **文件错** | 反射缓冲尺寸在 `dimension.properties` 的尺寸指令中通过 `REFLECTION_RES` 引用，不在 `common.glsl:120-121` |
 | 借鉴报告 waterFog 谱序「b×=(1-abs³·0.5)」 | **参数化描述错** | `waterFog.glsl:6` 无 swizzle ⇒ 三次项是三通道共有衰减而非 b 独享；定性结论「红衰最快、蓝衰最慢」仍成立（19 点数值扫描 r<g<b 恒成立） |
@@ -1014,7 +1014,7 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 
 ### 9.4 落地顺序建议
 
-`P0-1`（纯配置，无风险，先做）→ `P2-12`（穷举编译，为后续所有开关兜底）→ `P2-10`/`P2-11`（合规与防退化基础设施）→ `P2-18`（`dimension.properties` 按维度裁剪，纯配置）→ `P1-5`/`P1-9`（成对做，同一处 bias/畸变）→ `P1-17`（水吸收侧面 skylight 代理 + 未命中近场缓释）→ **`P1-16` 前置**：把 `global/water/bloom_capture.glsl:21` 的隐式 LOD 改为 `textureLod(colortex0, sampleCoord, lod)`（该函数靠 `exp2(lod)` 缩放坐标 + 梯度推导选 mip，`texelFetch` 会绕过这套选择，不可用）→ `P1-16`（光束时域自适应采样，依赖前置完成）→ `P1-6` → `P1-7` → `P1-8` → `P2-14`/`P2-19`（分辨率粒度选项）→ `P2-20`（光束标定三条，随 P1-16 对拍）→ `P0-2` → `P0-3` → `P2-13`（MIT 可署名复用清单）→ P2 余项（含 `P0-4` 降级后的月相残差，仅一处，顺手做）。**〔2026-09-20 执行期调整〕**`P0-2`/`P0-3` 从原来的第 5 位挪到后段：这两项是全表视觉风险最高、必须实机校准后才敢放的条目，且 `P0-3` 还卡在 `design.md` §4.1 需要先行修订；把它们排在低风险、可静态验证的条目之后，能让每一步都有编译或校验脚本兜底，而不是让最高风险项挡在最前面。
+`P0-1`（纯配置，无风险，先做）→ `P2-12`（穷举编译，为后续所有开关兜底）→ `P2-10`/`P2-11`（合规与防退化基础设施）→ `P2-18`（`dimension.properties` 按维度裁剪，纯配置）→ `P1-5`/`P1-9`（成对做，同一处 bias/畸变）→ `P1-17`（水吸收侧面 skylight 代理 + 未命中近场缓释）→ **`P1-16` 前置**：把 `global/water/bloom_capture.glsl:21` 的隐式 LOD 改为显式命级（实测须写成 `textureLod(colortex0, sampleCoord, lod + log2(pixelHeight * viewHeight))`；裸传 `lod` 会去掉隐式路径自带的分辨率补偿，11.F-7。该函数靠 `exp2(lod)` 缩放坐标 + 梯度推导选 mip，`texelFetch` 会绕过这套选择，不可用）→ `P1-16`（光束时域自适应采样，依赖前置完成）→ `P1-6` → `P1-7` → `P1-8` → `P2-14`/`P2-19`（分辨率粒度选项）→ `P2-20`（光束标定三条，随 P1-16 对拍）→ `P0-2` → `P0-3` → `P2-13`（MIT 可署名复用清单）→ P2 余项（含 `P0-4` 降级后的月相残差，仅一处，顺手做）。**〔2026-09-20 执行期调整〕**`P0-2`/`P0-3` 从原来的第 5 位挪到后段：这两项是全表视觉风险最高、必须实机校准后才敢放的条目，且 `P0-3` 还卡在 `design.md` §4.1 需要先行修订；把它们排在低风险、可静态验证的条目之后，能让每一步都有编译或校验脚本兜底，而不是让最高风险项挡在最前面。
 
 ## 10. 借鉴报告核收台账
 
@@ -1120,11 +1120,12 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 11. P1-17 侧面症状方向 → **反了**。`dot(origin−point, faceNormal)` 是背景命中点到水面所在平面的垂直距离：顶面上等于真实水柱，侧面上等于相机到背景的距离，所以竖直水壁是**过吸收**（48 块处红通道实测 0.0072，加界后 0.0739），不是原文的"≈0、几乎不吃吸收"。执行 T6 时按同一几何做 A/B 实测得到（11.F-6）。
 12. P1-17 做法②（读 colortex3 skylight 作深度代理）→ **不必要**。代理的取值域本身就是 1/16..1 块（`absorption_refraction.glsl:92` 已核对），而"侧面所在水块沿该法线的邻格不是水 ⇒ 厚度 ≤ 1 块"是几何真值，`min(depth, 1.0)` 一步到位，不必为同一个上界再读一张缓冲。② 的"一个分支 + 一次 skylight 读取"成本随之改为一次 `view_player` 点积。
 13. §10.4 第 11 行「Steadfast 水吸收 skylight 代理：成立、v2 备选」→ Astra 侧**没有这个缺口**（11.D-12），撤销该建议，不留 v2 备选位。
+14. §9.2 与 §9.4 的 P1-16 前置修法「改成 `textureLod(colortex0, sampleCoord, lod)`」→ **不完整**。隐式梯度选出的 level 自带分辨率补偿 λ = `lod + log2(pixelHeight * viewHeight)`，裸传 `lod` 在 270/360/540/1080 分别短 0.32 / 0.32 / 0.26 / 1.26 个 level，等于在每个分辨率都把水下泛光改锐一档。执行 T7 时实测得到（11.F-7），两处已就地写回正文。
 
 ### 11.E 复核中新发现的 Astra 侧问题（报告未提）
 
 1. **`program/scattering.fsh:2` 注释腐烂**：称 "colortex1 is full resolution when water shafts are enabled"，但 `shaders.properties:14` 已固定 `size.buffer.colortex1=0.5`。属 §7.B.5 要防的"注释记配置"自伤，顺手修正。**执行阶段扫描发现同一失败模式另有两处，复核未捕捉**：`program/composite1.fsh:1-2` 称 colortex2 为 "half resolution"/"0.5x"，`global/post/bloom.glsl:5,82,86` 称 "half-resolution"/"2x downsample"——而 `shaders.properties:19` 与 `bloom.glsl:42` 的 `BLOOM_CAPTURE_SCALE` 早已是 `0.25`（`properties:15-18` 的注释正是记录这次 0.5→0.25 改动，只有散文没跟上）。三处均已改为指向单一真源而非重述数值；代码侧本就由 `BLOOM_CAPTURE_SCALE` 与 `textureSize` 推导，无行为缺陷，纯注释腐烂。
-2. **`bloom_capture.glsl:21` 的隐式 LOD 站点**（见 11.D-6）：在项目记忆中仍为开放项，优先级应高于 P1-16 字面的前置修复。
+2. **`bloom_capture.glsl:21` 的隐式 LOD 站点**（见 11.D-6）：在项目记忆中仍为开放项，优先级应高于 P1-16 字面的前置修复。**〔已闭合：T7 / 11.F-7，站点现为 `:26`，分支条件现为 `:20`〕**
 3. ~~**行数口径混用**：M1 用 wc 口径（9559）、§9 模块普查用 `count('\n')+1`（9804）~~ —— **本条经实测撤销**（2026-09-20 执行阶段）。缺陷不存在：§3.1 的 ASTRA 行写的就是 **9804**，与 `astra_census.json`（`glsl_files=245, glsl_lines=9804`）一致；`census.py:74` 与 `census_astra.py:21` 两处**都已**用 `count("\n")+1`，工具侧本就统一。`9559` 全文只出现在两处——本节 11.A 的转述，以及 §9.2 表内作为**被推翻前提的引文**（那一行本来就在记录旧数字，不是 M1 的值）。复核时把引文误当成了表格数值。独立重算 245 文件得 `count('\n')=9560`、`+1/文件=9805`，与 9804 的 1 行差是末行换行边界，属 11.A 自己说过的口径差，不是混用。
 4. **三处"对报告的怀疑"经复核撤销**，记录以防将来误改：`design.md:517` 行号准确；"shadowcomp 12 条"口径自洽；§2.19 "Astra 许可头 0" 在"逐文件 boilerplate"口径下成立——Astra 的 1–4 行 PROVENANCE 短注不属于该列统计对象。
 5. **`DITHERING` 是个死选项**（P0-1 新建的差分门抓出；`Astra/shaders/lang/en_US.lang:67` 与 `zh_CN.lang:67` 早就为它写好了 GUI 文案）：`Astra/shaders/lib/settings.glsl:194` 的声明形式与 `BLOOM`/`VIGNETTE` 完全一致，`OptionAnnotatedSource` 单文件扫描也不报任何 diagnostic，但它始终不在 `ShaderPackOptions.getOptionSet()` 里 ⇒ GUI 无该行、三条 profile 的 `DITHERING` token 全部无效、`#define` 行永不改写，输出抖动实际恒开。根因是 Iris 的发现规则：**布尔选项只有在某个图文件里被 `#ifdef`/`#ifndef` 引用，才会进入选项集**——`OptionAnnotatedSource.parseLine` 只把这两个前缀交给 `parseIfdef` 去填 `booleanDefineReferences`，`ShaderPackOptions` 跨文件求并集后把它当作过滤参数传给 `getOptionSet(path, names)`，而 `defined()` 根本不被解析。包内 27 个布尔选项与该规则 1:1 吻合：唯一没有 `#ifdef` 站点的正是 `DITHERING`（原先只在 `Astra/shaders/global/post/grading.glsl:186` 以 `#if defined` 出现）。已改写为 `#ifdef`，实测 Iris 发现数 89→90、差分门归零，运行行为不变（出厂默认与三档都是 true）。**本条同时推翻 `qa/tools/check_pack.py` 的 SC-28 在 2026-09-10 写下的相反结论**（"真正的要求只是选项在某处被引用，`defined()` 也算"）——那次误判正是这道门放行该缺陷的原因，规则已就地改正并从 WARN 升为硬失败。
@@ -1335,4 +1336,41 @@ HEAD 那一列自证了症状：同距离的瀑布与平视差一个数量级（
 待实机两项已进 `qa/regression-checklist.md` 新行 10a：侧面 1 块界在瀑布面/水渠侧面是否偏浓（参照包的代理会把露天侧面压到 1/16 块）；未命中缓释的增浓速率在瀑布背后与浅水贴地平线处是否衔接自然。离线只能证明"改前是把整段视野当水柱"，不能证明"1 块看起来对"。
 
 收尾门：`python qa/tools/water_path_probe.py` → exit 0（本轮两次反向验证后复跑，`results.json` 与反向验证前逐键相同）；`python qa/tools/water_stability.py` → `boundary continuity assertions: PASS`、exit 0；`python qa/tools/check_pack.py` → 16 项 0 FAIL / 15 PASS / 1 WARN（WARN 仍是 #4 Voxy C5 接线登记，与本条无关）；`python qa/tools/compile_glsl.py` 三档默认 → `linked=267 failed=0 compute=27`，exit 0；`python qa/tools/test_gate_sensitivity.py` → 14/14 按预期；`python qa/tools/provenance_steadfast.py --quiet` 计数不变。按 11.F-2 的成本规则，本条不碰 `shaders.properties` 也不改任何选项分支，三档扫描即可收口，未跑 83 行全矩阵。
+
+**F-7 · T7 执行 P1-16 前置：`bloom_capture.glsl` 隐式 LOD 显式命级**
+
+包侧只动一个文件：`Astra/shaders/global/water/bloom_capture.glsl`（43 行，落地 sha256 前 16 位 `d123163c82cac357`），两处改动，唯一包含点 `program/water_bloom.fsh:6`；该 pass 在 `:10` 对 `isEyeInWater != 1` 直接 discard，影响面严格限于水下 tile bloom。
+
+- 病灶：`texture(colortex0, sampleCoord)`（改前 `:21`，现为 `:26`）在 6×6 双循环里取隐式 mip level，外层 `:20`（改前 `:15`）是按 tile 判定的数据相关 `if`，而 `program/water_bloom.fsh:5` 声明 `const bool colortex0MipmapEnabled = true`——quad 内有 lane 跳过循环时该次读取的导数无定义。
+- 修法不是本报告原写的裸 `lod`（11.D-14）。实测隐式路径选的 level 带一项分辨率补偿：**λ = `lod + log2(F)`，`F = 0.8·viewHeight / min(360.0, viewHeight)`**。因为 `:6` 已有 `pixelHeight = 0.8/min(360.0, viewHeight)` 且 `viewSize.y = 1/viewHeight`，`F` 恰等于 `pixelHeight · viewHeight`，所以 `:16` 新增的 `float level = lod + log2(pixelHeight * viewHeight);` 不引入任何新常量。删掉 `log2` 项会在 270/360/540/1080 上分别短 0.32 / 0.32 / 0.26 / 1.26 个 level——即在每个分辨率都把水下泛光改锐一档。
+- `:12-15` 的四行注释写明"这就是导数当初解出的 level"与丢掉补偿项的后果；`level` 只由 `lod`、`viewHeight` 与常量决定，与像素坐标无关，因此命名它不改变任何一次读取的空间位置。
+
+新工具 `qa/tools/bloom_lod_probe.py`（429 行）实测。它复用 `compile_glsl.py` 的 `Expander` / `parse_profiles` / `lwjgl_classpath`，在隐藏的 compat-profile GLFW 窗口里把出厂文件本身 `#include` 进来（非常识内嵌副本），渲染到 RGBA32F FBO（1 屏幕像素 = 1 fb 像素），纹理每级填常数 `R = L/8`，于是读回值直接解出硬件选的 level。6 个 mode × 4 个分辨率（480x270 / 640x360 / 960x540 / 1920x1080），驱动 `NVIDIA 572.83`，`RTX 4050 Laptop GPU/PCIe/SSE2`。
+
+| viewHeight | F | 预测 λ(lod=3) | 改前实测 | 改后实测 | 裸传 `lod` |
+|---|---|---|---|---|---|
+| 270 / 360 | 0.8 | 2.6781 | 2.7765 | 2.7765 | 2.0 |
+| 540 | 1.2 | 3.2630 | 3.1647 | 3.1569 | 3.0 |
+| 1080 | 2.4 | 4.2630 | 4.1639 | 4.1562 | 4.0 |
+
+lod 2/3/4/5 共 16 个点全部落在预测 ±0.15 内；同一 lod 在 270 与 1080 之间实测相差 1.39 level（解析值 1.585），所以"分辨率补偿"是量出来的效应，不是对残差的解释。
+
+图像中性：`python qa/tools/bloom_lod_probe.py --baseline ../bloom-lod-probe/pre-fix.json` → exit 0，`level_deltas` 里 270/360 两档 8 点逐位相同（0.0000），540/1080 两档 8 点全为 −0.0078 level。−0.0078 正是探针在此类混合比例下能分辨的最小台阶（1/128 level，等于源 8-bit 编码的 1/4 码），折算到 `exp2(λ)` 决定的模糊半径是 0.54%。唯一不中性的变化是 tile 区域边界：改前驱动把 `:20` 的判定按 2×2 quad 求值，边界吸附在第 97 像素（Python 侧解同一条谓词得到的正确值是 98；亚像素偏移 1.5 与 1.75 两条扫描线都差这一格，`branch_transitions_on_quad_edge_only = true`、`shifts_the_driver_snapped = [1.5, 1.75]`）；命名显式 level 后分支不再需要共享梯度，按像素求值，边界落到 98（`transition_on_quad_edge = false`）。宽度 1 像素，位置在水下 tile bloom 区边缘。
+
+本轮被自己的工具推翻的两条说法，先记账：
+
+1. **"驱动的固定功能 LOD 单元只有约 ±0.1 level 精度"——不成立。** mode 5 用完全不含导数的显式 `textureLod` 打 2.00 / 2.25 / 2.50 / 2.75，读回 2.0078 / 2.1372 / 2.5137 / 2.8902（残差 +0.0078 / −0.1128 / +0.0137 / +0.1402），mode 3 的 1.5 / 2.5 / 3.5 / 4.5 落在同一条曲线上（1.5098 / 2.5137 / 3.5176 / 4.5058），四个分辨率逐位相同。这些读数里没有任何导数可言，偏差却与改前改后同源，所以它是"level → 8-bit `R` → 三线性混合 → 读回"这条链的非线性（随 level 小数部分走），不是采样器选错 level。工具文档据此改成如实口径：**绝对 level 只可信到 ±0.15，两次运行之间的差可信到 0.0078**。
+2. **`pow(x, 1/8)` 那条"实测精确中性"不算独立证据。** mode 4 与 mode 5 的解码在代数上互为逆（`decode = 2048·v⁸` 正是把着色器里的 `/256` 与 `pow(·, 1/8)` 反解回 `8x`），两者相同是构造保证；该断言（`|mode4 − mode5| < 0.01`）实际只约束 float32 下 pow/^8 往返的损失。它保留，但定位从"验证往返中性"改成"约束 fp32 幂运算精度"。
+
+旧门为什么改前绿、改后红：原断言 `|mode 0 − mode 2(footprint)| < 1e-3` 两侧同走一条非线性读回曲线，是共模比较，容差再紧也测不出绝对偏差；改后 mode 0 走显式命级、mode 2 仍是导数驱动，1e-3 立刻碎在 −0.0078 上。**没有放宽这条容差**，而是把它降级成显式记录的 `derivative_cancellation_levels`（7 个可比对：4 个 0.0、3 个 −0.0078，门限 0.02）——共模消去之后它约束的是"λ = lod + log2 F"这个模型本身；绝对 level 对预测值的核验另走 ±0.15 门，图像中性交给 `--baseline`。中途还删掉一个临时探针断言（`shipped_taps_still_derivative_driven`，0.01 阈值在 −0.0078 的真相位差上仍判 True，属误判设计而非缺陷信号）。
+
+诚实的负面：这台机器上看不到任何接缝、闪烁或亮度差，改前形态在本驱动上是"看起来对的"。本条买到的是确定性（隐式 LOD 在别的驱动或别的 quad 排布下不保证解出同一个 level，而它决定的模糊半径在 1080p 与 360p 之间本来就差 1.26 level）加那一像素边界更正，不写成"修好了可见问题"。
+
+参照包不跟：Solas V2.2b `shaders/lib/post/computeBloom.glsl`（36 行）同一函数 `:14` 是同样的数据相关 `if`、`:20` 同样是隐式 `texture2D`，上游自带这个 UB。〔另记：先前登记的 Solas `composite13.glsl:19` 声明 mip 的引文不在 V2.2b 树内——该树没有 `programs/composite13.glsl`，那条来自 `_analysis/latest-2026-09-10/solas-shader` 另一棵树（其 `computeBloom` 的 `if` 在 `:13`、tap 在 `:19`），不得作为 V2.2b 引证。〕包内其余显式命级读取重数为 19 处（`global/post/bloom.glsl` 7、`program/deferred.fsh` 4、`atmosphere/weather.glsl` 2、`water/caustics.glsl` 2、`water/light_shafts.glsl` 2、`atmosphere/clouds_planar.glsl` 1、`water/surface.glsl` 1），本条新增第 20 处；全部入口为 `#version 400 compatibility`，显式形式不需要新方言。
+
+待实机一项已进 `qa/regression-checklist.md` 新行 18a：水下 tile bloom 区边缘那一像素的边界移动是否可辨、水下移动与转动视角时有无闪烁。离线能证明 level 稳定（mode 1 的四条扫描线在逼近边界时 `level_at_transition` 与区域内深度值差 < 1e-3），不能证明观感。
+
+许可证：`bloom_capture.glsl:1` 已声明 Solas V2.2b 派生，`Astra/THIRD-PARTY.md:191` 登记该文件"保留 tile 布局、采样权重、编码与混合方程"；本条新增的是自写 level 表达式与推导注释，不改变受登记保护的方程，不新增登记行，`check_pack.py` 第 8 项 PASS。
+
+收尾门：`python qa/tools/bloom_lod_probe.py --baseline ../bloom-lod-probe/pre-fix.json` → exit 0；同工具单跑 → exit 0；`python qa/tools/check_pack.py` → 16 项 0 FAIL / 15 PASS / 1 WARN（WARN 仍是 Voxy 接线登记，与本条无关）；`python qa/tools/compile_glsl.py` 三档默认 → `linked=267 failed=0 compute=27`，exit 0，日志 `qa/glsl-2026-09-20-t7-bloom.log`；`python qa/tools/test_gate_sensitivity.py` → 14/14；`python qa/tools/water_path_probe.py` → exit 0；`python qa/tools/provenance_steadfast.py --quiet` 计数不变（`verbatim=14 literal-suffix=2 rewritten=6 astra-only=24 total=46`）。按 11.F-2 成本规则，本条不碰 `shaders.properties` 也不改任何选项分支，三档扫描收口，未跑 83 行全矩阵。产物：`qa/bloom-lod-probe/pre-fix.json`（改前隐式形态基线，后续任何再动 level 表达式的工单用它对拍）与 `results.json`（本轮绿跑）；工具每次运行会落 283 MB 的 `.f32` 逐帧转储，已加 `.gitignore` 规则不入库。
 

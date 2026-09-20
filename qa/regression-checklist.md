@@ -7,7 +7,7 @@
 
 | # | 项 | 对应验收 | 1.21.x | 26.1/26.2 | 备注 |
 |---|---|---|---|---|---|
-| 1 | Iris 加载零编译错误（最新日志 0 error）；离线等价门：`python qa/tools/check_pack.py`（16 项 0 FAIL，含 #16 维度门键族）+ `python qa/tools/compile_glsl.py --matrix`（83 行穷举 0 failed） | §8.1 / 调研 P2-11/P2-12/P2-18 | | | `qa/tools/validate_shadow_water.py` 另计：自 2026-09-09 影图换源为 Steadfast 径向投影起 FAIL（该工具内嵌的 Java 参考模型仍是换源前的方形扭曲，未同步），非新增回归，HEAD 对照证据见调研 `2026-09-20-shader-pack-design-survey.md` 11.F-5 |
+| 1 | Iris 加载零编译错误（最新日志 0 error）；离线等价门：`python qa/tools/check_pack.py`（16 项 0 FAIL，含 #16 维度门键族）+ `python qa/tools/compile_glsl.py --matrix`（83 行穷举 0 failed） | §8.1 / 调研 P2-11/P2-12/P2-18 | | | `qa/tools/validate_shadow_water.py` 另计：自 2026-09-09 影图换源为 Steadfast 径向投影起 FAIL（该工具内嵌的 Java 参考模型仍是换源前的方形扭曲，未同步），非新增回归，HEAD 对照证据见调研 `2026-09-20-shader-pack-design-survey.md` 11.F-5；动 `global/water/bloom_capture.glsl` 的 mip level 表达式时另跑 `python qa/tools/bloom_lod_probe.py --baseline qa/bloom-lod-probe/pre-fix.json`（图像中性门，调研 11.F-7） |
 | 2 | 三维度（主世界/下界/末地）正常进入渲染 | §8.1 | | | |
 | 3 | 三档 profile 一键切换且设置生效 | §8.6 | | | |
 | 4 | zh_CN 设置界面全覆盖、无 raw key | §8.6 | | | |
@@ -42,5 +42,6 @@
 |---|---|---|---|
 | 17 | godrays：直视光源有效、被遮挡即消失、曝光≤0 早退、默认关 | A9 | |
 | 18 | bloom：无灰雾感、0.5x 无明显闪烁 | A10 | |
+| 18a | 水下 tile bloom 两项离线不可判：① 区域边缘那一像素的边界移动是否可辨（T7 前驱动把 tile 判定按 2×2 quad 求值，边界吸附在第 97 像素；改后按像素求值，落到谓词正确的 98——1920×1080、亚像素偏移 1.5/1.75 两处）；② 水下平移与转动视角时 tile bloom 是否闪烁。离线只证明 level 稳定（`python qa/tools/bloom_lod_probe.py` 的 mode 1 四条扫描线，`level_at_transition` 与区域内深度值差 < 1e-3），不证明观感 | §8.5 / 调研 P1-16 前置（11.F-7） | |
 | 19 | 整体色调 ≈ Refrax（对照参考截图，grading.glsl 单文件可复现） | §8.3 / T5 | |
 | 20 | §8.2 三档硬指标全部达标（qa/benchmarks.md 表填满） | §8.2 | |
