@@ -194,6 +194,9 @@
 // Godrays (half-res, default OFF for the BALANCED profile, design 1.2)
 #define GODRAYS_STRENGTH 100 // [0 10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200]
 // Godrays strength, %
+//#define GODRAYS_SUN_OCCLUSION // [false true]
+// Godrays sun occlusion (one probed pixel fades the whole beam field when the
+// solar disc is behind geometry; needs in-game A/B, see qa/session-log.md)
 #define DITHERING // [false true]
 // IGN output dithering (banding suppression, required without AA)
 //#define VIGNETTE // [false true]

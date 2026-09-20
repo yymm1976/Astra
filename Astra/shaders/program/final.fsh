@@ -57,6 +57,12 @@ void main() {
                 for (int x = -1; x <= 1; ++x)
                     density += texture(colortex1, clamp(texcoord + vec2(x,y)*stepUV,
                                stepUV*0.5, 1.0-stepUV*0.5)).r;
+            #ifdef GODRAYS_SUN_OCCLUSION
+                // Program/scattering.fsh probes the solar disc once per frame and leaves
+                // the result here. A format without an alpha channel reads back 1.0, so
+                // the worst this carrier can do is nothing.
+                density *= texelFetch(colortex1, ivec2(0), 0).a;
+            #endif
             hdr += vec3(1.0, 0.91, 0.76) * (density / 9.0)
                    * godraysExposure * (GODRAYS_STRENGTH * 0.01);
         }

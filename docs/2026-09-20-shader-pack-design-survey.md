@@ -731,14 +731,14 @@ Astra 现状：`Astra/shaders/global/lighting/shadowmap.glsl:202 bias = end_shad
 - **许可证**：Miniature **MIT** → 可署名复用其语义规格；Bloop CC-NC-SA、ILV 专有、BSL ARR → 只读思路。bias 公式属数值/算法思想，但**逐字表达式**仍须按 Astra 风格自写。
 - **验证**：`python qa/tools/shadow_frustum_probe.py` + `python qa/tools/validate_shadow_water.py`；`shadow_filter_equiv.py` 做前后等价性对照。
 
-### P1-6 · 几何太阳遮蔽（1 像素 + alpha 广播）
+### P1-6 · 几何太阳遮蔽（1 像素 + alpha 广播）（已执行 · 见 11.F-9）
 
 - **现状**：Astra 的太阳项是 `Astra/shaders/lib/uniforms.glsl:27 uniform float godraysExposure;`，其注释自述 = 基础曝光 × 视线夹角淡出 × 屏外淡出——**三个因子全是解析量，从不采样深度**。因此"太阳被墙挡住"当前拿不到一个**全局强度标量**。注意 `GODRAYS` march 内部已有逐样本几何遮挡（`Astra/shaders/global/post/godrays.glsl:32-36` 手工深度比较、`:71-73` 逐样本乘遮挡），所谓"穿墙"实际表现为**遮挡后整体强度不回落**——隔着厚墙看向太阳方向时，光束仍按解析曝光以满强度叠加。〔2026-09-20 复核更正：原文"会穿墙"忽视了 march 内的深度遮挡。〕
-- **依据**：LIGHT `composite.fsh:423-433`（单像素 13×13 深度遮挡）→ `:582 gl_FragData[0] = vec4(color,gr)` → LIGHT `final.fsh:329 float sunvisibility = texture2D(gaux1,vec2(0.0015)).a * fading;` 读回。**注意：真正的缺口不是"没有光束"（Astra 已实装并已接入），而是"光束没有几何遮挡判定"。**
-- **做法**：在任一已有 composite pass 的角落像素做小窗口深度遮挡判定，结果写进**自有 buffer 的未用 alpha 分量**广播（Astra `Astra/shaders/lib/water_buffer_formats.glsl:12,15,16` 已有 R11F_G11F_B10F 声明，需另选一个带 alpha 的缓冲）。
+- **依据**：LIGHT `composite.fsh:423-433`（单像素 13×13 深度遮挡）→ `:582 gl_FragData[0] = vec4(color,gr)` → LIGHT `final.fsh:329 float sunvisibility = texture2D(gaux1,vec2(0.0015)).a * fading;` 读回。**注意：真正的缺口不是"没有光束"（Astra 已实装并已接入），而是"光束没有几何遮挡判定"。**〔2026-09-20 执行备注：执行 T9 时 LIGHT 原包目录已清理（`_analysis/study-2026-09-20/` 仅剩 ComplementaryUnbound_r5.9.3），上面三处行号抄自本报告、本轮未在本地重验；落地只依赖"角落像素探测 + alpha 广播"这一架构事实，不依赖行号与 13×13 这个具体尺寸。〕
+- **做法**：在任一已有 composite pass 的角落像素做小窗口深度遮挡判定，结果写进**自有 buffer 的未用 alpha 分量**广播（Astra `Astra/shaders/lib/water_buffer_formats.glsl:12,15,16` 已有 R11F_G11F_B10F 声明，需另选一个带 alpha 的缓冲）。〔2026-09-20 执行后：载体 = `colortex1` 的 texel (0,0) alpha——R11F_G11F_B10F 系缓冲无 alpha 通道，而 `colortex1` 全包没有 `colortex1Format` 声明，走 Iris 默认格式；若该默认无 alpha，GL 对 `.a` 恒读 1.0，所以这条载体的最坏结果是静默空转（失败开放），不会反过来吞掉光束。窗口 = 7×7 抽、日面两侧各 ±12 深度像素，比原文的 9×9～13×13 更小；深度源 = `depthtex1`（仅不透明深度），玻璃窗与水面不得判成遮挡。越界抽点不计入分母、无在窗抽点时返回 1.0。〕
 - **成本**：一个像素的 9×9～13×13 次 `depthtex` 采样 = 对整帧成本无影响。
 - **许可证**：LIGHT = Chocapic13 Sharing Agreement → **只读思路**；窗口尺寸、权重、广播载体全部自写。PROVENANCE 记 `IDEA ONLY`。
-- **验证**：`python qa/tools/water_path_probe.py`（墙后太阳场景）+ `compile_glsl.py`。
+- **验证**：`python qa/tools/water_path_probe.py`（墙后太阳场景）+ `compile_glsl.py`。〔2026-09-20 执行：`water_path_probe.py` 没有日面窗口场景，也没有"墙后太阳"情境，该验证条不可用。离线侧实际证据 = 两批编译（默认三档 `linked=267 failed=0 compute=27`；`GODRAYS` + `GODRAYS_SUN_OCCLUSION` 强制开单档 `linked=89 failed=0 compute=9`）+ `check_pack.py` 16 项门。观感判定进 `qa/regression-checklist.md` 17a 待实机。〕
 
 ### P1-7 · 焦散/消光烘焙进 shadow 阶段
 
@@ -967,7 +967,8 @@ python qa/tools/check_pack.py              # → 16 项，含 #12 档位取值�
 python qa/tools/test_gate_sensitivity.py   # → #14/#15/#16 的灵敏度自证：14 个场景在临时副本上注入既有缺陷形态，断言逐条精确触发且两个对照仍全绿
 python qa/tools/inspect_iris_properties.py # → 驱动已安装的 iris-fabric-1.11.2 解析器，逐档解出 pass 门与缓冲尺寸后差分
 python qa/tools/compile_glsl.py            # → 全量编译门
-python qa/tools/compile_glsl.py --matrix   # → P2-12 选项穷举门：83 行二组合覆盖阵列 × 89 入口（--matrix-rows N 截断，截断即非零退出）
+python qa/tools/compile_glsl.py --matrix   # → P2-12 选项穷举门：二组合覆盖阵列 × 89 入口；行数随选项面变，不写死（本轮实测 85 行，见 11.F-9）（--matrix-rows N 截断，截断即非零退出）
+python qa/tools/compile_glsl.py --profiles ULTRA --set NAME= [--set 依赖项=]   # → 新增布尔选项必须补跑一次"把它开着"的扫描：出厂关着的分支被预处理器排除，默认三档扫描对它零感知（11.F-9）
 python qa/tools/option_matrix.py           # → 只出穷举分析不做判定（因子规模、零消费者选项、未声明分支符号、零读取 #define、覆盖阵列规模）；判归 check_pack #13
 ```
 
@@ -1084,7 +1085,7 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 | P0-3 自动曝光 | **中价值，前置翻案** | 与 design 4.1 已决事项冲突（`settings.glsl:46` "replaces auto-exposure"），报告未提及，须先翻案；报告自身"默认关 + 实机校准"的权衡合理；Mipmap 口径见 11.D-3 |
 | P0-4 逐帧常量 | **报告自我降级正确** | 残差复核成立（`sky.fsh:40-41` + `overworld.glsl:88` 两处逐片元月相）；Iris-only 判断成立，删掉双写一半同意 |
 | P1-5 bias 统一 | **低价值，撤条并入 P1-9 · 已执行（见 11.F-5）** | "并存"系误述（`#ifdef DIMENSION_END` 互斥，改后在 `shadowmap.glsl:205-217`），适用条件已显式；残差仅 End 分支 `+0.015` 归一 |
-| P1-6 几何太阳遮蔽 | **中低价值，收窄后采纳** | march 内逐样本遮挡已在（`godrays.glsl:32-36,71-73`），缺口只是全局强度标量（`uniforms.glsl:27` 全解析）；1 像素窗口做法便宜 |
+| P1-6 几何太阳遮蔽 | **中低价值，收窄后采纳 · 已执行（见 11.F-9）** | march 内逐样本遮挡已在（`godrays.glsl:32-36,71-73`），缺口只是全局强度标量（`uniforms.glsl:27` 全解析）；1 像素窗口做法便宜。落地 = `program/scattering.fsh` 角落像素的 7×7 `depthtex1` 日面窗口 → `colortex1` texel (0,0) 的 alpha → `program/final.fsh` 一次乘子，选项 `GODRAYS_SUN_OCCLUSION` 默认关、待实机 A/B |
 | P1-7 焦散烘焙 | **中价值，采纳** | 清屏色前提已满足（`settings.glsl:363` 显式白）；收益定位（省像素端而非更正确）写得准确 |
 | P1-8 硬件 PCF 默认档 | **中低价值** | 默认软件 16 抽（`settings.glsl:57`）成立；但软件路径已有两参 `textureGather`（`shadowmap.glsl:117-126`），报告未提；同意"用等价性测量决定默认值" |
 | P1-9 畸变归一 | **中价值，采纳 · 已执行（见 11.F-5）** | `distort.glsl:7,10` 无 SHADOW_DISTANCE 归一成立；Steadfast §7b/§7c/§7e 义务提醒与对账工具调用正确；锚值改由实测选定（`SHADOW_DISTORT_CORE = 25.6`），P1-5 的 End 残差一并闭合 |
@@ -1395,4 +1396,24 @@ Astra 已有的运行时循环界也不缺：`global/water/light_shafts.glsl:79`
 裁决与一致性：与 §7.B.6（反对"零消费者选项"）以及 T2 删掉 84 个无人读取 marker define 的口径一致——落一张没人读的 1×1 缓冲加一个默认关、无参照、无实测收益的选项，正是这些防线要拦的债。**重开条件**（将来若重启，按此前提起步）：先拿到水下场景的帧时间基线，确认 `water_shafts_march` 占比可测且显著；信号按参照包的真实那条（阴影图日方向遮蔽物高度均值），不是相机运动；改动必须把 `:78` 步长与 `:94` 权重分母和 `:82` 循环界一起搬到同一个运行时变量，并给出样本数跳变时的能量守恒证据。
 
 门：包侧零代码改动，因此没有可新增的编译或图像证据；只复跑一致性门确认文档与代码状态未漂移，四道门与 T7 收尾时逐项相同——`python qa/tools/check_pack.py` → 16 项 0 FAIL / 15 PASS / 1 WARN（WARN 仍是 Voxy C5 接线登记），exit 0；`python qa/tools/compile_glsl.py` 默认批（`BATCH 1/1 rows=PERFORMANCE..ULTRA`）→ `linked=267 failed=0 compute=27`，exit 0，日志 `qa/glsl-2026-09-20-t8-docs.log`；`python qa/tools/test_gate_sensitivity.py` → 14/14 按预期，exit 0；`python qa/tools/provenance_steadfast.py --quiet` → `verbatim=14 literal-suffix=2 rewritten=6 astra-only=24 total=46`，计数不变，exit 0。许可证侧无动作：本条未复制任何参照包表达式，`Astra/THIRD-PARTY.md` 无需新增登记行。工单 #21 关闭后解除 #26（T13 P2-20 光束标定）的依赖。
+
+**F-9 · T9 执行 P1-6 几何太阳遮蔽（收窄后的形态）**
+
+落地 = 一个每帧标量 + 一条 alpha 广播 + 末地一次乘子。包侧改动集中在两个文件：`Astra/shaders/program/scattering.fsh`（+53/−4，现 112 行，新函数 `godrays_sun_visibility` 在 `:51-70`、整个守卫块 `:41-71`，写入点是 `main()` 末尾的 `:103-111`）与 `Astra/shaders/program/final.fsh`（+6，消费点 `:60-65`）；其余 5 个文件是选项接线与台账（`lib/settings.glsl` +3、`shaders.properties` 4 行、两份 lang 各 +2、`THIRD-PARTY.md` 登记行）。
+
+1. **补的是哪个洞。** `global/post/godrays.glsl:53-73` 的 march 已经在逐样本查几何遮挡（`depth_compare_sample`，`:32-37`），但两件事它做不到：`DENSITY = 0.83`（`:55`）意味着每条 march 只覆盖"本像素→光源"线段的外侧 83%，光源那一端根本不查；而且判定只看被着色像素自己那条线段。于是一根正好遮住日面、却遮不到当前像素的柱子，仍会在它身后的天空上画满强度不变的光束。本条补的就是这个全局缺口：一帧一次测出日面周围还有多少比例是开阔天空，把整场光束按该比例淡出。
+2. **探针。** 以 `lightScreenPos` 为中心的 7×7 = 49 抽，半窗 `PROBE_HALF_WINDOW = 12.0` 个深度缓冲像素（换算 UV 时除以 `viewWidth/viewHeight`，因此窗口是屏幕固定像素尺度，与 `size.buffer.colortex1` 的档间差量无关）。判据与 march 同源：`texture(depthtex1, tapUV).r >= SKY_DEPTH`，`SKY_DEPTH = 1.0` 取自 `godrays.glsl:28`，`>= 1.0` 与 march 里的 `1.0 <= stored` 是同一个天空谓词。开天空占比即 `clear / probed`；49 抽全部落在屏外时（`probed == 0`）返回 1.0——没有信息就不衰减任何东西。成本：整帧 49 次深度读，只发生在一个像素上。
+3. **与参照包分歧的一处：深度源。** 现有 march 读 `depthtex0`（`godrays.glsl:36`），探针刻意读 `depthtex1`（仅不透明）。理由是本包的半透明面（玻璃、水面）会写 `depthtex0`，用它可以隔着窗玻璃把整场体积光关掉。这一条是 Astra 自己的判断，不是参照包的做法，也是 `qa/regression-checklist.md` 新行 17a 第 ② 项要实机确认的东西。
+4. **载体为什么是 colortex1 的 texel (0,0) alpha。** 广播用 framebuffer 空间两侧对齐——写方判 `all(lessThan(gl_FragCoord.xy, vec2(1.0)))`，读方 `texelFetch(colortex1, ivec2(0), 0).a`，两侧同一个缓冲原点，因此谁都不需要知道缓冲尺寸，也不依赖任何 UV 翻转假设，`size.buffer.colortex1` 的 0.25（PERFORMANCE）与 0.5（BALANCED/ULTRA）两档同时成立。被排除的候选：1×1 的 colortex6 四个通道已被水介质状态契约占满（`shaders.properties:31` `size.buffer.colortex6=1 1`；`global/water/medium_state.glsl:5` 的头注写明 RG=水面高度编码、B=天空可达、A=有效性）；新增专用缓冲要配一个 pass，而它得和尺寸不同的 colortex1 同画布 MRT，附件尺寸不齐不安全；显式 `R11F_G11F_B10F` 一类格式没有 alpha。**失败开放**：全包 13 处 `colortex1` 引用逐条读过，唯一的 `colortex1Format` 命中是本轮写下的那条注释本身（`scattering.fsh:14`），没有任何声明，所以走 Iris 默认格式；若该格式无 alpha，读回值是 1.0，最坏结果是这条乘子静默无效，不会画出一场缺光束的画面。alpha 在别处确实无人消费：`final.fsh` 的 3×3 只用 `.r`；`program/water_composite.fsh:19` 的 `water_shafts_resolve(colortex1, texcoord, rayLength)` 只用 `.rgb`，rayLength 由参数传入并从 `depthtex0` 重推（`global/water/light_shafts.glsl:148-153`）；水下写入分支在 `scattering.fsh:75-84` 提前 `return`，既不读也不写这一格。
+5. **消费点与滑块语义。** 乘子加在 `final.fsh` 的 3×3 平滑累加之后、`/ 9.0` 与 `godraysExposure * (GODRAYS_STRENGTH * 0.01)` 之前，位置仍在 `isEyeInWater == 0 && godraysExposure > 0.0` 与 `#ifndef DIMENSION_NETHER` / `#ifndef DIMENSION_END` 的嵌套内。`GODRAYS_STRENGTH` 与 `godraysExposure` 的归属没动：滑块与视角/日面曝光仍旧只在 stage 2 生效，改滑块不会重跑 stage 1。
+6. **默认与出厂画面。** 选项 `GODRAYS_SUN_OCCLUSION` 出厂关，三档 profile 一律写 `!GODRAYS_SUN_OCCLUSION`（只有 ULTRA 单独开着 `GODRAYS`），因此本轮对任何出厂配置零像素影响。这条由 `qa/iris-properties-resolved.txt` 的快照重跑逐项对上（该文件 +4/−4，正好是 `screen.POST` 的一行与三档 profile 各一处）。
+7. **本轮抓到的真实缺陷是自写代码，而且只有强制开选项的扫描能抓到它。** 首版写的是 `if (gl_FragCoord.xy < vec2(1.0))`，GLSL ES 的关系运算符是纯标量的，向量比较直接非法：`2(108) : error C1020: invalid operands to "<"`（驱动 `4.6.0 NVIDIA 572.83`）。改成 `all(lessThan(gl_FragCoord.xy, vec2(1.0)))` 后编译通过。**要点**：三档默认扫描给的是 `linked=267 failed=0`，它对这段代码什么也没说——选项关着时它整个被预处理器排除，语法错误根本不存在于送进驱动的那份源码里。所以新增布尔选项的编译证据必须包含一次"把它开着"的扫描（`--set 'GODRAYS=' --set 'GODRAYS_SUN_OCCLUSION='`），本条据此追加一批。
+8. **参照包引证降级为"未本地重验"。** §2.11 与 §6 P1-6 依据条里 LIGHT 1.8.0 的三处 `file:line`（`composite.fsh:423-433` / `:582` / `final.fsh:329`）抄自本报告，本轮未在本地复核——`_analysis/study-2026-09-20/` 现在只剩 `ComplementaryUnbound_r5.9.3`，原包目录已清理。两处均已就地标注，`Astra/THIRD-PARTY.md` 的登记行也改成"结论只依赖'有这种架构'，不依赖具体行号与 13×13 这个尺寸"。落地的窗口（7×7 抽、±12 像素）是本条自定的标定量。许可证分类不变，仍是**仅思路（IDEA ONLY）**，依据 Chocapic13' Sharing Agreement（只读思路，不得照搬表达式）。
+9. **原验证条不可用。** §6 P1-6 的"验证"写的是用 `qa/tools/water_path_probe.py` 比对日面窗口——该工具的模式集里根本没有日面窗口场景（它覆盖水下光路与空气侧雾/吸收），照它执行得不到任何判定。已在该条就地标注。离线侧因此只能给出编译与结构证据；观感四条（遮住日面的柱子是否淡出全场、玻璃/水面是否**不**淡出、淡出是平滑还是跳变、关闭时是否与改前逐像素相同）全部进 `qa/regression-checklist.md` 行 17a，按用户裁定「实现但默认关，标注待实机」处理。
+
+收尾门：`python qa/tools/check_pack.py` → 16 项 0 FAIL / 15 PASS / 1 WARN，exit 0（唯一 WARN 是 #4 include 图接线登记，与本条无关）。编译三批：默认三档 `python qa/tools/compile_glsl.py` → `linked=267 failed=0 compute=27`，日志 `qa/glsl-2026-09-20-t9-compile.log`；强制开 `python qa/tools/compile_glsl.py --profiles ULTRA --set GODRAYS= --set GODRAYS_SUN_OCCLUSION=` → `linked=89 failed=0 compute=9`，日志 `qa/glsl-2026-09-20-t9-on.log`（收尾时同一命令行复跑一次，`RESULT` 逐字段与留档日志一致）；全选项面 `python qa/tools/compile_glsl.py --matrix --jobs 4` → `RESULT_ALL	batches=11	rows=85	entries_per_row=89	linked=7565	failed=0`，exit 0，日志 `qa/glsl-2026-09-20-t9-matrix.log`。其余门：`python qa/tools/test_gate_sensitivity.py` → 14/14 按预期；`python qa/tools/provenance_steadfast.py --quiet` → `verbatim=14 literal-suffix=2 rewritten=6 astra-only=24 total=46`，计数不变；`python qa/tools/inspect_iris_properties.py` 退出 0；`python qa/tools/option_matrix.py` → 68 个取值表选项 / 38 个进分支的因子 / 89 个因子取值 / 703 个二组合 / 无种子覆盖阵列 84 行 0 uncovered。
+
+**新选项确实进了穷举面**（不只是那一档手工强制）：`option_space()` 里 `GODRAYS` 与 `GODRAYS_SUN_OCCLUSION` 都是二值因子（`levels=[false,true]`、`default=true`、`to_override(true) -> ''` 即裸 `#define`）。矩阵的 85 行注记里 67 行显式把 `GODRAYS_SUN_OCCLUSION` 打到 `false`，18 行留在默认 on 档，其中 `GODRAYS` 与它同时为 on 的恰好 5 行——`M001`、`M005`、`M008`、`M014`、`M025`，`M001` 的注记就是 `(all defaults)`。也就是说新代码在穷举面里被 5 × 89 = 445 次编译覆盖到，而不是只靠那一档手工强制。选项面增量也与本条自洽：取值表选项 67→68、分支因子 37→38、因子取值 87→89、因子对 666→703（= C(38,2) − C(37,2) = 37），穷举门报 0 uncovered。
+
+**行数两个口径，别当成互相矛盾**：84 是 `option_matrix.py` 的**无种子**贪心估算，85 是 `compile_glsl.py --matrix` 以三档 profile 为**种子**的实际行数，两个算法本就不等价（T2 建门那轮恰好都是 83 行，是巧合）。台账与 `qa/regression-checklist.md` 第 1 行一律以实测编译门 85 为准，并把"行数随选项面变化"写进句子本身，不再抄死一个数字。
 
