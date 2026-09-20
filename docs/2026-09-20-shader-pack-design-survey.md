@@ -829,14 +829,14 @@ Astra 现状：`Astra/shaders/global/lighting/shadowmap.glsl:202 bias = end_shad
 - **许可证**：时域自适应采样 + 状态像素持久化是通用图形技巧 → **无风险**。
 - **验证**：逐帧对比静止/运动场景的光束质量与帧时间，确认平均成本不升。
 
-### P1-17 · 水吸收侧面 skylight 代理 + 未命中近场缓释
+### P1-17 · 水吸收侧面深度界 + 未命中近场缓释（已执行 · 见 11.F-6）
 
-- **现状**：`Astra/shaders/program/water.glsl:31` 的 `water_sample_path` 在空气侧用 `dot(origin−point, faceNormal)`（`:80`/`:96`）求几何深度——竖直水壁（瀑布/流水侧面）上该值 ≈ 0，几乎不吃吸收。〔2026-09-20 复核更正：函数不在 `global/water/absorption.glsl`。〕
-- **依据**：Steadfast 0.8.0 `environment/water/absorption_refraction.glsl:22-120` 三分支——① 顶面用几何深度（Astra 已有）；② **非上向水面用背景天光作深度代理** `waterDepth = (−15/16)·skylight + 1`（单条 FMA）；③ 未命中分支假设满水深 `waterDepth = 0.25 + 0.75·min(−z/24, 1)` 并按距离线性减浅（Astra 的未命中是 validity=0、回落到未偏移的不透明路径，`program/water.glsl:26-27,90-112`，无近场水体色 ⇒ 瀑布背后、浅水贴地平线处**偏亮**而非偏浓）。〔2026-09-20 复核更正：原文"返回固定水体色"与 miss 分支实际行为相反。〕
-- **做法**：`water_sample_path` 增加分支——`faceNormal.y > threshold` 走几何深度（现有），否则读 colortex3 的 skylight 作代理；未命中分支加同距离线性减浅。
-- **成本**：一个分支 + 一次 skylight 读取。
+- **现状**：`Astra/shaders/program/water.glsl` 的 `water_sample_path`（改前 `:31`，现 `:45`）在空气侧用 `dot(origin−point, faceNormal)`（改前 `:80`/`:96`）求几何深度。〔2026-09-21 复核更正：**症状方向与原文相反**。该点积是"水面所在平面"到背景命中点的**垂直距离**：顶面上它就是真实水柱（无界，正确）；侧面上它退化成相机到背景的距离，于是平视一条水渠/瀑布侧面时，整段视野被当作水体吸收——**过吸收**，不是原文说的"≈0、几乎不吃吸收"。〕〔2026-09-20 复核更正：函数不在 `global/water/absorption.glsl`。〕
+- **依据**：Steadfast 0.8.0 `environment/water/absorption_refraction.glsl:22-120` 三分支——① 顶面用几何深度（Astra 已有）；② 非上向水面用背景天光作深度代理 `waterDepth = (−15/16)·skylight + 1`（单条 FMA）；③ 未命中分支按距离线性减浅 `waterDepth = 0.25 + 0.75·min(−z/24, 1)`。〔2026-09-21 复核更正 ②：**不必引入 skylight 代理**。代理式已在参照包源码核对为真（`absorption_refraction.glsl:85` 取 lightmap skylight、`:92` `waterDepth = (−15/16)·skylight + 1`），其取值域就是 1/16..1 块（露天 skylight=1 ⇒ 1/16 块，全遮 ⇒ 1 块）；而 Astra 侧面上缺的正是同一个"≤1 块"上界：一个水块只在**该法线方向的邻格不是水**时才渲染这个侧面，所以沿该法线的水体厚度 ≤ 1 块。纯几何界取的正是该代理的上界，差别在代理把露天侧面再压到 1/16 块——那是"露天 ⇒ 水浅"的光度假设，而瀑布侧面恰恰露天且真有 1 块厚。本条按几何真值落地，1 块是否在瀑布上偏浓记待实机（见 11.F-6）。〕〔2026-09-20 复核更正：原文"返回固定水体色"与 miss 分支实际行为相反——Astra 的未命中是 validity=0、回落到未偏移的不透明路径（`program/water.glsl:26-27,90-112` 改前行号），无近场水体色 ⇒ 瀑布背后、浅水贴地平线处**偏亮**而非偏浓。〕
+- **做法**：侧面加 `min(depth, 1.0)` 几何界（`view_player(faceNormal).y > 0.9` 判定上向面，阈值与包内既有顶面约定一致：`lit.fsh:367`/`lit.fsh:271`；几何法线来自 `faceData` 八面体解码 `lit.fsh:85`，轴向量化，硬分支安全）；未命中分支改为**以该像素的 scene copy 为背景**、按相机深度线性增浓 `mix(0.25, 23.0, clamp(−z/24,0,1))` 再走同一个 `water_surface_medium`。背景取 `colortex4` 的理由在源码里：`deferred.fsh:103` 存 colortex0 的线性 scene copy、`:185-186` 明确把 `astra_sky` 合成进去并注明"Refraction/SSR background must also contain sky"、`:190` 写出，而 `water_sample_path` 的采样点（`:80`/`:92`/`:109`）读的就是同一张缓冲的同一份未解码值。不照搬 Steadfast 的两处：它的 `background *= 1 − fade` 会与 `water_surface_medium` 内部的 `exp(−depth·σ)` 叠成双重淡出；它的 1 块深度上界属于侧面情形，套在未知水柱上会砍掉真实深水。
+- **成本**：一次 `view_player` 点积 + 一个 `min` + 未命中像素一次 `texture()` 读（原本该分支零读取）。
 - **许可证**：Steadfast GPLv3 + §7b/§7c 附加条款 → 可修改但须保持附加义务（`python qa/tools/provenance_steadfast.py` 前后对账）。表达式自写。
-- **验证**：`water_path_probe.py` 覆盖瀑布、浅水贴地平线、平视三种边界。
+- **验证**：`water_path_probe.py` 覆盖瀑布、浅水贴地平线、平视三种边界——本轮已按此条补齐（瀑布眼平以上：mode 11/12；贴地平线未命中：mode 9/10 + 16/21；平视/竖直几何：mode 17–20），并新增 11 条针对本条的断言，见 11.F-6。这 11 条分两类：5 条（mode 9 改前式 vs mode 10 改后式）把两个表达式**编在同一次编译里并排比较**，是留档不是守门；另外 6 条读落地文件——mode 17/18 直接调 `water_surface_absorption_depth`、mode 20 用它而 mode 19 用改前点积、mode 7/8/15 跑完整 `astra_water()`。两条反向验证都做过：抽掉侧面 `min` 界 ⇒ `water_path_probe.py:280`（mode 17 墙面深度）先红、`:282`（mode 19 改前点积 vs mode 20 落地 helper）随后也红（两者取值变成逐位相同），`:281`（mode 18 顶面）不受影响——顶面本就不设界；只把未命中回落改回改前的 96 块追踪形态 ⇒ **只有** `:306`（mode 15 瀑布对 mode 7 平视）转红，同距离两者必须一致，旧式按射线方向取值差一个数量级，而 near/far 比与蓝移两条在改前也通过，只能算形状留档。
 
 ### P2-18 · `dimension.properties` 按维度裁剪管线（已执行 · 见 11.F-4）
 
@@ -1055,7 +1055,7 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 | 8 | `dimension.properties` 按维度裁剪 | 采纳 | → §6 P2-18 |
 | 9 | 反射/光束分辨率用户选项 | 采纳 | → §6 P2-19 |
 | 10 | Solas 水吸收谱序作对照 | **采纳（修正后）** | 定性方向正确可作标定基准；第三条是共有衰减项非 b 独享 |
-| 11 | Steadfast 水吸收 skylight 代理 | 成立、v2 备选 | → §6 P1-17 |
+| 11 | Steadfast 水吸收 skylight 代理 | **撤销（执行 T6 时）** | 代理式在参照包侧为真（`absorption_refraction.glsl:92`），但 Astra 侧无对应缺口：侧面缺的上界是几何真值，`min(depth,1.0)` 覆盖同一取值域。→ 见 11.D-12/13 |
 | 12 | 不引入 TAA | 与 §7.B.10 一致 | 当前阶段不引入 |
 
 ### 10.5 锚定
@@ -1095,7 +1095,7 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 | P2-14 连续分辨率旋钮 | **中低价值** | 是 3 档之外的粒度补充，建议在 P0-1 定调后再评估 |
 | P2-15 反射八度减半 | **中低价值** | 反射路径无质量降级成立（`clouds_planar`/`refraction`/`raytrace` 无 isReflection 分支）；收益限于反射像素 |
 | P1-16 光束时域自适应 | **中价值，前提修正后采纳** | 两处前提更正（11.D-5/6）；状态像素须用新 1×1 缓冲；前置修复并入真正的 mipmapped 站点 |
-| P1-17 水吸收侧代理 | **中价值，采纳** | 垂直壁问题成立（`water.glsl:80/:96` 的几何深度）；文件归属与 miss 分支描述已更正（11.D-7/8）；Steadfast §7 义务对账要求合理 |
+| P1-17 水吸收侧代理 | **中价值，采纳 · 已执行（见 11.F-6）** | 侧面几何深度确有缺陷但**方向与原文相反**：不是"≈0 不吃吸收"，而是退化成相机距离导致**过吸收**（11.D-11）；skylight 代理经实测**不必要**，被 ≤1 块的纯几何界取代（11.D-12）；文件归属与 miss 分支描述已更正（11.D-7/8）；Steadfast §7 义务对账要求合理 |
 | P2-18 按维度裁剪 | **中低价值，采纳 · 已执行（见 11.F-4）** | properties 已有 8 条维度专用 `false` 门（两个维度目录各 `composite`/`composite2`/`composite3`/`composite4`），本条是把已有机制系统化；"缓冲尺寸跟随维度配置"不成立——`size.buffer.*` 以裸缓冲名为键（见 §6 P2-18 做法条） |
 | P2-19 光束/反射分辨率选项 | **中低价值，建议与 P2-14 合并** | 硬编码 0.5/0.25 成立（`shaders.properties:14,19`）；与 P2-14 同属分辨率粒度 |
 | P2-20 光束标定 | **中价值，采纳** | 强度门复核成立（`light_shafts.glsl:62`）；Solas ARR 与"禁止 DRM 宏"约束到位 |
@@ -1117,6 +1117,9 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 8. P1-17 "Astra 返回固定水体色" → miss 是 validity=0 回落未偏移路径，视觉后果偏亮而非偏浓。
 9. P1-8 未提 Astra 软件路径已有两参 `textureGather`（`shadowmap.glsl:117-126`）。
 10. P1-6 "会穿墙" → march 内遮挡已在，缺口是全局强度标量。
+11. P1-17 侧面症状方向 → **反了**。`dot(origin−point, faceNormal)` 是背景命中点到水面所在平面的垂直距离：顶面上等于真实水柱，侧面上等于相机到背景的距离，所以竖直水壁是**过吸收**（48 块处红通道实测 0.0072，加界后 0.0739），不是原文的"≈0、几乎不吃吸收"。执行 T6 时按同一几何做 A/B 实测得到（11.F-6）。
+12. P1-17 做法②（读 colortex3 skylight 作深度代理）→ **不必要**。代理的取值域本身就是 1/16..1 块（`absorption_refraction.glsl:92` 已核对），而"侧面所在水块沿该法线的邻格不是水 ⇒ 厚度 ≤ 1 块"是几何真值，`min(depth, 1.0)` 一步到位，不必为同一个上界再读一张缓冲。② 的"一个分支 + 一次 skylight 读取"成本随之改为一次 `view_player` 点积。
+13. §10.4 第 11 行「Steadfast 水吸收 skylight 代理：成立、v2 备选」→ Astra 侧**没有这个缺口**（11.D-12），撤销该建议，不留 v2 备选位。
 
 ### 11.E 复核中新发现的 Astra 侧问题（报告未提）
 
@@ -1125,6 +1128,8 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 3. ~~**行数口径混用**：M1 用 wc 口径（9559）、§9 模块普查用 `count('\n')+1`（9804）~~ —— **本条经实测撤销**（2026-09-20 执行阶段）。缺陷不存在：§3.1 的 ASTRA 行写的就是 **9804**，与 `astra_census.json`（`glsl_files=245, glsl_lines=9804`）一致；`census.py:74` 与 `census_astra.py:21` 两处**都已**用 `count("\n")+1`，工具侧本就统一。`9559` 全文只出现在两处——本节 11.A 的转述，以及 §9.2 表内作为**被推翻前提的引文**（那一行本来就在记录旧数字，不是 M1 的值）。复核时把引文误当成了表格数值。独立重算 245 文件得 `count('\n')=9560`、`+1/文件=9805`，与 9804 的 1 行差是末行换行边界，属 11.A 自己说过的口径差，不是混用。
 4. **三处"对报告的怀疑"经复核撤销**，记录以防将来误改：`design.md:517` 行号准确；"shadowcomp 12 条"口径自洽；§2.19 "Astra 许可头 0" 在"逐文件 boilerplate"口径下成立——Astra 的 1–4 行 PROVENANCE 短注不属于该列统计对象。
 5. **`DITHERING` 是个死选项**（P0-1 新建的差分门抓出；`Astra/shaders/lang/en_US.lang:67` 与 `zh_CN.lang:67` 早就为它写好了 GUI 文案）：`Astra/shaders/lib/settings.glsl:194` 的声明形式与 `BLOOM`/`VIGNETTE` 完全一致，`OptionAnnotatedSource` 单文件扫描也不报任何 diagnostic，但它始终不在 `ShaderPackOptions.getOptionSet()` 里 ⇒ GUI 无该行、三条 profile 的 `DITHERING` token 全部无效、`#define` 行永不改写，输出抖动实际恒开。根因是 Iris 的发现规则：**布尔选项只有在某个图文件里被 `#ifdef`/`#ifndef` 引用，才会进入选项集**——`OptionAnnotatedSource.parseLine` 只把这两个前缀交给 `parseIfdef` 去填 `booleanDefineReferences`，`ShaderPackOptions` 跨文件求并集后把它当作过滤参数传给 `getOptionSet(path, names)`，而 `defined()` 根本不被解析。包内 27 个布尔选项与该规则 1:1 吻合：唯一没有 `#ifdef` 站点的正是 `DITHERING`（原先只在 `Astra/shaders/global/post/grading.glsl:186` 以 `#if defined` 出现）。已改写为 `#ifdef`，实测 Iris 发现数 89→90、差分门归零，运行行为不变（出厂默认与三档都是 true）。**本条同时推翻 `qa/tools/check_pack.py` 的 SC-28 在 2026-09-10 写下的相反结论**（"真正的要求只是选项在某处被引用，`defined()` 也算"）——那次误判正是这道门放行该缺陷的原因，规则已就地改正并从 WARN 升为硬失败。
+6. **`qa/tools/water_path_probe.py` 不绑定 Iris 的 CPU 侧 uniform，空气侧读数长期被雾替换**（执行 T6 时发现，已修）：`Astra/shaders/shaders.properties:214/218/219` 的 `borderFogDistance` / `renderDistanceFogTweak` / `atmosphereFogCoefficient` 由加载器在 CPU 上算，探针没绑就恒为 0，而 `BORDER_FOG` 在 BALANCED 是开的——`smoothstep(borderFogDistance−8, borderFogDistance, d)` 在每个距离都取 1，于是**空气侧像素全部输出边界雾**、水体分支的结果根本没到屏幕上。该盲区曾让一次探针运行把七档距离全读成 `(0,0,0)`，并被误写成"回落到 +1 块地板、到处纯黑"的结论；绑定这两个量后 `air_fog_sweep` 七档归零（不再叠雾），同轮空气侧实测值见 11.F-6。以后新增消费 CPU 计算 uniform 的探针，都要按这张清单核对。
+7. **一处怀疑经源码核对撤销**（防后来者重复调查）：`Astra/shaders/program/water.glsl:138,143,163` 用 `pow(…, 1/2.2)` 解码 `colortex4`，而该缓冲由 `program/deferred.fsh:190` 线性写出，看起来像解码错配。实际不是：同函数 `:164` 返回前用 `pow(…, 2.2)` 重新编码，`alpha=1` 时两次幂严格互逆，只有 `mix()` 发生在感知空间——即"在 gamma 空间合成"的刻意写法（`:130` 头注写明这是适配过的 adapter），不是缺陷。
 
 ### 11.F 执行台账（2026-09-20 起，按工单顺序）
 
@@ -1280,5 +1285,54 @@ P1-5 / P1-9 验证条点名的 `qa/tools/validate_shadow_water.py` 本轮跑红�
 
 收尾门：`python qa/tools/check_pack.py` → **16 项 0 FAIL / 15 PASS / 1 WARN**（WARN 仍是 #4 include 图接线登记，与本条无关）；`python qa/tools/compile_glsl.py` 三档默认 → `linked=267 failed=0 compute=27`，exit 0，日志 `qa/glsl-2026-09-20-t5-shadow.log`；`python qa/tools/test_gate_sensitivity.py` → 14/14 按预期；`python qa/tools/provenance_steadfast.py --quiet` 计数不变（`verbatim=14 literal-suffix=2 rewritten=6 astra-only=24`）——本条只动 GLSL，该工具只分类 `shaders.properties` 表达式，不变才是预期结果；`python qa/tools/inspect_iris_properties.py` 退出 0；`python qa/tools/compile_glsl.py --matrix --jobs 4` → `RESULT_ALL batches=11 rows=83 entries_per_row=89 linked=7387 failed=0`，exit 0，日志 `qa/glsl-2026-09-20-t5-matrix.log`（11 批 `RESULT` 逐批相加 = 7387 / 0，与汇总行一致）。按 11.F-2 定的成本规则，本条其实只需三档扫描就能收口——矩阵遍历的 83 行选项空间不因本条改变（`shaders.properties` 与本条无涉）——跑全矩阵只是为了给改后的 `distort.glsl` 与 `shadowmap.glsl` 在全部选项面上留一份等价证据。
 
+**F-6 · T6 执行 P1-17 水吸收侧面深度界 + 未命中近场缓释**
 
+包侧只动一个文件：`Astra/shaders/program/water.glsl`（359 行，落地 sha256 `6e858683…`），三处改动。
+
+- 新增 helper `water_surface_absorption_depth`（`:41-44`）：`dot(origin−point, faceNormal)` 之后 `view_player(faceNormal).y > 0.9 ? depth : min(depth, 1.0)`。两个调用点 `:95`（折射推进的每个 tap）与 `:112`（只用锚点的回落读）。11 行注释写明几何理由与 Steadfast 代理的对应关系。
+- 未命中回落 `:339-347`：空气侧换成 `water_surface_medium(texture(colortex4, uv).rgb, mix(0.25, 23.0, clamp(−viewPos.z/24, 0, 1)), astra_water_incident(skylight))`。`belowWater`（眼在水下）那一支逐字保留 HEAD 的 `astra_water_air_sky(transmittedWorld)`——本条只改空气侧。
+- 远端 23.0 不是审美值：`global/water/absorption.glsl:74` 的 `clamp(depth + 1.0, 0.0, 24.0)` 就是这条吸收曲线的量程上界，23+1 正好撞到钳位；单次散射填充用的水体自色 `(0.020, 0.160, 0.300)`（`:70`）因此成为深水回落的落点，而不是继续往黑走。
+
+侧面界的实测（`water_path_probe.py` mode 17/18 取 helper 原值，19/20 在同一段墙面几何上比颜色）：
+
+| 沿法线的相机—背景距离 | 1.2 块 | 8.3 块 | 48.4 块 |
+|---|---|---|---|
+| 墙面深度 改前 → 改后 | 1.1875 → 1.0 | 8.3125 → 1.0 | 48.4375 → 1.0 |
+| 顶面深度（不设界，应保持不变） | 1.1875 | 8.3125 | 48.4375 |
+| 墙面吸收 r 通道 改前 → 改后 | 0.06249 → 0.07389 | 0.00724 → 0.07389 | 0.0072 → 0.07389 |
+
+平视 48 块处 r 提亮 10.3×、g 3.9×（0.10792 → 0.42184）、b 1.77×（0.2371 → 0.41845）；1.2 块处只差 +18%，因为那里本来就只有 1.1875 块——修正只在远处起作用，符合"远处被整段当成水体"的病灶位置。
+
+未命中缓释的实测（mode 9 改前式 vs mode 10 改后式，同一次编译并排；x 扫 1..49 块）：
+
+- 改前式在 7 个距离上逐位相同：`(0.0072, 0.06256, 0.13049)`。它的深度来自那条 96 块射线的垂直跨度，只取决于折射角，与"未命中有多远"无关。把水面挪到眼平以上就变成 `(0.00455, 0.00655, 0.00996)`——g 通道差 9.5×，即同一个距离上抬个视角颜色就换一档。
+- 改后式按距离单调：1.2 块 `(0.02038, 0.28977, 0.62802)` → 3.8 `(0.00829, 0.24109, 0.56464)` → 8.3 `(0.00722, 0.18126, 0.47575)` → 24.8/48.4 收敛 `(0.0072, 0.09422, 0.29587)`；近端总亮度 4.7×，且每个通道在任何距离都不低于改前。眼上/眼下两组数值逐位相同 ⇒ 缓释只读距离，不再读射线角度。
+- 被否掉的两个背景：换成解析天空模型的话，1.2 块处 `astra_reflection_sky`（mode 16）给 `(0.00671, 0.01609, 0.02447)`、`astra_water_air_sky`（mode 21）给 `(0.00669, 0.01594, 0.02425)`——两者彼此几乎无法区分，却比 scene copy 暗 18–26×。接缝正好落在 `mix(straight, …)` 的交接处，所以"另起一个天空模型"这条路按实测否掉。
+- mode 13（同一距离扫描下单独跑 `astra_fog`）在 1..49 块四通道全部精确 0 ⇒ 回落色在该配置下不会被雾掩盖。这是本工具首次实测，HEAD 侧没有对应记录，不写成复核。零值有条件：`atmosphereFogCoefficient` 按 `shaders.properties:214/218-219` 的 CPU 公式取 `(1 + 0.01·max(0, far−200)) · (0.60/far)³`，探针 far=256 ⇒ 2.0e-8；影距缩到 64 时同一个系数大 41×，49 块处的雾就不是 0 了。所以"回落色不被雾掩盖"跟着影距走，不作为无条件结论。
+
+端到端（完整 `astra_water()`，mode 7/8 平视、14/15 瀑布对天空，近 2 块 / 远 40 块；端到端值还叠了 Fresnel 反射混合，不等于回落式单测值）：
+
+| 场景 | HEAD | 落地 |
+|---|---|---|
+| 平视·近 | (0.00677, 0.05792, 0.12069) | (0.01241, 0.25287, 0.56167) |
+| 平视·远 | (0.00098, 0.00742, 0.01535) | (0.00098, 0.01109, 0.03452) |
+| 瀑布·近 | (0.00422, 0.00607, 0.00923) | (0.01231, 0.25281, 0.56165) |
+| 瀑布·远 | (0.00067, 0.00093, 0.00138) | (0.00098, 0.01109, 0.03452) |
+
+HEAD 那一列自证了症状：同距离的瀑布与平视差一个数量级（g 9.5×、b 13×），而落地后两行"近"彼此差 ≤1e-3、两行"远"逐位相同——回落只按距离给色，不再按射线方向给色。
+
+反向验证两条，都做完并复原到位（前后 sha256 一致，复跑 exit 0 且 `results.json` 与反向验证前逐键相同）：
+
+1. 抽掉侧面 `min` 界（helper 改回 `return depth;`）⇒ `water_path_probe.py:280` 先红；反向验证那一轮产出的 `results.json` 里 `absorption_depth_wall` 与 `absorption_depth_top_face` 变成同一列（1.1875…48.4375），`wall_absorption_bounded` 与 `_unbounded` 逐位相同，故 `:282` 随后也会红；`:281` 不受影响，因为顶面本就不设界。
+2. 只把未命中回落改回 HEAD 的 96 块追踪形态 ⇒ **只有** `:306` 红。`:304`（near/far 比 4×）与 `:305`（远端蓝移）在 HEAD 上同样通过（HEAD 实测比值 7.8×），这两条因此只是把落地形状钉住，不构成守门——本条真正的守门断言是 `:306` 一条，工具注释与 §6 验证条都按实测改写成这个样子。
+
+不照搬参照包的三处，逐条理由：① `background *= 1 − fadeFactor`（`absorption_refraction.glsl:119` 前后）会与本包 `water_surface_medium` 内部的 `exp(−depth·σ)` 叠成双重淡出；② 它的 1 块深度上界只属于侧面情形，套在未知水柱上会砍掉真实深水（本包侧面用几何界、未命中用距离缓释，各取所需）；③ skylight 深度代理（`:85`/`:92`，已在参照包源码核对为真）不必引入——它给的是同一个"≤1 块"上界，外加"露天 ⇒ 水浅 1/16 块"的光度假设，而瀑布侧面恰恰露天且真有 1 块厚。
+
+许可证：`program/water.glsl` 早在 `Astra/THIRD-PARTY.md:150` 与 `:176` 登记为"空气侧 Steadfast 0.8.0 派生，GPL-3.0-or-later + Section 7 继续适用"，本条只在该文件加思路级注释（`:312` 指名 `environment/water/absorption_refraction.glsl:97-117`，表达式全部自写），不新增登记行；`check_pack.py` 第 8 项 PASS，`provenance_steadfast.py --quiet` 前后计数不变（`verbatim=14 literal-suffix=2 rewritten=6 astra-only=24 total=46`，该工具只分类 `shaders.properties` 表达式）。
+
+工具侧：`qa/tools/water_path_probe.py` 的 mode 循环从 0..6 扩到 0..21（新增 7..21 共 15 个采样面），文件 178 → 312 行，断言 8 → 19 条、新增的 11 条全部属于本条（分工见 §6 验证条）。`qa/water-path-followup/results.json` 重生成，新增 7..21 号 `.f32`/`.png` 产物。回归对照未动且仍绿：`medium_split_max_error` 1.49e-07、`underside_temporal_mean_difference` 0.055567、`bloom_max_below_white` 0、`air_fog_sweep` 全零。
+
+待实机两项已进 `qa/regression-checklist.md` 新行 10a：侧面 1 块界在瀑布面/水渠侧面是否偏浓（参照包的代理会把露天侧面压到 1/16 块）；未命中缓释的增浓速率在瀑布背后与浅水贴地平线处是否衔接自然。离线只能证明"改前是把整段视野当水柱"，不能证明"1 块看起来对"。
+
+收尾门：`python qa/tools/water_path_probe.py` → exit 0（本轮两次反向验证后复跑，`results.json` 与反向验证前逐键相同）；`python qa/tools/water_stability.py` → `boundary continuity assertions: PASS`、exit 0；`python qa/tools/check_pack.py` → 16 项 0 FAIL / 15 PASS / 1 WARN（WARN 仍是 #4 Voxy C5 接线登记，与本条无关）；`python qa/tools/compile_glsl.py` 三档默认 → `linked=267 failed=0 compute=27`，exit 0；`python qa/tools/test_gate_sensitivity.py` → 14/14 按预期；`python qa/tools/provenance_steadfast.py --quiet` 计数不变。按 11.F-2 的成本规则，本条不碰 `shaders.properties` 也不改任何选项分支，三档扫描即可收口，未跑 83 行全矩阵。
 

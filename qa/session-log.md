@@ -850,3 +850,18 @@ P1-5（`composite2` 的 GODRAYS 门控）、P2-4（静态阴影兜底）也都�
 - **语义方向**：植被透光乘子改"只加不减"（mix 至 1.0，×0.35·t）；晨雾权重端点反转修正；背光面退出夜间失色。
 - **其他**：final 水下重复 tonemap 消除；End 暗角/抖动改叠加式；下界天空去双算；caustics 守卫闭合；noise.glsl/noisetex/noise.png、sunrise/moonrise、biome 平滑 uniform、astraRipple3、surfaceWet 死存储等死链清理；字面整数 pow 迁移（fog/end_system/shadow.fsh/lit/deferred/water/weather/end/overworld/bloom_resolve/twilight 部分）；srgb_decode 函数内钳负；colortex7=0.25；SSS_STRENGTH 默认对齐 60；THIRD-PARTY 计数与 README 事实更正；新增 09-17 返工归档与 qa/open-premises.md。
 - **验证**：`compile_glsl.py` 全档 `linked=267 failed=0 compute=27`（qa/glsl-consolidated-fixes.log）；`check_pack.py` 0 FAIL / 1 WARN / 10 PASS。视觉类改动（光束标定、水色、植被透光、晨雾方向）需实机对拍，未宣称画面结论。
+
+## 2026-09-20 借鉴调研重审执行轮（T0–T6，按工单顺序，每单一个本地 commit）
+
+依据 docs/2026-09-20-shader-pack-design-survey.md §11 复核与 11.B 逐条裁决。修复前快照 = `14cd4fe`（重审记录折叠进调研报告的那一笔，T0 的父提交）。逐条细节与实测数字统一记在该报告 11.E / 11.F-1…11.F-6，本节只做索引，不重述。
+
+- **T0 · 注释腐烂与 LOD 前提重锚** → `cc18b33`（11.E）
+- **T1 · P0-1 档位重做（三档必须产生可测差异）** → `f952887`（11.F-1）
+- **T2 · P2-12 选项穷举编译回归** → `b7b2aff`（11.F-2；附带删掉 84 个无人读取的 marker define）
+- **T3 · P2-10 + P2-11 合规与防退化基建** → `e1f5304`（11.F-3）
+- **T4 · P2-18 按维度裁剪管线** → `452f460`（11.F-4）
+- **T5 · P1-9 畸变按影距归一（闭合 P1-5 残差）** → `b20abd0`（11.F-5）
+- **T6 · P1-17 水吸收侧面深度界 + 未命中近场缓释** → 本轮最后一单（11.F-6）：`program/water.glsl` 三处改动，`water_path_probe.py` 从模式 0..6 扩到 0..21、断言 8→19，两条反向验证都实跑并还原。
+- **门控**：`check_pack.py` 16 项 0 FAIL / 15 PASS / 1 WARN（WARN 仍是 #4 include 图接线登记）；`compile_glsl.py` 三档默认 `linked=267 failed=0 compute=27`；`compile_glsl.py --matrix --jobs 4` 全选项面 `linked=7387 failed=0`；`test_gate_sensitivity.py` 14/14；`provenance_steadfast.py --quiet` 计数不变；`inspect_iris_properties.py` 退出 0；`water_path_probe.py` 退出 0。
+- **待实机**（全部进 qa/regression-checklist.md）：6a 畸变边界密度与影距缩小时图外空区、末地自阴影条纹三档；10a 水吸收侧面 1 块上界在平视瀑布面是否偏浓、未命中缓释的增浓速率是否衔接自然。
+- **写作纪律修正一处**：11.F-6 初稿把 mode 13 的雾实测零值写成"HEAD 侧 `qa/water-path-verification/results.json` 早已建立"——该目录在 git 全历史中不存在，且该零值随影距变（`atmosphereFogCoefficient ∝ (0.60/far)³`），已改记为本工具首次实测并写明成立条件。

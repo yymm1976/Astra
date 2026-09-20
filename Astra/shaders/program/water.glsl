@@ -28,6 +28,20 @@ uniform sampler2D colortex4;
 float water_side_acceptance(float side, vec3 point, vec3 origin, vec3 faceNormal) {
     return smoothstep(-0.02, 0.02, side * dot(point - origin, faceNormal));
 }
+
+// Absorption depth for a surface seen from air: the perpendicular distance from the
+// water face's OWN plane to the background hit. On a top face that is the real water
+// column and unbounded; on a side face the same dot is just the camera-to-background
+// distance, so looking across a canal absorbed it as if the whole view were water.
+// A water block only renders a side face when the neighbour along that normal is not
+// water, so the slab along that normal is at most one block. Steadfast 0.8.0 bounds the
+// same quantity with a skylight proxy (absorption_refraction.glsl: (1 - skylight/16)
+// blocks); this reaches the same range from geometry alone, without a third buffer.
+// faceNormal is the unit, camera-facing geometric normal in view axes.
+float water_surface_absorption_depth(vec3 origin, vec3 point, vec3 faceNormal) {
+    float depth = dot(origin - point, faceNormal);
+    return view_player(faceNormal).y > 0.9 ? depth : min(depth, 1.0);
+}
 float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
                         bool inWater, float radius, float skylight, out vec3 radiance) {
     radiance = vec3(0.0);
@@ -77,8 +91,9 @@ float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
                 float weight = sw.x * sw.y * accept;
                 vec3 color = texelFetch(colortex4, pixel, 0).rgb;
                 if (inWater) color = isEyeInWater == 0
-                    ? water_surface_medium(color, dot(origin - point, faceNormal),
-                                           astra_water_incident(skylight))
+                    ? water_surface_medium(color,
+                        water_surface_absorption_depth(origin, point, faceNormal),
+                        astra_water_incident(skylight))
                     : water_medium(color, length(point - origin), astra_water_incident(skylight));
                 radiance += color * weight;
                 endpoint += point * weight;
@@ -93,8 +108,9 @@ float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
         // nearest-depth anchor alone instead of jumping to the deep fallback.
         vec3 color = texelFetch(colortex4, anchorPixel, 0).rgb;
         if (inWater) color = isEyeInWater == 0
-            ? water_surface_medium(color, dot(origin - anchor, faceNormal),
-                                   astra_water_incident(skylight))
+            ? water_surface_medium(color,
+                water_surface_absorption_depth(origin, anchor, faceNormal),
+                astra_water_incident(skylight))
             : water_medium(color, length(anchor - origin), astra_water_incident(skylight));
         radiance = color;
         endpoint = anchor;
@@ -293,10 +309,41 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
                                                !belowWater,0.0,skylight,straight);
             vec3 geometricFallback=straight;
             if (straightValid < 1.0) {
-                vec3 deepFallback=belowWater
-                    ? astra_water_air_sky(transmittedWorld)
-                    : astra_water_segment(vec3(0.0),playerPos,
-                                          playerPos+transmittedWorld*96.0,skylight);
+                // From Steadfast 0.8.0 environment/water/absorption_refraction.glsl:97-117
+                // (idea-level; every expression written for Astra): a refracted ray that
+                // finds only sky has crossed an unknown column of water, and assuming a
+                // LOT of it is right most of the time - except near the camera, where a
+                // thin sheet must not read as deep ocean. The ramp is the fragment's own
+                // camera distance: 0.25 blocks at the eye, 23 (fully extinct) at 24 blocks.
+                //
+                // Two parts of the reference are deliberately not copied. Steadfast also
+                // multiplies its background by (1 - fadeFactor), because that pack's
+                // absorption has no in-scatter term to consume the background; here
+                // water_surface_medium already attenuates it by exp(-depth * sigma), so a
+                // second fade would double-count and make the far field DARKER than before.
+                // And its depth tops out at one block, which is the right bound for the
+                // side-face case it models - an unknown column seen through the surface
+                // itself is not bounded, so the ramp goes to the full extinction range.
+                //
+                // The background is the scene copy at this pixel, the same buffer the
+                // accepted path reads: deferred.fsh composites astra_sky into it exactly
+                // so that refraction has something behind it, and when the miss came from
+                // the interface-side rejection instead of sky, it holds the real geometry.
+                // An analytic sky here would be a second sky model disagreeing with the
+                // rendered one right at the seam with mix(straight, ...): probe modes 16
+                // and 21 measure both candidates. The superseded form had no background
+                // at all - it handed vec3(0.0) to astra_water_segment, whose air-side
+                // depth was that 96-block ray's vertical extent, a function of the
+                // refraction angle only, never of how far the miss is: one constant
+                // colour at every distance.
+                vec3 deepFallback;
+                if (belowWater) {
+                    deepFallback = astra_water_air_sky(transmittedWorld);
+                } else {
+                    float farField = clamp(-viewPos.z * (1.0 / 24.0), 0.0, 1.0);
+                    deepFallback = water_surface_medium(texture(colortex4, uv).rgb,
+                        mix(0.25, 23.0, farField), astra_water_incident(skylight));
+                }
                 geometricFallback=mix(deepFallback,straight,straightValid);
             }
             transmitted=mix(geometricFallback,transmitted,valid);
