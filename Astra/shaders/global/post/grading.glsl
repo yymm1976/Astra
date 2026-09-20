@@ -183,7 +183,10 @@ vec3 apply_vignette(vec3 displayColor, vec2 screenUV) {
 // clip edge. The overshoot is absorbed by the 8-bit write.
 // ------------------------------------------------------------
 vec3 apply_output_dither(vec2 screenPos, vec3 displayColor) {
-	#if defined DITHERING
+	// #ifdef, not #if defined: Iris only treats #ifdef/#ifndef lines as an option reference,
+	// so the other spelling left DITHERING out of the option set - no GUI row, and the
+	// profile tokens could not change it.
+	#ifdef DITHERING
 		// Static IGN: lib/dither.glsl is fixed to animate = false because Astra has
 		// no TAA to average temporal noise (design 2.4). The user's option now applies
 		// in the End as well (consolidated review D5 / Qoder F-27).

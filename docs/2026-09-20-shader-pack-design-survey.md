@@ -962,20 +962,24 @@ python _meta/check_citations.py          # → 逐条校验本报告全部 path:
 python _meta/final_sweep.py              # → 九项：加粗冲突/加粗不成对/表格行列数/残留 /22 分母/章节缺失/§引用悬空/_meta 文件缺失/未替换标记/代码围栏配对
 # 借鉴报告逐条核验（37 项检查，须 cd 到光影包根；Windows 加 PYTHONIOENCODING=utf-8）
 set PYTHONIOENCODING=utf-8 && python _meta/verify_reference_study.py   # → 27 真 / 4 行号错 / 2 不成立 / 1 文件错 / 1 机理错 / 1 参数化描述错 / 1 需修正
+# Astra 侧门禁（本仓库内；P0-1 的实测数字全部由这三条复现，Windows 加 PYTHONIOENCODING=utf-8）
+python qa/tools/check_pack.py              # → 12 项，含 #12 档位取值差量与 SC-28 选项发现规则
+python qa/tools/inspect_iris_properties.py # → 驱动已安装的 iris-fabric-1.11.2 解析器，逐档解出 pass 门与缓冲尺寸后差分
+python qa/tools/compile_glsl.py            # → 全量编译门
 ```
 
 全部脚本与解包源码在 `C:\Users\杨铭\Desktop\光影包\`，永久保存：29 个目录 = 22 个不同包（20 个下载条目 + 2 个表外参照包）+ 7 个 `*-source` 逐字节同名副本。§2 的每包 `path:line` 引用均来自该目录内的实际文件。
 
-`check_citations.py` 最新一次运行（含 §11，且本段文字自身计入）：**扫描 484 条引用**。四类硬失败桶计数全为 0——「行号超出文件末尾」「文件名在归属包内根本不存在」「显式包/项目路径不解析」「带行号引用超出所有候选文件」。非零桶共 60 条，均为记法而非缺陷，逐桶列明：
+`check_citations.py` 最新一次运行（含 §11.E-5 与 §11.F，且本段文字自身计入）：**扫描 495 条引用**。四类硬失败桶计数全为 0——「行号超出文件末尾」「文件名在归属包内根本不存在」「显式包/项目路径不解析」「带行号引用超出所有候选文件」。非零桶共 62 条，均为记法而非缺陷，逐桶列明：
 
-- **「其实是 ASTRA 文件、需加 `Astra/` 前缀」11 条**：§4.2 2、§6 5、§7 1、§11 2、本节 1。都是正文已明确在谈 Astra 内部实现处使用了裸文件名。
+- **「其实是 ASTRA 文件、需加 `Astra/` 前缀」13 条**：§4.2 2、§6 5、§7 1、§11 4、本节 1。都是正文已明确在谈 Astra 内部实现处使用了裸文件名。
 - **「全样本库查无此路径」32 条**：§6 4、§9.2 3、§10.4 2、§11 23。同样是 Astra 内部模块的裸文件名（水光束、介质状态、影图采样、缓冲格式等），参照包中不存在是预期结果。
 - **「带行号、跨包歧义且正文未指名」11 条**：§9.2 1、§11 10。
 - **「目录层级不同」3 条**：均在 §2.1，引用 Complementary 时按包内相对路径书写（`lib/antialiasing/jitter.glsl`），而包内实际多一层 `shaders/` 根目录。
 - **「建议新建、目前尚不存在」2 条**：`Astra/shaders/lib/compat.glsl`（§6 P2-10 与 §9.1 各一次），本条是待办而非缺陷。
 - **「按正文归属包校验失败」1 条**：本节转述 §9.2 的 Solas `common.glsl:121` 跨包歧义引用，正文已指明归属。
 
-非零桶的 60 条中有 35 条来自 §11：该节的裁决表用裸文件名指代 Astra 内部文件——记法简短，代价是自动解析器无从归属。§11 内一处真错已修：P2-13 行的 `lib/bayer.glsl` 曾被按上下文的 Mellow 包解析而报「no such file」，已补全为 `Astra/shaders/lib/bayer.glsl`。
+非零桶的 62 条中有 37 条来自 §11：该节的裁决表用裸文件名指代 Astra 内部文件——记法简短，代价是自动解析器无从归属。§11 内一处真错已修：P2-13 行的 `lib/bayer.glsl` 曾被按上下文的 Mellow 包解析而报「no such file」，已补全为 `Astra/shaders/lib/bayer.glsl`。
 
 引用类数字之外，§3.1–§3.4 四张表另有 `tablecheck.py` 逐格比对：872 个数值格、0 处与 `matrix.md` 不一致。第三道门 `final_sweep.py` 查的是"数字都对但排版坏了"，本次九项全绿。
 
@@ -1072,7 +1076,7 @@ set PYTHONIOENCODING=utf-8 && python _meta/verify_reference_study.py   # → 27 
 
 | 条目 | 裁决 | Astra 侧依据（均已实测） |
 |---|---|---|
-| P0-1 profile 差量改革 | **最高价值，采纳** | 67 token / 10/5/13 / 6 条 size.buffer 不在差量 / 7 恒真门全部复核成立；`inspect_iris_properties.py`、`cost_census.py` 已存在，落地成本近零 |
+| P0-1 profile 差量改革 | **最高价值，采纳 · 已执行（见 11.F-1，含未采纳部分）** | 67 token / 10/5/13 / 6 条 size.buffer 不在差量 / 7 恒真门全部复核成立；`inspect_iris_properties.py`、`cost_census.py` 已存在，落地成本近零 |
 | P0-2 云阴影 | **高价值，采纳** | 与 `clouds_planar.glsl:42-44` 自己的 NOT PORTED 登记对齐（该登记还指向 `docs/handoffs/sky-clouds.md` 的边界约定，动手前先读）；ARR 只读思路约束已写明 |
 | P0-3 自动曝光 | **中价值，前置翻案** | 与 design 4.1 已决事项冲突（`settings.glsl:46` "replaces auto-exposure"），报告未提及，须先翻案；报告自身"默认关 + 实机校准"的权衡合理；Mipmap 口径见 11.D-3 |
 | P0-4 逐帧常量 | **报告自我降级正确** | 残差复核成立（`sky.fsh:40-41` + `overworld.glsl:88` 两处逐片元月相）；Iris-only 判断成立，删掉双写一半同意 |
@@ -1117,5 +1121,30 @@ set PYTHONIOENCODING=utf-8 && python _meta/verify_reference_study.py   # → 27 
 2. **`bloom_capture.glsl:21` 的隐式 LOD 站点**（见 11.D-6）：在项目记忆中仍为开放项，优先级应高于 P1-16 字面的前置修复。
 3. ~~**行数口径混用**：M1 用 wc 口径（9559）、§9 模块普查用 `count('\n')+1`（9804）~~ —— **本条经实测撤销**（2026-09-20 执行阶段）。缺陷不存在：§3.1 的 ASTRA 行写的就是 **9804**，与 `astra_census.json`（`glsl_files=245, glsl_lines=9804`）一致；`census.py:74` 与 `census_astra.py:21` 两处**都已**用 `count("\n")+1`，工具侧本就统一。`9559` 全文只出现在两处——本节 11.A 的转述，以及 §9.2 表内作为**被推翻前提的引文**（那一行本来就在记录旧数字，不是 M1 的值）。复核时把引文误当成了表格数值。独立重算 245 文件得 `count('\n')=9560`、`+1/文件=9805`，与 9804 的 1 行差是末行换行边界，属 11.A 自己说过的口径差，不是混用。
 4. **三处"对报告的怀疑"经复核撤销**，记录以防将来误改：`design.md:517` 行号准确；"shadowcomp 12 条"口径自洽；§2.19 "Astra 许可头 0" 在"逐文件 boilerplate"口径下成立——Astra 的 1–4 行 PROVENANCE 短注不属于该列统计对象。
+5. **`DITHERING` 是个死选项**（P0-1 新建的差分门抓出；`Astra/shaders/lang/en_US.lang:67` 与 `zh_CN.lang:67` 早就为它写好了 GUI 文案）：`Astra/shaders/lib/settings.glsl:194` 的声明形式与 `BLOOM`/`VIGNETTE` 完全一致，`OptionAnnotatedSource` 单文件扫描也不报任何 diagnostic，但它始终不在 `ShaderPackOptions.getOptionSet()` 里 ⇒ GUI 无该行、三条 profile 的 `DITHERING` token 全部无效、`#define` 行永不改写，输出抖动实际恒开。根因是 Iris 的发现规则：**布尔选项只有在某个图文件里被 `#ifdef`/`#ifndef` 引用，才会进入选项集**——`OptionAnnotatedSource.parseLine` 只把这两个前缀交给 `parseIfdef` 去填 `booleanDefineReferences`，`ShaderPackOptions` 跨文件求并集后把它当作过滤参数传给 `getOptionSet(path, names)`，而 `defined()` 根本不被解析。包内 27 个布尔选项与该规则 1:1 吻合：唯一没有 `#ifdef` 站点的正是 `DITHERING`（原先只在 `Astra/shaders/global/post/grading.glsl:186` 以 `#if defined` 出现）。已改写为 `#ifdef`，实测 Iris 发现数 89→90、差分门归零，运行行为不变（出厂默认与三档都是 true）。**本条同时推翻 `qa/tools/check_pack.py` 的 SC-28 在 2026-09-10 写下的相反结论**（"真正的要求只是选项在某处被引用，`defined()` 也算"）——那次误判正是这道门放行该缺陷的原因，规则已就地改正并从 WARN 升为硬失败。
+
+### 11.F 执行台账（2026-09-20 起，按工单顺序）
+
+**F-1 · T1 执行 P0-1 档位重做**
+
+改动全部在配置层，BALANCED 逐字节未动（它是出厂档，也是与 `lib/settings.glsl` 原始默认对齐的基准锚点）：
+
+- PERFORMANCE 关掉四项真实工作：`!SSS_FOLIAGE`、`!AIR_PERSPECTIVE`、`!WATER_CAUSTICS`、`!WAVING_FOLIAGE`，并把 `UNDERWATER_SHAFT_SAMPLES` 由 7 降到 4。
+- 首次引入 `size.buffer.*` 档间差量：`Astra/shaders/shaders.properties:18-21` 以 `#if UNDERWATER_SHAFT_SAMPLES < 7` 让 colortex1 取 P=0.25 / B=U=0.5。两个消费者的取样步长都由 `textureSize()` 推导（`Astra/shaders/program/final.fsh:54`、`Astra/shaders/global/water/light_shafts.glsl:140`），因此零 GLSL 改动。
+- ULTRA 首次拿到更富的实现：`SKY_MODE=0`（Minishita 物理大气）、`SUN_MOON_MODE=1`（程序化日月盘）。
+
+实测差异（`python qa/tools/inspect_iris_properties.py`，直接驱动已安装的 `iris-fabric-1.11.2+mc26.2.jar`，不启动游戏）：
+
+- 取值差量 15 / 7 / 19（原 10 / 5 / 13），67 个 token 中 19 个随档变化；201 条 profile 赋值全部被 Iris 的选项存储接受。
+- PERFORMANCE→BALANCED 确实多调度 **14 个 pass 门**：9 条 `compute.world-1/shadowcomp*` 加 `composite1`、`composite4`、`world-1/shadow`、`world-1/composite1`、`world1/composite1`（开启门数 10 → 24）。
+- 三档 colortex1 解出 0.25 / 0.5 / 0.5，证明逐档选项图真的到达了预处理器（colortex1 是这条链上的金丝雀）。
+- 编译门：`python qa/tools/compile_glsl.py` 默认按三档各展开一遍全部 89 个入口（80 顶点/片元对 + 9 compute），实机驱动结果 `linked=267 failed=0 compute=27`，exit 0——新档位 token 与 `#ifdef DITHERING` 改写后三档都能编译链接。
+- 结构门：`python qa/tools/check_pack.py` 12 项检查 0 FAIL / 11 PASS / 1 WARN（该 WARN 与 P0-1 无关）。
+
+未采纳与不成立的部分（如实记录，防止后来者按原文再执行一遍）：
+
+- **「第一步收缩」未执行**，差量密度因此停在 22% / 10%，不达验证条要求的 ≥50%。理由：每条 profile 都写成完整显式配置是 `design.md` 3.3 的既有约定，且收缩成稀疏差量后"选档得到的状态"将依赖用户当前值，基准锚点随之失效。密度指标想保护的"档位真的有差异"改由上面的门级实测承担。
+- **「三档都必须能删 pass」的前提部分不成立**：包内不存在可提升到 ULTRA 的独有 pass，BALANCED→ULTRA 只能改成本旋钮与实现富度。差分门在该步输出 NOTE 而非 FAIL，但硬保留"PERFORMANCE 与 ULTRA 不得解出同一套调度"。
+- **7 个恒真门未接表达式**：`composite3` 与 `composite` 有明确的无条件消费者（前者是最终色调输出；后者在关光束时还兼供地形光照与焦散，见 `Astra/shaders/shaders.properties:58` 头注），接档位表达式只会造出与成本无关的差量；`world1/deferred1` 与 `world1/prepare` 的开关条件按包内 `Astra/shaders/shaders.properties:40-41` 的头注属于设计项 E2 的归属，P0-1 不越权替它决定。前者即 §4.4 点名的 RedHat 反面。
 
 

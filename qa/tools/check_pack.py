@@ -862,12 +862,16 @@ def check_iris_parser_contracts():
         c.fail("Voxy symbol(s) used without lib/uniforms.glsl declaration: "
                + ", ".join(missing_vx))
 
-    # SC-28 (revised 2026-09-10): the original note claimed Iris cannot see a boolean
-    # referenced only through defined(). That is not what Iris does - pack options are
-    # injected as #define before the preprocessor runs, so "#if defined OPT" works and
-    # every reference pack uses that form for compound guards. The real requirement is
-    # only that the option is referenced somewhere; an unreferenced boolean is dropped
-    # before the GUI sees it.
+    # SC-28 (revised 2026-09-20 with bytecode from iris-fabric-1.11.2): a boolean option
+    # enters the option set only if some graph file references it with #ifdef or #ifndef.
+    # OptionAnnotatedSource.parseLine routes only those two prefixes into parseIfdef, which
+    # fills booleanDefineReferences; ShaderPackOptions unions those names across files and
+    # passes them to getOptionSet(path, names), which filters the declarations down to it.
+    # defined() is never parsed, so "#if defined OPT" does NOT make an option discoverable -
+    # the loader has no row for it, the profile token cannot change it, and the #define line
+    # is left as authored. String options skip the filter entirely (getOptionSet passes no
+    # name set for them). "#if defined OPT" is still correct GLSL once the option is
+    # discovered, because the option value lands in the #define line, not in the guard.
     boolean_options = {}
     for m in re.finditer(r"^\s*(//?)?\s*#define\s+([A-Z][A-Z0-9_]*)\s*(//[^\n]*)?",
                          settings_text, flags=re.M):
@@ -885,10 +889,12 @@ def check_iris_parser_contracts():
         for m in re.finditer(r"\bdefined\s+([A-Z][A-Z0-9_]*)", body):
             defined_only.setdefault(m.group(1), set()).add(pk(p))
     for name in sorted(boolean_options):
-        if name in references or name in defined_only:
+        if name in references:
             continue
-        c.warn(f"boolean option {name} has no #ifdef/#ifndef/defined() reference in any "
-               f"shader - Iris drops it until its owning task wires it (SC-28)")
+        sites = sorted(m for m in defined_only.get(name, ()))
+        c.fail(f"boolean option {name} is only referenced through defined() "
+               f"{'/'.join(sites) + ' - ' if sites else ''}with no #ifdef/#ifndef site, so "
+               f"Iris never discovers it: no GUI row and its profile token is inert (SC-28)")
 
     # SC-29: Iris rejects a pack that uses iris custom images without declaring the
     # CUSTOM_IMAGES feature flag (ShaderPack throws IllegalStateException at load time),
@@ -1062,6 +1068,128 @@ def check_iris_parser_contracts():
     return c
 
 
+# ------------------------------------------------------- tier differential
+
+TIER_ORDER = ("PERFORMANCE", "BALANCED", "ULTRA")
+
+# Numeric knobs whose value must not step down along PERFORMANCE -> ULTRA, because the
+# larger number is more work or a richer implementation (SHADOW_SOFTNESS widens the PCF
+# footprint; SUN_MOON_MODE 1 draws procedural discs instead of the vanilla texture).
+TIER_MONOTONE_UP = {
+    "SHADOW_RESOLUTION", "SHADOW_DISTANCE", "ENTITY_SHADOW_DISTANCE", "SHADOW_SOFTNESS",
+    "UNDERWATER_SHAFT_SAMPLES", "CLOUD_MODE", "SUN_MOON_MODE",
+}
+# Knobs where the smaller number is the richer implementation, so the value must not
+# step up: SKY_MODE 0 = Minishita physical atmosphere, 1 = gradient
+# (global/dimension/overworld.glsl:11).
+TIER_MONOTONE_DOWN = {"SKY_MODE"}
+# Tiered on purpose but decoupled from cost - reported, never asserted.
+TIER_NONCOST = {"END_PRECESSION_MINUTES"}
+
+
+def _profile_values():
+    """profile name -> {option: 'on' | 'off' | numeric value as written}"""
+    props, _ = parse_properties()
+    out = {}
+    for key, vals in props.items():
+        if not key.startswith("profile."):
+            continue
+        toks = []
+        for v in vals:
+            toks += v.split()
+        d = {}
+        for t in toks:
+            if t.startswith("!"):
+                d[t[1:]] = "off"
+            elif "=" in t:
+                name, raw = t.split("=", 1)
+                d[name] = raw
+            else:
+                d[t] = "on"
+        out[key.split(".", 1)[1]] = d
+    return out
+
+
+def check_tier_differential(opts):
+    c = Check(12, "profile tier differential (survey 6 P0-1: cost-monotone ladder)")
+    prof = _profile_values()
+    absent = [t for t in TIER_ORDER if t not in prof]
+    if absent:
+        c.fail("missing profile(s): " + ", ".join(absent))
+        return c
+    keys = list(prof["BALANCED"])
+
+    # BALANCED is the shipping default and the benchmark anchor: every one of its values
+    # must equal the settings.glsl raw default, or the pack stops being reproducible
+    # from source and "raw defaults = BALANCED" becomes a comment nobody checks.
+    drift = []
+    for name in keys:
+        meta = opts.get(name) or {}
+        if meta.get("bool"):
+            want = "off" if meta.get("commented") else "on"
+        else:
+            want = meta.get("value")
+        got = prof["BALANCED"][name]
+        if want is None:
+            drift.append(f"{name}: no raw default in settings.glsl")
+        elif str(want) != got:
+            drift.append(f"{name}: profile {got} != default {want}")
+    if drift:
+        c.fail("profile.BALANCED diverges from the settings.glsl defaults: "
+               + "; ".join(drift))
+
+    # Values, not names: the three tiers list an identical 67-token set in an identical
+    # order, so comparing name sets proves nothing (survey 6 P0-1 verification).
+    for a, b in [("PERFORMANCE", "BALANCED"), ("BALANCED", "ULTRA"),
+                 ("PERFORMANCE", "ULTRA")]:
+        diff = [k for k in keys if prof[a][k] != prof[b][k]]
+        c.note(f"{a} vs {b}: {len(diff)} value diff(s), density "
+               f"{len(diff)}/{len(keys)} = {len(diff) / max(len(keys), 1):.0%}")
+    varying = {k for k in keys if len({prof[t][k] for t in TIER_ORDER}) > 1}
+    unclassified = sorted(
+        varying - TIER_MONOTONE_UP - TIER_MONOTONE_DOWN - TIER_NONCOST
+        - {k for k in varying if (opts.get(k) or {}).get("bool")}
+    )
+    if unclassified:
+        c.fail("tier-varying numeric knob(s) with no cost classification: "
+               + ", ".join(unclassified)
+               + " - add to TIER_MONOTONE_UP/DOWN, or to TIER_NONCOST with a reason")
+
+    def num(tier, name):
+        try:
+            return float(prof[tier][name])
+        except (TypeError, ValueError):
+            return None
+
+    for name in sorted(varying & TIER_MONOTONE_UP):
+        vals = [num(t, name) for t in TIER_ORDER]
+        if any(v is None for v in vals):
+            c.fail(f"{name}: tiered but non-numeric somewhere: {vals}")
+        elif any(b < a for a, b in zip(vals, vals[1:])):
+            c.fail(f"{name}: cost ladder steps down towards ULTRA: "
+                   f"{dict(zip(TIER_ORDER, vals))}")
+    for name in sorted(varying & TIER_MONOTONE_DOWN):
+        vals = [num(t, name) for t in TIER_ORDER]
+        if any(v is None for v in vals):
+            c.fail(f"{name}: tiered but non-numeric somewhere: {vals}")
+        elif any(b > a for a, b in zip(vals, vals[1:])):
+            c.fail(f"{name}: richness ladder steps up towards ULTRA: "
+                   f"{dict(zip(TIER_ORDER, vals))}")
+
+    # A boolean on is more work, so the on-sets must grow along the ladder.
+    bools = [k for k in keys if (opts.get(k) or {}).get("bool")]
+    for a, b in zip(TIER_ORDER, TIER_ORDER[1:]):
+        back = [k for k in bools if prof[a][k] == "on" and prof[b][k] != "on"]
+        if back:
+            c.fail(f"{b} drops boolean(s) that {a} enables: " + ", ".join(back)
+                   + " - the richer tier must be a superset, or the knob belongs in "
+                     "TIER_NONCOST with a reason")
+    c.note(f"{len(varying)} of {len(keys)} listed tokens vary across tiers; non-cost by "
+           f"design: {', '.join(sorted(varying & TIER_NONCOST)) or 'none'}")
+    c.note("resolved per-tier pass and buffer sets: qa/tools/inspect_iris_properties.py")
+    return c
+
+
 def main():
     print(f"Astra pack validator | pack={rel(PACK)} | python={sys.version.split()[0]}")
     print("=" * 72)
@@ -1076,6 +1204,7 @@ def main():
     check_bayer()
     check_final_chain()
     check_iris_parser_contracts()
+    check_tier_differential(opts)
     for c in CHECKS:
         c.render()
     print("=" * 72)
