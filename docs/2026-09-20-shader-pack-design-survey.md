@@ -115,7 +115,7 @@
 - **树叶完全跳过阴影图**：`lib/materials/specificMaterials/terrain/leaves.glsl:28-29`，靠半 Lambert + 天光，省下整条 PCF。
 - **8 条 profile 每条只列 14 个性能 token**（`shaders.properties:2-9`），全部平铺、零继承（M4「继承行 = 0」），且不碰任何颜色/风格 token。
 - **Unbound 在共享骨架上额外提供**（Reimagined 不含）：TAA（`lib/antialiasing/taa.glsl` 251 行 + `jitter.glsl` 8 点 Chocapic 抖动序列）、`lib/voxelization` 屏幕空间方块光、`unboundClouds`（204 行 3D 云）、SSR/反射缓冲链（colortex7/8 @ `REFLECTION_RES`）、`lib/textRendering`。⇒ 两变体**默认值分层**而非功能分叉——`lib/common.glsl:14 #define SHADER_STYLE 1 //[1 4]` 一行切换，重特性全部隔离为可关断 pass + 缓冲。
-- **无 TAA 的时域自适应体光采样**：`lib/atmospherics/volumetricLight/volumetricLight.glsl:9,183,321-346` 引入标量 `vlFactor`（0..1），相机静止时每帧爬升（`vlFactor = min(vlFactor + OSIEBCA, 1.0)`），运动时按 `reduceAmount` 更快回落；`nearSamples`/`farSamples` 随之增减。持久化靠 `composite1.vsh:379` 从 `colortex5` 最后一个像素 `.a` 读上一帧值——与 Astra colortex6 的 1×1 状态像素同构。
+- **无 TAA 的时域自适应体光采样**〔2026-09-20 执行 T8 更正：本条原文把它写成"相机静止时爬升、运动时回落"，两处都不对——驱动信号与回落条件见下方改后文本，全部行号引证见 11.F-8〕：`lib/atmospherics/volumetricLight/volumetricLight.glsl:289-346` 的**「Scene Aware」段**维护标量 `vlFactor`（0..1）：每 `int(0.06666 / frameTimeSmooth + 0.5)` 帧（约 4 帧，不是每帧）在**角点像素**上比一个阈值——`salsCheck` 是阴影图日方向 5×5 区域里遮蔽物高度（`shadowcolor1.a`）的均值，超过 `heightThreshold = 6.0` 则 `+= OSIEBCA`（`1/255`），否则 `-= OSIEBCA * reduceAmount`；`reduceAmount` 由画面五点的开阔天空判定 `skyCheck` 决定（看到天空 ⇒ 提到 3，即无遮挡场景更快回落）。它驱动的 `nearSamples` 方向是**加**：`mix(nearSamples, 1.5 * nearSamples, vlSceneIntensity)`（`:134`），而 `vlSceneIntensity = isEyeInWater != 1 ? vlFactor : 1.0`（`:16`）——**水下恒取最高档，不做自适应**。持久化靠 `program/composite1.glsl`：`:339` 在角点读回上一帧 `colortex5.a`、`:343` 写回，`:379`（该文件 `#ifdef VERTEX_SHADER` 段内，`world0/composite1.vsh` 只有 7 行、仅 `#define VERTEX_SHADER` + include）把它作为 `flat out` 广播给整趟 pass——与 Astra colortex6 的 1×1 状态像素同构。
 - **近/远双段采样**：`volumetricLight.glsl:183-250`，近段逐样本查阴影，远段**完全不查阴影**、密度直接用 `eyeBrightnessM`。远场本就低频，阴影贡献趋于常数。
 - **`dimension.properties`（`dimension.world0=*`）+ `shaders.properties:95-112`**：world0 通配所有模组维度；`#if SHADOW_QUALITY == -1 → program.world0/shadow.enabled=false` 按选项**整条禁用 pass**。反射分辨率做成用户选项：`lib/common.glsl:240 #define REFLECTION_RES 0.5 //[1.0 0.5]`，两张反射缓冲尺寸挂在选项上。
 
@@ -820,14 +820,14 @@ Astra 现状：`Astra/shaders/global/lighting/shadowmap.glsl:202 bias = end_shad
 - **许可证**：Sildur's **ARR → 只读思路**；八度权重是通用 mipmap/fBm 数学。
 - **验证**：`water_path_probe.py` + `cost_census.py`。
 
-### P1-16 · 光束时域自适应采样（vlFactor + 状态像素 + 运行时循环上界）
+### P1-16 · 光束时域自适应采样（vlFactor + 状态像素 + 运行时循环上界）（不采纳 · 前提证伪，见 11.F-8）
 
-- **现状**：`Astra/shaders/global/water/light_shafts.glsl` 的 `UNDERWATER_SHAFT_SAMPLES` 是编译期常量（`Astra/shaders/lib/settings.glsl:136`，7/7/10 三档），静止观赏时质量不足、移动时白付。
-- **依据**：Complementary Unbound `lib/atmospherics/volumetricLight/volumetricLight.glsl:9,183,321-346`（§2.1 新增 bullets）——`vlFactor` 持久化在 `colortex5` 末像素 `.a`，静止爬升、运动回落，驱动 `nearSamples`/`farSamples`。**前提条件须先修正**：真正的阻塞站点不是 `light_shafts.glsl:110,125`——`shadowtex1`/`shadowcolor0` 在全包没有任何 mipmap 声明，隐式 LOD 只能取到 level 0，实际无害（改 `texelFetch` 属于卫生改进）。必须修的是 `Astra/shaders/global/water/bloom_capture.glsl:21`：`colortex0` 经 `program/water_bloom.fsh:5` 开了 mip，外层 `if` 又是数据相关分支，那里才是真正的未定义行为（§9.4 前置项、本条下方）。引入运行时循环上界前须先按 Complementary Unbound 的做法消掉这类隐式 LOD 站点——它 `:201` 的注释原话："We need to use texelFetch here or a lot of Nvidia GPUs can't get a valid value"。
-- **做法**：新增 1×1 缓冲挂 `astraVlFactor`——colortex6 **没有空闲通道**（`Astra/shaders/global/water/medium_state.glsl:5`：RG = 1/16 格水面高度、B = 天空通达、A = 有效位，四通道全占）；静止每帧 `+= OSIEBCA`、运动按 `reduceAmount` 回落；`UNDERWATER_SHAFT_SAMPLES` 从编译期常量改为该标量驱动的运行时上界。**前置修复**：见上方「依据」——`bloom_capture.glsl:21` 是必修项，`light_shafts.glsl:110,125` 是可选卫生改进。
+- **现状**：`Astra/shaders/global/water/light_shafts.glsl` 的 `UNDERWATER_SHAFT_SAMPLES` 是编译期常量（`Astra/shaders/lib/settings.glsl:136`，7/7/10 三档），静止观赏时质量不足、移动时白付〔2026-09-20 执行期更正：后半句从未被测得——包内没有任何水下帧时间基线，见 11.F-8〕。
+- **依据**：Complementary Unbound `lib/atmospherics/volumetricLight/volumetricLight.glsl:9,183,321-346`（§2.1 新增 bullets）——`vlFactor` 持久化在 `colortex5` 末像素 `.a`，静止爬升、运动回落〔2026-09-20 执行 T8 时逐行读参照包源码证伪：驱动信号是**阴影图里的遮蔽物高度与画面是否有开阔天空**，与相机运动无关；且参照包在水下把它钉死为 1.0。全文见 11.F-8〕，驱动 `nearSamples`/`farSamples`。**前提条件须先修正**：真正的阻塞站点不是 `light_shafts.glsl:110,125`——`shadowtex1`/`shadowcolor0` 在全包没有任何 mipmap 声明，隐式 LOD 只能取到 level 0，实际无害（改 `texelFetch` 属于卫生改进）。必须修的是 `Astra/shaders/global/water/bloom_capture.glsl:21`：`colortex0` 经 `program/water_bloom.fsh:5` 开了 mip，外层 `if` 又是数据相关分支，那里才是真正的未定义行为（§9.4 前置项、本条下方）。引入运行时循环上界前须先按 Complementary Unbound 的做法消掉这类隐式 LOD 站点——它 `:201` 的注释原话："We need to use texelFetch here or a lot of Nvidia GPUs can't get a valid value"。
+- **做法**：新增 1×1 缓冲挂 `astraVlFactor`——colortex6 **没有空闲通道**（`Astra/shaders/global/water/medium_state.glsl:5`：RG = 1/16 格水面高度、B = 天空通达、A = 有效位，四通道全占）；〔2026-09-20 执行期更正：升降条件按参照包应为「阴影图日方向遮蔽物均值 `salsCheck` 超阈值则 `+= OSIEBCA`、画面有开阔天空则按 `reduceAmount` 回落」，不是静止/运动；见 11.F-8〕`UNDERWATER_SHAFT_SAMPLES` 从编译期常量改为该标量驱动的运行时上界。**前置修复**：见上方「依据」——`bloom_capture.glsl:21` 是必修项（已随 T7 闭合，11.F-7），`light_shafts.glsl:110,125` 是可选卫生改进。
 - **成本**：一个 1×1 状态通道 + 循环上界改运行时。
 - **许可证**：时域自适应采样 + 状态像素持久化是通用图形技巧 → **无风险**。
-- **验证**：逐帧对比静止/运动场景的光束质量与帧时间，确认平均成本不升。
+- **裁决（T8）**：**不落地**，不留缓冲、不留选项、不留死代码。三条独立理由与全部行号引证见 11.F-8：① 参照包自己在水下把该因子恒置 1.0，搬到 Astra 唯一使用它的 `isEyeInWater == 1` 路径上净收益按参照包判断为零；② 原设想的"运动降质"信号在受调研的每个包里都没有先例，且与 Astra 无 TAA 的静态 dither 设计正面冲突；③ "白付/成本不升"两侧都不可离线测量（`qa/benchmarks.md` 无 FPS 数据，`cost_census.py` 文件头自己声明它不是成本估计器）。重开条件写在 11.F-8 末段。
 
 ### P1-17 · 水吸收侧面深度界 + 未命中近场缓释（已执行 · 见 11.F-6）
 
@@ -1014,7 +1014,7 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 
 ### 9.4 落地顺序建议
 
-`P0-1`（纯配置，无风险，先做）→ `P2-12`（穷举编译，为后续所有开关兜底）→ `P2-10`/`P2-11`（合规与防退化基础设施）→ `P2-18`（`dimension.properties` 按维度裁剪，纯配置）→ `P1-5`/`P1-9`（成对做，同一处 bias/畸变）→ `P1-17`（水吸收侧面 skylight 代理 + 未命中近场缓释）→ **`P1-16` 前置**：把 `global/water/bloom_capture.glsl:21` 的隐式 LOD 改为显式命级（实测须写成 `textureLod(colortex0, sampleCoord, lod + log2(pixelHeight * viewHeight))`；裸传 `lod` 会去掉隐式路径自带的分辨率补偿，11.F-7。该函数靠 `exp2(lod)` 缩放坐标 + 梯度推导选 mip，`texelFetch` 会绕过这套选择，不可用）→ `P1-16`（光束时域自适应采样，依赖前置完成）→ `P1-6` → `P1-7` → `P1-8` → `P2-14`/`P2-19`（分辨率粒度选项）→ `P2-20`（光束标定三条，随 P1-16 对拍）→ `P0-2` → `P0-3` → `P2-13`（MIT 可署名复用清单）→ P2 余项（含 `P0-4` 降级后的月相残差，仅一处，顺手做）。**〔2026-09-20 执行期调整〕**`P0-2`/`P0-3` 从原来的第 5 位挪到后段：这两项是全表视觉风险最高、必须实机校准后才敢放的条目，且 `P0-3` 还卡在 `design.md` §4.1 需要先行修订；把它们排在低风险、可静态验证的条目之后，能让每一步都有编译或校验脚本兜底，而不是让最高风险项挡在最前面。
+`P0-1`（纯配置，无风险，先做）→ `P2-12`（穷举编译，为后续所有开关兜底）→ `P2-10`/`P2-11`（合规与防退化基础设施）→ `P2-18`（`dimension.properties` 按维度裁剪，纯配置）→ `P1-5`/`P1-9`（成对做，同一处 bias/畸变）→ `P1-17`（水吸收侧面 skylight 代理 + 未命中近场缓释）→ **`P1-16` 前置**：把 `global/water/bloom_capture.glsl:21` 的隐式 LOD 改为显式命级（实测须写成 `textureLod(colortex0, sampleCoord, lod + log2(pixelHeight * viewHeight))`；裸传 `lod` 会去掉隐式路径自带的分辨率补偿，11.F-7。该函数靠 `exp2(lod)` 缩放坐标 + 梯度推导选 mip，`texelFetch` 会绕过这套选择，不可用）→ `P1-16`（光束时域自适应采样，依赖前置完成）〔2026-09-20 执行结果：前置已随 T7 闭合（11.F-7）；`P1-16` 本身经 T8 逐行核对参照包源码后判为**不落地**（11.F-8），其对 `P2-20` 的阻塞随之解除〕→ `P1-6` → `P1-7` → `P1-8` → `P2-14`/`P2-19`（分辨率粒度选项）→ `P2-20`（光束标定三条，原计划随 P1-16 对拍，P1-16 不落地后改为独立做，T13）→ `P0-2` → `P0-3` → `P2-13`（MIT 可署名复用清单）→ P2 余项（含 `P0-4` 降级后的月相残差，仅一处，顺手做）。**〔2026-09-20 执行期调整〕**`P0-2`/`P0-3` 从原来的第 5 位挪到后段：这两项是全表视觉风险最高、必须实机校准后才敢放的条目，且 `P0-3` 还卡在 `design.md` §4.1 需要先行修订；把它们排在低风险、可静态验证的条目之后，能让每一步都有编译或校验脚本兜底，而不是让最高风险项挡在最前面。
 
 ## 10. 借鉴报告核收台账
 
@@ -1045,9 +1045,9 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 
 | # | 建议摘要 | 处置 | 备注 |
 |---|---|---|---|
-| 1 | 水下光束运行时采样数自适应 | **采纳，但前提须修正** | `UNDERWATER_SHAFT_SAMPLES` 是用户选项 7/[4-10] 而非常量；「循环体已全显式 LOD」为假（C36），但真站点是 `bloom_capture.glsl:21`（colortex0 有 mip + 数据相关分支），修法 `textureLod(…, lod)`；`light_shafts.glsl:110,125` 的采样器无 mip，隐式 LOD 无害，仅卫生改进（§6 P1-16） |
-| 2 | vlFactor 时域自适应 | 采纳 | → §6 P1-16 |
-| 3 | 近/远两段式 VL 采样 | 采纳 | → §6 P1-16 描述 |
+| 1 | 水下光束运行时采样数自适应 | **前提修正采纳（已随 T7 闭合）；主体撤销（T8）** | `UNDERWATER_SHAFT_SAMPLES` 是用户选项 7/[4-10] 而非常量；「循环体已全显式 LOD」为假（C36），真站点是 `bloom_capture.glsl:21`（colortex0 有 mip + 数据相关分支）。修法不能逐字写成裸 `textureLod(…, lod)`——执行 T7 实测隐式梯度选的 level 自带分辨率补偿，须写 `textureLod(colortex0, sampleCoord, lod + log2(pixelHeight * viewHeight))`，否则 1080p 短 1.26 个 level（11.D-14、11.F-7）。采样数改运行时这一半经 T8 判为不落地（11.F-8）；`light_shafts.glsl:110,125` 的采样器无 mip，隐式 LOD 无害，仅卫生改进（§6 P1-16） |
+| 2 | vlFactor 时域自适应 | **撤销（执行 T8 时）** | 逐行读参照包源码：`vlFactor` 的驱动信号是阴影图日方向遮蔽物高度均值与画面开阔天空判定，与相机运动无关（`volumetricLight.glsl:289-346`）；且参照包在 `isEyeInWater == 1` 时把它恒置 1.0（`:16`），而那是 Astra 唯一使用它的路径。→ 见 11.F-8 |
+| 3 | 近/远两段式 VL 采样 | **撤销（执行 T8 时）** | 该做法在参照包侧服务于超出影距的远段追踪；Astra 水下 march 的 `maxDist` 是硬编码 40 块（`global/water/light_shafts.glsl:74`），而 `SHADOW_DISTANCE` 最小选项 64（`lib/settings.glsl:67`，三档 192/256/256），整段追踪本就在影距覆盖内，没有远段可分 |
 | 4 | 水吸收谱序对照标定 | 采纳（修正后） | 定性结论正确，参数化描述须修正（§9.2 已记录） |
 | 5 | 焦散曲率烘焙进 shadow | 采纳 | → §6 P1-7 |
 | 6 | 体积云三级早退 | 采纳 | → §2.4 已记录思路 |
@@ -1094,7 +1094,7 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 | P2-13 MIT 复用清单 | **高价值** | `grading.glsl:204-208` 已有 Mellow MIT 移植先例（链序），`Astra/shaders/lib/bayer.glsl` 已有基础；逐件许可证动作标注清楚 |
 | P2-14 连续分辨率旋钮 | **中低价值** | 是 3 档之外的粒度补充，建议在 P0-1 定调后再评估 |
 | P2-15 反射八度减半 | **中低价值** | 反射路径无质量降级成立（`clouds_planar`/`refraction`/`raytrace` 无 isReflection 分支）；收益限于反射像素 |
-| P1-16 光束时域自适应 | **中价值，前提修正后采纳** | 两处前提更正（11.D-5/6）；状态像素须用新 1×1 缓冲；前置修复并入真正的 mipmapped 站点 |
+| P1-16 光束时域自适应 | **不采纳（前提证伪）· 已复核（见 11.F-8）** | 执行 T8 时逐行读参照包源码，采纳前提不成立：`vlFactor` 由阴影图遮蔽物高度与开阔天空判定驱动，与相机运动无关，且参照包在 `isEyeInWater == 1` 路径上把它恒置 1.0——Astra 唯一要接的正是该路径。零代码改动；前置修复已随 T7 闭合（11.F-7），11.D-5/6 两处前提更正仍成立 |
 | P1-17 水吸收侧代理 | **中价值，采纳 · 已执行（见 11.F-6）** | 侧面几何深度确有缺陷但**方向与原文相反**：不是"≈0 不吃吸收"，而是退化成相机距离导致**过吸收**（11.D-11）；skylight 代理经实测**不必要**，被 ≤1 块的纯几何界取代（11.D-12）；文件归属与 miss 分支描述已更正（11.D-7/8）；Steadfast §7 义务对账要求合理 |
 | P2-18 按维度裁剪 | **中低价值，采纳 · 已执行（见 11.F-4）** | properties 已有 8 条维度专用 `false` 门（两个维度目录各 `composite`/`composite2`/`composite3`/`composite4`），本条是把已有机制系统化；"缓冲尺寸跟随维度配置"不成立——`size.buffer.*` 以裸缓冲名为键（见 §6 P2-18 做法条） |
 | P2-19 光束/反射分辨率选项 | **中低价值，建议与 P2-14 合并** | 硬编码 0.5/0.25 成立（`shaders.properties:14,19`）；与 P2-14 同属分辨率粒度 |
@@ -1121,6 +1121,7 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 12. P1-17 做法②（读 colortex3 skylight 作深度代理）→ **不必要**。代理的取值域本身就是 1/16..1 块（`absorption_refraction.glsl:92` 已核对），而"侧面所在水块沿该法线的邻格不是水 ⇒ 厚度 ≤ 1 块"是几何真值，`min(depth, 1.0)` 一步到位，不必为同一个上界再读一张缓冲。② 的"一个分支 + 一次 skylight 读取"成本随之改为一次 `view_player` 点积。
 13. §10.4 第 11 行「Steadfast 水吸收 skylight 代理：成立、v2 备选」→ Astra 侧**没有这个缺口**（11.D-12），撤销该建议，不留 v2 备选位。
 14. §9.2 与 §9.4 的 P1-16 前置修法「改成 `textureLod(colortex0, sampleCoord, lod)`」→ **不完整**。隐式梯度选出的 level 自带分辨率补偿 λ = `lod + log2(pixelHeight * viewHeight)`，裸传 `lod` 在 270/360/540/1080 分别短 0.32 / 0.32 / 0.26 / 1.26 个 level，等于在每个分辨率都把水下泛光改锐一档。执行 T7 时实测得到（11.F-7），两处已就地写回正文。
+15. §6 P1-16 依据条「`vlFactor` …… 静止爬升、运动回落」→ **参照机制被本报告读错**。执行 T8 时逐行读 `volumetricLight.glsl:289-346`：该标量的两个输入是阴影图日方向 5×5 区域的遮蔽物高度均值（`salsCheck` vs `heightThreshold = 6.0`）与画面五点开阔天空判定（`skyCheck`），整段不含任何位移或速度项；参照包自己的段标题写的是 "Scene Aware"，GUI 档位名是 `Scene Aware [+]` / `Regular` / `Extreme [-]`，切换方向是**加质量**。更关键的一条：`:16` 在 `isEyeInWater == 1` 时把它恒置 1.0，而水下正是 Astra 唯一要接的路径。同次核对另出两处 §2.1 的引证误差：`composite1.vsh:379` **文件归属错**——该行在 `program/composite1.glsl` 的 `#ifdef VERTEX_SHADER` 段内，而 `world0/composite1.vsh` 只有 7 行、是一个 `#define VERTEX_SHADER` + include 的包装；"每帧爬升"**节奏错**——源码是每 `int(0.06666 / frameTimeSmooth + 0.5)` 帧一步（60fps 约每 4 帧）。三处已就地改写 §2.1。→ 见 11.F-8，本条不落地。
 
 ### 11.E 复核中新发现的 Astra 侧问题（报告未提）
 
@@ -1373,4 +1374,25 @@ lod 2/3/4/5 共 16 个点全部落在预测 ±0.15 内；同一 lod 在 270 与 
 许可证：`bloom_capture.glsl:1` 已声明 Solas V2.2b 派生，`Astra/THIRD-PARTY.md:191` 登记该文件"保留 tile 布局、采样权重、编码与混合方程"；本条新增的是自写 level 表达式与推导注释，不改变受登记保护的方程，不新增登记行，`check_pack.py` 第 8 项 PASS。
 
 收尾门：`python qa/tools/bloom_lod_probe.py --baseline ../bloom-lod-probe/pre-fix.json` → exit 0；同工具单跑 → exit 0；`python qa/tools/check_pack.py` → 16 项 0 FAIL / 15 PASS / 1 WARN（WARN 仍是 Voxy 接线登记，与本条无关）；`python qa/tools/compile_glsl.py` 三档默认 → `linked=267 failed=0 compute=27`，exit 0，日志 `qa/glsl-2026-09-20-t7-bloom.log`；`python qa/tools/test_gate_sensitivity.py` → 14/14；`python qa/tools/water_path_probe.py` → exit 0；`python qa/tools/provenance_steadfast.py --quiet` 计数不变（`verbatim=14 literal-suffix=2 rewritten=6 astra-only=24 total=46`）。按 11.F-2 成本规则，本条不碰 `shaders.properties` 也不改任何选项分支，三档扫描收口，未跑 83 行全矩阵。产物：`qa/bloom-lod-probe/pre-fix.json`（改前隐式形态基线，后续任何再动 level 表达式的工单用它对拍）与 `results.json`（本轮绿跑）；工具每次运行会落 283 MB 的 `.f32` 逐帧转储，已加 `.gitignore` 规则不入库。
+
+**F-8 · T8 复核 P1-16：参照机制的驱动信号被本报告读错，本条不落地**
+
+工单 #21 的产出是**零代码改动**（`git show --stat` 只含本文件与两份 qa 台账），因为逐行读参照包源码后，本条的采纳前提不再成立。核对全部在 `_analysis/study-2026-09-20/ComplementaryUnbound_r5.9.3/shaders`（即 §2.1/§6 引用的同一棵树）。
+
+1. **`vlFactor` 是场景感知标量，不是相机运动标量。** 参照包自己的段标题写着答案：`lib/atmospherics/volumetricLight/volumetricLight.glsl:289` "Step 4: Calculate factor of **Scene Aware** Light Shafts"；GUI 侧 `lang/en_US.lang` 的档位名是 `option.LIGHTSHAFT_BEHAVIOUR=Light Shaft Mode` → `value.1=Scene Aware [+]` / `value.2=Regular` / `value.3=Extreme [-]`，其 comment 原话是"Scene Aware Light Shafts automatically transition between regular and extreme"——**自动切换的方向是加质量，不是省质量**。
+2. **它的两个输入都与位移无关。** ① `salsCheck`（`:293-316`）：在阴影图日方向的一块 5×5 区域里取 `texelFetch(shadowtex0,…).x < 0.55` 的样本，读 `shadowcolor1.a` 的遮蔽物高度求均值，与 `heightThreshold = 6.0`（`:295`）比较；② `skyCheck`（`:319-338`）：沿画面五个点比 `depthtex0`/`depthtex1` 判"是否看到天空"，`skyCheck >= 3` 时把 `salsCheck` 强制归零并把 `reduceAmount` 由 2 提到 3。整段不含 `cameraPosition`、`previousCameraPosition`、`frameTime` 位移量或任何速度项。
+3. **持久化与节奏**：只有角点像素推进累加器（`:291` `if (viewWidth + viewHeight - gl_FragCoord.x - gl_FragCoord.y < 1.5)`），每 `int(0.06666 / frameTimeSmooth + 0.5)` 帧一步（`:292`，`shaders.properties:261` `uniform.float.frameTimeSmooth = smooth(5, frameTime, 5, 5)`；60fps 下约每 4 帧），步长 `OSIEBCA = 1/255`（`lib/common.glsl:843`，注释 "One Step In Eight Bit Color Attachment"）。读写点在 `program/composite1.glsl`：`:339` 读 `colortex5` 的 `texelCoord`、`:343` 写回 `gl_FragData[1] = vec4(0,0,0, vlFactorM)`，而 `:338` 的反向守卫让非角点像素把自己的旧值原样写回——这是"全屏 pass 里保一个状态像素"的读改写技巧。同一个标量在末地被改用作龙死亡动画（`program/deferred1.glsl:509-510` 按 `isEnderDragonDead` 升降），进一步说明它是通用的"场景状态"载体。
+4. **它驱动样本数的方向是加。** `vlSceneIntensity = isEyeInWater != 1 ? vlFactor : 1.0`（`:16`），随后 `nearSamples = int(mix(float(nearSamples), 1.5 * nearSamples, vlSceneIntensity))`（`:134`）、`qualityThreshold = mix(qualityThreshold, 100.0, vlSceneIntensity)`（`:132`）、`sampleDistribution = mix(sampleDistribution, 1.5, vlSceneIntensity)`（`:135`）。**决定性的一条**：参照包在 `isEyeInWater == 1` 时把该因子恒置 1.0，也就是恒取最高档、不做任何自适应。
+
+对到 Astra 侧：本条要接的是 `water_shafts_march`，它是 `isEyeInWater == 1` 专属路径（`Astra/shaders/program/scattering.fsh:38-42` 调用，`program/water_composite.fsh:12-17` resolve）。**照搬参照包的真实信号，得到的就是参照包自己在水下写死的那个常量 1.0——机制装上去不会改变任何一帧。** 而本报告原以为可替代的"运动降质"信号没有任何参照：全 `_analysis` 树 237 处相机运动标识符（`cameraMovement|movementAmount|isMoving|movingFactor|motionFactor|velocityFactor|previousCameraPosition`）全部落在 TAA/重投影与顶点摆动路径，其中喂给样本数或循环界的同行匹配为 0；294 处具名循环界里运行时计算的那批（`sampleCount`/`iterations`/`samples`/`steps`/`shadowSamples`/…）无一个由位移派生。扫描按命名与同行表达式过滤，未做跨行数据流追踪，因此这句结论的范围是"受调研包内未见先例"，不是"不存在"。
+
+Astra 已有的运行时循环界也不缺：`global/water/light_shafts.glsl:79` 取 `maxCurrentDist = min(rayLength, maxDist)`、`:84` `if (currentDist > maxCurrentDist) break;`、`:64` 整帧门 `if (visibility <= 0.0) return`（覆盖夜晚/背光/失明）。同一形态直接来自 Solas（`_analysis/Solas Shader V2.2b/shaders/lib/atmosphere/volumetricLight.glsl:52,62-64`：`sampleCount` 是编译期常量而界是运行时的；其云 march 更彻底，`volumetricBlockyClouds.glsl:43` 直接 `clamp(int(rayLength), 0, 16)`）。**剩下没做的只有"把编译期常量本身变成运行时值"**，而 `UNDERWATER_SHAFT_SAMPLES` 同时是三件事的除数——步长 `minDist`（`:78`）、权重归一 `pow((currentDist / maxDist) / float(SAMPLES), …)`（`:94`）、循环界（`:82`）——把它改成运行时变量必须三处同步搬，否则样本数一跳、光束总能量跟着跳，这不是可声称"图像中性"的改动。
+
+再加一条 Astra 特有的冲突：本包无 TAA（§7.B.1/B.10 已定），`dither` 取静态噪声 `texture(solasWaterNoise, gl_FragCoord.xy / 512.0).b`（`:80`，不含 `frameTimeCounter`），所以静止相机下画面逐帧完全一致——样本数从 7 切到 4 会把光束结构直接切换出来，没有任何时域累积可以掩盖。参照包能这么切是因为它同时改的是一组量（分布、阈值、步数）且水下这条路它根本不切。
+
+成本前提同样测不出来：`qa/benchmarks.md` 至今没有 FPS 数据（`qa/open-premises.md` 的 P-4 行已长期挂账），`qa/tools/cost_census.py:1-6` 的文件头原话是 "Loop source inventory, not an execution-cost or GPU-safety estimator… Never label lexical fetch sites as fetches/pixel"。所以本条原验证条"确认平均成本不升"在离线侧给不出证据。用户裁定「实现但默认关，标注待实机」适用于**机制价值已被证实、只是画面/性能需要实机确认**的条目；这里被推翻的是机制价值本身，不是它的观感。
+
+裁决与一致性：与 §7.B.6（反对"零消费者选项"）以及 T2 删掉 84 个无人读取 marker define 的口径一致——落一张没人读的 1×1 缓冲加一个默认关、无参照、无实测收益的选项，正是这些防线要拦的债。**重开条件**（将来若重启，按此前提起步）：先拿到水下场景的帧时间基线，确认 `water_shafts_march` 占比可测且显著；信号按参照包的真实那条（阴影图日方向遮蔽物高度均值），不是相机运动；改动必须把 `:78` 步长与 `:94` 权重分母和 `:82` 循环界一起搬到同一个运行时变量，并给出样本数跳变时的能量守恒证据。
+
+门：包侧零代码改动，因此没有可新增的编译或图像证据；只复跑一致性门确认文档与代码状态未漂移，四道门与 T7 收尾时逐项相同——`python qa/tools/check_pack.py` → 16 项 0 FAIL / 15 PASS / 1 WARN（WARN 仍是 Voxy C5 接线登记），exit 0；`python qa/tools/compile_glsl.py` 默认批（`BATCH 1/1 rows=PERFORMANCE..ULTRA`）→ `linked=267 failed=0 compute=27`，exit 0，日志 `qa/glsl-2026-09-20-t8-docs.log`；`python qa/tools/test_gate_sensitivity.py` → 14/14 按预期，exit 0；`python qa/tools/provenance_steadfast.py --quiet` → `verbatim=14 literal-suffix=2 rewritten=6 astra-only=24 total=46`，计数不变，exit 0。许可证侧无动作：本条未复制任何参照包表达式，`Astra/THIRD-PARTY.md` 无需新增登记行。工单 #21 关闭后解除 #26（T13 P2-20 光束标定）的依赖。
 

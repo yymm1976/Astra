@@ -851,9 +851,9 @@ P1-5（`composite2` 的 GODRAYS 门控）、P2-4（静态阴影兜底）也都�
 - **其他**：final 水下重复 tonemap 消除；End 暗角/抖动改叠加式；下界天空去双算；caustics 守卫闭合；noise.glsl/noisetex/noise.png、sunrise/moonrise、biome 平滑 uniform、astraRipple3、surfaceWet 死存储等死链清理；字面整数 pow 迁移（fog/end_system/shadow.fsh/lit/deferred/water/weather/end/overworld/bloom_resolve/twilight 部分）；srgb_decode 函数内钳负；colortex7=0.25；SSS_STRENGTH 默认对齐 60；THIRD-PARTY 计数与 README 事实更正；新增 09-17 返工归档与 qa/open-premises.md。
 - **验证**：`compile_glsl.py` 全档 `linked=267 failed=0 compute=27`（qa/glsl-consolidated-fixes.log）；`check_pack.py` 0 FAIL / 1 WARN / 10 PASS。视觉类改动（光束标定、水色、植被透光、晨雾方向）需实机对拍，未宣称画面结论。
 
-## 2026-09-20 借鉴调研重审执行轮（T0–T7，按工单顺序，每单一个本地 commit）
+## 2026-09-20 借鉴调研重审执行轮（T0–T8，按工单顺序，每单一个本地 commit）
 
-依据 docs/2026-09-20-shader-pack-design-survey.md §11 复核与 11.B 逐条裁决。修复前快照 = `14cd4fe`（重审记录折叠进调研报告的那一笔，T0 的父提交）。逐条细节与实测数字统一记在该报告 11.E / 11.F-1…11.F-7，本节只做索引，不重述。
+依据 docs/2026-09-20-shader-pack-design-survey.md §11 复核与 11.B 逐条裁决。修复前快照 = `14cd4fe`（重审记录折叠进调研报告的那一笔，T0 的父提交）。逐条细节与实测数字统一记在该报告 11.E / 11.F-1…11.F-8，本节只做索引，不重述。
 
 - **T0 · 注释腐烂与 LOD 前提重锚** → `cc18b33`（11.E）
 - **T1 · P0-1 档位重做（三档必须产生可测差异）** → `f952887`（11.F-1）
@@ -863,7 +863,8 @@ P1-5（`composite2` 的 GODRAYS 门控）、P2-4（静态阴影兜底）也都�
 - **T5 · P1-9 畸变按影距归一（闭合 P1-5 残差）** → `b20abd0`（11.F-5）
 - **T6 · P1-17 水吸收侧面深度界 + 未命中近场缓释**（11.F-6）：`program/water.glsl` 三处改动，`water_path_probe.py` 从模式 0..6 扩到 0..21、断言 8→19，两条反向验证都实跑并还原。
 - **T7 · P1-16 前置：`bloom_capture.glsl` 隐式 LOD 显式命级**（11.F-7）：`:26` 的 `texture()` 换 `textureLod(..., level)`，`level = lod + log2(pixelHeight * viewHeight)`——实测隐式路径带的分辨率补偿项，本报告 §9.2/§9.4 原写的裸 `lod` 会在 1080p 短 1.26 个 level（已就地更正，11.D-14）。新工具 `bloom_lod_probe.py` + `qa/bloom-lod-probe/pre-fix.json` 基线：16 个测量点里 8 点逐位相同、8 点 −0.0078 level（= 探针最小台阶，模糊半径 0.54%），唯一非中性变化是 tile 区域边界从 quad 吸附的第 97 像素落到谓词正确的 98（1 px，水下 tile bloom 边缘）。
-- **本轮自我更正两处**（均由 T7 的新工具实测推翻）：① 早前把"实测 level 与预测差 ±0.1"归因于"驱动固定功能 LOD 单元精度"——不成立，mode 3/5 用完全不含导数的显式 `textureLod` 复现同一条非线性曲线，病灶在探针的 level→8-bit→三线性读回链，绝对 level 因此只可信到 ±0.15、两次运行的差可信到 0.0078；② 早前把 `pow(x,1/8)` 往返写成"实测精确中性"——mode 4 与 mode 5 的解码互为代数逆，相同是构造保证，该断言只约束 fp32 幂精度，不作独立证据。
+- **T8 · P1-16 光束时域自适应采样 → 不落地（零代码改动）**（11.F-8）：逐行读 Unbound `volumetricLight.glsl:289-346` 后，工单前提被推翻——`vlFactor` 是**场景感知**累加器（阴影图日方向 5×5 遮蔽物高度均值 vs `heightThreshold = 6.0`，加画面五点开阔天空判定决定回落步长），与相机运动无关；决定性的一条是 `:16` 在 `isEyeInWater == 1` 时把它恒置 1.0，而水下正是 Astra 唯一要接它的路径（`water_shafts_march`）。原设想的"运动降质"信号在受调研包内未见先例（237 处相机运动标识符喂给样本数/循环界的为 0；294 处具名循环界无一个由位移派生），且与 Astra 无 TAA 的静态 dither 正面冲突；"白付/成本不升"两侧都不可离线测量（`qa/benchmarks.md` 空、`cost_census.py` 文件头自己声明它不是成本估计器）。连带就地更正：§2.1 该 bullet 整条重写（含 `composite1.vsh:379` 文件归属错、"每帧"节奏错，11.D-15）、§10.4 第 2、3 行撤销、§11.B 该条改判、§9.4 顺序与 `P2-20` 依赖解除标注。重开条件写在 11.F-8 末段（水下帧时间基线 + 参照包真实信号 + 步长/权重分母/循环界同步搬且给出能量守恒证据）。工单 #21 关闭 → 解除 #26（T13 P2-20 光束标定）依赖。
+- **本轮自我更正三处**：① ② 由 T7 的新工具实测推翻——早前把"实测 level 与预测差 ±0.1"归因于"驱动固定功能 LOD 单元精度"，不成立，mode 3/5 用完全不含导数的显式 `textureLod` 复现同一条非线性曲线，病灶在探针的 level→8-bit→三线性读回链，绝对 level 因此只可信到 ±0.15、两次运行的差可信到 0.0078；早前把 `pow(x,1/8)` 往返写成"实测精确中性"，mode 4 与 mode 5 的解码互为代数逆，相同是构造保证，该断言只约束 fp32 幂精度，不作独立证据。③ 由 T8 逐行读参照包源码推翻——本报告 §2.1/§6 把 `vlFactor` 写成"静止爬升、运动回落"的省质量机制，真实机制是场景感知的**加质量**累加器且在水下恒为 1.0（11.D-15、11.F-8）。
 - **门控**：`check_pack.py` 16 项 0 FAIL / 15 PASS / 1 WARN（WARN 仍是 #4 include 图接线登记）；`compile_glsl.py` 三档默认 `linked=267 failed=0 compute=27`；`compile_glsl.py --matrix --jobs 4` 全选项面 `linked=7387 failed=0`；`test_gate_sensitivity.py` 14/14；`provenance_steadfast.py --quiet` 计数不变；`inspect_iris_properties.py` 退出 0；`water_path_probe.py` 退出 0；`bloom_lod_probe.py --baseline qa/bloom-lod-probe/pre-fix.json` 退出 0（T7 起新增的图像中性门）。
 - **待实机**（全部进 qa/regression-checklist.md）：6a 畸变边界密度与影距缩小时图外空区、末地自阴影条纹三档；10a 水吸收侧面 1 块上界在平视瀑布面是否偏浓、未命中缓释的增浓速率是否衔接自然；18a 水下 tile bloom 边缘那 1 像素的边界移动是否可辨、水下平移转视角时有无闪烁。
 - **写作纪律修正一处**：11.F-6 初稿把 mode 13 的雾实测零值写成"HEAD 侧 `qa/water-path-verification/results.json` 早已建立"——该目录在 git 全历史中不存在，且该零值随影距变（`atmosphereFogCoefficient ∝ (0.60/far)³`），已改记为本工具首次实测并写明成立条件。
