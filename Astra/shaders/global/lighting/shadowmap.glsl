@@ -114,7 +114,7 @@ ShadowTap shadow_read_tap(vec2 uv, float referenceDepth) {
     #endif
     return tap;
 }
-#if SHADOW_FILTER_MODE == 0
+#if SHADOW_FILTER_MODE == SHADOW_FILTER_SOFTWARE
 // Gather returns (01,11,10,00); reorder to (00,10,01,11), matching the
 // original software corners. Compare every depth BEFORE weighting it.
 vec4 shadow_corner_weights(vec2 f) {

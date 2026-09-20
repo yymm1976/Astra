@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compile_glsl  # shared Iris render-stage table (SC-31)
+import option_matrix  # shared option/consumer analysis (check 13)
 
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
@@ -750,6 +751,21 @@ ENGINE_CONST_NAMES = {
     "shadowHardwareFiltering",
 }
 
+# Format tokens Iris injects for const int colortex<N>Format (the engine reads the
+# identifier, not a value), so neither check 11 nor check 13 may report them as
+# unknown macros. Verified against the installed iris.jar by
+# qa/tools/inspect_iris_properties.py.
+ENGINE_FORMAT_TOKENS = {
+    "RGBA", "R8", "RG8", "RGB8", "RGBA8", "R8_SNORM", "RG8_SNORM", "RGB8_SNORM",
+    "RGBA8_SNORM", "R16", "RG16", "RGB16", "RGBA16", "R16_SNORM", "RG16_SNORM",
+    "RGB16_SNORM", "RGBA16_SNORM", "R16F", "RG16F", "RGB16F", "RGBA16F", "R32F",
+    "RG32F", "RGB32F", "RGBA32F", "R8I", "RG8I", "RGB8I", "RGBA8I", "R8UI",
+    "RG8UI", "RGB8UI", "RGBA8UI", "R16I", "RG16I", "RGB16I", "RGBA16I", "R16UI",
+    "RG16UI", "RGB16UI", "RGBA16UI", "R32I", "RG32I", "RGB32I", "RGBA32I",
+    "R32UI", "RG32UI", "RGB32UI", "RGBA32UI", "RGBA2", "RGBA4", "R3_G3_B2",
+    "RGB5_A1", "RGB565", "RGB10_A2", "RGB10_A2UI", "R11F_G11F_B10F", "RGB9_E5",
+}
+
 
 def _numeric_literal(value):
     return bool(re.fullmatch(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?[fF]?", value.strip()))
@@ -760,19 +776,6 @@ def check_iris_parser_contracts():
     c = Check(11, "Iris 1.11.2 parser contracts (SC-21..SC-27)")
 
     shader_files = list(walk_shader_files())
-
-    # Format tokens Iris injects for const int colortex<N>Format (the engine reads the
-    # identifier, not a value), so they must not be reported as unknown macros.
-    ENGINE_FORMAT_TOKENS = {
-        "RGBA", "R8", "RG8", "RGB8", "RGBA8", "R8_SNORM", "RG8_SNORM", "RGB8_SNORM",
-        "RGBA8_SNORM", "R16", "RG16", "RGB16", "RGBA16", "R16_SNORM", "RG16_SNORM",
-        "RGB16_SNORM", "RGBA16_SNORM", "R16F", "RG16F", "RGB16F", "RGBA16F", "R32F",
-        "RG32F", "RGB32F", "RGBA32F", "R8I", "RG8I", "RGB8I", "RGBA8I", "R8UI",
-        "RG8UI", "RGB8UI", "RGBA8UI", "R16I", "RG16I", "RGB16I", "RGBA16I", "R16UI",
-        "RG16UI", "RGB16UI", "RGBA16UI", "R32I", "RG32I", "RGB32I", "RGBA32I",
-        "R32UI", "RG32UI", "RGB32UI", "RGBA32UI", "RGBA2", "RGBA4", "R3_G3_B2",
-        "RGB5_A1", "RGB565", "RGB10_A2", "RGB10_A2UI", "R11F_G11F_B10F", "RGB9_E5",
-    }
 
     # SC-21: Iris treats anything after the closing quote as part of the path.
     for p in shader_files:
@@ -1190,6 +1193,97 @@ def check_tier_differential(opts):
     return c
 
 
+# Names the pack deliberately tests without defining. check 13 fails on any name that
+# appears in an #ifdef/#ifndef but in no #define, so these need a reason on file - and
+# the reason is checked too: it becomes a failure the moment the pack defines the name.
+GUARD_SYMBOL_SOURCES = {
+    "ASTRA_VOXY_PASS": "the Voxy integration branch in lib/transforms.glsl and "
+                       "lib/uniforms.glsl; program/lit_voxy.fsh is still the C5 stub, so "
+                       "the branch is false by design until that task wires it",
+    "EXTERNALLY_DEFINED_UNIFORMS": "lib/uniforms.glsl's own include guard. Absent from the "
+                                   "installed iris.jar (qa/tools/inspect_iris_properties.py), "
+                                   "so it is always true and hides no code",
+}
+
+# settings.glsl enum tokens that name the arm no branch ever tests: the code checks one
+# value and lets the rest fall through, so these constants document a value instead of
+# selecting one. check 13 still requires each to be a real value of its option.
+ENUM_ARM_TOKENS = {
+    "SKY_MINISHITA": ("SKY_MODE", "global/dimension/overworld.glsl tests SKY_GRADIENT"),
+    "SUN_MOON_DISCS": ("SUN_MOON_MODE", "program/sky.fsh tests SUN_MOON_VANILLA"),
+    "WATER_BALANCED": ("WATER_CHARACTER", "global/water/absorption.glsl tests COLD and TROPICAL"),
+}
+
+
+def check_option_consumers():
+    """Survey 6 P2-12: an option nobody reads and a branch on a name nobody defines are
+    both invisible defects, and no reference pack studied there had a habit of catching
+    either. This is the static half of the matrix; compile_glsl.py --matrix is the half
+    that proves every surviving combination still compiles."""
+    c = Check(13, "option consumers and branch symbols (survey 6 P2-12 option matrix)")
+    space = option_matrix.option_space(PACK)
+    opts = space["options"]
+    rows, uncovered = option_matrix.covering_array(space)
+    c.note(f"{len(opts)} option(s), {len(space['factors'])} of which can flip a "
+           f"preprocessor branch; pairwise matrix = {len(rows)} row(s), "
+           f"python qa/tools/compile_glsl.py --matrix")
+    if uncovered:
+        c.fail(f"covering array did not close: {len(uncovered)} factor-value pair(s) "
+               f"received no row even with no row limit")
+    if space["unused_options"]:
+        c.fail("option(s) offered in the GUI but read by nothing (the JCL KILL_SWITCH "
+               "failure): " + ", ".join(space["unused_options"]))
+
+    settings_text = read(PACK / "lib" / "settings.glsl")
+    for name, files in sorted(space["undeclared_guards"].items()):
+        if name in ENGINE_FORMAT_TOKENS or name in GUARD_SYMBOL_SOURCES:
+            continue
+        c.fail(f"#ifdef/#ifndef {name} in {', '.join(files)}: nothing in the pack or the "
+               f"engine ever defines it, so the branch is permanently false. Define it, "
+               f"delete the branch, or add it to GUARD_SYMBOL_SOURCES with a reason")
+    for name in GUARD_SYMBOL_SOURCES:
+        if name not in space["undeclared_guards"] and name not in ENGINE_FORMAT_TOKENS:
+            c.fail(f"GUARD_SYMBOL_SOURCES lists {name}, but the pack now defines it - "
+                   f"the exemption is stale, remove it")
+
+    for name, files in sorted(space["unread_macros"].items()):
+        if name in ENUM_ARM_TOKENS:
+            option, reason = ENUM_ARM_TOKENS[name]
+            declared = re.search(r"^[ \t]*#define[ \t]+" + name + r"[ \t]+(\S+)",
+                                 settings_text, re.M)
+            if not declared:
+                c.fail(f"{name}: exempted as the untested arm of {option}, but it is no "
+                       f"longer defined in lib/settings.glsl")
+                continue
+            levels = (opts.get(option) or {}).get("levels") or []
+            if not levels:
+                c.fail(f"{name}: exempted as the untested arm of {option}, but {option} is "
+                       f"no longer an option with a value list - the exemption is stale")
+                continue
+            try:
+                in_range = float(declared.group(1)) in [float(v) for v in levels]
+            except ValueError:
+                in_range = False
+            if not in_range:
+                c.fail(f"{name}: value {declared.group(1)} is no longer one of "
+                       f"{option}'s {levels} - the exemption reason is stale ({reason})")
+            continue
+        c.fail(f"#define {name} in {', '.join(files)} has no reader anywhere (comments "
+               f"included): the code path it documents no longer exists. Delete it or "
+               f"restore the branch")
+
+    # Both tools parse settings.glsl; if they stop agreeing, every count in this report
+    # is describing a different option set than the GUI check is validating.
+    theirs = set(parse_settings())
+    if theirs != set(opts):
+        only_mine = sorted(set(opts) - theirs)
+        only_theirs = sorted(theirs - set(opts))
+        c.fail("check_pack.parse_settings and option_matrix.parse_options disagree about "
+               f"the option set: only in option_matrix: {', '.join(only_mine) or '-'}; "
+               f"only in check_pack: {', '.join(only_theirs) or '-'}")
+    return c
+
+
 def main():
     print(f"Astra pack validator | pack={rel(PACK)} | python={sys.version.split()[0]}")
     print("=" * 72)
@@ -1205,6 +1299,7 @@ def main():
     check_final_chain()
     check_iris_parser_contracts()
     check_tier_differential(opts)
+    check_option_consumers()
     for c in CHECKS:
         c.render()
     print("=" * 72)

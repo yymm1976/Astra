@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
@@ -316,12 +317,87 @@ def lwjgl_classpath(mc_root: Path) -> str:
     return ";".join(map(str, jars))
 
 
+def expand_row(tag: str, values: dict, overrides: dict, pairs: list, computes: list,
+               shader_root: Path, directory: Path) -> list[str]:
+    """Write one option configuration's expanded sources, and return their manifest rows."""
+    profile_values = dict(values)
+    profile_values.update(overrides)
+    rows: list[str] = []
+    for label, vertex, fragment in pairs:
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", tag + "_" + label)
+        vertex_out = directory / (safe + ".vsh")
+        fragment_out = directory / (safe + ".fsh")
+        vertex_map = directory / (safe + ".vmap")
+        fragment_map = directory / (safe + ".fmap")
+        expander = Expander(shader_root, profile_values)
+        vertex_out.write_text(expander.expand(vertex, root=True), encoding="utf-8")
+        expander.write_map(vertex_map)
+        expander = Expander(shader_root, profile_values)
+        fragment_out.write_text(expander.expand(fragment, root=True), encoding="utf-8")
+        expander.write_map(fragment_map)
+        rows.append("\t".join(map(str, (
+            tag + ":" + label, "vf", vertex_out, vertex_map, fragment_out, fragment_map))))
+    for label, compute in computes:
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", tag + "_" + label)
+        compute_out = directory / (safe + ".csh")
+        compute_map = directory / (safe + ".cmap")
+        expander = Expander(shader_root, profile_values)
+        compute_out.write_text(expander.expand(compute, root=True), encoding="utf-8")
+        expander.write_map(compute_map)
+        rows.append("\t".join(map(str, (
+            tag + ":" + label, "cs", compute_out, compute_map))))
+    return rows
+
+
+def covering_array_rows(shader_root: Path, profiles: dict, selected: list[str],
+                        max_rows: int) -> tuple[list, list[str], set]:
+    """The option matrix as (tag, settings.glsl overrides) rows.
+
+    option_matrix lives next to this file; the sys.path line keeps the import working
+    when compile_glsl is imported as a module instead of run as a script. The selected
+    profiles seed the rows so the three shipping configurations are always part of the
+    compiled set, not just an extra sweep.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import option_matrix
+
+    space = option_matrix.option_space(shader_root)
+    seeds = [{name: info["default"] for name, info in space["options"].items()}]
+    seeds += [{name: option_matrix.levels_from_profile(profiles[tag], name, info)
+               for name, info in space["options"].items()} for tag in selected]
+    rows, uncovered = option_matrix.covering_array(space, seeds, max_rows)
+    work: list[tuple[str, dict]] = []
+    notes: list[str] = []
+    for index, row in enumerate(rows, 1):
+        tag = f"M{index:03d}"
+        work.append((tag, {name: option_matrix.to_override(name, level, space["options"][name])
+                           for name, level in row.items()}))
+        changed = sorted(f"{name}={level}" for name, level in row.items()
+                         if level != space["options"][name]["default"])
+        notes.append(f"{tag}\t" + (", ".join(changed) if changed else "(all defaults)"))
+    return work, notes, uncovered
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[2]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shaders", type=Path, default=repo_root / "Astra" / "shaders")
     parser.add_argument("--minecraft-root", type=Path, default=DEFAULT_MC_ROOT)
-    parser.add_argument("--profiles", nargs="+", default=["PERFORMANCE", "BALANCED", "ULTRA"])
+    parser.add_argument("--profiles", nargs="+", default=["PERFORMANCE", "BALANCED", "ULTRA"],
+                        help="profiles to compile; in --matrix mode these also seed the rows")
+    parser.add_argument("--matrix", action="store_true",
+                        help="compile a pairwise covering array over every option that can "
+                             "change a preprocessor branch, instead of the plain profiles")
+    parser.add_argument("--matrix-rows", type=int, default=0, metavar="N",
+                        help="stop the covering array after N rows. A truncated matrix still "
+                             "reports the pairs it missed and exits non-zero")
+    parser.add_argument("--batch-rows", type=int, default=8, metavar="N",
+                        help="option configurations per driver run and per temporary "
+                             "directory; bounds disk use (default 8)")
+    parser.add_argument("--jobs", type=int, default=1, metavar="N",
+                        help="batches to compile at once; each worker costs one driver "
+                             "JVM (a few hundred MB), so 3 is a sane ceiling when free "
+                             "memory is tight (default 1)")
     parser.add_argument("--match", help="compile only entries whose relative path contains this text")
     parser.add_argument("--no-compute", action="store_true",
                         help="skip .csh entries, mirroring what Iris does when every "
@@ -345,6 +421,13 @@ def main() -> int:
             raise ValueError("--set requires MACRO=VALUE: " + item)
         name, value = item.split("=", 1)
         overrides[name] = value
+    uncovered: set = set()
+    notes: list[str] = []
+    if args.matrix:
+        work, notes, uncovered = covering_array_rows(
+            shader_root, profiles, selected, args.matrix_rows)
+    else:
+        work = [(name, profiles[name]) for name in selected]
     pairs, computes = entry_sources(shader_root)
     if args.no_compute:
         computes = []
@@ -353,6 +436,10 @@ def main() -> int:
         computes = [entry for entry in computes if args.match in entry[0]]
     if not pairs and not computes:
         raise ValueError("no shader entries selected")
+    if not work:
+        raise ValueError("no option configurations to compile")
+    if args.batch_rows < 1:
+        raise ValueError("--batch-rows must be at least 1")
 
     javac = shutil.which("javac")
     java = shutil.which("java")
@@ -366,49 +453,62 @@ def main() -> int:
         java_file.write_text(JAVA_SOURCE, encoding="utf-8")
         subprocess.run([javac, "-cp", classpath, str(java_file)], check=True)
 
-        manifest_rows: list[str] = []
-        for profile_name in selected:
-            profile_values = dict(profiles[profile_name])
-            profile_values.update(overrides)
-            for label, vertex, fragment in pairs:
-                expander = Expander(shader_root, profile_values)
-                safe = re.sub(r"[^A-Za-z0-9_.-]", "_", profile_name + "_" + label)
-                vertex_out = temp / (safe + ".vsh")
-                fragment_out = temp / (safe + ".fsh")
-                vertex_map = temp / (safe + ".vmap")
-                fragment_map = temp / (safe + ".fmap")
-                vertex_out.write_text(expander.expand(vertex, root=True), encoding="utf-8")
-                expander.write_map(vertex_map)
-                expander = Expander(shader_root, profile_values)
-                fragment_out.write_text(expander.expand(fragment, root=True), encoding="utf-8")
-                expander.write_map(fragment_map)
-                full_label = profile_name + ":" + label
-                manifest_rows.append("\t".join(map(str, (
-                    full_label, "vf", vertex_out, vertex_map, fragment_out, fragment_map))))
-            for label, compute in computes:
-                expander = Expander(shader_root, profile_values)
-                safe = re.sub(r"[^A-Za-z0-9_.-]", "_", profile_name + "_" + label)
-                compute_out = temp / (safe + ".csh")
-                compute_map = temp / (safe + ".cmap")
-                compute_out.write_text(expander.expand(compute, root=True), encoding="utf-8")
-                expander.write_map(compute_map)
-                full_label = profile_name + ":" + label
-                manifest_rows.append("\t".join(map(str, (
-                    full_label, "cs", compute_out, compute_map))))
-        manifest = temp / "manifest.tsv"
-        manifest.write_text("\n".join(manifest_rows) + "\n", encoding="utf-8")
-        result = subprocess.run(
-            [java, "-Dfile.encoding=UTF-8", "-cp", classpath + ";" + str(temp),
-             "AstraShaderCompiler", str(manifest)],
-            text=True, encoding="utf-8", errors="replace", capture_output=True,
-        )
-        output = result.stdout + result.stderr
-        sys.stdout.write(output)
+        chunks = [work[i:i + args.batch_rows] for i in range(0, len(work), args.batch_rows)]
+        output: list[str] = [note + "\n" for note in notes]
+
+        def run_batch(index: int, chunk: list) -> tuple[str, int]:
+            # One directory per chunk, deleted as soon as the driver has consumed it: a
+            # whole option matrix would otherwise sit on disk as ~1.5 GB of sources.
+            batch = temp / f"batch{index}"
+            batch.mkdir()
+            manifest_rows: list[str] = []
+            for tag, values in chunk:
+                manifest_rows += expand_row(tag, values, overrides, pairs, computes,
+                                            shader_root, batch)
+            manifest = batch / "manifest.tsv"
+            manifest.write_text("\n".join(manifest_rows) + "\n", encoding="utf-8")
+            result = subprocess.run(
+                [java, "-Dfile.encoding=UTF-8", "-cp", classpath + ";" + str(temp),
+                 "AstraShaderCompiler", str(manifest)],
+                text=True, encoding="utf-8", errors="replace", capture_output=True,
+            )
+            # stderr, flushed: a full matrix is a dozen driver batches, so a silent
+            # process is indistinguishable from a stalled one without this.
+            print(f"BATCH {index + 1}/{len(chunks)} rows={chunk[0][0]}..{chunk[-1][0]} "
+                  f"rc={result.returncode}", file=sys.stderr, flush=True)
+            shutil.rmtree(batch, ignore_errors=True)
+            return result.stdout + result.stderr, result.returncode
+
+        # Each batch is its own driver JVM, so batches parallelise. Results are
+        # reassembled in batch order, which keeps the log identical either way.
+        if args.jobs > 1:
+            with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+                results = list(pool.map(lambda ic: run_batch(*ic), enumerate(chunks)))
+        else:
+            results = [run_batch(index, chunk) for index, chunk in enumerate(chunks)]
+        status = 0
+        for text, returncode in results:
+            output.append(text)
+            status = status or returncode
+
+        text = "".join(output)
+        if args.matrix:
+            counts = re.findall(r"^RESULT\tlinked=(\d+)\tfailed=(\d+)", text, re.M)
+            text += ("RESULT_ALL\tbatches=%d\trows=%d\tentries_per_row=%d\tlinked=%d\tfailed=%d\n"
+                     % (len(chunks), len(work), len(pairs) + len(computes),
+                        sum(int(linked) for linked, _ in counts),
+                        sum(int(failed) for _, failed in counts)))
+        if uncovered:
+            first = min(uncovered)
+            text += (f"COVERAGE_INCOMPLETE\t{len(uncovered)} pair(s) never compiled together,"
+                     f" for example {first[0]}={first[1]} with {first[2]}={first[3]}\n")
+            status = status or 1
+        sys.stdout.write(text)
         if args.log:
             log_path = args.log if args.log.is_absolute() else repo_root / args.log
             log_path.parent.mkdir(parents=True, exist_ok=True)
-            log_path.write_text(output, encoding="utf-8")
-        return result.returncode
+            log_path.write_text(text, encoding="utf-8")
+        return status
 
 
 if __name__ == "__main__":

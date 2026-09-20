@@ -962,10 +962,12 @@ python _meta/check_citations.py          # → 逐条校验本报告全部 path:
 python _meta/final_sweep.py              # → 九项：加粗冲突/加粗不成对/表格行列数/残留 /22 分母/章节缺失/§引用悬空/_meta 文件缺失/未替换标记/代码围栏配对
 # 借鉴报告逐条核验（37 项检查，须 cd 到光影包根；Windows 加 PYTHONIOENCODING=utf-8）
 set PYTHONIOENCODING=utf-8 && python _meta/verify_reference_study.py   # → 27 真 / 4 行号错 / 2 不成立 / 1 文件错 / 1 机理错 / 1 参数化描述错 / 1 需修正
-# Astra 侧门禁（本仓库内；P0-1 的实测数字全部由这三条复现，Windows 加 PYTHONIOENCODING=utf-8）
-python qa/tools/check_pack.py              # → 12 项，含 #12 档位取值差量与 SC-28 选项发现规则
+# Astra 侧门禁（本仓库内；P0-1 与 P2-12 的实测数字全部由下列命令复现，Windows 加 PYTHONIOENCODING=utf-8）
+python qa/tools/check_pack.py              # → 13 项，含 #12 档位取值差量与 #13 选项消费者/分支符号（P2-12）
 python qa/tools/inspect_iris_properties.py # → 驱动已安装的 iris-fabric-1.11.2 解析器，逐档解出 pass 门与缓冲尺寸后差分
 python qa/tools/compile_glsl.py            # → 全量编译门
+python qa/tools/compile_glsl.py --matrix   # → P2-12 选项穷举门：83 行二组合覆盖阵列 × 89 入口（--matrix-rows N 截断，截断即非零退出）
+python qa/tools/option_matrix.py           # → 只出穷举分析不做判定（因子规模、零消费者选项、未声明分支符号、零读取 #define、覆盖阵列规模）；判归 check_pack #13
 ```
 
 全部脚本与解包源码在 `C:\Users\杨铭\Desktop\光影包\`，永久保存：29 个目录 = 22 个不同包（20 个下载条目 + 2 个表外参照包）+ 7 个 `*-source` 逐字节同名副本。§2 的每包 `path:line` 引用均来自该目录内的实际文件。
@@ -1146,5 +1148,42 @@ python qa/tools/compile_glsl.py            # → 全量编译门
 - **「第一步收缩」未执行**，差量密度因此停在 22% / 10%，不达验证条要求的 ≥50%。理由：每条 profile 都写成完整显式配置是 `design.md` 3.3 的既有约定，且收缩成稀疏差量后"选档得到的状态"将依赖用户当前值，基准锚点随之失效。密度指标想保护的"档位真的有差异"改由上面的门级实测承担。
 - **「三档都必须能删 pass」的前提部分不成立**：包内不存在可提升到 ULTRA 的独有 pass，BALANCED→ULTRA 只能改成本旋钮与实现富度。差分门在该步输出 NOTE 而非 FAIL，但硬保留"PERFORMANCE 与 ULTRA 不得解出同一套调度"。
 - **7 个恒真门未接表达式**：`composite3` 与 `composite` 有明确的无条件消费者（前者是最终色调输出；后者在关光束时还兼供地形光照与焦散，见 `Astra/shaders/shaders.properties:58` 头注），接档位表达式只会造出与成本无关的差量；`world1/deferred1` 与 `world1/prepare` 的开关条件按包内 `Astra/shaders/shaders.properties:40-41` 的头注属于设计项 E2 的归属，P0-1 不越权替它决定。前者即 §4.4 点名的 RedHat 反面。
+
+**F-2 · T2 执行 P2-12 选项穷举编译回归**
+
+三件套，判定权集中在一条门里：
+
+- `qa/tools/option_matrix.py`（新，只读分析）：值域从 `Astra/shaders/lib/settings.glsl` 的 `#define NAME 值 // [值域]` 行解析（Iris 改写的就是这一行），因子 = 出现在任一 `#if/#elif/#ifdef/#ifndef` 里的选项；注释与字符串在解析前剥离。命令行入口**只报告不判定、恒退出 0**——"某发现是不是缺陷"需要引擎知识（加载器自己定义了哪些符号、哪些枚举臂是故意不测的），那份知识在 check #13 里，复制一遍就会让两条门对同一个包给出矛盾结论。
+- `qa/tools/compile_glsl.py --matrix`（穷举编译门）：把覆盖阵列逐行展开成完整入口集（含 `--matrix-rows` 截断、`--batch-rows` 每批行数、`--jobs` 并发批数）。
+- `qa/tools/check_pack.py` 第 13 项（结构判定门）：零消费者选项、未声明分支符号、零读取 `#define`、豁免过期、枚举臂取值漂移、覆盖阵列未覆盖对、与 `option_matrix` 结论分歧，七类一律 FAIL。
+
+规模与实测：
+
+- 67 个带值域选项 → **37 个能翻转预处理器分支**（其余 30 个只作为已选代码的取值输入），87 个层级，666 个因子对 → **83 行两两覆盖阵列，0 未覆盖对**。三个面（CLI 无种子、check #13、`--matrix` 带默认档+三档种子）在真实包上同为 83。
+- 全量矩阵：`RESULT_ALL	batches=11	rows=83	entries_per_row=89	linked=7387	failed=0`，零 `COMPILE_FAIL`、零 `COVERAGE_INCOMPLETE`、退出码 0。83 × 89（80 顶点/片元对 + 9 compute）= 7387 个编译链接单元，实机驱动 `OPENGL_VERSION 4.6.0 NVIDIA 572.83`，`--jobs 3` 用时约 28 分钟。日志 `qa/glsl-2026-09-20-option-matrix.log`，每行配置对应哪些非默认取值写在日志头部（`M0xx\t<因子>=<值>`），失败行按此回查。
+- 结构门：`python qa/tools/check_pack.py` → 13 项 0 FAIL / 12 PASS / 1 WARN（该 WARN 与 P2-12 无关，是 #4 接线登记）。
+
+缺陷清单（本轮全部处置）：
+
+1. **84 处零读取 pass 身份标记** `#define ASTRA_*`：`ASTRA_UNLIT` 36、`ASTRA_PARTICLE` 12、`ASTRA_SKY` 12、`ASTRA_GLINT` 6、`ASTRA_CLOUDS` 6、`ASTRA_DAMAGED` 6、`ASTRA_EYES` 6。有定义行、全包无一个 `#ifdef`/`#if` 读它——与 §2.18 JCL `KILL_SWITCH` 同一形态，只是这里更轻：它们与所在文件的 include 路径完全冗余（`ASTRA_SKY` 只出现在 `gbuffers_skybasic/skytextured` 的三行薄包装里），删掉不改变任何一次预处理。已删，`Astra/shaders/**` 68 文件 +5/−86 行。
+2. **两处裸数字分支**：`Astra/shaders/global/lighting/shadowmap.glsl:117` 的 `#if SHADOW_FILTER_MODE == 0` 与 `Astra/shaders/lib/settings.glsl:329` 的 `== 1`，改为 `SHADOW_FILTER_SOFTWARE` / `SHADOW_FILTER_HARDWARE`，让已声明的枚举常量真有读者。这是本条唯一"补读者而非删定义"的处置——那两个 token 有真实分支归属。
+3. **判为合法豁免的 9 个名字**，每条都配了实时断言而不是放行：4 个引擎像素格式 token（`RGBA16/RGBA16F/RGBA32F/R11F_G11F_B10F`，由 `shaders.properties` 消费）；2 个加载器侧符号（`ASTRA_VOXY_PASS` 属 C5 归属的 Voxy 分支、`EXTERNALLY_DEFINED_UNIFORMS` 是恒真 include 守卫，都不在 jar 里）；3 个枚举臂常量（`SKY_MINISHITA`/`SUN_MOON_DISCS`/`WATER_BALANCED` 命名的正是"没有分支测它"的那一臂，代码只判另一个值后让它落空）。check #13 要求每个豁免 token 始终等于其选项的一个真实取值——漂移即 FAIL，符号变成有读者后豁免过期也 FAIL。
+4. **工具自身两处盲区**（不修就会漏报）：定义行不算读者，否则零消费者选项永远不会被报出来；`unread_macros` 与 `undeclared_guards` 用同一套 `#ifdef` 发现规则，与 check #11（SC-28 那条 Iris 发现规则）双向对齐，两条门不能互相矛盾。
+5. **覆盖阵列的层级裁剪是可靠的**：只保留"出厂默认 + 至少出现在一次比较里的值"。理由是某个取值若在全包任何条件里都不出现，它展开出的翻译单元与另一个同样不被比较的取值逐字节相同——省掉的是重复劳动，不是覆盖率。
+
+门的灵敏度已被证明（防"恒绿门"）：
+
+- 静态侧：六种缺陷形态各注入一次，全部在 `copytree` 出的临时副本上做，真实包零改动，#13 逐条精确 FAIL。
+- 编译侧：把 §2.19 的 VanillaPlus 缺陷形态原样搬进副本——新增枚举 `#define GAMUT_MODE 0 // [0 1 2]`，并在 `Astra/shaders/global/post/grading.glsl` 追加 `#if GAMUT_MODE == 2` 分支引用未定义符号 `sRGB_P3D65`。同一副本、同样只编 `final`：**三档出厂扫描 `linked=9 failed=0` 退出 0，完全看不见**；矩阵 `rows=88 linked=219 failed=45` 退出 1，首个报错 `error C1503: undefined variable "sRGB_P3D65"`，15 行命中 × 3 个维度壳。副本与注入脚本已删除。
+- 运行纪律：`--log` 只在结束时写，判成败看日志里有没有 `RESULT_ALL` 行，**不看工具回执**。本轮两次矩阵运行被超时杀掉，包装器照样报 "completed (exit code 0)"，白等两轮才发现什么都没跑完。
+
+未采纳与不成立的部分（P2-12 原文三条做法不照搬）：
+
+- 原文"从 `shaders.properties` 的 `screen` 块解析全部 token 与取值域"→ 改从 `lib/settings.glsl` 解析：那才是 Iris 逐档改写的行，`screen` 块只决定 GUI 排布，且 `size.buffer.*`、`clouds.*` 一类条件 token 根本不在 screen 里。
+- 原文"同族选项全组合（笛卡尔积）"→ **明确否决**：仅 shadow 一族（`SHADOWS × COLORED_SHADOWS × STATIC_SHADOW_FALLBACK × SHADOW_FILTER_MODE × SHADOW_DISTANCE × ENTITY_SHADOW_DISTANCE`）就 640 行，而两两覆盖已包含该族内部每一对取值组合。穷举预算从数百行降到 83 行，这条门才在本机跑得完。
+- 原文"抽样"→ 实际不抽样：83 行是完整的 t=2 覆盖阵列，未覆盖对为 0；`--matrix-rows` 截断时输出 `COVERAGE_INCOMPLETE` 并非零退出，防止"小一点的矩阵"被当成通过。
+
+接入后续每个工单的收尾：`qa/regression-checklist.md` 通用第 1 行已改写为「`python qa/tools/check_pack.py`（13 项 0 FAIL）+ `python qa/tools/compile_glsl.py --matrix`（83 行穷举 0 failed）」，T3 起每次交接按此行勾验。成本口径写清楚：矩阵门约 28 分钟（每批一个驱动 JVM ≈ 600 MB，本机空闲内存只剩 ~6 GB 时 `--jobs 3` 是实际上限），因此**逐工单**的即时回归仍跑默认三档扫描（267 单元、2–3 分钟），矩阵门在交接与里程碑收口时跑；改动选项声明、值域或任何预处理器条件的工单，收尾必须跑矩阵门。
+
 
 

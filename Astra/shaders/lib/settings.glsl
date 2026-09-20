@@ -13,6 +13,9 @@
 // ============================================================
 
 // --- enum token constants (do not reference from GUI) ---
+//     A token may name the arm no branch tests (the code checks one value and lets the
+//     rest fall through); check_pack.py check 13 requires each such token to stay a real
+//     value of its option, and rejects a token that is neither tested nor exempted.
 #define TONEMAP_UCHIMURA         0
 #define TONEMAP_AGX              1
 #define TONEMAP_ACES             2
@@ -326,7 +329,7 @@ const float entityShadowDistanceMul = 0.3333333333;
 
 // Software retains exact depth/material pairing. Optional hardware comparison
 // filtering uses the surface consumer's explicitly approximate centre material.
-#if SHADOW_FILTER_MODE == 1
+#if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
 const bool shadowHardwareFiltering = true;
 const bool shadowHardwareFiltering0 = true;
 const bool shadowHardwareFiltering1 = true;
