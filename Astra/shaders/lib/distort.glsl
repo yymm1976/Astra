@@ -4,7 +4,17 @@
 // From Steadfast 0.8.0 lib/distort.glsl, copyright (C) 2026 coderbot.
 // GPL-3.0-or-later with its Section 7 additional terms; see Astra/LICENSE
 // and THIRD-PARTY.md. Keep this projection paired with shadow_map_position.
-const float SHADOW_DISTORT_FACTOR = 0.20;
+#include "/lib/settings.glsl"
+
+// k = this constant * SHADOW_DISTANCE is the block radius that lands at half
+// the map edge, and it sets the whole detail profile: blocks/texel =
+// 2 * (r + k) ^ 2 / (R * k). Steadfast shipped the plain 0.20 for its own
+// 160-block map (k = 32); reusing it at Astra's shipping 256 gives k = 51.2 and
+// halves near-field density. Anchoring on blocks keeps detail fixed while
+// SHADOW_DISTANCE changes only reach - the cost is a wider rim beyond the
+// receiver edge, which shadowDistanceRenderMul = 1.5 partly fills upstream.
+const float SHADOW_DISTORT_CORE = 25.6;
+const float SHADOW_DISTORT_FACTOR = SHADOW_DISTORT_CORE / float(SHADOW_DISTANCE);
 
 float get_distort_factor(vec2 pos) {
     return length(pos) + SHADOW_DISTORT_FACTOR;

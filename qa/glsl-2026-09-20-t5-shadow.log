@@ -1,0 +1,4 @@
+OPENGL_VENDOR	NVIDIA Corporation
+OPENGL_RENDERER	NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2
+OPENGL_VERSION	4.6.0 NVIDIA 572.83
+RESULT	linked=267	failed=0	compute=27	compute_capable=true

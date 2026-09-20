@@ -722,9 +722,9 @@ Astra 现状：`Astra/shaders/global/lighting/shadowmap.glsl:202 bias = end_shad
 - **许可证**：`variable.*` / `uniform.*` 是 Iris 属性格式 → **无风险**。
 - **验证**：`python qa/tools/inspect_iris_properties.py` 前后对比 `variable.float` 计数；`compile_glsl.py` 编译月相相关的两个取值极端（`moonPhase` 0 与 4）。
 
-### P1-5 · 阴影 bias 统一到一个 texel 尺度公式
+### P1-5 · 阴影 bias 统一到一个 texel 尺度公式（残差已随 P1-9 执行 · 见 11.F-5）
 
-- **现状**：`Astra/shaders/global/lighting/shadowmap.glsl:202 bias = end_shadow_texel_size()*0.30 + 0.015` 与 `:207` 的另一条 `bias = 1.5*length(raw.xy)` 由 `#ifdef DIMENSION_END`（`:200`）**维度互斥**——本条要求的"明确其唯一适用条件"其实已经满足；`:201` 注释自陈固定偏移项在相机相对径向下会移动边缘。⇒ 残差只剩 End 分支 `+0.015` 的归一化，与 P1-9 是同一件事。〔2026-09-20 复核更正：原文"并存"误述分支结构。〕
+- **现状**：`Astra/shaders/global/lighting/shadowmap.glsl:202 bias = end_shadow_texel_size()*0.30 + 0.015` 与 `:207` 的另一条 `bias = 1.5*length(raw.xy)` 由 `#ifdef DIMENSION_END`（`:200`）**维度互斥**——本条要求的"明确其唯一适用条件"其实已经满足；`:201` 注释自陈固定偏移项在相机相对径向下会移动边缘。⇒ 残差只剩 End 分支 `+0.015` 的归一化，与 P1-9 是同一件事。〔2026-09-20 复核更正：原文"并存"误述分支结构。〕〔2026-09-20 执行后：End 分支已并为单一纹素倍率 `:210 end_shadow_texel_size() * 0.46`，固定 `+0.015` 不再存在；非 End 分支在 `:215-216`，其掠射项已从 `SHADOW_DISTORT_FACTOR` 改接独立的 `shadowGrazingBias`（`:202`），互斥的 `#ifdef DIMENSION_END` 现在在 `:205`。〕
 - **依据**：Miniature（**MIT**）`common/getLightStrength.fsh:33` 用 `clamp(3.0*(shadowDepth - shadowUV.z)/shadowProjection[2].z, 0.0, 1.0)` —— **投影矩阵 z 归一，无需 sin/cos**；ILV `lib/lighting/fsh_lighting.glsl:83` 与 BSL `lib/lighting/shadows.glsl:148-152`（`distortNBias * 5.0 * (2048.0 / shadowMapResolution)`）都显式除以 `shadowMapResolution`；RenderPearl（**MIT**）`lib/light/shadows.glsl:99-115` 用勾股恒等式一次求出法线偏移 + 斜率两项；Bloop `lib/shadows/shadowfunc_advanced.glsl:179-184` 是"斜率 × 畸变"双感知并显式对齐 `INV_SHADOW_RES`。
 - **做法**：保留一个 texel 尺度公式，删掉另一条或明确其唯一适用条件；固定偏移 `+0.015` 改为按 `SHADOW_DISTANCE` 归一（与 P1-9 同一件事）。
 - **成本**：局部改动，零额外采样。
@@ -758,9 +758,9 @@ Astra 现状：`Astra/shaders/global/lighting/shadowmap.glsl:202 bias = end_shad
 - **许可证**：`sampler2DShadow` / `textureGather` 是 GLSL API 事实 → **无风险**。VanillaPlus 的具体写法 ARR → 只读思路。
 - **验证**：`python qa/tools/shadow_filter_equiv.py`（两模式视觉等价性）+ `cost_census.py`；RenderPearl `world_default/setup.csh:3-12` 的 `#warning` 探测法可借用。
 
-### P1-9 · `SHADOW_DISTORT_FACTOR` 按影距归一
+### P1-9 · `SHADOW_DISTORT_FACTOR` 按影距归一（已执行 · 见 11.F-5）
 
-- **现状**：`Astra/shaders/lib/distort.glsl:7 const float SHADOW_DISTORT_FACTOR = 0.20;`（`:10 return length(pos) + SHADOW_DISTORT_FACTOR;`）**不随 `SHADOW_DISTANCE`（`Astra/shaders/lib/settings.glsl:64`，当前 256；`:216 shadowDistanceRenderMul = 1.5`）归一**。
+- **现状**：`Astra/shaders/lib/distort.glsl:7 const float SHADOW_DISTORT_FACTOR = 0.20;`（`:10 return length(pos) + SHADOW_DISTORT_FACTOR;`）**不随 `SHADOW_DISTANCE`（`Astra/shaders/lib/settings.glsl:67`，当前 256；`:219 shadowDistanceRenderMul = 1.5`）归一**。〔2026-09-20 执行后：该常量已在 `Astra/shaders/lib/distort.glsl:16-17` 改为 `SHADOW_DISTORT_CORE = 25.6` 除以 `float(SHADOW_DISTANCE)`；行号同时按实测校正，原引的 `settings.glsl:64/:216` 已漂移三行。〕
 - **依据**：Sildur's `shaders.settings:39-45`：`b = (exp(Farshadowplane)-a)*shadowDistance/128.0` ⇒ **远端系数先除 128 再乘 shadowDistance，拉大影距时近端 texel 密度不被稀释**。这条同时治愈 P1-5 里 `:201` 自陈的固定偏移问题。
 - **做法**：把畸变强度表达为 `f(dist, SHADOW_DISTANCE/128.0)`；在 PERFORMANCE↔ULTRA 影距变化下保持近端 texel 密度不变。
 - **成本**：一个常数表达式，零运行时开销。
@@ -1083,11 +1083,11 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 | P0-2 云阴影 | **高价值，采纳** | 与 `clouds_planar.glsl:42-44` 自己的 NOT PORTED 登记对齐（该登记还指向 `docs/handoffs/sky-clouds.md` 的边界约定，动手前先读）；ARR 只读思路约束已写明 |
 | P0-3 自动曝光 | **中价值，前置翻案** | 与 design 4.1 已决事项冲突（`settings.glsl:46` "replaces auto-exposure"），报告未提及，须先翻案；报告自身"默认关 + 实机校准"的权衡合理；Mipmap 口径见 11.D-3 |
 | P0-4 逐帧常量 | **报告自我降级正确** | 残差复核成立（`sky.fsh:40-41` + `overworld.glsl:88` 两处逐片元月相）；Iris-only 判断成立，删掉双写一半同意 |
-| P1-5 bias 统一 | **低价值，撤条并入 P1-9** | "并存"系误述（`#ifdef DIMENSION_END` 互斥，`shadowmap.glsl:200-209`），适用条件已显式；残差仅 End 分支 `+0.015` 归一 |
+| P1-5 bias 统一 | **低价值，撤条并入 P1-9 · 已执行（见 11.F-5）** | "并存"系误述（`#ifdef DIMENSION_END` 互斥，改后在 `shadowmap.glsl:205-217`），适用条件已显式；残差仅 End 分支 `+0.015` 归一 |
 | P1-6 几何太阳遮蔽 | **中低价值，收窄后采纳** | march 内逐样本遮挡已在（`godrays.glsl:32-36,71-73`），缺口只是全局强度标量（`uniforms.glsl:27` 全解析）；1 像素窗口做法便宜 |
 | P1-7 焦散烘焙 | **中价值，采纳** | 清屏色前提已满足（`settings.glsl:363` 显式白）；收益定位（省像素端而非更正确）写得准确 |
 | P1-8 硬件 PCF 默认档 | **中低价值** | 默认软件 16 抽（`settings.glsl:57`）成立；但软件路径已有两参 `textureGather`（`shadowmap.glsl:117-126`），报告未提；同意"用等价性测量决定默认值" |
-| P1-9 畸变归一 | **中价值，采纳** | `distort.glsl:7,10` 无 SHADOW_DISTANCE 归一成立；Steadfast §7b/§7c/§7e 义务提醒与对账工具调用正确 |
+| P1-9 畸变归一 | **中价值，采纳 · 已执行（见 11.F-5）** | `distort.glsl:7,10` 无 SHADOW_DISTANCE 归一成立；Steadfast §7b/§7c/§7e 义务提醒与对账工具调用正确；锚值改由实测选定（`SHADOW_DISTORT_CORE = 25.6`），P1-5 的 End 残差一并闭合 |
 | P2-10 vendor 隔离 | **高价值（合规基建），采纳** | 与 §7.B.3 互为表里；Astra 已有 PROVENANCE 短注惯例，迁移目标明确 |
 | P2-11 buffer 声明防退化 | **高价值（防退化），采纳** | 6 处活声明复核成立（`water_buffer_formats.glsl:12,15,16,18` + `end_illumination.fsh:10` + `end_sky_buffer.fsh:9`） |
 | P2-12 穷举编译 | **高价值，采纳** | `compile_glsl.py` 已有基础；化石 token 防线是结构性收益 |
@@ -1108,7 +1108,7 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 ### 11.D 报告错误更正清单（均已就地写回正文）
 
 1. §4.2 "Astra 是延迟（lit.fsh → deferred 链）" → 前向（`design.md:48`；lit.fsh 头注；deferred.fsh 仅场景拷贝+水坑）。
-2. §4.3 与 P1-5 "两条 bias 并存" → `#ifdef DIMENSION_END` 维度互斥（`shadowmap.glsl:200-209`）。
+2. §4.3 与 P1-5 "两条 bias 并存" → `#ifdef DIMENSION_END` 维度互斥（改前 `shadowmap.glsl:200-209`，随 11.F-5 位移后现为 `:205-217`）。
 3. §0 与 P0-3 "MipmapEnabled 仅 2 处" → 3 处声明覆盖 2 张缓冲（`composite1.fsh:20`、`final.fsh:24` 在 colortex2；`water_bloom.fsh:5` 在 colortex0）。
 4. P0-3 漏报与 design 4.1 的冲突（`settings.glsl:46` "replaces auto-exposure"），已在权衡条补充。
 5. P1-16 "colortex6 空闲通道" → 四通道全占（`medium_state.glsl:5`），只能新增 1×1 缓冲。
@@ -1246,6 +1246,39 @@ P2-10 的第 15 项四条规则：目录与 README 必须存在；`lib/vendor/**
 待实机：本轮关掉的是"三档全派发"这个形态，改不动的是它造成的后果能否被观察到。`Astra/shaders/program/nether_light.csh:12-16` 无条件声明 `usampler3D` / `sampler3D` / `writeonly image3D`，并以 `ivec3(8,8,8)` 派发 512 组；旧拼写下门从不生效、而 `image.*` 又随选项被预处理掉，因此"往未配置的图像单元写"在真实引擎里三档都存在过。改写后该路径在选项关闭时不再加载，是否留下过 GL 错误或性能差只能进游戏对照，记在收尾清单里。
 
 收尾门：`python qa/tools/check_pack.py` → **16 项 0 FAIL / 15 PASS / 1 WARN**（WARN 仍是 #4 include 图接线登记，与本条无关），#16 报「32 program gate(s) (25 folder-qualified), 0 inert namespaced directive(s)」，并把上面那类门登记成「6 folder gate(s) whose pass file exists only at the pack root … 6 of them read a literal false, which switches the pass off either way」；`python qa/tools/inspect_iris_properties.py` 退出 0，三档门阶梯 `+14 / 24 on`；`python qa/tools/test_gate_sensitivity.py` → 14/14；`python qa/tools/compile_glsl.py --matrix --jobs 3` → `RESULT_ALL batches=11 rows=83 entries_per_row=89 linked=7387 failed=0`，exit 0，日志 `qa/glsl-2026-09-20-t4-dimension.log`（本轮改了 `shaders.properties` 的条件与门，按 F-2 定的成本规则矩阵门必须重跑）；`qa/iris-properties-resolved.txt` 重生成 328 行，`:308-316` 为九条 `program.world-1/shadowcomp*.enabled=1`，`compute.*` 行已归零。
+
+**F-5 · T5 执行 P1-9 畸变按影距归一（并闭合 P1-5 残差）**
+
+改动两处 GLSL，出厂 BALANCED 的剖面数值一并重排（这不是"默认档不动"的改动，见剖面表第二行）：
+
+- `Astra/shaders/lib/distort.glsl:16-17`：`SHADOW_DISTORT_FACTOR` 由裸常量 `0.20` 改成 `SHADOW_DISTORT_CORE / float(SHADOW_DISTANCE)`，新常量 `SHADOW_DISTORT_CORE = 25.6` 是归一后的锚值（块半径）。`:7` 为此加上显式 `#include "/lib/settings.glsl"`——原写法靠调用方先包含 settings，改成表达式后 `SHADOW_DISTANCE` 是本文件自己读的符号。核实过：这是**包内第一处 lib→settings 直接包含**，其余读选项符号的 lib（`lib/uniforms.glsl`、`lib/transforms.glsl`）一律靠入口先展开 settings；保留这一行是不让常量初始化式隐式依赖包含顺序。守卫 `ASTRA_LIB_SETTINGS_GLSL` 已在，重复展开不会二次定义；lib→lib 嵌套包含在包内本就成立（`lib/solas_water.glsl` 包含 `lib/transforms.glsl`）。本文件唯一包含点是 `global/lighting/shadowmap.glsl:17`。
+- 文件头注释按推导重写：`k = SHADOW_DISTORT_FACTOR × SHADOW_DISTANCE` 是**落到半幅边界的块半径**，不是"texel 密度减半处"——旧注释与 Steadfast 原说法在重推后不成立，`r = k` 处密度是中心的 1/4。完整剖面 `blocks/texel = 2(r+k)²/(R·k)`，中心 `2k/R`，接收面边缘落 `ρ(D) = 1/(1+a)`，边缘外空区面积占比 `1 − (1/(1+a))²`。
+- P1-5 残差在 `Astra/shaders/global/lighting/shadowmap.glsl`：End 分支固定 `+0.015` 块折进纹素相对项，`:210` 现为 `end_shadow_texel_size() * 0.46`（0.46 = 原 0.30 加上出厂 2048 图下 0.015 块的纹素折算，出厂默认数值不变，整项从此随 `SHADOW_RESOLUTION` 缩放）；`:202` 新增独立常量 `shadowGrazingBias = 0.20` 并注释写明它与畸变因子解耦——归一之后若继续借用 `SHADOW_DISTORT_FACTOR`，掠射偏移会随影距档位漂走。
+
+实测剖面（`python qa/tools/shadow_frustum_probe.py --ladder`，改前 → 改后；k = 半幅块半径，中心 = 中心 blocks/texel，交点 = 0.15 blocks/texel 退化阈值出现的半径，空区 = 接收面边缘外的图面积占比）：
+
+| profile | D / R | k | 中心 | 交点 | 空区 |
+|---|---|---|---|---|---|
+| PERFORMANCE | 192 / 1024 | 38.4 → 25.6 | 0.0750 → 0.0500 | 15.9 → 18.7 | 30.6% → 22.1% |
+| BALANCED | 256 / 2048 | 51.2 → 25.6 | 0.0500 → 0.0250 | 37.5 → **37.1** | 30.6% → 17.4% |
+| ULTRA | 256 / 4096 | 51.2 → 25.6 | 0.0250 → 0.0125 | 74.2 → **63.1** | 30.6% → 17.4% |
+
+- 归一不变量成立：`--all-distances` 遍历 `SHADOW_DISTANCE` 全部 8 个广告值（`settings.glsl:67` 的 64/80/96/112/128/160/192/256，R=2048），改后 k / 中心 / 交点三条恒为 25.6 / 0.0250 / 37.1；改前同一遍历里中心从 0.0125 漂到 0.0500、交点从 31.5 漂到 37.5——"影距滑块同时改细节和改距离"正是要消除的东西。代价按预言兑现：滑到 64 时空区从 30.6% 涨到 49.0%（80 档 42.6%），这段由上游 `shadowDistanceRenderMul = 1.5`（`settings.glsl:219`）部分填掉。
+- ULTRA 是本条唯一实测退化点：交点 74.2 → 63.1 块。符号来自 `dr*/dk = sqrt(0.15·R/(8k)) − 1`，在 R=4096 处为正——更小的 k 换来 2× 中心细节（0.0250 → 0.0125），代价是最外 11 块的边界密度。属档间取舍而非缺陷，记待实机。
+- 锚值是量出来的不是审美的：除 k=25.6 外还量过 Steadfast 自家产物 k=32（0.20×160，中心 0.0312、交点 38.1，即用 25% 中心细节换 1 块边界）与被否掉的 k=51.2（在 256 下与改前逐字节相同，但 192/1024 下中心 0.1000、交点 11.5，比现状更差）。重调只需改 `SHADOW_DISTORT_CORE` 一个数。
+
+工具侧两处修复：`qa/tools/shadow_frustum_probe.py` 从源码正则读因子（`FACTOR_CONST` / `FACTOR_SCALED` 两种形态，出现第三种形态直接报错），因此 `--ladder` 报的是编译期真值而非常量副本；本轮再修一处——0.15 blocks/texel 交点原先取自 13 点采样网格，只会返回被采到的格点（改后 BALANCED 报 48 而真值 37.1），已换成闭式解 `r* = sqrt(0.15·R·k/2) − k` 并加"交点落在影距外则报 never within range"分支。
+
+P1-5 / P1-9 验证条点名的 `qa/tools/validate_shadow_water.py` 本轮跑红，与 T5 无因果关系，如实记账：
+
+- 对照证据：`git archive HEAD Astra/shaders qa/tools` 还原成临时树跑同一工具，HEAD 侧同样 FAIL。覆盖像素 154²（HEAD）→ 166²（本树，面积 +16.2%），最大深度误差 0.11305 → 0.11077（−2.0%），容差 2e-6。方向与本条意图一致（同一输入足迹下径向收缩更弱），量级远未过容差。
+- 根因：该工具内嵌的 Java 参考模型（`:59` 的 `m/(.2+.8*m)`、`r=max(|qx|,|qy|)`、系数 0.25）描述的是 2026-09-09 换源**之前**的方形扭曲——最后一次 PASS 停在 09-08（`qa/render-path-verification.log`，覆盖 232²）。换源时模型没同步，之后无人再跑。修模型另开工单，T5 不夹带；工作树里那份跑不完后四项检查的截断 FAIL 日志已 `git checkout` 还原，不当作本条产物提交。
+
+不成立与就地更正：报告原引 `distort.glsl:7,10`（改后新落点 `:16-17`）；`settings.glsl:64/:216` 实测漂到 `:67` / `:219`，已按实测校正并在正文标注；P1-5 原述两处 bias "并存"是对分支结构的误述（`#ifdef DIMENSION_END` 互斥），11.B 已据此把该行裁决为撤条并入本条。`docs/2026-09-20-reference-pack-study.md` 不含 `distort` / `SHADOW_DISTORT` 字样，本条不动它。
+
+待实机（三项全部进 `qa/regression-checklist.md` M2 新行 6a）：ULTRA 最外 11 块的边界密度是否可辨；影距滑到 64/80 时 49.0% / 42.6% 的图外空区会不会以"远处阴影消失"的新形态出现（旧形态是远场密度粗，两者观感不同）；末地偏差项现随 `SHADOW_RESOLUTION` 缩放，在 512/1024/1536 三档下是否出自阴影条纹。
+
+收尾门：`python qa/tools/check_pack.py` → **16 项 0 FAIL / 15 PASS / 1 WARN**（WARN 仍是 #4 include 图接线登记，与本条无关）；`python qa/tools/compile_glsl.py` 三档默认 → `linked=267 failed=0 compute=27`，exit 0，日志 `qa/glsl-2026-09-20-t5-shadow.log`；`python qa/tools/test_gate_sensitivity.py` → 14/14 按预期；`python qa/tools/provenance_steadfast.py --quiet` 计数不变（`verbatim=14 literal-suffix=2 rewritten=6 astra-only=24`）——本条只动 GLSL，该工具只分类 `shaders.properties` 表达式，不变才是预期结果；`python qa/tools/inspect_iris_properties.py` 退出 0；`python qa/tools/compile_glsl.py --matrix --jobs 4` → `RESULT_ALL batches=11 rows=83 entries_per_row=89 linked=7387 failed=0`，exit 0，日志 `qa/glsl-2026-09-20-t5-matrix.log`（11 批 `RESULT` 逐批相加 = 7387 / 0，与汇总行一致）。按 11.F-2 定的成本规则，本条其实只需三档扫描就能收口——矩阵遍历的 83 行选项空间不因本条改变（`shaders.properties` 与本条无涉）——跑全矩阵只是为了给改后的 `distort.glsl` 与 `shadowmap.glsl` 在全部选项面上留一份等价证据。
 
 
 

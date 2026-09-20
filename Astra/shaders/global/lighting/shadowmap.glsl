@@ -196,16 +196,24 @@ vec2 shadow_filter_uv(vec3 shadowPos, int index, out float weight) {
 }
 #endif
 
+// Normal offset where light grazes the surface, in world blocks. Deliberately
+// not SHADOW_DISTORT_FACTOR: that now tracks the map core and is divided by
+// SHADOW_DISTANCE, so borrowing it here would make this offset scale with range.
+const float shadowGrazingBias = 0.20;
+
 vec3 shadow_map_position(vec3 playerPos, vec3 worldNormal, float ndotl) {
     #ifdef DIMENSION_END
-    // Fixed world-space offset; a camera-relative radial bias moves the edge.
-    float bias=end_shadow_texel_size()*0.30+0.015;
+    // Texel-relative only; a camera-relative radial bias moves the edge. 0.46 is
+    // the previous 0.30 plus the old fixed 0.015 blocks expressed in texels at
+    // the shipping 2048 map, so that default is unchanged and the whole term now
+    // scales with SHADOW_RESOLUTION instead of partly freezing.
+    float bias = end_shadow_texel_size() * 0.46;
     #else
     vec3 raw = player_shadow(playerPos);
     // Steadfast's normal offset is paired with its radial projection. All PCF
     // taps compare the same Z; no screen-derivative plane inversion is involved.
     float bias = 1.5 * length(raw.xy)
-               + SHADOW_DISTORT_FACTOR * (1.0 - max(ndotl, 0.0));
+               + shadowGrazingBias * (1.0 - max(ndotl, 0.0));
     #endif
     vec3 shadowPos = distort(player_shadow(playerPos + worldNormal * bias)) * 0.5 + 0.5;
     shadowPos.z -= 0.00001;
