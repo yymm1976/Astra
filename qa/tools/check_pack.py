@@ -742,9 +742,6 @@ def check_final_chain():
     return c
 
 
-FORMAT_NAMES = ["colortex0Format", "colortex1Format", "colortex2Format",
-                 "colortex3Format", "colortex4Format", "shadowcolor0Format"]
-
 ENGINE_CONST_NAMES = {
     "shadowMapResolution", "shadowDistance", "shadowDistanceRenderMul",
     "entityShadowDistanceMul", "noiseTextureResolution", "sunPathRotation",
@@ -1284,6 +1281,172 @@ def check_option_consumers():
     return c
 
 
+# --------------------------------------------------- buffer declarations (survey P2-11)
+
+ENGINE_DECL = re.compile(r"\bconst\s+(bool|int|float|vec4)\s+(\w+)\s*=\s*([^;]*);")
+BUFFER_KNOB = re.compile(r"^\w+(?:Format|Clear(?:Color|Alpha|Depth)?)$")
+BUFFER_BASE = re.compile(r"^(colortex\d+|shadowcolor\d+|depthtex\d+)"
+                         r"(?:Format|Clear(?:Color|Alpha|Depth)?)?$")
+
+
+def _is_engine_decl(name):
+    """Names Iris parses out of the shader source rather than from the preprocessor: the
+    buffer format/clear knobs plus the shadow and noise scalars (SC-23, SC-27)."""
+    return bool(BUFFER_KNOB.match(name)) or name in ENGINE_CONST_NAMES
+
+
+def _comment_spans(text):
+    """Offsets of every comment. strip_comments() replaces comments with spaces, so a
+    declaration wrapped in /* */ matches exactly as well as a live one - which is why the
+    VanillaPlus / Sildur's / Bloop buffer-declaration rot survives every other check here."""
+    spans, i, n = [], 0, len(text)
+    while i < n:
+        pair = text[i:i + 2]
+        if pair == "//":
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+        elif pair == "/*":
+            j = text.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+        else:
+            i += 1
+            continue
+        spans.append((i, j))
+        i = j
+    return spans
+
+
+def check_buffer_declarations():
+    """Survey 6 P2-11. Astra already keeps each buffer's format next to its consumer; this
+    is the anti-degradation gate for the failure three reference packs shipped with -
+    declarations that exist only as text. Two rules: a declaration inside a comment never
+    happened, and a buffer whose format or clear colour is declared but never referenced
+    is a buffer Iris allocates and clears every frame for no reader."""
+    c = Check(14, "buffer declarations live, unique and consumed (survey 6 P2-11)")
+    shader_files = list(walk_shader_files())
+
+    live, commented = {}, []
+    for p in shader_files:
+        text = read(p)
+        spans = _comment_spans(text)
+        for m in ENGINE_DECL.finditer(text):
+            name, value = m.group(2), m.group(3).strip()
+            if not _is_engine_decl(name):
+                continue
+            where = f"{pk(p)}:{text.count(chr(10), 0, m.start()) + 1}"
+            if any(start <= m.start() < end for start, end in spans):
+                commented.append((where, name, value))
+            else:
+                live.setdefault(name, []).append((where, value))
+
+    for where, name, value in commented:
+        c.fail(f"{where}: const {name} = {value} sits inside a comment, so Iris never parses "
+               f"it and the buffer keeps its engine default - delete the line or uncomment it "
+               f"(the VanillaPlus lib/pipeline.glsl failure mode, survey 6 P2-11)")
+
+    # One declaration per name. The *Format knobs are already uniqueness-checked by check
+    # 11 (SC-27); the clear knobs are not, and a duplicate there is the same silent loss.
+    for name, decls in sorted(live.items()):
+        if re.search(r"Clear(?:Color|Alpha|Depth)?$", name) and len(decls) > 1:
+            c.fail(f"{name} declared {len(decls)} times: "
+                   + ", ".join(f"{where}={value}" for where, value in decls))
+
+    # The declaration statement mentions its own buffer name, so it cannot be its consumer.
+    code = {p: ENGINE_DECL.sub(
+        lambda m: " " * len(m.group(0)) if _is_engine_decl(m.group(2)) else m.group(0),
+        strip_comments(read(p))) for p in shader_files}
+    buffers = {}
+    for name, decls in live.items():
+        base = BUFFER_BASE.match(name)
+        if base:
+            buffers.setdefault(base.group(1), set()).update(where for where, _ in decls)
+    consumed = {}
+    for buf in sorted(buffers):
+        readers = [pk(p) for p in shader_files if re.search(r"\b" + buf + r"\b", code[p])]
+        if not readers:
+            c.fail(f"{buf}: declared at {', '.join(sorted(buffers[buf]))} but referenced by "
+                   f"nothing in the pack - drop the declaration or wire the consumer")
+        else:
+            consumed[buf] = readers
+    c.note(f"{sum(len(v) for v in live.values())} live engine declaration(s) covering "
+           f"{len(consumed)} buffer(s): "
+           + ", ".join(f"{b}={len(r)}" for b, r in sorted(consumed.items()))
+           + f"; {len(commented)} declaration(s) hidden in comments")
+    return c
+
+
+# ------------------------------------------------------- vendor isolation (survey P2-10)
+
+VENDOR = PACK / "lib" / "vendor"
+
+# The paragraphs that belong once in a licence file and never in a per-file header: survey 2
+# counted the alternative - VanillaPlus repeats its header 224x (4,384 lines = 38.5% of the
+# pack), Sildur's 109x (8.2%), LIGHT 72x (11.3%).
+LICENCE_BODIES = (
+    "Permission is hereby granted, free of charge",       # MIT / X11
+    "Redistribution and use in source and binary forms",  # BSD / GPLv2 clause 1
+    "GNU GENERAL PUBLIC LICENSE",                         # GPL full text
+)
+
+
+def check_vendor_isolation():
+    """Survey 6 P2-10. Upstream code, its raw licence text and its registration row in one
+    physically isolated directory - the landing spot for the MIT reuse list (P2-13, T16)."""
+    c = Check(15, "lib/vendor/ isolation and no multiplied licence text (survey 6 P2-10)")
+    led = ROOT / "Astra" / "THIRD-PARTY.md"
+    if not led.exists():
+        c.fail("Astra/THIRD-PARTY.md missing (check 8 owns its content, this one its paths)")
+        return c
+    ledger = read(led).replace("`", "")
+
+    def registered(path):
+        return path in ledger or ("shaders/" + path) in ledger
+
+    if not VENDOR.is_dir():
+        c.fail("shaders/lib/vendor/ missing - design 9.2 and survey P2-10 keep every "
+               "third-party file and its licence in one isolated directory per upstream")
+        return c
+    if not (VENDOR / "README.md").exists():
+        c.fail("shaders/lib/vendor/README.md missing: a convention nobody can read next to "
+               "the directory it governs is not a convention")
+
+    files = sorted(p for p in VENDOR.rglob("*") if p.is_file())
+    for p in files:
+        path = pk(p)
+        # A directory's own README is Astra text registered by its directory row; every
+        # upstream file - licence or source - has to be registered under its own path.
+        if p.name == "README.md" and registered(pk(p.parent)):
+            continue
+        if not registered(path):
+            c.fail(f"{path}: inside lib/vendor/ but absent from Astra/THIRD-PARTY.md - "
+                   f"register the path, the upstream source file and the licence (design 9.2)")
+
+    for d in sorted(p for p in VENDOR.iterdir() if p.is_dir()):
+        names = [x.name.lower() for x in d.iterdir() if x.is_file()]
+        if not any(n.startswith(("license", "licence", "copying")) for n in names):
+            c.fail(f"{pk(d)}/: upstream code with no licence text beside it. Copy the upstream "
+                   f"licence, or write out the standard text when its archive ships none "
+                   f"(survey P2-13) - either way it lives here, not in a per-file comment")
+
+    strays = []
+    for p in walk_shader_files():
+        if VENDOR in p.parents:
+            continue
+        hits = [b for b in LICENCE_BODIES if b in read(p)]
+        if hits:
+            strays.append((pk(p), hits))
+    for path, hits in strays:
+        c.fail(f"{path}: carries licence text ({'; '.join(hits)}) outside lib/vendor/. Keep "
+               f"one copy in the upstream's vendor directory; a per-file licence header is "
+               f"the VanillaPlus failure mode (4,384 of 11,373 lines)")
+
+    dirs = sorted(pk(p) for p in VENDOR.iterdir() if p.is_dir())
+    c.note(f"lib/vendor/ exists: {len(dirs)} upstream directory(ies) "
+           f"({', '.join(dirs) or 'none yet - T16 fills it'}), {len(files)} file(s), "
+           f"{len(strays)} file(s) carrying licence text outside it")
+    return c
+
+
 def main():
     print(f"Astra pack validator | pack={rel(PACK)} | python={sys.version.split()[0]}")
     print("=" * 72)
@@ -1300,6 +1463,8 @@ def main():
     check_iris_parser_contracts()
     check_tier_differential(opts)
     check_option_consumers()
+    check_buffer_declarations()
+    check_vendor_isolation()
     for c in CHECKS:
         c.render()
     print("=" * 72)

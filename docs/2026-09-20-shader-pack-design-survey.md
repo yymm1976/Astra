@@ -962,8 +962,9 @@ python _meta/check_citations.py          # → 逐条校验本报告全部 path:
 python _meta/final_sweep.py              # → 九项：加粗冲突/加粗不成对/表格行列数/残留 /22 分母/章节缺失/§引用悬空/_meta 文件缺失/未替换标记/代码围栏配对
 # 借鉴报告逐条核验（37 项检查，须 cd 到光影包根；Windows 加 PYTHONIOENCODING=utf-8）
 set PYTHONIOENCODING=utf-8 && python _meta/verify_reference_study.py   # → 27 真 / 4 行号错 / 2 不成立 / 1 文件错 / 1 机理错 / 1 参数化描述错 / 1 需修正
-# Astra 侧门禁（本仓库内；P0-1 与 P2-12 的实测数字全部由下列命令复现，Windows 加 PYTHONIOENCODING=utf-8）
-python qa/tools/check_pack.py              # → 13 项，含 #12 档位取值差量与 #13 选项消费者/分支符号（P2-12）
+# Astra 侧门禁（本仓库内；P0-1、P2-10、P2-11 与 P2-12 的实测数字全部由下列命令复现，Windows 加 PYTHONIOENCODING=utf-8）
+python qa/tools/check_pack.py              # → 15 项，含 #12 档位取值差量、#13 选项消费者/分支符号（P2-12）、#14 缓冲声明活性/唯一/有读者（P2-11）、#15 lib/vendor 隔离与许可正文（P2-10）
+python qa/tools/test_gate_sensitivity.py   # → #14/#15 的灵敏度自证：9 个场景在临时副本上注入既有缺陷形态，断言逐条精确触发且两个对照仍全绿
 python qa/tools/inspect_iris_properties.py # → 驱动已安装的 iris-fabric-1.11.2 解析器，逐档解出 pass 门与缓冲尺寸后差分
 python qa/tools/compile_glsl.py            # → 全量编译门
 python qa/tools/compile_glsl.py --matrix   # → P2-12 选项穷举门：83 行二组合覆盖阵列 × 89 入口（--matrix-rows N 截断，截断即非零退出）
@@ -972,16 +973,16 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 
 全部脚本与解包源码在 `C:\Users\杨铭\Desktop\光影包\`，永久保存：29 个目录 = 22 个不同包（20 个下载条目 + 2 个表外参照包）+ 7 个 `*-source` 逐字节同名副本。§2 的每包 `path:line` 引用均来自该目录内的实际文件。
 
-`check_citations.py` 最新一次运行（含 §11.E-5 与 §11.F，且本段文字自身计入）：**扫描 495 条引用**。四类硬失败桶计数全为 0——「行号超出文件末尾」「文件名在归属包内根本不存在」「显式包/项目路径不解析」「带行号引用超出所有候选文件」。非零桶共 62 条，均为记法而非缺陷，逐桶列明：
+`check_citations.py` 最新一次运行（含 §11.E-5 与 §11.F 的 F-3 台账，且本段文字自身计入）：**扫描 515 条引用**。四类硬失败桶计数全为 0——「行号超出文件末尾」「文件名在归属包内根本不存在」「显式包/项目路径不解析」「带行号引用超出所有候选文件」。非零桶共 66 条，均为记法而非缺陷，逐桶列明：
 
-- **「其实是 ASTRA 文件、需加 `Astra/` 前缀」13 条**：§4.2 2、§6 5、§7 1、§11 4、本节 1。都是正文已明确在谈 Astra 内部实现处使用了裸文件名。
+- **「其实是 ASTRA 文件、需加 `Astra/` 前缀」17 条**：§4.2 2、§6 5、§7 1、§11 8（其中 §11.F 的 F-3 台账 5 条）、本节 1。都是正文已明确在谈 Astra 内部实现处使用了裸文件名。
 - **「全样本库查无此路径」32 条**：§6 4、§9.2 3、§10.4 2、§11 23。同样是 Astra 内部模块的裸文件名（水光束、介质状态、影图采样、缓冲格式等），参照包中不存在是预期结果。
 - **「带行号、跨包歧义且正文未指名」11 条**：§9.2 1、§11 10。
 - **「目录层级不同」3 条**：均在 §2.1，引用 Complementary 时按包内相对路径书写（`lib/antialiasing/jitter.glsl`），而包内实际多一层 `shaders/` 根目录。
 - **「建议新建、目前尚不存在」2 条**：`Astra/shaders/lib/compat.glsl`（§6 P2-10 与 §9.1 各一次），本条是待办而非缺陷。
 - **「按正文归属包校验失败」1 条**：本节转述 §9.2 的 Solas `common.glsl:121` 跨包歧义引用，正文已指明归属。
 
-非零桶的 62 条中有 37 条来自 §11：该节的裁决表用裸文件名指代 Astra 内部文件——记法简短，代价是自动解析器无从归属。§11 内一处真错已修：P2-13 行的 `lib/bayer.glsl` 曾被按上下文的 Mellow 包解析而报「no such file」，已补全为 `Astra/shaders/lib/bayer.glsl`。
+非零桶的 66 条中有 41 条来自 §11：该节的裁决表用裸文件名指代 Astra 内部文件——记法简短，代价是自动解析器无从归属。§11 内一处真错已修：P2-13 行的 `lib/bayer.glsl` 曾被按上下文的 Mellow 包解析而报「no such file」，已补全为 `Astra/shaders/lib/bayer.glsl`。
 
 引用类数字之外，§3.1–§3.4 四张表另有 `tablecheck.py` 逐格比对：872 个数值格、0 处与 `matrix.md` 不一致。第三道门 `final_sweep.py` 查的是"数字都对但排版坏了"，本次九项全绿。
 
@@ -1184,6 +1185,34 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 - 原文"抽样"→ 实际不抽样：83 行是完整的 t=2 覆盖阵列，未覆盖对为 0；`--matrix-rows` 截断时输出 `COVERAGE_INCOMPLETE` 并非零退出，防止"小一点的矩阵"被当成通过。
 
 接入后续每个工单的收尾：`qa/regression-checklist.md` 通用第 1 行已改写为「`python qa/tools/check_pack.py`（13 项 0 FAIL）+ `python qa/tools/compile_glsl.py --matrix`（83 行穷举 0 failed）」，T3 起每次交接按此行勾验。成本口径写清楚：矩阵门约 28 分钟（每批一个驱动 JVM ≈ 600 MB，本机空闲内存只剩 ~6 GB 时 `--jobs 3` 是实际上限），因此**逐工单**的即时回归仍跑默认三档扫描（267 单元、2–3 分钟），矩阵门在交接与里程碑收口时跑；改动选项声明、值域或任何预处理器条件的工单，收尾必须跑矩阵门。
+
+**F-3 · T3 执行 P2-10 + P2-11 合规与防退化基建**
+
+落地四件：`Astra/shaders/lib/vendor/README.md`（目录 + 约定正文，42 行）、`Astra/THIRD-PARTY.md:55` 新增「第三方隔离目录」节、`qa/tools/check_pack.py` 第 14（`qa/tools/check_pack.py:1286-1376`）与第 15 项（`:1378-1446`）、`qa/tools/test_gate_sensitivity.py`（新，常驻灵敏度自证）。检查项 13 → 15。
+
+P2-11 的真实缺口不在包内，而在门内。`check_pack.py` 早已有 SC-27 那条缓冲格式检查，但它扫的是 `strip_comments(read(p))` 的结果——注释被替换成空格后，被 `/* */` 整块包住的声明**连同声明语法一起消失**，所以 VanillaPlus `lib/pipeline.glsl` 那 53 行注释块在 Astra 的门里是不可检形态。第 14 项因此不复用 `strip_comments()`，自带一个注释区间扫描器（`_comment_spans()`，`:1298`，逐字符区分 `//` 与 `/* */`，不做正则近似），判据是"具备声明语法 **且** 起点落在注释区间内"。
+
+覆盖面比原文宽一档：原文只点名 `const int colortexNFormat` 与 `const …Clear`，第 14 项按语法形态收 `const <bool|int|float|vec4> <NAME> = …;`，NAME ∈ `{*Format, *Clear, *ClearColor, *ClearAlpha, *ClearDepth} ∪ 七个引擎标量`（含 `depthtex*` 与 `shadowMapResolution` 一族）。同一个盲区不该开两条规则。唯一性只补 `*Clear*` 一类——`*Format` 的"一个缓冲只声明一次"已由第 11 项 SC-27 管着，两条门不重复报同一件事。
+
+实测：全包 13 条缓冲声明——`Astra/shaders/lib/settings.glsl:361,365-369` 6 条（ClearColor 与 Clear）、`Astra/shaders/lib/water_buffer_formats.glsl:12,15,16,18` 4 条 Format、`Astra/shaders/program/end_illumination.fsh:10,11`、`Astra/shaders/program/end_sky_buffer.fsh:9`——另加 47 条引擎标量声明（`entityShadowDistanceMul` 一族，仅它就占 40 处），合起来即第 14 项报告的 **60 条活声明覆盖 10 个缓冲，注释内 0 条**；每个被声明缓冲的名字读者数 colortex0=6、colortex2=1、colortex3=2、colortex4=1、colortex5=1、colortex6=1、colortex7=2、colortex8=2、colortex9=1、shadowcolor0=2，全部 ≥1。判据边界写清楚：读者 = 抹掉声明语句自身之后的代码引用（声明行本来就写着自家缓冲名，不能自证）；输出侧 `gl_FragData[N]` 是按索引写、按名字匹配不到，所以本条判"有名字读者"而**不判"有写入者"**——后者要 pass 图求值，超出静态门能诚实承担的范围。
+
+P2-10 的第 15 项四条规则：目录与 README 必须存在；`lib/vendor/**` 内除目录自带 README.md 外的每个文件必须按全路径出现在 `Astra/THIRD-PARTY.md`；每个上游目录必须自带许可证原文（`LICENSE`/`LICENCE`/`COPYING` 前缀）；`lib/vendor/` 之外任何着色器文件出现 MIT/BSD/GPL 正文段落即 FAIL——最后一条就是那条反规范，实测全包 0 处。目录本身目前是空基座（只含约定 README），`lib/vendor/<upstream>/` 由 T16 填。
+
+一处只有跑负例才会暴露的实现约束：登记判据是"路径字符串出现在台账里"，于是**约定正文里不能举真实形态的示例路径**。初稿在 `Astra/THIRD-PARTY.md` 里写了 `shaders/lib/vendor/renderpearl/LICENSE.txt` 当例子，任何真的叫这个名字却没登记的文件都会被误判为已登记；改成 `<upstream>/<file>` 这种不含真实文件名的写法后 s5 才真正 FAIL 出来。同类"注释里的缓冲名不能算读者"的边界由 s8 对照场景守着（注释提一句 `colortex12Format` 必须仍然全绿）。
+
+门的灵敏度：`python qa/tools/test_gate_sensitivity.py` → **9/9 按预期**。七个注入各打一条规则，全部在 `copytree` 出的临时副本上做、真实包零改动：块注释包住的 `colortex7Format`、行注释掉的 `colortex5ClearColor`、幽灵缓冲 `colortex11Format`、重复的 `colortex6ClearColor`、未登记的 vendor 文件、缺许可证原文的上游目录、vendor 外的 MIT 正文；两个对照是"出厂包 0 FAIL"与"注释提及缓冲名仍然干净"。脚本按场景断言"归属那条 check 触发且消息命中 + 其他 check 无连带 FAIL"，退出码 = 未按预期的场景数。
+
+顺带清掉一处死代码：`FORMAT_NAMES`（原 `qa/tools/check_pack.py:745`）是一份六项缓冲名列表，全包无引用且已过期（缺 colortex5..9、无 depthtex）。新门从声明语法推导缓冲名，不复活它，直接删。
+
+未采纳与不成立（P2-10/P2-11 原文做法不照搬）：
+
+- P2-11 原文的"验证"写成 `check_pack.py` 新检查项 **+ `python qa/tools/sc35_image_analysis.py`**。后半句与本条无因果关系——那是逐像素图像比对工具，防退化门判的是源码声明，不执行。
+- 原文"要求每个被声明的格式都有至少一个消费者"按"名字读者"可实现、按"写入者"不可实现（见上），已按前者落地并把边界写在代码注释与门禁消息里。
+- 台账登记粒度没有采用"整目录一行覆盖全部文件"：那会让 T16 新增的第二个文件悄悄免检。README.md 由目录行覆盖是唯一的例外，理由（它是 Astra 自写文本、不是第三方件）写在 `Astra/shaders/lib/vendor/README.md` 登记规则第 1 条里。
+
+收尾门：`python qa/tools/check_pack.py` → 15 项 0 FAIL / 14 PASS / 1 WARN（WARN 仍是 #4 接线登记，与本条无关）；`python qa/tools/compile_glsl.py` 默认三档扫描 `linked=267 failed=0 compute=27`，exit 0，日志 `qa/glsl-2026-09-20-t3-compliance.log`。矩阵门未重跑，按 F-2 定的成本规则：本轮零 GLSL 语义改动、选项声明与值域一字未动。
+
+本条初稿被报告自己的三道门抓出两处，均已按实测改正：第 14 项报 60 条，而初稿的锚点清单漏了 `Astra/shaders/program/end_illumination.fsh:11`（`colortex8ClearColor`）只列到 12 条缓冲声明、于是写成 59——教训是"门报的数字要按门的输出抄，不按记忆写"；`final_sweep.py` 第 8 项又把正文里指代"通用形式"的那个双字词当成未替换记号报红（该词本身出现在正文即命中，故此处不复述），改写后九项全绿、引用门 515 条与四类硬失败 0 不变。
 
 
 

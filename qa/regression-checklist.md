@@ -7,11 +7,11 @@
 
 | # | 项 | 对应验收 | 1.21.x | 26.1/26.2 | 备注 |
 |---|---|---|---|---|---|
-| 1 | Iris 加载零编译错误（最新日志 0 error）；离线等价门：`python qa/tools/check_pack.py`（13 项 0 FAIL）+ `python qa/tools/compile_glsl.py --matrix`（83 行穷举 0 failed） | §8.1 / 调研 P2-12 | | | |
+| 1 | Iris 加载零编译错误（最新日志 0 error）；离线等价门：`python qa/tools/check_pack.py`（15 项 0 FAIL）+ `python qa/tools/compile_glsl.py --matrix`（83 行穷举 0 failed） | §8.1 / 调研 P2-11/P2-12 | | | |
 | 2 | 三维度（主世界/下界/末地）正常进入渲染 | §8.1 | | | |
 | 3 | 三档 profile 一键切换且设置生效 | §8.6 | | | |
 | 4 | zh_CN 设置界面全覆盖、无 raw key | §8.6 | | | |
-| 5 | THIRD-PARTY.md 与实际代码零偏差 | Z6 | | | |
+| 5 | THIRD-PARTY.md 与实际代码零偏差（含 `shaders/lib/vendor/` 每个文件都有登记行）；离线门：`check_pack.py` 第 8 项 + 第 15 项，灵敏度由 `python qa/tools/test_gate_sensitivity.py` 复验 | Z6 / 调研 P2-10 | | | |
 
 ## M2 主世界
 

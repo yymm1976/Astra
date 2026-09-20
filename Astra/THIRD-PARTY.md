@@ -52,6 +52,18 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 
 | `shaders/global/water/light_shafts.glsl` | Solas V2.2b `lib/atmosphere/volumetricLight.glsl`：视线阴影积分思路 | Astra 自写：按可见水程分段、共享入水日光/相函数/消光、编码及按实际深度重建；SC-34-F1 移除独立图案与额外增益 | 自写；所依赖阴影/变换模块仍按原许可 | `// Written for Astra (SC-33)` |
 
+## 第三方隔离目录 `shaders/lib/vendor/`
+
+依据 design.md §9.2 与借鉴调研 P2-10 建立，规则正文在 `shaders/lib/vendor/README.md`。约定：
+
+- 第三方原始文件与许可证原文只允许出现在 `shaders/lib/vendor/<upstream>/`，一个上游一个目录。
+- 该目录下**除目录自带 README.md 外**的每个文件——许可证原文、上游原件、编译进包的上游模块——
+  都要在本文件按它自己的全路径登记一行；目录本身由 `shaders/lib/vendor/<upstream>/` 一行覆盖。
+- 每个上游目录必须带许可证原文；许可证正文只存这一份，包内其他文件出现 MIT/BSD/GPL 正文段落即 FAIL
+  ——参照包同一个错误的代价：VanillaPlus 224 份文件头 = 4,384 行 / 38.5%，Sildur's 8.2%，LIGHT 11.3%。
+- 本文件上方登记表登记的仍是**实际参与编译的 Astra 文件**；vendor 目录里的原件不重复登记为模块行。
+- 机械检查：`python qa/tools/check_pack.py` 第 15 项。
+
 ## Steadfast 借用复核（机械可验证）
 
 SC-33 新增：`shaders/global/water/light_shafts.glsl` 为 Astra 自写；思路参考本地 Solas V2.2b `lib/atmosphere/volumetricLight.glsl` 与 `program/shadow.glsl` 的视线阴影累计和水面聚光。未移植 computeVL 表达式；固定分段积分、宽尺度图案、RGBA 编码和深度重建为独立实现。现有 `program/composite.fsh` 保留 Steadfast 空气光束消费者，并追加 Astra 水下消费者；所依赖的阴影和空间变换仍按上表各自来源登记。
