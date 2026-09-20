@@ -2,9 +2,10 @@
 #define ASTRA_GLOBAL_POST_BLOOM_GLSL
 
 // Astra v1 — global/post/bloom.glsl
-// Two-pass bloom (design.md 4.4): composite1 captures a half-resolution, soft-knee
-// prefiltered image into colortex2 with mipmaps on, and the final chain reads several
-// mip levels of it. The mip chain replaces the 6-pass downsample pyramid that Mellow
+// Two-pass bloom (design.md 4.4): composite1 captures a reduced-resolution, soft-knee
+// prefiltered image into colortex2 — the fraction is BLOOM_CAPTURE_SCALE below — with
+// mipmaps on, and the final chain reads four of its mip levels (two under
+// DIMENSION_END). The mip chain replaces the 6-pass downsample pyramid that Mellow
 // ships, which is where the four saved passes come from.
 //
 // PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - structure borrowed from
@@ -78,11 +79,11 @@ vec3 bloom_prefilter(vec3 color) {
 	return color * (excess / brightness);
 }
 
-// Stage 1 (program/composite1.fsh): prefiltered 2x downsample of the HDR scene into
-// the half-resolution bloom buffer. One pass, 13 texture fetches, no colour output
+// Stage 1 (program/composite1.fsh): prefiltered downsample of the HDR scene into the
+// bloom capture buffer. One pass, 13 texture fetches, no colour output
 // dependency - the buffer Iris produces here is what gets mipmapped.
 //
-// src is colortex0 at full resolution; texCoord is the half-res pass's own normalised
+// src is colortex0 at render resolution; texCoord is the capture pass's own normalised
 // coordinate, which is also valid for sampling the full-res source.
 vec3 bloom_capture(sampler2D src, vec2 texCoord) {
 	// Derived from the source rather than from viewWidth/viewHeight: the capture rate

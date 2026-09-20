@@ -823,8 +823,8 @@ Astra 现状：`Astra/shaders/global/lighting/shadowmap.glsl:202 bias = end_shad
 ### P1-16 · 光束时域自适应采样（vlFactor + 状态像素 + 运行时循环上界）
 
 - **现状**：`Astra/shaders/global/water/light_shafts.glsl` 的 `UNDERWATER_SHAFT_SAMPLES` 是编译期常量（`Astra/shaders/lib/settings.glsl:136`，7/7/10 三档），静止观赏时质量不足、移动时白付。
-- **依据**：Complementary Unbound `lib/atmospherics/volumetricLight/volumetricLight.glsl:9,183,321-346`（§2.1 新增 bullets）——`vlFactor` 持久化在 `colortex5` 末像素 `.a`，静止爬升、运动回落，驱动 `nearSamples`/`farSamples`。**前提条件须先修正**：Astra 当前 `light_shafts.glsl:110,125` 使用 `texture(shadowtex1, pos.xy)` 隐式 LOD，在非一致循环内会导致未定义行为；必须先改为 `texelFetch` 或显式 LOD-0，然后才能引入运行时循环上界（Complementary Unbound 的对应代码 `:201` 注释原话："We need to use texelFetch here or a lot of Nvidia GPUs can't get a valid value"）。
-- **做法**：新增 1×1 缓冲挂 `astraVlFactor`——colortex6 **没有空闲通道**（`Astra/shaders/global/water/medium_state.glsl:5`：RG = 1/16 格水面高度、B = 天空通达、A = 有效位，四通道全占）；静止每帧 `+= OSIEBCA`、运动按 `reduceAmount` 回落；`UNDERWATER_SHAFT_SAMPLES` 从编译期常量改为该标量驱动的运行时上界。**前置修复**：`light_shafts.glsl:110,125` 的 `texture()` → `texelFetch()`/显式 LOD-0。〔2026-09-20 复核更正：colortex6 通道前提不成立；另注意这两处的目标 shadowtex1/shadowcolor0 无 mipmap，隐式 LOD 实际无害，改 texelFetch 是卫生改进——**真正带 mipmap 的非一致流 `texture()` 站点是 `Astra/shaders/global/water/bloom_capture.glsl:21`**（colortex0 经 `water_bloom.fsh:5` 开 mip，外层 `if` 为数据相关分支），应并入本前置修复且优先级更高。〕
+- **依据**：Complementary Unbound `lib/atmospherics/volumetricLight/volumetricLight.glsl:9,183,321-346`（§2.1 新增 bullets）——`vlFactor` 持久化在 `colortex5` 末像素 `.a`，静止爬升、运动回落，驱动 `nearSamples`/`farSamples`。**前提条件须先修正**：真正的阻塞站点不是 `light_shafts.glsl:110,125`——`shadowtex1`/`shadowcolor0` 在全包没有任何 mipmap 声明，隐式 LOD 只能取到 level 0，实际无害（改 `texelFetch` 属于卫生改进）。必须修的是 `Astra/shaders/global/water/bloom_capture.glsl:21`：`colortex0` 经 `program/water_bloom.fsh:5` 开了 mip，外层 `if` 又是数据相关分支，那里才是真正的未定义行为（§9.4 前置项、本条下方）。引入运行时循环上界前须先按 Complementary Unbound 的做法消掉这类隐式 LOD 站点——它 `:201` 的注释原话："We need to use texelFetch here or a lot of Nvidia GPUs can't get a valid value"。
+- **做法**：新增 1×1 缓冲挂 `astraVlFactor`——colortex6 **没有空闲通道**（`Astra/shaders/global/water/medium_state.glsl:5`：RG = 1/16 格水面高度、B = 天空通达、A = 有效位，四通道全占）；静止每帧 `+= OSIEBCA`、运动按 `reduceAmount` 回落；`UNDERWATER_SHAFT_SAMPLES` 从编译期常量改为该标量驱动的运行时上界。**前置修复**：见上方「依据」——`bloom_capture.glsl:21` 是必修项，`light_shafts.glsl:110,125` 是可选卫生改进。
 - **成本**：一个 1×1 状态通道 + 循环上界改运行时。
 - **许可证**：时域自适应采样 + 状态像素持久化是通用图形技巧 → **无风险**。
 - **验证**：逐帧对比静止/运动场景的光束质量与帧时间，确认平均成本不升。
@@ -966,7 +966,18 @@ set PYTHONIOENCODING=utf-8 && python _meta/verify_reference_study.py   # → 27 
 
 全部脚本与解包源码在 `C:\Users\杨铭\Desktop\光影包\`，永久保存：29 个目录 = 22 个不同包（20 个下载条目 + 2 个表外参照包）+ 7 个 `*-source` 逐字节同名副本。§2 的每包 `path:line` 引用均来自该目录内的实际文件。
 
-`check_citations.py` 本次运行结果：**扫描 424 条引用**（合并借鉴报告后较此前 383 条新增 41 条），九类缺陷桶（目录错配、行号越界、文件名在归属包内不存在、显式包/项目路径不解析、行号超出所有候选文件、按正文归属包校验失败、同一路径多包欠定且正文未指名、全样本库查无此路径）计数全为 0。非零桶均为预期项：「建议新建、目前尚不存在」的 `Astra/shaders/lib/compat.glsl`（§6 P2-10 与 §9.1 各引用一次，共 2 条）；「需加 `Astra/` 前缀」2 条（§6 P1-16 `light_shafts.glsl`、§7.B `grading.glsl`，均为 Astra 内部文件）；「全样本库查无此路径」7 条——其中 5 条为 §9.2/§9.4/§10 引用 Astra 内部路径（`light_shafts.glsl`、`absorption_refraction.glsl`、`waterFog.glsl`、`common.glsl`），1 条为 §6 P1-17 引用 Astra 路径，1 条为 §9.2 中 Solas `common.glsl:121` 跨包歧义（正文已指明归属）。引用类数字之外，§3.1–§3.4 四张表另有 `tablecheck.py` 逐格比对：872 个数值格、0 处与 `matrix.md` 不一致。第三道门 `final_sweep.py` 查的是"数字都对但排版坏了"，本次九项全绿。
+`check_citations.py` 最新一次运行（含 §11，且本段文字自身计入）：**扫描 484 条引用**。四类硬失败桶计数全为 0——「行号超出文件末尾」「文件名在归属包内根本不存在」「显式包/项目路径不解析」「带行号引用超出所有候选文件」。非零桶共 60 条，均为记法而非缺陷，逐桶列明：
+
+- **「其实是 ASTRA 文件、需加 `Astra/` 前缀」11 条**：§4.2 2、§6 5、§7 1、§11 2、本节 1。都是正文已明确在谈 Astra 内部实现处使用了裸文件名。
+- **「全样本库查无此路径」32 条**：§6 4、§9.2 3、§10.4 2、§11 23。同样是 Astra 内部模块的裸文件名（水光束、介质状态、影图采样、缓冲格式等），参照包中不存在是预期结果。
+- **「带行号、跨包歧义且正文未指名」11 条**：§9.2 1、§11 10。
+- **「目录层级不同」3 条**：均在 §2.1，引用 Complementary 时按包内相对路径书写（`lib/antialiasing/jitter.glsl`），而包内实际多一层 `shaders/` 根目录。
+- **「建议新建、目前尚不存在」2 条**：`Astra/shaders/lib/compat.glsl`（§6 P2-10 与 §9.1 各一次），本条是待办而非缺陷。
+- **「按正文归属包校验失败」1 条**：本节转述 §9.2 的 Solas `common.glsl:121` 跨包歧义引用，正文已指明归属。
+
+非零桶的 60 条中有 35 条来自 §11：该节的裁决表用裸文件名指代 Astra 内部文件——记法简短，代价是自动解析器无从归属。§11 内一处真错已修：P2-13 行的 `lib/bayer.glsl` 曾被按上下文的 Mellow 包解析而报「no such file」，已补全为 `Astra/shaders/lib/bayer.glsl`。
+
+引用类数字之外，§3.1–§3.4 四张表另有 `tablecheck.py` 逐格比对：872 个数值格、0 处与 `matrix.md` 不一致。第三道门 `final_sweep.py` 查的是"数字都对但排版坏了"，本次九项全绿。
 
 ### 9.2 本次调研中被推翻或纠正的前提（防止复用时再踩）
 
@@ -984,7 +995,7 @@ set PYTHONIOENCODING=utf-8 && python _meta/verify_reference_study.py   # → 27 
 | 「VP 11,388 行 > Astra 9,559 行」 | **净代码口径下反转** | VP 净 7,004（许可头 4,384）< Astra 9,804 |
 | JCL 注释比 0.378 / 最长行 18,043 = 混淆 | **是打包风格** | `//[枚举]` 被 `census.py:91` 计入注释；纯注释行比 0.139；长行是 OptiFine 枚举滑杆 |
 | JCL `stuff/` 作者名文件构成侵权嫌疑 | **排除** | 是作者自己另一工程的三份近重复副本（difflib 0.974/0.905），风险为自我重复（7,900 行 / 34% 包体） |
-| 借鉴报告 #1「循环体已全显式 LOD」 | **不成立** | `light_shafts.glsl:110,125` 使用 `texture(shadowtex1, pos.xy)` 隐式 LOD，在非一致循环内会导致未定义行为；须先改 `texelFetch`/显式 LOD-0 才能引入运行时循环上界（§6 P1-16） |
+| 借鉴报告 #1「循环体已全显式 LOD」 | **不成立（证据已更正）** | 结论仍成立但站点指错过：`light_shafts.glsl:110,125` 的 `shadowtex1`/`shadowcolor0` 全包无 mipmap 声明，隐式 LOD 只取 level 0，无害。真站点是 `global/water/bloom_capture.glsl:21`——`colortex0` 经 `program/water_bloom.fsh:5` 开 mip，该行在双重循环内、外层 `:15` 是数据相关 `if`，属未定义行为。正确修法是把 `lod` 参数显式传下去（`textureLod(colortex0, sampleCoord, lod)`）而非 `texelFetch`——`getBloomTile` 的整个 mip 选择本来就靠 `exp2(lod)` 缩放坐标 + 梯度推导，`texelFetch` 会绕过它（§6 P1-16） |
 | 借鉴报告「Unbound 多出 TAA + 体素化 + 3D 云 + SSR/反射缓冲 + textRendering」 | **部分描述错** | TAA + 体素化 + textRendering 确为 Unbound 独有；但 SSR/反射缓冲（colortex7/8）与 3D 云在 Complementary 共享 `lib/` 中已存在，不是 Unbound「多出」 |
 | 借鉴报告「`lib/common.glsl:120-121` 两张反射缓冲尺寸声明」 | **文件错** | 反射缓冲尺寸在 `dimension.properties` 的尺寸指令中通过 `REFLECTION_RES` 引用，不在 `common.glsl:120-121` |
 | 借鉴报告 waterFog 谱序「b×=(1-abs³·0.5)」 | **参数化描述错** | `waterFog.glsl:6` 无 swizzle ⇒ 三次项是三通道共有衰减而非 b 独享；定性结论「红衰最快、蓝衰最慢」仍成立（19 点数值扫描 r<g<b 恒成立） |
@@ -996,7 +1007,7 @@ set PYTHONIOENCODING=utf-8 && python _meta/verify_reference_study.py   # → 27 
 
 ### 9.4 落地顺序建议
 
-`P0-1`（纯配置，无风险，先做）→ `P2-12`（穷举编译，为后续所有开关兜底）→ `P2-10`/`P2-11`（合规与防退化基础设施）→ `P2-18`（`dimension.properties` 按维度裁剪，纯配置）→ `P0-2` → `P0-3`（默认关，实机校准后才开）→ `P1-5`/`P1-9`（成对做，同一处 bias/畸变）→ `P1-17`（水吸收侧面 skylight 代理 + 未命中近场缓释）→ **`P1-16` 前置**：先把 `light_shafts.glsl:110,125` 的隐式 LOD 改为 `texelFetch`/显式 LOD-0 → `P1-16`（光束时域自适应采样，依赖前置完成）→ `P1-6` → `P1-7` → `P1-8` → `P2-20`（光束标定三条，随 P1-16 对拍）→ `P2-19`（光束/反射分辨率选项）→ P2 余项（含 `P0-4` 降级后的月相残差，仅一处，顺手做）。
+`P0-1`（纯配置，无风险，先做）→ `P2-12`（穷举编译，为后续所有开关兜底）→ `P2-10`/`P2-11`（合规与防退化基础设施）→ `P2-18`（`dimension.properties` 按维度裁剪，纯配置）→ `P1-5`/`P1-9`（成对做，同一处 bias/畸变）→ `P1-17`（水吸收侧面 skylight 代理 + 未命中近场缓释）→ **`P1-16` 前置**：把 `global/water/bloom_capture.glsl:21` 的隐式 LOD 改为 `textureLod(colortex0, sampleCoord, lod)`（该函数靠 `exp2(lod)` 缩放坐标 + 梯度推导选 mip，`texelFetch` 会绕过这套选择，不可用）→ `P1-16`（光束时域自适应采样，依赖前置完成）→ `P1-6` → `P1-7` → `P1-8` → `P2-14`/`P2-19`（分辨率粒度选项）→ `P2-20`（光束标定三条，随 P1-16 对拍）→ `P0-2` → `P0-3` → `P2-13`（MIT 可署名复用清单）→ P2 余项（含 `P0-4` 降级后的月相残差，仅一处，顺手做）。**〔2026-09-20 执行期调整〕**`P0-2`/`P0-3` 从原来的第 5 位挪到后段：这两项是全表视觉风险最高、必须实机校准后才敢放的条目，且 `P0-3` 还卡在 `design.md` §4.1 需要先行修订；把它们排在低风险、可静态验证的条目之后，能让每一步都有编译或校验脚本兜底，而不是让最高风险项挡在最前面。
 
 ## 10. 借鉴报告核收台账
 
@@ -1027,7 +1038,7 @@ set PYTHONIOENCODING=utf-8 && python _meta/verify_reference_study.py   # → 27 
 
 | # | 建议摘要 | 处置 | 备注 |
 |---|---|---|---|
-| 1 | 水下光束运行时采样数自适应 | **采纳，但前提须修正** | `UNDERWATER_SHAFT_SAMPLES` 是用户选项 7/[4-10] 而非常量；「循环体已全显式 LOD」为假（C36）→ 须先改 `light_shafts.glsl:110,125` 为 `texelFetch`/LOD-0（§6 P1-16） |
+| 1 | 水下光束运行时采样数自适应 | **采纳，但前提须修正** | `UNDERWATER_SHAFT_SAMPLES` 是用户选项 7/[4-10] 而非常量；「循环体已全显式 LOD」为假（C36），但真站点是 `bloom_capture.glsl:21`（colortex0 有 mip + 数据相关分支），修法 `textureLod(…, lod)`；`light_shafts.glsl:110,125` 的采样器无 mip，隐式 LOD 无害，仅卫生改进（§6 P1-16） |
 | 2 | vlFactor 时域自适应 | 采纳 | → §6 P1-16 |
 | 3 | 近/远两段式 VL 采样 | 采纳 | → §6 P1-16 描述 |
 | 4 | 水吸收谱序对照标定 | 采纳（修正后） | 定性结论正确，参数化描述须修正（§9.2 已记录） |
@@ -1073,7 +1084,7 @@ set PYTHONIOENCODING=utf-8 && python _meta/verify_reference_study.py   # → 27 
 | P2-10 vendor 隔离 | **高价值（合规基建），采纳** | 与 §7.B.3 互为表里；Astra 已有 PROVENANCE 短注惯例，迁移目标明确 |
 | P2-11 buffer 声明防退化 | **高价值（防退化），采纳** | 6 处活声明复核成立（`water_buffer_formats.glsl:12,15,16,18` + `end_illumination.fsh:10` + `end_sky_buffer.fsh:9`） |
 | P2-12 穷举编译 | **高价值，采纳** | `compile_glsl.py` 已有基础；化石 token 防线是结构性收益 |
-| P2-13 MIT 复用清单 | **高价值** | `grading.glsl:204-208` 已有 Mellow MIT 移植先例（链序），`lib/bayer.glsl` 已有基础；逐件许可证动作标注清楚 |
+| P2-13 MIT 复用清单 | **高价值** | `grading.glsl:204-208` 已有 Mellow MIT 移植先例（链序），`Astra/shaders/lib/bayer.glsl` 已有基础；逐件许可证动作标注清楚 |
 | P2-14 连续分辨率旋钮 | **中低价值** | 是 3 档之外的粒度补充，建议在 P0-1 定调后再评估 |
 | P2-15 反射八度减半 | **中低价值** | 反射路径无质量降级成立（`clouds_planar`/`refraction`/`raytrace` 无 isReflection 分支）；收益限于反射像素 |
 | P1-16 光束时域自适应 | **中价值，前提修正后采纳** | 两处前提更正（11.D-5/6）；状态像素须用新 1×1 缓冲；前置修复并入真正的 mipmapped 站点 |
@@ -1102,9 +1113,9 @@ set PYTHONIOENCODING=utf-8 && python _meta/verify_reference_study.py   # → 27 
 
 ### 11.E 复核中新发现的 Astra 侧问题（报告未提）
 
-1. **`program/scattering.fsh:2` 注释腐烂**：称 "colortex1 is full resolution when water shafts are enabled"，但 `shaders.properties:14` 已固定 `size.buffer.colortex1=0.5`。属 §7.B.5 要防的"注释记配置"自伤，顺手修正。
+1. **`program/scattering.fsh:2` 注释腐烂**：称 "colortex1 is full resolution when water shafts are enabled"，但 `shaders.properties:14` 已固定 `size.buffer.colortex1=0.5`。属 §7.B.5 要防的"注释记配置"自伤，顺手修正。**执行阶段扫描发现同一失败模式另有两处，复核未捕捉**：`program/composite1.fsh:1-2` 称 colortex2 为 "half resolution"/"0.5x"，`global/post/bloom.glsl:5,82,86` 称 "half-resolution"/"2x downsample"——而 `shaders.properties:19` 与 `bloom.glsl:42` 的 `BLOOM_CAPTURE_SCALE` 早已是 `0.25`（`properties:15-18` 的注释正是记录这次 0.5→0.25 改动，只有散文没跟上）。三处均已改为指向单一真源而非重述数值；代码侧本就由 `BLOOM_CAPTURE_SCALE` 与 `textureSize` 推导，无行为缺陷，纯注释腐烂。
 2. **`bloom_capture.glsl:21` 的隐式 LOD 站点**（见 11.D-6）：在项目记忆中仍为开放项，优先级应高于 P1-16 字面的前置修复。
-3. **行数口径混用**：M1 用 wc 口径（9559）、§9 模块普查用 `count('\n')+1`（9804），建议后续工具统一为 `count('\n')+1` 并在表头写明。
+3. ~~**行数口径混用**：M1 用 wc 口径（9559）、§9 模块普查用 `count('\n')+1`（9804）~~ —— **本条经实测撤销**（2026-09-20 执行阶段）。缺陷不存在：§3.1 的 ASTRA 行写的就是 **9804**，与 `astra_census.json`（`glsl_files=245, glsl_lines=9804`）一致；`census.py:74` 与 `census_astra.py:21` 两处**都已**用 `count("\n")+1`，工具侧本就统一。`9559` 全文只出现在两处——本节 11.A 的转述，以及 §9.2 表内作为**被推翻前提的引文**（那一行本来就在记录旧数字，不是 M1 的值）。复核时把引文误当成了表格数值。独立重算 245 文件得 `count('\n')=9560`、`+1/文件=9805`，与 9804 的 1 行差是末行换行边界，属 11.A 自己说过的口径差，不是混用。
 4. **三处"对报告的怀疑"经复核撤销**，记录以防将来误改：`design.md:517` 行号准确；"shadowcomp 12 条"口径自洽；§2.19 "Astra 许可头 0" 在"逐文件 boilerplate"口径下成立——Astra 的 1–4 行 PROVENANCE 短注不属于该列统计对象。
 
 

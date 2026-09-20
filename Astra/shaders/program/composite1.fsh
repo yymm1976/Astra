@@ -1,5 +1,7 @@
-// Astra v1 - program/composite1.fsh (bloom capture, half resolution -> colortex2)
-// Uniforms: colortex0 (sampler, declared here); colortex2 is 0.5x per shaders.properties.
+// Astra v1 - program/composite1.fsh (bloom capture -> colortex2)
+// Uniforms: colortex0 (sampler, declared here). colortex2's extent is declared once,
+// under size.buffer.colortex2 in shaders.properties; BLOOM_CAPTURE_SCALE in
+// global/post/bloom.glsl has to track that same value.
 //
 // Stage 1 of the two-pass bloom (design.md 4.4). Stage 2 - reading the mip levels and
 // adding them to the scene - is in the final chain and belongs to E1/C6, since the

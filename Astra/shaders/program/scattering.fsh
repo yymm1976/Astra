@@ -1,5 +1,6 @@
 // Astra - program/scattering.fsh (composite2: air/water light scattering)
-// colortex1 is full resolution when water shafts are enabled, otherwise 0.5x.
+// colortex1's size is declared once, in shaders.properties under size.buffer.colortex1.
+// This pass writes whatever extent Iris gives it and never assumes full resolution.
 //
 // Stage 1 of the two-stage godrays (design.md 2.2 / 4.4). Stage 2 - smoothing and
 // upsample back to full resolution - happens in the final chain and belongs to E1/C6,
