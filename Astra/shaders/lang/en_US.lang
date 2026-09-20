@@ -182,3 +182,5 @@ option.UNDERWATER_SHAFT_SAMPLES.comment=Determines how many shadow samples each 
 value.UNDERWATER_SHAFT_SAMPLES.4=Fast
 value.UNDERWATER_SHAFT_SAMPLES.7=Balanced
 value.UNDERWATER_SHAFT_SAMPLES.10=Fine
+option.UNDERWATER_SHAFT_CALIBRATION=§eUnderwater Shaft Calibration§r
+option.UNDERWATER_SHAFT_CALIBRATION.comment=Swaps the underwater shaft intensity lobe, sample distribution, and beam tint to their Solas V3.7b shapes. §c[-]§r Off in every profile; the calibration weights are a starting point pending in-game tuning.

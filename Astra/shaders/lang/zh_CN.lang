@@ -182,3 +182,5 @@ option.UNDERWATER_SHAFT_SAMPLES.comment=决定每条水面光线沿程的阴影�
 value.UNDERWATER_SHAFT_SAMPLES.4=流畅
 value.UNDERWATER_SHAFT_SAMPLES.7=均衡
 value.UNDERWATER_SHAFT_SAMPLES.10=精细
+option.UNDERWATER_SHAFT_CALIBRATION=§e水下光束标定§r
+option.UNDERWATER_SHAFT_CALIBRATION.comment=将水下光束的强度曲线、采样分布与光束染色替换为 Solas V3.7b 的形态。§c[-]§r 所有档位默认关闭；标定权重仅为起点，需实机调校后确认。

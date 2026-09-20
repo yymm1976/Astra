@@ -138,6 +138,10 @@
 // The user control scales the integrated solar source once.
 #define UNDERWATER_SHAFT_SAMPLES 7 // [4 5 6 7 8 9 10]
 // Shadow samples along each full-resolution water view ray
+//#define UNDERWATER_SHAFT_CALIBRATION // [false true]
+// Swap the three underwater-shaft calibration curves (intensity lobe, sample
+// distribution, beam tint) to their Solas V3.7b shapes. Off by default in every tier;
+// absolute weights need in-game A/B before any tier would enable it.
 #define FANCY_TRANSLUCENTS // [false true]
 // Premultiplied alpha blending for translucents (blend ONE, ONE_MINUS_SRC_ALPHA)
 

@@ -59,7 +59,18 @@ vec4 water_shafts_march(vec2 uv) {
     // away from the sun, and must not peak at dusk.
     float sunGate = smoothstep(-0.02, 0.16, worldSunVector.y);
     float visibility = sunGate * 0.85;
+    #ifdef UNDERWATER_SHAFT_CALIBRATION
+    // Solas V3.7b intensity calibration (idea only; expression written for Astra, ARR).
+    // A soft VoL^2 lobe riding on a sun-visibility floor keeps a base level across the
+    // forward hemisphere instead of collapsing to zero off the sun axis, so noon beams
+    // do not vanish just off the exact sun direction. The 0.075 (=0.45/6) renormalizes
+    // the raw peak (VoL=1,sun=1 -> 6) to the shipped noon peak (0.45), so the toggle
+    // reshapes the falloff without changing overall brightness. Absolute weight + floor
+    // are a starting point pending in-game A/B. Overrides the forward-scatter-only gate.
+    visibility *= (1.0 + 2.0 * VoL * VoL) * (0.25 + 1.75 * sun) * 0.075;
+    #else
     visibility *= mix(0.25 + VoL * 0.25, VoL * 0.45, time);
+    #endif
     visibility *= 1.0 - clamp(blindness, 0.0, 1.0);
     if (visibility <= 0.0) return vec4(vec3(0.0),rayLength / 128.0);
 
@@ -80,7 +91,16 @@ vec4 water_shafts_march(vec2 uv) {
     float dither = texture(solasWaterNoise, gl_FragCoord.xy / 512.0).b;
     vec3 integral = vec3(0.0);
     for (int i = 0; i < UNDERWATER_SHAFT_SAMPLES; ++i) {
+        #ifdef UNDERWATER_SHAFT_CALIBRATION
+        // Solas V3.7b sampling calibration (idea only; written for Astra): a jittered
+        // geometric march. The stride doubles along the ray (exp2 over u in [0,1]), so
+        // samples concentrate in the near field where the beam reads brightest; the
+        // dither keeps sub-step coverage. Endpoints still span [0, maxDist).
+        float u = (float(i) + dither) / float(UNDERWATER_SHAFT_SAMPLES);
+        float currentDist = maxDist * (exp2(u) - 1.0);
+        #else
         float currentDist = (float(i) + dither) * minDist;
+        #endif
         if (currentDist > maxCurrentDist) break;
         // Scale by the ray length so currentDist is measured along the view ray.
         vec3 point = view_camera_relative(viewPos * (currentDist / eyeDistance));
@@ -123,6 +143,14 @@ vec4 water_shafts_march(vec2 uv) {
         // needs in-game A/B).
         shade /= max(2.0, currentDist * 0.06);
         vec3 col = texture(shadowcolor0, pos.xy).gba;
+        #ifdef UNDERWATER_SHAFT_CALIBRATION
+        // Solas V3.7b colour calibration (idea only; written for Astra): drift the beam
+        // tint toward the sky colour through the day, so noon beams pick up a little of
+        // the ambient blue instead of staying pure caster colour. Magnitude-preserving
+        // mix (Solas' *0.1 is a source-domain scale that does not transfer to Astra's
+        // col*col tint pipeline); the blend weight is a starting point for in-game A/B.
+        col = mix(col, normalize(skyColor + 0.00001), time * 0.75);
+        #endif
         integral += shade * clamp(col * col, 0.0, 4.0) * weight;
     }
     integral *= visibility;
