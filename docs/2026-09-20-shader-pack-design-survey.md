@@ -812,6 +812,7 @@ Astra 现状：`Astra/shaders/global/lighting/shadowmap.glsl:202 bias = end_shad
 - **成本**：需要额外的低分辨率中间缓冲与一次上采样。
 - **许可证**：Bloop **CC-BY-NC-SA → 必须重写**；Noble **GPL → 必须重写**。两条都是"用顶点输出缩放视口"的通用图形技巧 → 思想级可用。
 - **验证**：`cost_census.py` 量化每个百分比下的抽样总量。
+- **裁决（T12 · 暂缓，零改动，见 11.F-11/11.F-12）**：这条正是 §11.B 说的"P0-1 定调后再评估"的那次评估。结论**不投机实现**：光束缓冲那一维已由 T1 用 `#if UNDERWATER_SHAFT_SAMPLES<7` 做成随用户滑杆的两档、且其消费者按 `textureSize()` 推 tap（缩放免费），再加连续旋钮是重复；云阶段要做得新建整套低分缓冲+上采样。收益（亚档位性能/画质取舍）离线不可测（`cost_census.py` 自陈非成本估计器、`benchmarks.md` 空），许可两条参照都"必须重写"，且一个无出厂档启用、无人测过质量收益的连续滑杆正是 §7.B.6 禁止的"暴露但零消费者"化石。重开条件见 11.F-12。
 
 ### P2-15 · 反射路径的云/噪声八度减半并重归一
 
@@ -855,6 +856,7 @@ Astra 现状：`Astra/shaders/global/lighting/shadowmap.glsl:202 bias = end_shad
 - **成本**：需要额外的低分辨率中间缓冲与一次上采样。
 - **许可证**：Bloop CC-NC-SA、Noble GPL → **必须重写表达式**；思路级可用。
 - **验证**：`cost_census.py` 量化每个分辨率下的抽样总量。
+- **裁决（T12 · 已由 T1 实质满足，零改动，见 11.F-12）**：本条按 §11.B 并入 P2-14 同单执行。前提已被 T1 顺带满足——光束 march 缓冲 colortex1 已是"随用户滑杆两档（`#if UNDERWATER_SHAFT_SAMPLES<7` → PERF 0.25 / BAL+ULTRA 0.5）"，无需另立 LOW/HIGH。且本条把 colortex7 归因错：它是**水下泛光缓冲**（`shaders.properties:32-34`，0.25 是省显存的性能选择、非待暴露的质量档），反射是屏幕空间无独立分辨率缓冲可加档。引证 `:14,19` 亦漂移到 :21/23/35。结论：不落地。
 
 ### P2-20 · 光束标定三条（Solas V3.7b 参照）
 
@@ -1093,12 +1095,12 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 | P2-11 buffer 声明防退化 | **高价值（防退化），采纳** | 6 处活声明复核成立（`water_buffer_formats.glsl:12,15,16,18` + `end_illumination.fsh:10` + `end_sky_buffer.fsh:9`） |
 | P2-12 穷举编译 | **高价值，采纳** | `compile_glsl.py` 已有基础；化石 token 防线是结构性收益 |
 | P2-13 MIT 复用清单 | **高价值** | `grading.glsl:204-208` 已有 Mellow MIT 移植先例（链序），`Astra/shaders/lib/bayer.glsl` 已有基础；逐件许可证动作标注清楚 |
-| P2-14 连续分辨率旋钮 | **中低价值** | 是 3 档之外的粒度补充，建议在 P0-1 定调后再评估 |
+| P2-14 连续分辨率旋钮 | **中低价值 · 已执行（T12 再评估后暂缓，零改动，见 11.F-12）** | 即 §11.B 承诺的"P0-1 定调后再评估"；结论不投机实现：光束缓冲已由 T1 做成随用户滑杆两档、消费者按 `textureSize()` 推 tap（缩放免费），云阶段需新建低分缓冲+上采样；收益（亚档位性能/画质）离线不可测、许可两条须重写、默认关滑杆即 §7.B.6 禁的零消费者化石 |
 | P2-15 反射八度减半 | **中低价值** | 反射路径无质量降级成立（`clouds_planar`/`refraction`/`raytrace` 无 isReflection 分支）；收益限于反射像素 |
 | P1-16 光束时域自适应 | **不采纳（前提证伪）· 已复核（见 11.F-8）** | 执行 T8 时逐行读参照包源码，采纳前提不成立：`vlFactor` 由阴影图遮蔽物高度与开阔天空判定驱动，与相机运动无关，且参照包在 `isEyeInWater == 1` 路径上把它恒置 1.0——Astra 唯一要接的正是该路径。零代码改动；前置修复已随 T7 闭合（11.F-7），11.D-5/6 两处前提更正仍成立 |
 | P1-17 水吸收侧代理 | **中价值，采纳 · 已执行（见 11.F-6）** | 侧面几何深度确有缺陷但**方向与原文相反**：不是"≈0 不吃吸收"，而是退化成相机距离导致**过吸收**（11.D-11）；skylight 代理经实测**不必要**，被 ≤1 块的纯几何界取代（11.D-12）；文件归属与 miss 分支描述已更正（11.D-7/8）；Steadfast §7 义务对账要求合理 |
 | P2-18 按维度裁剪 | **中低价值，采纳 · 已执行（见 11.F-4）** | properties 已有 8 条维度专用 `false` 门（两个维度目录各 `composite`/`composite2`/`composite3`/`composite4`），本条是把已有机制系统化；"缓冲尺寸跟随维度配置"不成立——`size.buffer.*` 以裸缓冲名为键（见 §6 P2-18 做法条） |
-| P2-19 光束/反射分辨率选项 | **中低价值，建议与 P2-14 合并** | 硬编码 0.5/0.25 成立（`shaders.properties:14,19`）；与 P2-14 同属分辨率粒度 |
+| P2-19 光束/反射分辨率选项 | **中低价值 · 已执行（并入 P2-14、T12 判已由 T1 满足，零改动，见 11.F-12）** | 前提已不成立：colortex1 光束缓冲已由 T1 做成随用户滑杆两档（`#if UNDERWATER_SHAFT_SAMPLES<7`→PERF 0.25/BAL+ULTRA 0.5，三档实测 4/7/10），正是"低配多一档退路"；colortex7 实为水下泛光性能缓冲（非反射/光束质量档，原报告归因错）；反射是屏幕空间无独立分辨率缓冲；引证 `shaders.properties:14,19` 已漂移到 :21/23/35 |
 | P2-20 光束标定 | **中价值，采纳** | 强度门复核成立（`light_shafts.glsl:62`）；Solas ARR 与"禁止 DRM 宏"约束到位 |
 
 ### 11.C §7 复核
@@ -1123,6 +1125,7 @@ python qa/tools/option_matrix.py           # → 只出穷举分析不做判定�
 13. §10.4 第 11 行「Steadfast 水吸收 skylight 代理：成立、v2 备选」→ Astra 侧**没有这个缺口**（11.D-12），撤销该建议，不留 v2 备选位。
 14. §9.2 与 §9.4 的 P1-16 前置修法「改成 `textureLod(colortex0, sampleCoord, lod)`」→ **不完整**。隐式梯度选出的 level 自带分辨率补偿 λ = `lod + log2(pixelHeight * viewHeight)`，裸传 `lod` 在 270/360/540/1080 分别短 0.32 / 0.32 / 0.26 / 1.26 个 level，等于在每个分辨率都把水下泛光改锐一档。执行 T7 时实测得到（11.F-7），两处已就地写回正文。
 15. §6 P1-16 依据条「`vlFactor` …… 静止爬升、运动回落」→ **参照机制被本报告读错**。执行 T8 时逐行读 `volumetricLight.glsl:289-346`：该标量的两个输入是阴影图日方向 5×5 区域的遮蔽物高度均值（`salsCheck` vs `heightThreshold = 6.0`）与画面五点开阔天空判定（`skyCheck`），整段不含任何位移或速度项；参照包自己的段标题写的是 "Scene Aware"，GUI 档位名是 `Scene Aware [+]` / `Regular` / `Extreme [-]`，切换方向是**加质量**。更关键的一条：`:16` 在 `isEyeInWater == 1` 时把它恒置 1.0，而水下正是 Astra 唯一要接的路径。同次核对另出两处 §2.1 的引证误差：`composite1.vsh:379` **文件归属错**——该行在 `program/composite1.glsl` 的 `#ifdef VERTEX_SHADER` 段内，而 `world0/composite1.vsh` 只有 7 行、是一个 `#define VERTEX_SHADER` + include 的包装；"每帧爬升"**节奏错**——源码是每 `int(0.06666 / frameTimeSmooth + 0.5)` 帧一步（60fps 约每 4 帧）。三处已就地改写 §2.1。→ 见 11.F-8，本条不落地。
+16. §6 P2-19 / §11.B 该行的两处误差（执行 T12 时读回出厂源发现）：① **colortex7 归因错**——P2-19 把 `colortex7=0.25` 当作"光束 march / 反射缓冲"待暴露的质量档，实测它是**水下泛光缓冲**（`shaders.properties:32-34`：quarter-res 低频模糊、空中直接 discard、全分辨率默认是纯浪费），0.25 是省显存的性能选择，不是质量旋钮；② **引证漂移**——§11.B 该行引 `shaders.properties:14,19`，`:14/:19` 现为注释，真实 `size.buffer.*` 指令在 :21/23/29/31/35/36/38。附带更正 P2-19 的核心前提：光束缓冲 colortex1 已由 T1 用 `#if UNDERWATER_SHAFT_SAMPLES<7` 做成随用户滑杆的两档（PERF 0.25 / BAL+ULTRA 0.5），"硬编码无用户选项"已不成立。→ 见 11.F-12，本条不落地。
 
 ### 11.E 复核中新发现的 Astra 侧问题（报告未提）
 
@@ -1447,4 +1450,16 @@ Astra 已有的运行时循环界也不缺：`global/water/light_shafts.glsl:79`
 5. **顺带把 opt-in 硬件分支的编译健康度坐实（本轮唯一新增技术动作）。** 硬件分支不被任何出厂档选中，属 T9 立规那类"默认关分支，三档默认扫描看不见"的形态。`python qa/tools/compile_glsl.py --set SHADOW_FILTER_MODE=1` 强制三档走 mode 1 → `RESULT linked=267 failed=0 compute=27`，exit 0，日志 `qa/glsl-2026-09-21-t11-hardware.log`（NVIDIA RTX 4050 / 驱动 572.83）。为排除"`failed=0` 其实覆盖没生效、编的还是软件分支"这一假绿（软件/硬件对 `shadowtex0/1` 声明的是**不同采样器类型**，绿跑本身分辨不出），另用工具自己的 `apply_profile_settings` 逐档复核展开：三档在 override 下均得到 `#define SHADOW_FILTER_MODE 1`，出厂 BALANCED 无 override 时得 `0`。历史侧亦一致：旧专门日志 `glsl-shadow-pcf-hardware.log` = `linked=264 failed=0`，`--matrix` 全选项面（`glsl-2026-09-20-t9-matrix.log`）里含硬件模式的行 16 处——即该分支早被穷举门覆盖且绿。
 
 收尾门：本条无出厂行为改动，按 11.F-2 成本规则只需与改动面匹配的门。`python qa/tools/shadow_filter_equiv.py` → exit 0 / `FAIL=0`（本条主证据）；`python qa/tools/compile_glsl.py --set SHADOW_FILTER_MODE=1` → `linked=267 failed=0 compute=27`（opt-in 分支健康度）；默认三档 `compile_glsl.py` 与 `check_pack.py`（16 项 0 FAIL）因本轮未碰出厂选项面/未碰任何被出厂档选中的代码而未重跑——改动面只有本文件与 `qa/session-log.md`。§11.B 的 P1-8 行改判为「已执行，默认档经实测确认不改」，11.D 更正清单第 9 条同步精确化 gather 的两/三参与 `sampler2D` vs `sampler2DShadow` 之分。
+
+**F-12 · T12 执行 P2-14 + P2-19（合并条）：分辨率粒度已在 T1 落地为档位差分，连续旋钮评估后暂缓，本条零行为改动**
+
+工单 #25 按 §11.B 的「建议与 P2-14 合并」把两条并成一单，产出同样是**零 shader/零配置改动**（`git show --stat` 只含本文件与 `qa/session-log.md`）。§11.B 给 P2-14 的裁决原话是「建议在 P0-1 定调后再评估」——那个前置（T1 / P0-1）已落地，所以本单就是那次再评估；结论是 P2-19 的诉求已被 T1 顺带满足、P2-14 的连续旋钮暂缓。逐点记录：
+
+1. **P2-19「光束 march 分辨率硬编码、没有用户选项」的前提经 T1 已不成立。** `shaders.properties:20-24` 用 `#if UNDERWATER_SHAFT_SAMPLES < 7` 把 `size.buffer.colortex1`（光束缓冲）绑成两档：PERFORMANCE 档 `UNDERWATER_SHAFT_SAMPLES=4` 走 0.25 分支，BALANCED=7 / ULTRA=10 走 0.5 分支（`shaders.properties:149-151` 三档实测值 4/7/10；分支选择由出厂文本决定，与 T1 依赖的 Iris properties 预处理器机制一致，默认 BALANCED 的展开见 `qa/iris-properties-resolved.txt:22` = `size.buffer.colortex1=0.5`）。而 `UNDERWATER_SHAFT_SAMPLES` 本身在 `sliders=`（`shaders.properties:156`）里是用户可拖的滑杆——把它从 7 拖到 ≤6 就把光束缓冲降到 0.25。**即光束缓冲分辨率已是「随用户滑杆两档 + 随档位差分」，正是 P2-19 想要的"低配再多一档退路"，无需另立选项。**
+2. **P2-19 把 colortex7 归因错了。** 工单称"colortex7 分辨率 0.25 是硬编码"并把它算进"光束 march / 反射缓冲"要加档的对象。实测 colortex7 是**水下泛光缓冲**（`shaders.properties:32-34` 注释：quarter resolution 的低频模糊量、空中该 pass 直接 discard、全分辨率默认"让每帧为一条空中就丢掉的 pass 付 1080p RGBA16 写"），它的 0.25 是**省显存的性能选择**而非待暴露的质量旋钮——把它做成用户质量档反而在鼓励把一张"本该 0.25"的缓冲开大。§11.B 该行引的 `shaders.properties:14,19` 亦已漂移（真实 `size.buffer.*` 指令在 :21/23/29/31/35/36/38，共 7 条指令 / 6 张不同缓冲）。
+3. **"给反射缓冲加 LOW/HIGH" 无对象可挂。** Astra 的反射是屏幕空间（`screen.WATER` 含 `SCREENSPACE_REFLECTIONS`），`size.buffer.*` 六张缓冲里没有一张"反射渲染分辨率缓冲"可加档；反射路径的质量轴是噪声八度（P2-15），不是分辨率。本条与 P2-15 是同一处（`refraction.glsl`/`raytrace.glsl`）的两个不同 lever，不能在此重复计账。
+4. **P2-14 连续顶点级百分比旋钮：评估后暂缓，不投机实现。** 提案本体要给光束/水下光柱/云各加一套低分中间缓冲 + 一次上采样。光束那一维 colortex1 的消费者已按 `textureSize()` 推 tap 偏移（`program/final.fsh:54`、`global/water/light_shafts.glsl:140`），缩放**免费**——但正因如此它已被第 1 点的双档覆盖，再加连续旋钮是重复。云目前全分辨率、无低分缓冲，加连续旋钮=新建整套低分缓冲与上采样 pass。收益不可离线证：与 T8/T10/T11 同一断点（`cost_census.py` 头注自陈不是成本估计器、`qa/benchmarks.md` 空），连续旋钮唯一价值轴是"亚档位性能/画质取舍"，只能实机 A/B。许可无干净先例：Bloop CC-BY-NC-SA、Noble GPL → 两条都"必须重写"。**关键：一个没有任何出厂档启用、质量收益无人测过的连续分辨率滑杆，正是 §7.B.6 明令禁止的"暴露但零消费者的选项"化石**——"实现但默认关"的一般规则在这里被更具体的既有裁决覆盖，故本单选择不落地。重开条件：出现真实水下/云帧时间基线，且某具体阶段（云最可能）被用户实报"亚档位粒度不够"，届时以 P2-13 的可署名 MIT 低分缓冲实现为先例。
+5. **本轮唯一技术动作 = 把上述前提全部读回出厂源。** 重读 `shaders.properties` 缓冲段（:7-38）与三档 profile（:149-151）、`lib/settings.glsl` 的 `UNDERWATER_SHAFT_SAMPLES 7 // [4 5 6 7 8 9 10]`（:139）与既有 `SHADOW_RESOLUTION 2048 // [512…4096]`（:65，证明"步进式分辨率选项"在本包早有先例、但那是 shadow map 而非渲染 pass 粒度），并比对 `qa/iris-properties-resolved.txt` 默认展开。
+
+收尾门：本条连配置都未改（只是核实现有配置已覆盖 P2-19），改动面只在本文件与 `qa/session-log.md`，无 shader/properties 触碰，编译门与 `check_pack.py` 不适用。§11.B 的 P2-14、P2-19 两行改判为「已执行 · 前提经 T1 满足 / 连续旋钮暂缓」，11.D 更正清单新增第 16 条记录 colortex7 的归因错与 `:14,19` 引证漂移。
 
