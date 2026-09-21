@@ -28,6 +28,10 @@ vec3 end_ray_acceleration(vec3 p,float angularMomentumSquared) {
     // Spatial Schwarzschild null-ray equation, integrated in an affine parameter.
     // Keep velocity unnormalised; normalising every step would destroy its invariant.
     float edge=1.0-smoothstep(1.6*END_SOURCE_SCALE,END_LENS_RADIUS,r);
+    // Far field: edge is exactly 0 at and beyond END_LENS_RADIUS, so the
+    // r^-5 division and the whole scaling are pure waste there. Identity, not
+    // an approximation (2026-09-21 A4).
+    if(edge<=0.0) return vec3(0.0);
     return -1.5*END_HORIZON*angularMomentumSquared*p/max(r*r*r*r*r,1e-8)*edge;
 }
 void end_disc_sample(vec3 p,vec3 ray,float stepLength,mat3 disc,float cone,
@@ -122,8 +126,10 @@ void astra_end_blackhole(inout vec3 color,vec3 originalRay,vec3 unusedLightDirec
     vec3 ringAxis=end_ring_axis();
     // At most two candidate segment queries per step (96 at 48 steps),
     // plus entry/escape queries. Empty bounds skip these; this is not 12.
+    // r is hoisted: the loop used to recompute length(p) as its first statement,
+    // which is exactly the length(next) the previous iteration already had.
+    float r=length(p);
     for(int i=0;i<END_MARCH_STEPS;i++) {
-        float r=length(p);
         float ds=clamp(r*0.085,0.006*END_SOURCE_SCALE,0.14*END_SOURCE_SCALE);
         // Resolve both faces of the finite-thickness disc, including grazing rays.
         float height=abs(dot(p,disc[2]));
@@ -148,13 +154,14 @@ void astra_end_blackhole(inout vec3 color,vec3 originalRay,vec3 unusedLightDirec
         bool geometryNeeded=activeCount>0 || abs(dot(source+p,ringAxis)+END_RING_HEIGHT)<=lengthStep+0.0001;
         if(geometryNeeded && end_scene_segment(source+p,ray,lengthStep*0.5,cone,bodies,bodyIndices,activeCount,radiance,transmission)) { terminated=true; break; }
         end_disc_sample(midpoint,ray,lengthStep,disc,cone,radiance,transmission);
-        if(!shellDrawn && (dot(next,nextVelocity)>=0.0 || length(next)<=END_HORIZON)) {
+        float nextR=length(next);
+        if(!shellDrawn && (dot(next,nextVelocity)>=0.0 || nextR<=END_HORIZON)) {
             radiance+=transmission*vec3(1.0,0.88,0.72)*(shell*1.8+halo*0.6);
             shellDrawn=true;
         }
         if(geometryNeeded && end_scene_segment(source+midpoint,ray,lengthStep*0.5,cone,bodies,bodyIndices,activeCount,radiance,transmission)) { terminated=true; break; }
         emptyDistance-=lengthStep;
-        p=next; velocity=nextVelocity; acceleration=nextAcceleration;
+        p=next; velocity=nextVelocity; acceleration=nextAcceleration; r=nextR;
         if(length(p)<=END_HORIZON) {
             // Art-directed compressed secondary star image requested by the brief.
             // This is not light physically escaping the event horizon.

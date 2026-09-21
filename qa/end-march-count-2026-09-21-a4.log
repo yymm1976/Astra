@@ -1,0 +1,26 @@
+counts written to C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\qa\end-design\counts-baseline.npy
+channel              mean     median        p95        max
+segments             1.05        1.0        2.0        2.0
+march steps          1.64        0.0       14.0       48.0
+disc samples         0.06        0.0        0.0       18.0
+empty iters          0.00        0.0        0.0        0.0
+
+segment calls per pixel across the frame:
+  p5          1
+  p25         1
+  p50         1
+  p75         1
+  p95         2
+  p99         2
+  p100        2
+
+share of the 48-step budget actually executed (steps / 48):
+  mean 3.4%   median 0.0%   p95 29.2%
+  disc samples per executed step: 0.037   (1.000 = the disc is on every ray)
+  empty-space iterations per executed step: 0.000
+
+work mix (share of the four counters, mean per pixel):
+  segments          38.2%
+  march steps       59.6%
+  disc samples       2.2%
+  empty iters        0.0%

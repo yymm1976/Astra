@@ -44,8 +44,23 @@ def main():
     args=parser.parse_args()
     root=Path(__file__).resolve().parents[2]
     shader=root/'Astra/shaders/global/dimension'
-    source=(shader/'end_blackhole.glsl').read_text(encoding='utf-8').replace(
-        '#include "/global/dimension/end_system.glsl"',(shader/'end_system.glsl').read_text(encoding='utf-8'))
+    source='#include "/lib/pow.glsl"'
+    source+=(shader/'end_blackhole.glsl').read_text(encoding='utf-8')
+    import re as _re
+    root_shaders=root/'Astra/shaders'
+    for _ in range(64):
+        m=_re.search(r'#include "([^"]+)"',source)
+        if not m: break
+        source=source[:m.start()]+(root_shaders/(m.group(1).lstrip('/'))).read_text(encoding='utf-8')+source[m.end():]
+    else:
+        raise RuntimeError('include expansion did not terminate')
+    # The offline TU binds no colortex8, so the body cache would place every body at the
+    # origin with zero radius and the entry segment would report a hit for every
+    # lens-crossing ray. Use the analytic body path, and supply the one settings value
+    # that path needs (lib/settings.glsl:106).
+    assert source.count('#define ASTRA_END_BODY_CACHE')==1
+    source=source.replace('#define ASTRA_END_BODY_CACHE','// offline: body cache off (no colortex8)')
+    source='#define END_PRECESSION_MINUTES 36'+chr(10)+source
     source='''#version 430 compatibility
 uniform sampler2D noisetex;
 uniform float frameTimeCounter;

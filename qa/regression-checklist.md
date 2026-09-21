@@ -43,6 +43,7 @@
 | 14 | 下界帧率同主世界标准（方块光密集区优先） | §8.2 | |
 | 15 | 末地：星野/void 雾/褪色环境光，截图可独立辨识为"设计过" | §8.4 / A7 | |
 | 16 | Voxy 可用；不兼容则实验特性说明已写入 README | §8.7 / A8 | |
+| 15a | **A4 黑洞性能（2026-09-21，两项恒等优化）**：`global/dimension/end_blackhole.glsl` 改两处——① `end_ray_acceleration` 远场早退（`edge` 在 r ≥ `END_LENS_RADIUS` 时恒 0，省 `r^-5` 除法与缩放）；② march 步内 `length` 由 2 次降 1 次（`length(p)` 提到循环外、循环尾 `r=nextR` 复用）。**能量化的**：GPU 计数探针 4 通道（段查询/步数/disc 有效采样/空区迭代）改动前后**逐像素相同**（步数 mean 1.6389、p95 14、max 48；段查询 mean 1.0514、max 2），像素对拍 max abs diff **7.27e-06**（0.41% 像素有差异，来自 fp32 重排，低于 8-bit 量化步长 4e-03）。**不能量化的（必须实机判）**：① 黑洞外观应与改动前一致（7e-6 差异不可辨）；② 末地帧率不得低于改动前；③ 离线探针下 `candidateCount==0`（工具不绑 `colortex8`），**天体遍历成本未被覆盖**，任何帧率收益宣称都要扣掉这一块。**同单顺带修复**：`qa/tools/render_end_design.py` 三处失效（只展开一层 include / 缺 `lib/pow.glsl` / 天体缓存使场景退化到全黑 max 0.0015→修复后 1.8680），计数探针 `qa/tools/end_march_count.py` 为新建  | §8.2 / A4（`qa/a4-blackhole-performance-2026-09-21.log`） | |
 
 ## M4 收尾
 

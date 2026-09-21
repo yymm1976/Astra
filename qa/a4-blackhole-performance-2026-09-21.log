@@ -1,0 +1,111 @@
+# A4 黑洞性能：量化对比与对拍清单（2026-09-21）
+
+**基线**：HEAD = A6 提交 `c1bb0da` 之后的 A4 工作树（`end_blackhole.glsl` 改动前）。
+**证据文件**：`qa/tools/end_march_count.py`（新建 GPU 计数探针）、
+`qa/tools/render_end_design.py`（对拍工具，本单修好三处失效）、
+`qa/end-march-count-2026-09-21-a4.log`（改前）、`qa/end-march-count-2026-09-21-a4-after.log`（改后）、
+`qa/end-design/a4-before.npy` / `a4-after.npy`（离线渲染对拍）。
+
+---
+
+## 1. 计数探针（GPU 实测，1024×768 全景，非估算）
+
+探针把 `end_blackhole.glsl` + 其 include 链递归展开成独立片元 shader，用计数器替换辐照度输出。
+插桩点在**被调用函数体内**（不改编函数签名）：`end_scene_segment` 的 5 个调用点共用一处入口、
+`end_disc_sample`（调用数与通过 `density>1e-5` 早退的有效数分开）、march 循环、`emptyDistance` 循环。
+
+**改动前（基线）逐像素统计**：
+
+| 通道 | mean | median | p95 | max |
+|---|---|---|---|---|
+| `end_scene_segment` 调用 | 1.05 | 1.0 | 2.0 | 2.0 |
+| march 步数 | 1.64 | 0.0 | 14.0 | 48.0 |
+| disc 有效采样（过 `end_noise3`） | 0.061 | 0.0 | 0.0 | 18.0 |
+| `emptyDistance` 循环迭代 | 0.00 | 0.0 | 0.0 | 0.0 |
+
+**结构事实（源码行号）**：
+- `:24` `END_MARCH_STEPS = 48`；`:123-124` 的注释自陈"每步最多两次候选段查询（48 步 = 96 次），另有入口/逃逸查询——**这不是 12**"。
+- 每像素的段查询构成：`:86`（透镜外早退，1 次）或 `:92`（入口，1 次）+ march 内 `:149`/`:155`（各 1 次/步）+ `:176`（逃逸，1 次）。
+- `emptyDistance` 循环（`:141-144`）遍历 `candidateCount` 个候选天体，条件触发（`:139`）。
+
+**读法（重要）**：全帧 `segments` 的 mean=1.05 说明只有约 5% 的像素跨过透镜入口（`:84` 的判别式）；
+进入 march 的像素平均跑 1.64 步（p95 = 14、max = 48），而 `empty iters` 为 **0** ——
+离线场景的解析天体路径下 `candidateCount == 0`（见 §5 的诚实边界）。
+
+---
+
+## 2. 两项优化（都是恒等式，不是降质）
+
+| # | 位置 | 改前 | 改后 | 理由 |
+|---|---|---|---|---|
+| O1 | `end_blackhole.glsl:26-34` | 每次调用都算 `r*r*r*r*r` 的除法与缩放 | `if(edge<=0.0) return vec3(0.0);` 提前返回 | `edge = 1-smoothstep(...)` 在 r ≥ `END_LENS_RADIUS` 时**恒等于 0**，此时原式结果就是零向量；远场（本探针 p95 步数 14、全景多数像素）省一次除法 + 5 次乘法 |
+| O2 | `:125-126` / `:151` / `:164` | 每步 2 次 `length`：循环首行 `length(p)`，shell 判据里 `length(next)` | 每步 1 次：`r` 提到循环外，循环尾 `r=nextR` | `p` 在循环尾被赋值为 `next`，所以下一步的 `length(p)` 就是本步已算过的 `length(next)`；纯复用 |
+
+---
+
+## 3. 量化对比表
+
+| 指标 | 改动前 | 改动后 | 变化 |
+|---|---|---|---|
+| `length()` 调用 / 执行步 | 2（`length(p)` + `length(next)`） | 1（`nextR`） | **−50%** |
+| `end_ray_acceleration` 远场（r ≥ `END_LENS_RADIUS`） | 1 次 `r^-5` 除法 + 缩放乘法 | 直接返回 0 | 远场为 0 次 |
+| march 步数（探针 mean / p95 / max） | 1.6389 / 14 / 48 | **1.6389 / 14 / 48** | 不变（身份变换） |
+| `end_scene_segment` 调用（探针 mean / max） | 1.0514 / 2 | **1.0514 / 2** | 不变 |
+| disc 有效采样（探针 mean / max） | 0.0610 / 18 | **0.0610 / 18** | 不变 |
+| `emptyDistance` 迭代（探针 mean） | 0.00 | **0.00** | 不变 |
+
+**折算**：按探针的步数分布，O2 在离线全景下省去约 `786432 × 1.64 ≈ 129 万` 次 `length` 调用/帧；
+朝黑洞的长 march（max 48 步）每像素省 48 次。O1 的收益集中在远场像素。
+
+---
+
+## 4. 对拍差异清单（`render_end_design.py --panorama`，1024×768×3，fp32）
+
+| 项 | 结果 |
+|---|---|
+| 计数 A/B（4 通道逐像素 `array_equal`） | **全部 True** —— 步数与查询次数一个都没变 |
+| 辐照度 max abs diff | **7.2718e-06**（相对 max 1.868 为 3.9e-06） |
+| 辐照度 mean abs diff | 4.7466e-10 |
+| 有差异的像素 | 9718 / 2359296（**0.41%**） |
+| 差异 > 1e-6 的像素 | 221（0.0094%） |
+
+差异来源：`length` 从"每步重算"改为"跨迭代复用"后，编译器的浮点重排（FMA 合并位置）不同，
+不是逻辑差异 —— 计数完全一致即为证据。7.3e-06 远低于 8-bit 显示量化步长（约 4e-03），视觉不可辨。
+
+---
+
+## 5. 诚实边界（本单没能量化的部分）
+
+1. **离线场景 `candidateCount == 0`**：`render_end_design.py` 与探针都不绑定 `colortex8`
+   （天体烘焙缓存），所以走解析天体路径时没有候选天体进入透镜体积，`emptyDistance` 循环恒 0 次。
+   真实游戏里 `candidateCount` 可达 73 —— **天体遍历成本没被本次量化覆盖**，
+   而它才是 `end_scene_segment` 的主要成本。任何"收益百分比"的宣称都必须扣掉这一块。
+2. **本单没有减步数**：48 步与两次段查询都保留原样（`:123-124` 的注释已写明这是设计值）。
+   本单只做"同样的步数、更少的算力"。
+3. **全项目零帧率数据**（`qa/benchmarks.md` 为空），所以本单不宣称任何帧率收益，
+   只给"每像素省了多少次 sqrt / 除法"的指令级量化。
+
+---
+
+## 6. 本单顺带修好的工具失效（三处，均为 `render_end_design.py` 无法运行的原因）
+
+| # | 症状 | 根因 | 修复 |
+|---|---|---|---|
+| T1 | 编译失败：`undefined variable "END_BODY_COUNT"` 等 20+ 条 | 工具只把 `end_system.glsl` 的 include 展开**一层**，而当前链路是 blackhole → system → ring → geometry → lib/end_light 四层 | 改为**递归**展开（两个工具同修） |
+| T2 | 编译失败：`undefined variable "pow8"` | `lib/pow.glsl` 不在黑洞 include 链上（真实 TU 由 `program/scene.glsl`、`program/sky.fsh` 在之前 include） | 拼装时显式补 `#include "/lib/pow.glsl"` |
+| T3 | 能编译但渲染全黑（max 0.0015） | 离线 TU 不绑定 `colortex8`，`ASTRA_END_BODY_CACHE` 路径下每个天体退化为**原点处的零半径球**，入口段对所有跨透镜射线报命中，march 从不执行（探针 `segments==1` 恒成立即为诊断） | 离线拼装时禁用 `ASTRA_END_BODY_CACHE` 走解析路径，并补 `#define END_PRECESSION_MINUTES 36`（`lib/settings.glsl:106`）。修复后 max 由 0.0015 升到 1.8680 |
+
+**旁证**：T3 的诊断路径本身就是探针的价值 —— 计数探针在参数更新前后返回 `segments==1, steps==0`，
+直接把"渲染全黑"定位到"入口段命中而非 march 未跑"。
+
+---
+
+## 7. 门与同步
+
+- `python qa/tools/compile_glsl.py` → `linked=270 failed=0 compute=27 compute_capable=true`（`qa/glsl-2026-09-21-a4-default.log`）
+- `python qa/tools/sync_to_instance.py` → 见提交记录
+- 探针对拍命令（可复算）：
+  ```
+  python qa/tools/end_march_count.py --panorama --output qa/end-design/counts-after.npy
+  python qa/tools/render_end_design.py --panorama --output qa/end-design/a4-after.png
+  ```
