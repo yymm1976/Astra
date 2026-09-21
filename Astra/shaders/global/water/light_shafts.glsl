@@ -48,12 +48,21 @@ vec4 water_shafts_march(vec2 uv) {
     // interface. The previous gate used the AIR sun vector: at noon the eye-to-pixel
     // ray points down while the sun points up, so dot(ray, airSun) <= 0 for every
     // seabed view and the beams were exactly zero at the hour they should be
-    // strongest. The refracted direction at noon points down-and-sunward, which is
-    // where the beams physically live; looking up at the surface still fails the gate
-    // on its own, so the separate VoU term is gone (consolidated review B1 /
-    // Qoder F-03 / Hunyuan B1; convention note: sunAngle 0.25 = noon).
+    // strongest (consolidated review B1 / Qoder F-03 / Hunyuan B1; convention note:
+    // sunAngle 0.25 = noon). That fix shipped with both refract inputs reversed, which
+    // left the gate pointing at the wrong half-space -- corrected below.
+    //
+    // Refraction sign (2026-09-21, algebra and sweep in qa/tools/shaft_refract_probe.py):
+    // refract(I, N, eta) takes the PROPAGATION direction (pointing into the interface)
+    // with N on the incidence side. This call passes the pointing-at-the-sun vector with
+    // N = (0,-1,0), i.e. both inputs reversed, so refract's raw output is the unit vector
+    // pointing at the sun as seen from underwater (the apparent sun, y >= 0 in daytime,
+    // Snell-correct). Negating it yields the propagation direction of sunlight inside
+    // the water - downward and anti-solar in xz - which is the axis this gate phases
+    // against now, so looking down at the seabed sits on the positive side and noon
+    // returns VoL = 0 for it no longer.
     vec3 sunWorld = normalize(view_player(lightVector));
-    vec3 refractSun = refract(sunWorld, vec3(0.0, -1.0, 0.0), 1.0 / 1.2);
+    vec3 refractSun = -refract(sunWorld, vec3(0.0, -1.0, 0.0), 1.0 / 1.2);
     float VoL = pow(clamp(dot(ray, refractSun), 0.0, 1.0), 1.5);
     // Forward scattering only, and daylight only: shafts must not appear when looking
     // away from the sun, and must not peak at dusk.

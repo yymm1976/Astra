@@ -1,0 +1,73 @@
+=== A2 shaft refract semantics probe ===
+eta = 1/1.2 = 0.833333
+
+--- Part 1: shipped  refract(sunWorld, (0,-1,0), eta)  vs  candidate  refract(-sunWorld, (0,+1,0), eta) ---
+sun elevation sweep, azimuth 0 (sun in +Z half-space); the algebra predicts
+refractSun.y = +sqrt(k) for the shipped form, i.e. ALWAYS UPWARD, while the
+candidate yields -sqrt(k), i.e. downward into the water.
+
+  elev sunWorld               shipped refr                 refr.y cand refr                    cand.y cand==-ship
+  90.0 (0.0000,1.0000,0.0000)   (0.0000,1.0000,0.0000)  +1.0000  (-0.0000,-1.0000,-0.0000)  -1.0000  yes
+  60.0 (0.0000,0.8660,0.5000)   (0.0000,0.9091,0.4167)  +0.9091  (-0.0000,-0.9091,-0.4167)  -0.9091  yes
+  30.0 (0.0000,0.5000,0.8660)   (0.0000,0.6922,0.7217)  +0.6922  (-0.0000,-0.6922,-0.7217)  -0.6922  yes
+  10.0 (0.0000,0.1736,0.9848)   (0.0000,0.5714,0.8207)  +0.5714  (-0.0000,-0.5714,-0.8207)  -0.5714  yes
+   2.0 (0.0000,0.0349,0.9994)   (0.0000,0.5535,0.8328)  +0.5535  (-0.0000,-0.5535,-0.8328)  -0.5535  yes
+   1.0 (0.0000,0.0175,0.9998)   (0.0000,0.5530,0.8332)  +0.5530  (-0.0000,-0.5530,-0.8332)  -0.5530  yes
+
+assertion: candidate == -(shipped) componentwise -> PASS
+i.e. refract(-I, -N, eta) == -refract(I, N, eta): the two candidate one-line
+fixes in the work order are the SAME expression. Both yield the propagation
+direction of sunlight inside the water (y <= 0 in daytime).
+
+--- Part 2: VoL = pow(max(dot(ray, refr),0), 1.5) for eye->fragment rays ---
+Sun elevation fixed at 60 deg (well above the noon gate); ray elevation swept.
+Negative ray elevation = camera looking down at the seabed (the case the
+shafts are for). Ray azimuth 0 = looking sunward in xz, 180 = away from sun.
+
+  ray toward-sun azim 0
+  ray elev    shipped VoL  candidate VoL  note
+     -80.0       0.000000       0.746478  SHIPPED DEAD, candidate lit
+     -60.0       0.000000       0.440499  SHIPPED DEAD, candidate lit
+     -40.0       0.000000       0.136531  SHIPPED DEAD, candidate lit
+     -20.0       0.022892       0.000000  
+      -5.0       0.194635       0.000000  
+       5.0       0.347536       0.000000  
+      30.0       0.736266       0.000000  
+      80.0       0.951799       0.000000  
+
+  ray away-from-sun azim 180
+  ray elev    shipped VoL  candidate VoL  note
+     -80.0       0.000000       0.951799  SHIPPED DEAD, candidate lit
+     -60.0       0.000000       0.993410  SHIPPED DEAD, candidate lit
+     -40.0       0.000000       0.858825  SHIPPED DEAD, candidate lit
+     -20.0       0.000000       0.588746  SHIPPED DEAD, candidate lit
+      -5.0       0.000000       0.347536  SHIPPED DEAD, candidate lit
+       5.0       0.000000       0.194635  
+      30.0       0.028675       0.000000  
+      80.0       0.746478       0.000000  
+
+--- Part 3: fraction of looking-down rays with shipped VoL == 0 ---
+grid: sun elev {90,70,45,20,5} x ray elev -85..-5 step 5 x azim 0..345 step 15
+  samples                    : 2040
+  shipped VoL == 0           : 1791  (87.8%)
+  candidate VoL  > 0         : 1791  (87.8%)
+
+Facts established (all re-derivable from the printout above):
+1. shipped  = (eta*sx, +sqrt(k), eta*sz): the unit vector pointing AT THE SUN
+   AS SEEN FROM UNDERWATER (apparent sun). Its elevation obeys Snell
+   (sin(theta_t) = sin(theta_i)/1.2): 60deg -> 65.3757 deg elevation.
+2. candidate = -(shipped): the propagation direction of sunlight inside the
+   water (downward, anti-solar in xz).
+3. Looking down at the seabed with the shipped axis gives VoL = 0 at every
+   hour, because dot(ray_down, apparent_sun_up) <= 0. The gate at
+   light_shafts.glsl:75 then returns before the march, so noon seabed pixels
+   carried no shafts at all -- the pre-fix shipped state.
+4. The candidate axis puts the looking-down hemisphere on the positive side:
+   VoL > 0 for seabed rays, VoL = 0 when looking up at the surface.
+
+Choose the candidate, as the work order directs. Recorded caveat for the
+in-game pass (checklist 10b): because dot(ray, propagation) is the BACKWARD
+scattering cosine, 'looking up at the surface' (the textbook forward-scatter
+direction) now returns VoL = 0. Both directions cannot be positive at once
+with a single cosine gate; the acceptance criterion for this fix is the
+work order's own: noon seabed shows beams, looking up does not.
