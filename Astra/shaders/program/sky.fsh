@@ -18,10 +18,9 @@ vec3 astra_sky_world_direction() {
 	return normalize(mat3(gbufferModelViewInverse) * viewDir);
 }
 
-// Moon with its phase applied. Vanilla's moon_phases texture carries the phase for the
-// textured path, but the procedural disc drew a full moon every night, so the phase never
-// showed. Iris reports moonPhase as 0..7 with 0 full and 4 new, the same order as the
-// vanilla texture strip.
+// Moon with its phase applied. The phase arrives as CPU-precomputed scalars
+// (astraMoonIllumination / astraMoonLimbSign, shaders.properties); only the terminator
+// comparison is per-fragment, because that is the part that depends on the fragment.
 vec4 astra_procedural_moon(vec3 worldDir, vec3 centre, float angularRadius, vec3 color) {
 	vec3 c = normalize(centre);
 	float cosineRadius = cos(angularRadius);
@@ -37,9 +36,7 @@ vec4 astra_procedural_moon(vec3 worldDir, vec3 centre, float angularRadius, vec3
 	vec3 right = cross(c, up);
 	float x = dot(worldDir, right) / max(sin(angularRadius), 1e-6);
 
-	float lit = 0.5 + 0.5 * cos(6.2831853 * moonPhase / 8.0);   // 1 full, 0 new
-	float side = moonPhase < 4.0 ? 1.0 : -1.0;                    // waxing vs waning limb
-	float phaseMask = step(1.0 - 2.0 * lit, x * side);
+	float phaseMask = step(1.0 - 2.0 * astraMoonIllumination, x * astraMoonLimbSign);
 	// A new moon keeps a faint earthshine disc so the sky is never missing its object.
 	float shown = mix(0.045, 1.0, phaseMask);
 

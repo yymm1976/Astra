@@ -1,0 +1,134 @@
+Astra T17 evidence log | the moon-phase CPU expressions, evaluated by Iris's own evaluator
+Date: 2026-09-21   Ticket: T17 (survey P0-4 residual)   Pack state: working tree, pre-T17-commit
+========================================================================
+WHAT THIS IS
+  Bit-exact read-out of the three uniform.float.* moon expressions added by
+  ticket T17, resolved and evaluated by the expression evaluator that ships
+  inside the Iris jar installed on this machine - not a re-implementation.
+
+GENERATOR STATUS - READ THIS BEFORE TRUSTING ANY NUMBER BELOW
+  The generators used here are THROWAWAY: they live in %TEMP% and are NOT in
+  this repository. Nothing in qa/tools/ reproduces these logs. Whether to
+  industrialise them is an open question for the user, recorded in survey
+  11.F-17. Until then, each log below is a pinned measurement with a manual
+  recomputation recipe, not a gate.
+
+========================================================================
+Recomputation recipe (every path and command measured on this machine)
+========================================================================
+  jar    D:/zhenhebao/.minecraft/versions/<Fabric profile>/mods/
+         iris-fabric-1.11.2+mc26.2.jar   plus the jcpp-*.jar extracted from it
+  jdk    ~/AppData/Roaming/.minecraft/runtime/java-runtime-epsilon/bin
+  deps   guava failureaccess slf4j-api fastutil gson joml lwjgl lwjgl-opengl,
+         each resolved by filename under D:/zhenhebao/.minecraft/libraries
+  stub   net/irisshaders/iris/Iris.java exposing
+         `public static final IrisLogging logger` - CustomUniforms touches
+         Iris.logger on the resolve-fail path, so the jar alone does not link.
+  probe  CustomUniformFixedInputUniformsHolder.Builder.uniform1i(
+             PER_TICK, "moonPhase", () -> phase)
+         then CustomUniforms.Builder.addVariable("float", name, expr, true),
+         expr read verbatim from Astra/shaders/shaders.properties, then
+         ((CachedUniform) e).update(); e.evaluateTo(uniforms, ret);
+         Float.floatToRawIntBits(ret.floatReturn) printed for phase 0..7.
+  fit    numpy float32 per-op emulation compared against those same bits.
+
+========================================================================
+1. Iris read-out (the bits are authoritative; the decimal is Java's own
+   Float.toString of those same bits)
+========================================================================
+IRIS D:\zhenhebao\.minecraft\versions\�����Ż����ϰ� (Fabric)\mods\iris-fabric-1.11.2+mc26.2.jar
+javac rc=0
+PROPS C:\Users\����\Desktop\MCģ�鿪��\Astra��Ӱ����\Astra\shaders\shaders.properties
+java rc=0
+EXPR astraMoonIllumination = 0.5 + 0.5 * cos(6.2831853 * moonPhase / 8.0)
+BITS astraMoonIllumination 0 0x3f800000 1.0
+BITS astraMoonIllumination 1 0x3f5a827a 0.8535534
+BITS astraMoonIllumination 2 0x3effffff 0.49999997
+BITS astraMoonIllumination 3 0x3e15f61a 0.14644662
+BITS astraMoonIllumination 4 0x00000000 0.0
+BITS astraMoonIllumination 5 0x3e15f61e 0.14644668
+BITS astraMoonIllumination 6 0x3f000000 0.5
+BITS astraMoonIllumination 7 0x3f5a827c 0.85355353
+EXPR astraMoonLimbSign = if(moonPhase < 4.0, 1.0, -1.0)
+BITS astraMoonLimbSign 0 0x3f800000 1.0
+BITS astraMoonLimbSign 1 0x3f800000 1.0
+BITS astraMoonLimbSign 2 0x3f800000 1.0
+BITS astraMoonLimbSign 3 0x3f800000 1.0
+BITS astraMoonLimbSign 4 0xbf800000 -1.0
+BITS astraMoonLimbSign 5 0xbf800000 -1.0
+BITS astraMoonLimbSign 6 0xbf800000 -1.0
+BITS astraMoonLimbSign 7 0xbf800000 -1.0
+EXPR astraMoonLightScale = mix(0.82, 1.06, 1.0 - clamp(moonPhase, 0.0, 4.0) * 0.25)
+BITS astraMoonLightScale 0 0x3f87ae14 1.06
+BITS astraMoonLightScale 1 0x3f7fffff 0.99999994
+BITS astraMoonLightScale 2 0x3f70a3d6 0.93999994
+BITS astraMoonLightScale 3 0x3f6147ae 0.88
+BITS astraMoonLightScale 4 0x3f51eb85 0.82
+BITS astraMoonLightScale 5 0x3f51eb85 0.82
+BITS astraMoonLightScale 6 0x3f51eb85 0.82
+BITS astraMoonLightScale 7 0x3f51eb85 0.82
+
+
+
+========================================================================
+2. Which arithmetic model reproduces those bits
+========================================================================
+Candidates for `0.5 + 0.5 * cos(6.2831853 * moonPhase / 8.0)`:
+  [A] per-op float32            - every operation narrowed to float32
+  [B] float32 arg, cos in double - narrowed back to float32 on return
+  [C] all double, rounded once   - at the very end
+Candidates for `mix(0.82, 1.06, 1.0 - clamp(moonPhase,0.0,4.0)*0.25)`: [A] and [C].
+Divergence in IEEE-754 ulp against the Iris bits in section 1.
+== astraMoonIllumination ==
+phase  iris            per-op f32       ulp   f32 arg + double cos ulp   double then round ulp
+    0  0x3f800000 .0000000   0x3f800000 .0000000   0   0x3f800000 .0000000   0   0x3f800000 .0000000   0
+    1  0x3f5a827a .8535534   0x3f5a827a .8535534   0   0x3f5a827a .8535534   0   0x3f5a827a .8535534   0
+    2  0x3effffff .4999999   0x3effffff .4999999   0   0x3effffff .4999999   0   0x3f000000 .5000000   1
+    3  0x3e15f61a .1464466   0x3e15f61a .1464466   0   0x3e15f61a .1464466   0   0x3e15f61a .1464466   0
+    4  0x00000000 .0000000   0x00000000 .0000000   0   0x00000000 .0000000   0   0x00000000 .0000000   0
+    5  0x3e15f61e .1464466   0x3e15f61e .1464466   0   0x3e15f61e .1464466   0   0x3e15f619 .1464466   5
+    6  0x3f000000 .5000000   0x3f000000 .5000000   0   0x3f000000 .5000000   0   0x3f000000 .5000000   0
+    7  0x3f5a827c .8535535   0x3f5a827c .8535535   0   0x3f5a827c .8535535   0   0x3f5a827a .8535534   2
+   per-op f32         sum-ulp=0 max-ulp=0 exact=8/8
+   f32 arg + double cos sum-ulp=0 max-ulp=0 exact=8/8
+   double then round  sum-ulp=8 max-ulp=5 exact=5/8
+== astraMoonLightScale ==
+phase  iris            per-op f32       ulp   double then round ulp
+    0  0x3f87ae14 .0599999   0x3f87ae14 .0599999   0   0x3f87ae14 .0599999   0
+    1  0x3f7fffff .9999999   0x3f7fffff .9999999   0   0x3f800000 .0000000   1
+    2  0x3f70a3d6 .9399999   0x3f70a3d6 .9399999   0   0x3f70a3d7 .9400000   1
+    3  0x3f6147ae .8800000   0x3f6147ae .8800000   0   0x3f6147ae .8800000   0
+    4  0x3f51eb85 .8199999   0x3f51eb85 .8199999   0   0x3f51eb85 .8199999   0
+    5  0x3f51eb85 .8199999   0x3f51eb85 .8199999   0   0x3f51eb85 .8199999   0
+    6  0x3f51eb85 .8199999   0x3f51eb85 .8199999   0   0x3f51eb85 .8199999   0
+    7  0x3f51eb85 .8199999   0x3f51eb85 .8199999   0   0x3f51eb85 .8199999   0
+   per-op f32         sum-ulp=0 max-ulp=0 exact=8/8
+   double then round  sum-ulp=2 max-ulp=1 exact=6/8
+limb exact +/-1 all phases: True
+illum symmetry: (1,7)=False (2,6)=False (3,5)=False
+
+========================================================================
+3. What this establishes, and what it does not
+========================================================================
+  * [A] and [B] reproduce all 24 observed bits exactly (sum-ulp = 0). [C] does
+    not: it is off by 5 / 2 / 1 ulp on illumination at phases 5 / 7 / 2, and by
+    1 ulp on the light scale at phases 1 / 2. Iris's customUniforms therefore
+    evaluate float32 per operation, not double-then-round.
+  * Consequence for T17: moving the moon formulas out of the fragment shader
+    and into a CPU expression does not change the numeric domain. highp float
+    in GLSL is float32 and evaluates per-op as well, so the CPU value and the
+    value the deleted in-shader formula would have produced sit at the same
+    scale. There is no precision argument in either direction - this ticket's
+    gain is one source of truth plus three fewer divergent formulas, not
+    accuracy.
+  * Side finding, written down so nobody "fixes" it later: the Iris result is
+    NOT symmetric across the waxing/waning mirror pairs. Phase 2 is
+    0x3effffff (one ulp below 0.5) while phase 6 is 0x3f000000 exactly; pairs
+    1/7 and 3/5 differ by 2 ulp. That is the ordinary consequence of rounding
+    the literal 6.2831853 to float32, and the same asymmetry exists in the
+    GLSL version. Maximum relative error 6e-8 - visually null. Do not force
+    symmetry.
+
+  NOT established here: anything about what the GPU renders, and anything about
+  which way the moon limb points in world space. Those judgements are in
+  qa/regression-checklist.md row 7b and are in-game only.

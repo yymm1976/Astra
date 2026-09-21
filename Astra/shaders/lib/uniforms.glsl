@@ -25,6 +25,10 @@ uniform float dayUnderwaterFogFade;    // underwater fog day/night ramp
 uniform float windStrength;            // base wind strength (rain-aware); WAVING_FOLIAGE_STRENGTH scales in-shader
 uniform vec4  windTheta;               // XYZ = direction thetas, W = magnitude theta
 uniform float godraysExposure;         // base exposure * view-angle fade * offscreen fade
+uniform float astraMoonIllumination;   // moon disc lit fraction: 1 full, 0 new
+uniform float astraMoonLimbSign;       // terminator side: +1 below moonPhase 4, -1 above (which
+                                       // limb that is in world space is unverified; checklist 7b)
+uniform float astraMoonLightScale;     // direct moonlight multiplier the phase applies
 
 // ------------------------------------------------------------
 // Iris/OptiFine built-ins referenced by lib/ and global/ (declared once here so a
@@ -78,8 +82,8 @@ uniform vec3 fogColor;
 uniform vec3 skyColor;
 uniform vec4 entityColor;
 uniform vec4 lightningBoltPosition;
-// 0..7, matching vanilla's moon_phases order: 0 is full, 4 is new.
-uniform float moonPhase;
+// Do not declare moonPhase here: Iris registers it with uniform1i, and a float
+// declaration makes Iris disable the binding (see the moon block in shaders.properties).
 uniform int entityId;
 uniform int blockEntityId;
 uniform int currentRenderedItemId;

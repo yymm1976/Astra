@@ -81,11 +81,11 @@ vec3 astra_direct_light() {
 	          * (MOONLIGHT_STRENGTH * 0.0068);
 	// Moon phase (design: the phase stays visible and is allowed a SMALL effect on
 	// direct moonlight - MakeUp does the same in its night palette). This multiplies
-	// the direct term only: the ambient term is astra_sky_ambient(), which has no
-	// moonPhase in it, so a new moon dims the moon's own light and shadow without
-	// taking the night's readability with it. The floor is deliberately high; the
-	// value is a hint that the moon is thin, not a second night cycle.
-	moon *= mix(0.82, 1.06, 1.0 - clamp(moonPhase, 0.0, 4.0) * 0.25);
+	// the direct term only: the ambient term is astra_sky_ambient(), which has no phase
+	// factor in it, so a new moon dims the moon's own light and shadow without taking
+	// the night's readability with it. The floor is deliberately high; the value is a
+	// hint that the moon is thin, not a second night cycle.
+	moon *= astraMoonLightScale;
 	// Match the actual shadow source, including Iris's dusk/dawn handoff.
 	vec3 source = normalize(view_player(lightVector));
 	float sunSource = step(0.0, dot(source, worldSunVector));

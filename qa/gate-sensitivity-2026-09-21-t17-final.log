@@ -1,0 +1,16 @@
+PASS    baseline-no-defect                     exit=0 0 FAIL
+PASS    prose-buffer-mention-control           exit=0 0 FAIL
+PASS    block-commented-colortex7Format        exit=1 fired #14: lib/water_buffer_formats.glsl:18: const colortex7Format = RGBA16 sits inside a comment, so Iris never parses it and the 
+PASS    line-commented-colortex5ClearColor     exit=1 fired #14: lib/settings.glsl:381: const colortex5ClearColor = vec4(0.0, 0.0, 0.0, 0.0) sits inside a comment, so Iris never parses 
+PASS    phantom-buffer-colortex11              exit=1 fired #14: colortex11: declared at lib/water_buffer_formats.glsl:13 but referenced by nothing in the pack - drop the declaration or
+PASS    duplicate-colortex6ClearColor          exit=1 fired #14: colortex6ClearColor declared 2 times: lib/settings.glsl:382=vec4(0.0, 0.0, 0.0, 0.0), lib/settings.glsl:383=vec4(0.0, 0.
+PASS    vendor-file-absent-from-ledger         exit=1 fired #15: lib/vendor/renderpearl/LICENSE.txt: inside lib/vendor/ but absent from Astra/THIRD-PARTY.md - register the path, the ups
+PASS    vendor-dir-without-licence             exit=1 fired #15: lib/vendor/testup/: upstream code with no licence text beside it. Copy the upstream licence, or write out the standard t
+PASS    licence-text-outside-vendor            exit=1 fired #15: lib/tonemap.glsl: carries licence text (Permission is hereby granted, free of charge) outside lib/vendor/. Keep one copy
+PASS    namespaced-blend-key                   exit=1 fired #16: shaders.properties:84: blend.world-1/shadow - only program.* accepts a <world>/ namespace, so Iris never looks this key 
+PASS    root-gate-without-folder-mirror        exit=1 fired #16: world1/shadow: the root gate program.shadow.enabled=SHADOWS does not reach this folder - Iris matches the folder-qualifi
+PASS    gate-hidden-by-own-ifdef               exit=1 fired #16: shaders.properties:316: program.world-1/shadowcomp.enabled=NETHER_VOXEL_LIGHT sits inside a NETHER_VOXEL_LIGHT branch, s
+PASS    gate-names-missing-pass                exit=1 fired #16: shaders.properties:44: program.world-1/gbuffers_nonexistent.enabled gates a pass that exists in neither world-1/ nor the
+PASS    gate-names-unknown-folder              exit=1 fired #16: shaders.properties:45: program.world9/composite.enabled names the unknown dimension folder world9/
+
+14/14 scenario(s) behaved as specified

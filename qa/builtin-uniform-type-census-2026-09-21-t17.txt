@@ -1,0 +1,99 @@
+Astra T17 evidence log | built-in uniform type-face census, HEAD vs working tree
+Date: 2026-09-21   Ticket: T17 (survey P0-4 residual)
+========================================================================
+WHAT THIS IS
+  A bounded A/B over one question: does any GLSL declaration in the pack
+  re-declare an Iris-registered built-in uniform with a type face that Iris
+  does not provide? That mismatch is what Iris silently disables ("Wrong
+  uniform type ... Disabling that uniform"), which is how moonPhase reached
+  the shader pinned at 0 before T17.
+
+GENERATOR STATUS - READ THIS BEFORE TRUSTING ANY NUMBER BELOW
+  The generators used here are THROWAWAY: they live in %TEMP% and are NOT in
+  this repository. Nothing in qa/tools/ reproduces these logs. Whether to
+  industrialise them is an open question for the user, recorded in survey
+  11.F-17. Until then, each log below is a pinned measurement with a manual
+  recomputation recipe, not a gate.
+
+========================================================================
+Predicate, stated exactly enough to re-derive
+========================================================================
+  1. javap -p -c over net/irisshaders/iris/uniforms/*.class of the same Iris
+     jar; harvest every `<init>(...UniformUpdateFrequency, "name"...)` call
+     site -> (name, registration method). 147 names, 13 of them registered
+     through `externallyManagedUniform`, which carries no type face.
+  2. javap -p -c on LocationalUniformHolder: read which UniformType enum
+     constant each `uniformNNx` method pushes. 13 methods mapped:
+       uniform1b INT | uniform1f FLOAT | uniform1i INT | uniform2f VEC2
+       uniform2i VEC2I | uniform3d VEC3 | uniform3f VEC3 | uniform3i VEC3I
+       uniform4f VEC4 | uniform4fArray VEC4 | uniformTruncated3f VEC3
+       uniformMatrix MAT4 | uniformMatrixFromArray MAT4
+     Cross-checked against the UniformType enum itself: exactly 10 constants
+     (INT FLOAT MAT3 MAT4 VEC2 VEC2I VEC3 VEC3I VEC4 VEC4I) - no DOUBLE family
+     exists, so a `double` declaration can never match a built-in.
+  3. Scan the 250 compiled shader sources (the same suffix set check_pack
+     walks) for `^uniform <type> <name>;` and compare name-by-name.
+  A mismatch is (declared GLSL type -> UniformType) not in the Iris set for
+  that name.
+
+  CAUTION, this is the trap this census walked into: the first version mapped
+  the type table by guessing from method names and reported two FALSE
+  positives, `cameraPosition` and `skyColor`, both because `uniform3d` and
+  `uniformTruncated3f` were unmapped. A predicate invented from method names
+  is wrong in both directions - it must be read out of bytecode.
+
+========================================================================
+Leg 1 - HEAD 115d196 (pre-T17): 24 declarations / 23 names / 1 mismatch
+========================================================================
+holder methods mapped to UniformType: 13 {'uniform1b': 'INT', 'uniform1f': 'FLOAT', 'uniform1i': 'INT', 'uniform2f': 'VEC2', 'uniform2i': 'VEC2I', 'uniform3d': 'VEC3', 'uniform3f': 'VEC3', 'uniform3i': 'VEC3I', 'uniform4f': 'VEC4', 'uniform4fArray': 'VEC4', 'uniformMatrix': 'MAT4', 'uniformMatrixFromArray': 'MAT4', 'uniformTruncated3f': 'VEC3'}
+registered names harvested: 147
+call-site methods with no UniformType mapping: {'externallyManagedUniform': 13}
+shader files scanned: 250 | uniforms.glsl path present: True
+--- HEAD 115d196 (pre-T17): built-in declarations=24 distinct names=23 type mismatches=1
+      MISMATCH <TEMP>/uniforms_HEAD.glsl:82 moonPhase declared float / Iris UniformType ['INT']
+Traceback (most recent call last):
+  File "<stdin>", line 56, in <module>
+  File "<stdin>", line 48, in scan
+TypeError: expected str, bytes or os.PathLike object, not NoneType
+
+========================================================================
+Leg 2 - working tree (post-T17): 23 declarations / 22 names / 0 mismatches
+========================================================================
+WORKING TREE (post-T17)
+files scanned: 250 built-in declarations: 23 distinct names: 22 mismatches: 0
+moon-related built-in declarations: []
+names starting with astra (custom, must NOT be built-ins): []
+
+  HEAD leg printed 24/23/1 and then the generator crashed on its second leg
+  (a None path in the walk), so the working-tree leg comes from the separate
+  run below. Both legs are measured; the crash is disclosed rather than hidden.
+
+Interpretation, with the substitution disclosed
+  * What "HEAD leg" means concretely: the working tree was scanned with ONE
+    file's bytes swapped for `git show 115d196:Astra/shaders/lib/uniforms.glsl`
+    written to a temp path - hence the <TEMP>/uniforms_HEAD.glsl path in the
+    mismatch row above. It is not a stray file and not a different pack.
+  * Why swapping that single file makes the A/B complete: `git diff
+    --name-only` lists four touched shader sources, and the same regex run
+    over each of them finds uniform declarations in `lib/uniforms.glsl` only -
+    `program/sky.fsh` and `global/dimension/overworld.glsl` declare none. The
+    other 247 sources are byte-identical to HEAD. So the built-in-name census
+    differs between the two legs only through that one file.
+  * 24 -> 23 declarations / 23 -> 22 distinct names: the removed declaration is
+    `moonPhase`, the only built-in name this ticket drops. Measured separately
+    over all 250 sources for every `uniform <type> <name>;` (not just
+    built-ins): HEAD 96 declarations / 86 distinct names, working tree 98 / 88.
+    The +2 net is exactly this ticket's three added scalars minus the one
+    deleted built-in, and it agrees with what check_pack #6 reports (86 -> 88).
+    Caveat on that agreement: both counters use the same `uniform T n;`
+    predicate, so it is a consistency check, not independent confirmation
+    (11.E-10).
+  * "moon-related built-in declarations: []" is the assertion that the fix
+    took: no GLSL source still declares a built-in whose value the shader now
+    reads indirectly through a CPU scalar instead.
+  * Names starting with `astra` that collide with a built-in: none, so the
+    three new scalars cannot be shadowed by Iris registration.
+
+  NOT covered by this census: built-ins Iris registers but this pack never
+  declares (nothing to check), and the 13 `externallyManagedUniform` names,
+  which carry no type face and therefore cannot mismatch.

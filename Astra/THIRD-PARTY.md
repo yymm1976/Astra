@@ -26,7 +26,7 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 | `shaders/lib/distort.glsl` | Steadfast 0.8.0（`lib/distort.glsl`，作者 coderbot） | 径向扭曲与 Z 缩放表达式移植；Astra 增补解析逆变换。2026-09-09 与 shadow_map_position 成套替换原 Mellow 方形扭曲，删除无调用的 compute_bias。**2026-09-20 改常数为按影距归一**：Steadfast 的裸 `0.20` 是其 160 格影距下的调参产物（核半径 = 因子 × 影距 = 32 格），Astra 出厂 256 格沿用会把高解析核推到 51.2 格、近场密度减半；现改为 `SHADOW_DISTORT_CORE = 25.6`（格）`/ float(SHADOW_DISTANCE)`，近场纹素密度与影距解耦，滑条只改变覆盖距离，代价是短影距下外圈空转面积增大（D=64 时 49.0%，D=256 时 17.4%，`shadowDistanceRenderMul = 1.5` 在上游侧部分利用该外圈）。为此新增本文件对 `lib/settings.glsl` 的显式 include——这是包内第一处 lib→settings 直接包含（其余 22 处全在 `shaders/program/` 入口，靠包含顺序拿到选项），settings.glsl 自带包含守卫，入口已包含时本行不重复展开，作用是让常量初始化式不隐式依赖包含顺序 | GPLv3 + §7 两条附加条款 | 文件头 GPL 来源说明 |
 | `shaders/lib/dither.glsl` | Mellow v3.4（`lib/noise.glsl` 的 ign/dither） | 逐行移植（Astra 无 TAA，dither 固定为静态 IGN） | MIT | 文件头 `// From Mellow v3.4 (MIT) by TheCMK`。2026-09-21 T16 逐文件复核：本行所引的 Mellow 源文件（`lib/noise.glsl`）内部**没有**任何第三方中继声明，持有人即 TheCMK，与被中继的 `lib/tonemap_operators.glsl` 不同 |
 | `shaders/lib/bayer.glsl` | 无参考（自写：教科书式 Bayer 递归构造，公共域模式） | 自写 | — | `// written for Astra` |
-| `shaders/shaders.properties` 的 `CUSTOM UNIFORMS` 段 | Steadfast 0.8.0（`shaders/shaders.properties`，作者 coderbot）；其中 11 条 `astraSolas*` 为 Solas V2.2b 时间/日相表达式的 Astra 改写 | **表达式级移植**（2026-09-05 复核更正：原记"结构借鉴"不成立）。Astra 侧 **50** 条（21 `uniform.*` + 19 `variable.*` + 2026-09-10 维度/气候/下界群系与降雨平滑新增 6 条 + 共享晨昏包络 4 条）：verbatim=14 literal-suffix=2 rewritten=6 astra-only=24（逐字相同 / 仅字面量后缀差异 / 同名改写 / 自写；2026-09-20 随 lib/noise.glsl 删除与 pow.glsl 登记更新）；逐条名单与复核方法见下节 | Steadfast 部分：GPLv3 + §7 两条附加条款；`astraSolas*` 部分：Solas 未声明 | 段内注释 `Expression-level port from Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot ...` |
+| `shaders/shaders.properties` 的 `CUSTOM UNIFORMS` 段 | Steadfast 0.8.0（`shaders/shaders.properties`，作者 coderbot）；其中 11 条 `astraSolas*` 为 Solas V2.2b 时间/日相表达式的 Astra 改写 | **表达式级移植**（2026-09-05 复核更正：原记"结构借鉴"不成立）。Astra 侧 **49** 条（`check_pack.py` 第 6 项行数口径 27 `uniform.*` + 22 `variable.*`，且实测 49 个名称无同名重复）：verbatim=14 literal-suffix=2 rewritten=6 astra-only=27（逐字相同 / 仅字面量后缀差异 / 同名改写 / 自写；2026-09-21 随月相 CPU 标量新增 3 条自写表达式复算）；逐条名单与复核方法见下节 | Steadfast 部分：GPLv3 + §7 两条附加条款；`astraSolas*` 部分：Solas 未声明 | 段内注释 `Expression-level port from Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot ...` |
 | `shaders/block.properties` 基础表（10001–10007、10021–10027） | Mellow v3.4（`block.properties` 现代分支） | 逐行移植（数据表；删除 floodfill 10020） | MIT | 文件头注明 |
 | `shaders/block.properties` Astra 补全区（10010、10011，以及并入 10002/10004/10022/10025/10026/10027 的原版补漏 ID） | 无参考（自组：原版 1.21.x 事实 ID 数据） | 自写（2026-09-05 修正：block.properties 无 `+=` 追加运算符，原 6 条 `block.N+=` 行会整行替换基础表，已并入对应基础行） | — | 文件头注明 |
 | `shaders/entity.properties` | Refrax v1.3.1 / Solas V2.2b 的 `entity.properties`（仅分类思路） | 结构借鉴（分组方案自组，ID 内容为原版事实数据） | Refrax：专有 / Solas：未声明 | 文件头注明 |
@@ -74,24 +74,30 @@ SC-33 新增：`shaders/global/water/light_shafts.glsl` 为 Astra 自写；思�
 - 复核命令：`python qa/tools/provenance_steadfast.py`（逐条比对 `Astra/shaders/shaders.properties`
   与 `_analysis/Steadfast-0.8.0/shaders/shaders.properties` 的 `uniform.*`/`variable.*` 定义；
   Steadfast 对同名保留多条历史定义，任一相同即计 verbatim）。
-- 台账声明计数：`verbatim=14 literal-suffix=2 rewritten=6 astra-only=24`（合计 **48** 条 =
-  21 `uniform.*` + 19 `variable.*` + 2026-09-10 维度/气候/下界群系与降雨平滑新增 6 条 + 共享晨昏
-  包络 4 条；口径为整段 CUSTOM UNIFORMS。2026-09-10 先由 `31` 更正为 `40`，同日随下界群系与降雨
-  改动复核为 `46`；2026-09-16 随共享晨昏包络（`astraTwilightRise` / `astraTwilightFade` /
-  `astraTwilightEnvelope` / `astraTwilightFactor`）新增复核为 `50`，同时 `sunrise` 由
-  literal-suffix 归入 rewritten、`atmosphereFogCoefficient` 由 rewritten 归入 verbatim——
-  实算命令见上）—— `check_pack.py` 第 8 项把这一行与脚本实算值比对，不一致即 FAIL。
+- 台账声明计数：`verbatim=14 literal-suffix=2 rewritten=6 astra-only=27`（合计 **49** 条 = 四类
+  之和，口径为整段 CUSTOM UNIFORMS 的去重名称；实测 49 个名称对应 49 条定义、无同名重复，与
+  `check_pack.py` 第 6 项的行数口径 `27 uniform.* + 22 variable.*` = 49 一致。2026-09-21 随月相
+  CPU 标量新增 3 条自写表达式复算，四类由 `14/2/6/24` 变为 `14/2/6/27`。自纠：上一版本行把合计
+  写作 `48`，而当时四类之和是 46，两者本来就对不上——第 8 项只逐一比对四类计数、不核对合计，
+  所以这个偏差不会触发 FAIL，只能靠这样写明口径来防。更早的 `40`/`46`/`50` 均为当时各类之和的
+  口径记录，未逐条重算）—— `check_pack.py` 第 8 项把四类与脚本实算值比对，不一致即 FAIL。
 - **verbatim（14）**：sunVector、lightVector、worldSunVector、skyVisibilityDay、borderFogDistance、
-  renderDistanceFogTweak、windChaos、windTheta、LdotF、atmosphereFogCoefficient、
-  clipLightVector、godraysBaseExposure、godraysExposure、
-  godraysDayExposureMorning（0.24）、godraysNightExposure（0.16）。
+  renderDistanceFogTweak、windChaos、windTheta、LdotF、clipLightVector、
+  godraysBaseExposure、godraysExposure、godraysDayExposureMorning（0.24）、
+  godraysNightExposure（0.16）。
 - **literal-suffix（2）**：sunProgress、dayUnderwaterFogFade — 与 Steadfast 生效定义仅
   `2`→`2.0` / `4`→`4.0` 字面量后缀差异。
 - **rewritten（6）**：godraysDayExposureNoon（0.20 → 0.10）、godraysMaxAngle（60° 余弦为 0.5）、
   godraysViewAngleFade（夹取 0..1）、ndcLightVector（投影分母防零）、
-  godraysOffscreenFade（夹取 0..1，防负曝光）。（moonrise/sunrise 已随 2026-09-20 死 uniform
+  godraysOffscreenFade（夹取 0..1，防负曝光）、atmosphereFogCoefficient（Astra 侧
+  `renderDistanceFogTweak * pow(0.60 / borderFogDistance, 3.0)`，去掉 Steadfast 定义尾部的
+  `* mix(1.0, atmosphereFogStrengthNoon, noonFogProgress) * fogInCaveAdjustment` 两个因子）。
+  更正记录（2026-09-21）：本行此前漏列 atmosphereFogCoefficient，且台账声明计数行曾声称它已由
+  rewritten 归入 verbatim——两处均不成立，分类脚本与上述实算表达式都判 rewritten（verbatim
+  名称清单同时多出一个名字、合计与声明数对不上，正是这一处漏列所致）。
+  （moonrise/sunrise 已随 2026-09-20 死 uniform
   清理删除——它们无着色器消费者，见 consolidated review E3。）
-- **astra-only（24）**：moonProgress、windStrength、
+- **astra-only（27）**：moonProgress、windStrength、
   astraHeldLightBase、astraBlocklightSuppression、astraHeldLightSuppression（E1 总成 2026-09-06 新增，
   CPU 标量表达式自写），SC-24/33 水体链新增的 11 条 `astraSolas*`：
   astraSolasTAlin、astraSolasTAmin、astraSolasTAfrc、astraSolasTAfrs、astraSolasTAmix、
@@ -102,9 +108,15 @@ SC-33 新增：`shaders/global/water/light_shafts.glsl` 为 Astra 自写；思�
   （Complementary r5.9 群系权重写法，名字与阈值由 Astra 自定），
   以及 2026-09-16 新增的共享晨昏包络 astraTwilightRise / astraTwilightFade /
   astraTwilightEnvelope / astraTwilightFactor（同一 smoothstep 包络在天空、云、雾、地表、
-  diffuse 与水下之间共用的 CPU 侧单次求值，Steadfast 无对应定义）。
+  diffuse 与水下之间共用的 CPU 侧单次求值，Steadfast 无对应定义）；
+  2026-09-21 新增的月相标量 astraMoonIllumination / astraMoonLimbSign /
+  astraMoonLightScale（三者由 `program/sky.fsh` 与 `global/dimension/overworld.glsl` 里
+  原有的逐片元公式逐字搬上来，Steadfast 无同名定义，见 survey P0-4）。
   更正记录（2026-09-10 晚）：此前记为 16 条，是 SC-24 之后未随维度与降雨改动更新所致；
-  2026-09-20 复算 24 条（`python qa/tools/provenance_steadfast.py --quiet` → `astra-only=24`；随 lib/noise.glsl 删除与 pow.glsl 登记更新）。
+  2026-09-20 复算为 24 条（随 lib/noise.glsl 删除与 pow.glsl 登记更新）；2026-09-21 随月相
+  标量新增复算为 27 条、合计 49 条。历史值一律写成散文：`check_pack.py` 第 8 项会把台账里
+  每一处「类名紧跟等号或括号再加数字」都当作当前声明与实算值比对，旧数字按这一格式写出来，
+  就成了一条永远对不上的现值声明。
   注：`astraSolas*` 现在声明在 `lib/solas_water.glsl`（水体模块自持）；`check_pack.py`
   第 6 项已改为扫描整棵 include 树，不再因只查 `lib/uniforms.glsl` 而误报。
 - 更正记录（2026-09-05）：本行原写"结构借鉴（表达式与分节模式，数值为 Astra 自定；
