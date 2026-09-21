@@ -220,22 +220,6 @@ vec3 shadow_map_position(vec3 playerPos, vec3 worldNormal, float ndotl) {
     return shadowPos;
 }
 
-// The texture contains a water surface only when its first caster is water.
-// Quantization is half a block, hence the small surface tolerance here.
-// No call site in the pack (measured 2026-09-21, survey 11.F-10). Deleting it would
-// silently drop the overworld reference-light branch docs/handoffs/nether.md still
-// quotes, so the removal belongs to that decision, not to a cleanup pass.
-float shadow_water_depth(vec3 playerPos, vec3 shadowPos) {
-    #ifdef SHADOWS
-        if (shadow_coverage(playerPos, shadowPos) <= 0.0) return 0.0;
-        float encoded = shadow_caster_data(shadowPos.xy).r;
-        if (encoded >= 0.999) return 0.0;
-        return max(decode_water_height(encoded) - (playerPos.y + cameraPosition.y), 0.0);
-    #else
-        return 0.0;
-    #endif
-}
-
 float static_shadow(float skyLight) {
     return smoothstep(13.5 / 15.0, 14.5 / 15.0, skyLight);
 }

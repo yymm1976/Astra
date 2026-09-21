@@ -110,6 +110,8 @@ C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\_analysis\Complementary
 
 **2026-09-21 B3 后续**：`reference_light.glsl` 与其在 `scene.glsl:22` 的 include 已**删除**（同一扫描确认零调用），H-002 的证据链随之终结 —— 上文"在第 15 行被所有维度 include"与"include 现在在 `scene.glsl:22`"两处描述的是删除前的状态。`shadow_water_depth()`（`global/lighting/shadowmap.glsl`）同样零调用者，但它的删除需要改 `shadowmap.glsl`，不在本单白名单内，**只登记不删**。
 
+**2026-09-21 卡 D 后续（本行所依赖的第二个符号也删了）**：`shadow_water_depth()` 已**删除**，改动面 = `global/lighting/shadowmap.glsl` 的第 223–237 行（T10 留下的"零调用/删除属于那个决策"标死注释 5 行 + 函数 10 行），删除后文件 243 → 227 行；全仓 `grep shadow_water_depth` 在 `Astra/` 下**零出现**（此前是"1 处定义 + 0 调用"），默认档编译门复跑 `failed=0`。**路径更正**：上文 `:105` 写的 `global/lighting/shadowmap.glsl:225` 与卡 D 工单写的 `program/shadowmap.glsl` **都不是删除时的位置**——实测定义在 `global/lighting/shadowmap.glsl:228`，`program/shadowmap.glsl` 这个文件在包内**不存在**。H-002 的两条撤回至此全部落到"符号已不存在"，本段与上文 B3 段共同构成该决策的完整记录。
+
 ---
 
 ## 尚未解决（本轮遗留，需目视决策）
