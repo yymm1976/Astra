@@ -1,0 +1,23 @@
+=== A3 heat-glow probe: response per light species ===
+volume value = species base * 3.5, then read at two falloff levels:
+  'at the source'  = the value right beside the emitter (march step 0-1)
+  'two steps out'  = after 0.72^2 of the eight-step propagation
+
+  species                                        redShare   heat@src   heat@2st glow.r@src
+  lava (id 11)                                      0.830     0.9508     0.9508     0.0428
+  orange: torch / campfire / magma (id 3)           0.743     0.2035     0.2035     0.0092
+  yellow: glowstone / redstone lamp (id 4)          0.532     0.0000     0.0000     0.0000
+  lime: copper torch (id 5)                         0.183     0.0000     0.0000     0.0000
+  turquoise (id 6)                                  0.140     0.0000     0.0000     0.0000
+  blue (id 7)                                       0.033     0.0000     0.0000     0.0000
+  purple: amethyst (id 8)                           0.348     0.0000     0.0000     0.0000
+  soul fire (id 10)                                 0.033     0.0000     0.0000     0.0000
+
+  reading: only the lava species clears the 0.85 red-share shoulder; the torch
+  family (0.74) is held at 0.28 of the ramp, glowstone (0.53) and the blue/lime
+  species at exactly zero. 'Distant rock stays untouched' is therefore a
+  property of the volume's own eight-step falloff, not a separate distance gate.
+
+  peak add at the lava rim (red channel): 0.0450 - on a scene whose lit rock sits
+  around 0.1-0.4, that is a visible warm rim, not a light source.
+

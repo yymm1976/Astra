@@ -169,6 +169,7 @@ vec3 nether_lighting(
 	minLighting += params.nightVision * NETHER_NIGHT_VISION_TINT_REF;
 
 	vec3 blockLighting = nether_block_lighting(blockLight, 0.0);
+	vec3 heatGlow = vec3(0.0);
     #ifdef NETHER_VOXEL_LIGHT
         // Solas gbuffersLighting replaces the warm block-light term, rather than
         // adding a second copy after diffuse lighting. Astra only reaches eight
@@ -178,6 +179,20 @@ vec3 nether_lighting(
             vec3 voxel = astra_nether_colored_light(playerPos, worldNormal);
             float coverage = clamp(max(voxel.r, max(voxel.g, voxel.b)), 0.0, 1.0);
             blockLighting = mix(blockLighting, voxel * (BLOCKLIGHT_STRENGTH * 0.01), coverage * 0.95);
+            // Heat glow on rock near lava (2026-09-21 A3). The reference lights the
+            // lava rim with an EMISSIVE term (lib/materials/specificMaterials/terrain/
+            // lavaEdge.glsl: edgeColor*3.0 feeds `emission`, and lava.glsl runs with
+            // noDirectionalShading), so rock beside a lava lake reads as self-lit rather
+            // than merely lit. Astra's voxel light above lands in blockLighting, which
+            // directionShade and vanillaAO multiply down on faces turned away from the
+            // lava, so the rim never warms. The volume's red share is the lava signal
+            // (species 11 = (1.0, 0.18, 0.025) -> 0.83 red share; the torch family is
+            // 0.74, glowstone 0.53, soul fire 0.03), and the volume's own eight-step
+            // falloff already clears distant rock, so no separate distance gate is
+            // needed (response table: qa/tools/nether_heat_glow_probe.py).
+            float redShare = voxel.r / max(voxel.r + voxel.g + voxel.b, 1e-4);
+            float lavaHeat = smoothstep(0.70, 0.85, redShare) * clamp(voxel.r, 0.0, 1.0);
+            heatGlow = NETHER_LAVA_LIGHT_COLOR * (lavaHeat * 0.30);
         }
     #endif
     // Keep hand-held light separate from volume coverage, as Solas does.
@@ -190,7 +205,7 @@ vec3 nether_lighting(
 	vec3 finalDiffuse = directionShade * directionShade * vanillaAO * vanillaAO
 	                  * (blockLighting + sceneLighting * sceneLighting + minLighting)
 	                  + emission * emission;
-	finalDiffuse = sqrt(max(finalDiffuse, vec3(0.0)));
+	finalDiffuse = sqrt(max(finalDiffuse, vec3(0.0))) + heatGlow;
 
 	return surfaceColor * finalDiffuse;
 }
