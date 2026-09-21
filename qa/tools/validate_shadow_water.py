@@ -1,10 +1,67 @@
-"""Driver-level geometry and light-path verification; no Minecraft state is changed."""
+"""Driver-level geometry and light-path verification; no Minecraft state is changed.
+
+已失效（2026-09-21 标注弃用 / DEPRECATED）——本工具不再为阴影链路提供有效验收。
+
+口径（一句话）
+    自 2026-09-09 影图换源（Mellow 方形扭曲 → Steadfast 径向投影）起，本工具对当前包必然判 FAIL。
+    **它变红不代表回归，不要再拿它当验收依据、也不要把它记成新增回归。** 本工单只做标注，
+    **不重写它的模型**——保留这处可复现的失败作为证据。
+
+失败形态（2026-09-21 复跑，退出码 1；日志 qa/b4-validate-shadow-water-2026-09-21-rerun.log）
+    Shadow plane: pixels=27556, max depth error=0.1107716904917071
+    Exception in thread "main" java.lang.RuntimeException: Shadow plane mismatch
+        at RenderPathValidation.main(RenderPathValidation.java:58)
+    抛异常的是第一个门（影面深度模型，现 :121-:122 的两条断言，B4 核查时 :64-:65），工具在此即退出。
+
+内嵌参考模型的位置
+    `JAVA = r'''` 起的整个字符串字面量：现占 **:65-:183**（B4 核查时是 :8-:126；本段说明加在
+    该块之前，整块下移 57 行）；Java 行与 Python 行的换算现为 **Java 行 = Python 行 − 64**
+    （B4 核查时为 − 7）。定位请以 `plane(`、`Math.max(Math.abs(qx),Math.abs(qy))`、
+    `m/(.2+.8*m)`、`GL_TRIANGLES` 这些串为准；模型核心现占 **:114-:118**（B4 核查时 :57-:61）：
+        :114  r = max(|qx|,|qy|)           → 方形（Chebyshev）范数
+        :116  m/(.2+.8*m) 二分求逆          → 方形 warp，常数 0.2/0.8 硬编码（= shadow_map_bias 0.8）
+        :118  .5 + .1*(plane)              → 深度尺度 z*0.2
+    这套形态精确等于 2026-09-08 那版 Astra（git 6fcb0fd；本工具在 git 里只有那一个提交、此后未改）。
+
+当前实现的位置
+    Astra/shaders/lib/distort.glsl:16-42——
+        :16-17  SHADOW_DISTORT_FACTOR = 25.6 / SHADOW_DISTANCE（BALANCED 档 D=256 → a=0.1）
+        :19-21  因子 = length(pos) + a          → 径向（Euclidean）范数
+        :24-31  前向 warp pos.xy/factor、pos.z*0.5   → 深度尺度 z*0.5
+        :33-42  解析逆 p = q*a/(1-|q|)
+    范数、常数、深度尺度三项同时不同，是结构性不一致而非参数漂移。
+
+只改模型也不够（要过门需 512² 量级的网格）
+    工具只画 2 个三角形（现 :109，B4 核查时 :52）。径向映射把屏幕→源的局部放大率 a/(1-|q|)²
+    从中心到边缘拉开约 100 倍，线性插值不再等于解析平面值，残差 ~0.06，比 2e-6 的判门大四个
+    数量级。同一 256×256 栅格下的实测收敛：2 tri 0.0608｜8 tri 0.0485｜8×8 0.00851｜32×32 0.00059｜
+    64×64 0.00015｜512×512 ~2.3-2.5e-6（仍贴在门限上）。即：必须同时改**测量方式**
+    （加密到 512²-1024² 网格，约 5×10⁵-2×10⁶ 个三角形），单纯把公式改对仍会红。
+
+从未执行的三段
+    因第一段抛异常，后三段判定（太阳可见性 / 边界过冲 / 33 帧固定接收点位移，现 :123-:179，
+    B4 核查时 :66-:120）在当前包上**一行都没跑过**，状态未知——既不能记 PASS，也不能记 FAIL。
+
+复现（本工具自身不写任何仓库文件，除 qa/render-path-verification.log 这一份运行产物）
+    python qa/tools/validate_shadow_water.py
+"""
 from pathlib import Path
 import subprocess
 import tempfile
 from compile_glsl import Expander, parse_profiles, lwjgl_classpath, DEFAULT_MC_ROOT
 
 ROOT = Path(__file__).resolve().parents[2]
+
+# DEPRECATED 2026-09-21 (B4). Do not "fix" this file by syncing the model below to
+# lib/distort.glsl: that alone would still fail (2 triangles cannot resolve the radial
+# warp; ~512^2 needed). A red run from this tool is NOT a regression - see the module
+# docstring for the measured evidence. The model is kept verbatim as a failure record.
+DEPRECATED = ("DEPRECATED 2026-09-21 (B4): validate_shadow_water.py no longer provides valid "
+              "acceptance for the shadow path. Its embedded Java model (below) is the pre-2026-09-09 "
+              "square distort while the pack ships the radial one (Astra/shaders/lib/distort.glsl:16-42), "
+              "and fixing the formula alone would still fail (2-triangle raster needs ~512^2). "
+              "A red run is NOT a regression; the last 3 sections never ran. See the module docstring.")
+
 JAVA = r'''
 import java.nio.file.*;
 import static org.lwjgl.glfw.GLFW.*;
@@ -126,6 +183,8 @@ public class RenderPathValidation {
 '''
 
 def main():
+    print(DEPRECATED)
+    print()
     shaders = ROOT / 'Astra/shaders'
     profile = parse_profiles(shaders / 'shaders.properties')['BALANCED']
     profile['SHADOW_RESOLUTION'] = '256'

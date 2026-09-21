@@ -1,0 +1,7 @@
+DEPRECATED 2026-09-21 (B4): validate_shadow_water.py no longer provides valid acceptance for the shadow path. Its embedded Java model (below) is the pre-2026-09-09 square distort while the pack ships the radial one (Astra/shaders/lib/distort.glsl:16-42), and fixing the formula alone would still fail (2-triangle raster needs ~512^2). A red run is NOT a regression; the last 3 sections never ran. See the module docstring.
+
+GPU: NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2
+Shadow plane: pixels=27556, max depth error=0.1107716904917071
+Exception in thread "main" java.lang.RuntimeException: Shadow plane mismatch
+	at RenderPathValidation.main(RenderPathValidation.java:58)
+
