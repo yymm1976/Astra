@@ -1,0 +1,819 @@
+B6 - newline / line-ending scan of git-tracked files
+date      : 2026-09-21
+repo      : C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发
+HEAD      : c517fcdd2a3f647ba26a071fce64905e85bb183a
+subject   : Execute A-final: land the A-round ledger (A6 checklist row 7c, session log section)
+method    : python 3.10 binary reads of the worktree + `git cat-file --batch` on the
+            index blob of every entry from `git ls-files -s` (so blob == HEAD content
+            for every path that is not staged). Counts are per file:
+              crlf   = occurrences of \r\n
+              lf     = \n NOT preceded by \r  (bare LF)
+              lone_cr= \r NOT followed by \n  (isolated CR)
+            A file is ALL_LF only when it has no CRLF and no lone CR.
+
+TRACKED ENTRIES: 730   (analysed 730, skipped 0)
+
+== SUMMARY (worktree) ==
+  ALL_LF   (clean)                :  225
+  NO_EOL   (text, no newline byte):    3
+  ALL_CRLF                        :  367
+  MIXED    (CRLF + bare LF)       :   25
+  ISO_CR   (isolated CR)          :    0
+  BINARY   (contains NUL)         :  110
+  SKIP     (symlink/unreadable)   :    0
+  ---------------------------------------------------
+  files containing any CRLF byte  :  478
+  files containing any lone CR    :  100  (worktree)
+  total CRLF sequences in worktree: 16665
+
+== SUMMARY (HEAD blob / index object) ==
+  ALL_LF   :  617
+  NO_EOL   :    3
+  BIN      :  110
+  blobs containing lone CR        :  100
+  blobs containing any CRLF       :   86
+
+== DRIFT: worktree CRLF vs blob LF ==
+  files whose worktree has CRLF while the blob has CRLF==0 and LF>0: 392
+  (cause: core.autocrlf=true on this clone; a Windows text-mode write does the same)
+
+== FUTURE EFFECT of a `text=auto` rule ==
+  text files whose BLOB already contains CRLF (a `git add` after adding
+  .gitattributes would normalise them, producing a line-ending-only diff): 0
+
+== EXTENSION MIX per bucket (worktree) ==
+  MIXED     : .md x8, .vsh x6, .glsl x3, .fsh x2, .log x2, .txt x2, .properties x1, .py x1
+  ALL_CRLF  : .log x218, .fsh x46, .vsh x40, .md x27, .glsl x14, .csh x9, .json x5, .txt x3, .py x3, .mcmeta x2
+  NO_EOL    : .json x1, (none) x1, .log x1
+  BIN       : .png x72, .f32 x29, .npy x6, .jpg x3
+  ALL_LF    : 12 extensions; top: .fsh x50, .md x49, .vsh x42, .glsl x37, .py x24, .orig x6, .log x6, .txt x4, (none) x2, .properties x2, .lang x2, .csh x1
+
+==============================================================================
+DETAIL - sorted by problem level (isolated CR > mixed > all-CRLF > no-EOL),
+         then by path. Columns: crlf / bare-lf / lone-cr  (worktree)  |
+         blob: crlf / bare-lf / lone-cr.
+==============================================================================
+
+--- L2 MIXED        (both CRLF and bare LF) : 25 file(s) ---
+  wt     77     32      0  | blob      0    109      0 .specs/astra-shader/escalations.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     40      1      0  | blob      0     41      0 .specs/astra-shader/tasks-standard.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     71     41      0  | blob      0    112      0 .specs/astra-shader/visual-verdicts.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     72      4      0  | blob      0     76      0 Astra/shaders/block.properties  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    112     22      0  | blob      0    134      0 Astra/shaders/global/atmosphere/sky_minishita.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     46     69      0  | blob      0    115      0 Astra/shaders/global/water/raytrace.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    325     38      0  | blob      0    363      0 Astra/shaders/global/water/surface.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     28      3      0  | blob      0     31      0 Astra/shaders/program/composite.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      7      2      0  | blob      0      9      0 Astra/shaders/program/composite1.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      7      2      0  | blob      0      9      0 Astra/shaders/program/deferred.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     36     24      0  | blob      0     60      0 Astra/shaders/program/end_illumination.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      7      2      0  | blob      0      9      0 Astra/shaders/program/final.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     91     16      0  | blob      0    107      0 Astra/shaders/program/lit.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      6      2      0  | blob      0      8      0 Astra/shaders/program/lit_voxy.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    127      5      0  | blob      0    132      0 Astra/shaders/program/shadow.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      1     23      0  | blob      0     24      0 docs/2026-09-08-shadow-water-path-repair.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     41      4      0  | blob      0     45      0 docs/2026-09-10-reference-effects.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    275      7      0  | blob      0    282      0 docs/2026-09-11-end-final-design.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    401      8      0  | blob      0    409      0 docs/2026-09-11-full-audit-and-optimization-plan.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     71     32      0  | blob      0    103      0 docs/handoffs/end.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      1      0  | blob      0      6      0 qa/b9-compile-now.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    226      2      0  | blob      0    228      0 qa/glsl-2026-09-21-t15-reverse-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     10      2      0  | blob      0     12      0 qa/glsl-2026-09-21-t15-runner-postrestore.txt  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     25      4      0  | blob      0     29      0 qa/glsl-2026-09-21-t15-runner.txt  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    209     35      0  | blob      0    244      0 qa/tools/nether_voxel_model.py  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+
+--- L3 ALL-CRLF     (every line CRLF, no bare LF) : 367 file(s) ---
+  wt     61      0      0  | blob      0     61      0 .specs/astra-shader/tasks-advanced-1.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     79      0      0  | blob      0     79      0 .specs/astra-shader/tasks-advanced-2.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     19      0      0  | blob      0     19      0 .specs/astra-shader/tasks-top-1.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     38      0      0  | blob      0     38      0 .specs/astra-shader/tasks-top-2.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/composite.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/composite.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/composite1.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/composite1.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/composite3.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/composite3.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/composite4.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/composite4.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/deferred.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/deferred.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 Astra/shaders/final.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/final.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/gbuffers_armor_glint.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/gbuffers_armor_glint.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/gbuffers_basic.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/gbuffers_basic.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/gbuffers_beaconbeam.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/gbuffers_beaconbeam.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/gbuffers_clouds.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/gbuffers_clouds.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/gbuffers_damagedblock.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/gbuffers_damagedblock.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/gbuffers_particles_translucent.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/gbuffers_particles_translucent.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/gbuffers_skybasic.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/gbuffers_skybasic.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/gbuffers_skytextured.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/gbuffers_skytextured.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/gbuffers_spidereyes.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/gbuffers_spidereyes.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/gbuffers_textured.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/gbuffers_textured.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/gbuffers_textured_lit.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      2      0      0  | blob      0      2      0 Astra/shaders/gbuffers_textured_lit.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    328      0      0  | blob      0    328      0 Astra/shaders/global/atmosphere/clouds_planar.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     85      0      0  | blob      0     85      0 Astra/shaders/global/atmosphere/stars.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    191      0      0  | blob      0    191      0 Astra/shaders/global/lighting/blocklight.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    177      0      0  | blob      0    177      0 Astra/shaders/global/lighting/sss.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    173      0      0  | blob      0    173      0 Astra/shaders/global/lighting/wind.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    148      0      0  | blob      0    148      0 Astra/shaders/global/post/bloom.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     96      0      0  | blob      0     96      0 Astra/shaders/global/water/absorption.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     43      0      0  | blob      0     43      0 Astra/shaders/global/water/bloom_capture.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    197      0      0  | blob      0    197      0 Astra/shaders/global/water/light_shafts.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     16      0      0  | blob      0     16      0 Astra/shaders/global/water/optics.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    149      0      0  | blob      0    149      0 Astra/shaders/global/water/particles.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    158      0      0  | blob      0    158      0 Astra/shaders/global/water/reference_light.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     23      0      0  | blob      0     23      0 Astra/shaders/global/water/refraction.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    122      0      0  | blob      0    122      0 Astra/shaders/lib/solas_water.glsl  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      1      0      0  | blob      0      1      0 Astra/shaders/program/composite.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     28      0      0  | blob      0     28      0 Astra/shaders/program/composite1.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    383      0      0  | blob      0    383      0 Astra/shaders/program/lit.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    112      0      0  | blob      0    112      0 Astra/shaders/program/scattering.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     12      0      0  | blob      0     12      0 Astra/shaders/program/water_bloom.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     27      0      0  | blob      0     27      0 Astra/shaders/program/water_composite.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/shadow.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/shadow.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      6      0      0  | blob      0      6      0 Astra/shaders/textures/solas-water-noise.png.mcmeta  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      6      0      0  | blob      0      6      0 Astra/shaders/textures/steadfast-water-noise.png.mcmeta  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/gbuffers_armor_glint.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/gbuffers_armor_glint.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world-1/gbuffers_basic.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world-1/gbuffers_basic.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 Astra/shaders/world-1/gbuffers_beaconbeam.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 Astra/shaders/world-1/gbuffers_beaconbeam.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world-1/gbuffers_clouds.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world-1/gbuffers_clouds.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world-1/gbuffers_damagedblock.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world-1/gbuffers_damagedblock.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world-1/gbuffers_particles_translucent.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world-1/gbuffers_particles_translucent.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/gbuffers_skybasic.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/gbuffers_skybasic.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world-1/gbuffers_skytextured.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world-1/gbuffers_skytextured.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/gbuffers_spidereyes.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/gbuffers_spidereyes.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/gbuffers_textured.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/gbuffers_textured.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/gbuffers_textured_lit.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/gbuffers_textured_lit.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/shadowcomp.csh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/shadowcompA.csh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/shadowcompB.csh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/shadowcompC.csh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/shadowcompD.csh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/shadowcompE.csh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/shadowcompF.csh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/shadowcompG.csh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world-1/shadowcompH.csh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world1/gbuffers_armor_glint.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world1/gbuffers_armor_glint.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world1/gbuffers_basic.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world1/gbuffers_basic.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 Astra/shaders/world1/gbuffers_beaconbeam.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 Astra/shaders/world1/gbuffers_beaconbeam.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world1/gbuffers_clouds.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world1/gbuffers_clouds.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world1/gbuffers_damagedblock.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world1/gbuffers_damagedblock.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world1/gbuffers_particles_translucent.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world1/gbuffers_particles_translucent.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world1/gbuffers_skybasic.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world1/gbuffers_skybasic.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world1/gbuffers_skytextured.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 Astra/shaders/world1/gbuffers_skytextured.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world1/gbuffers_spidereyes.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world1/gbuffers_spidereyes.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world1/gbuffers_textured.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world1/gbuffers_textured.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world1/gbuffers_textured_lit.fsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      3      0      0  | blob      0      3      0 Astra/shaders/world1/gbuffers_textured_lit.vsh  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     89      0      0  | blob      0     89      0 docs/2026-09-06-second-visual-round-top2-handoff.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     57      0      0  | blob      0     57      0 docs/2026-09-07-underwater-shafts-handoff.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     79      0      0  | blob      0     79      0 docs/2026-09-07-water-path-followup.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     45      0      0  | blob      0     45      0 docs/2026-09-09-step-shadow-solar-shafts.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    939      0      0  | blob      0    939      0 docs/2026-09-10-complementary-r5.9-nether-report.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    536      0      0  | blob      0    536      0 docs/2026-09-10-complementary-r5.9-nether-teardown.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     38      0      0  | blob      0     38      0 docs/2026-09-10-dimensions-rain-rework.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    121      0      0  | blob      0    121      0 docs/2026-09-10-next-agent-dimensions-weather.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     54      0      0  | blob      0     54      0 docs/2026-09-10-water-color-light-chain.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     27      0      0  | blob      0     27      0 docs/2026-09-10-worktree-integration-weather.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    140      0      0  | blob      0    140      0 docs/2026-09-11-end-halo-proposal.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    290      0      0  | blob      0    290      0 docs/2026-09-11-iterationt-optimization-review.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    220      0      0  | blob      0    220      0 docs/2026-09-11-itt-rain-selfrotation-cosmic.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    374      0      0  | blob      0    374      0 docs/handoffs/nether.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    184      0      0  | blob      0    184      0 docs/handoffs/sky-clouds.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    195      0      0  | blob      0    195      0 docs/handoffs/terrain-foliage.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     34      0      0  | blob      0     34      0 docs/handoffs/ui-language.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     27      0      0  | blob      0     27      0 docs/parallel-development/README.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     15      0      0  | blob      0     15      0 docs/parallel-development/end.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     15      0      0  | blob      0     15      0 docs/parallel-development/nether.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     18      0      0  | blob      0     18      0 docs/parallel-development/sky-clouds.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     16      0      0  | blob      0     16      0 docs/parallel-development/terrain-foliage.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     16      0      0  | blob      0     16      0 docs/parallel-development/ui-language.md  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     28      0      0  | blob      0     28      0 qa/audit-2026-09-11-glsl.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    244      0      0  | blob      0    244      0 qa/b4-validate-shadow-water-2026-09-21.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    257      0      0  | blob      0    257      0 qa/bloom-lod-probe/pre-fix.json  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    351      0      0  | blob      0    351      0 qa/bloom-lod-probe/results.json  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     52      0      0  | blob      0     52      0 qa/checkpack-2026-09-21-t13.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     52      0      0  | blob      0     52      0 qa/checkpack-2026-09-21-t14.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     52      0      0  | blob      0     52      0 qa/checkpack-2026-09-21-t15-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     52      0      0  | blob      0     52      0 qa/checkpack-2026-09-21-t15.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     52      0      0  | blob      0     52      0 qa/checkpack-2026-09-21-t16-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     52      0      0  | blob      0     52      0 qa/checkpack-2026-09-21-t16.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     52      0      0  | blob      0     52      0 qa/checkpack-2026-09-21-t17-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     52      0      0  | blob      0     52      0 qa/checkpack-2026-09-21-t17.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     26      0      0  | blob      0     26      0 qa/end-march-count-2026-09-21-a4-after.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     26      0      0  | blob      0     26      0 qa/end-march-count-2026-09-21-a4.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     16      0      0  | blob      0     16      0 qa/gate-sensitivity-2026-09-21-t15.txt  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     16      0      0  | blob      0     16      0 qa/gate-sensitivity-2026-09-21-t17-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     16      0      0  | blob      0     16      0 qa/gate-sensitivity-2026-09-21-t17.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-09-disabled.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-09-followup-disabled.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-09-followup.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-09-step-shadow.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-09-water-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-09-water-shadow.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-compute-first.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-compute-renamed.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-n3-fixed-off.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-n3-fixed.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-n3-fog.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-n3-occupancy.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-p0-fallback.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-p0-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-reference.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-shadow-data-output.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-voxel-off.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-voxel-on.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-voxy-opt.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-w4-particle.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-10-water-reference-light.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-bh2.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-bh3.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-cosmic-rain.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-feedback1.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-feedback2-full.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-feedback2.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-itt-caustics.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-itt-port.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-own-ripple.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     16      0      0  | blob      0     16      0 qa/glsl-2026-09-11-p0.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     16      0      0  | blob      0     16      0 qa/glsl-2026-09-11-p1-bloom.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     16      0      0  | blob      0     16      0 qa/glsl-2026-09-11-p1-fallback.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     16      0      0  | blob      0     16      0 qa/glsl-2026-09-11-p1.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-p2f.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-p3.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-rain-selfrotation.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-review-fallback.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-review-fixes-fallback.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-review-fixes.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-review.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-round2-full.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-round3-full.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-round4-full.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-11-round5-full.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    128      0      0  | blob      0    128      0 qa/glsl-2026-09-20-option-matrix.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-20-t3-compliance.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    128      0      0  | blob      0    128      0 qa/glsl-2026-09-20-t4-dimension.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    128      0      0  | blob      0    128      0 qa/glsl-2026-09-20-t5-matrix.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-20-t5-shadow.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-20-t7-bloom.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-20-t8-docs.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-20-t9-compile.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    130      0      0  | blob      0    130      0 qa/glsl-2026-09-20-t9-matrix.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-20-t9-on.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-a1-default.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-a2-default.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-a3-default.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-a4-default.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-a5-default.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-a7-default.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-t10-compile.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-t11-hardware.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-21-t13-calibon.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-21-t13-default.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    131      0      0  | blob      0    131      0 qa/glsl-2026-09-21-t13-matrix.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-21-t14-cloudshadowon.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-21-t14-default.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    141      0      0  | blob      0    141      0 qa/glsl-2026-09-21-t14-matrix.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-t15-aeon-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-21-t15-aeon.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-t15-default-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-21-t15-default.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    128      0      0  | blob      0    128      0 qa/glsl-2026-09-21-t15-matrix.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-t15-reverse-factory-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-t15-reverse-factory.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    221      0      0  | blob      0    221      0 qa/glsl-2026-09-21-t15-reverse-forced-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    221      0      0  | blob      0    221      0 qa/glsl-2026-09-21-t15-reverse-forced.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-21-t16-default-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-2026-09-21-t16-default.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      5      0      0  | blob      0      5      0 qa/glsl-2026-09-21-t17-default.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    139      0      0  | blob      0    139      0 qa/glsl-2026-09-21-t17-matrix.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-audit-fixes.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-codex-check-balanced.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-codex-check-profiles.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-compile.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-complementary-dawn.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-consolidated-fixes.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-dimensions-rain.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-end-empty-space.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-end-final-design.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-end-orientation-cache.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-end-source-night-hardware.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-end-source-night.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-end-stable-shadow-hardware.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-end-stable-shadow.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-end-weather-followup-hardware.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-end-weather-followup.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-four-image-coordinate-profiles.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-four-image-disabled.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-integration-weather.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-nether-performance-fallback.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-nether-performance.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-path-repair-balanced.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-path-repair-no-shadows.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-path-repair-profiles.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-performance-2026-09-16.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-performance-end-2026-09-16.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-performance-hardware-2026-09-16.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-performance-no-clouds-2026-09-16.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-performance-vanilla-sky-2026-09-16.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-revert-sc37.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-absorption-zero.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-balanced-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-final-absorption-zero.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-final-fog-zero.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-final-no-colored-shadows.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-final-no-screenspace-reflections.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-final-no-screenspace-refraction.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-final-no-shadows.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-final-no-underwater-light-shafts.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-final-no-water-caustics.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-final-profiles.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-fix-water-target.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-fog-zero.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-no-colored-shadows.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-no-screenspace-reflections.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-no-screenspace-refraction.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-no-shadows.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-no-underwater-light-shafts.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-no-water-caustics.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc35-profiles.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc37.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc39-all.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc39-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc39-reaudit.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc39-reaudit2.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sc39-verify.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-september15-lighting.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-shadow-pcf-hardware.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-shadow-pcf-software.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-shadow-pcf-undefined.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-shadow-water-fix-balanced.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-shadow-water-fix-performance.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-shadow-water-fix-ultra.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-shafts-composite-sc33.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-shafts-disabled-sc33.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-shafts-final-sc33.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-shafts-independent-sc33.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-shafts-no-shadows-sc33.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-shafts-water-sc33.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-six-image-no-shadows.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-six-image-profiles.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-six-image-runtime-path.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sky-cache-puddle-hardware.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-sky-cache-puddle.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-struct-char-sc35.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-struct-off-sc35.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-struct-profiles-sc35.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-struct-sc35.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-struct-sc36-off.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-struct-sc36-pu.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-struct-sc36.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-struct-sc36b.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-struct-water-sc35.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-twilight-disc-followup-hardware.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-twilight-disc-followup.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-twilight-integration.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-visual-experience-2026-09-16-abd.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-visual-experience-2026-09-16-all.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-visual-experience-2026-09-16-baseline.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-visual-experience-2026-09-16-eg.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-visual-experience-2026-09-16-final.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-visual-experience-2026-09-16-minimal.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-visual-experience-2026-09-16-noshadow.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-visual-fixes-hardware.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-visual-fixes-software.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-options.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-path-followup-absorption-zero.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-path-followup-balanced.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-path-followup-fog-zero.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-path-followup-no-caustics.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-path-followup-no-shadows.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-path-followup-no-shafts.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-path-followup-profiles.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-sc24.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-sc32.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-shadow-balanced-sc34.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-shadow-extremeA-sc34.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-shadow-extremeB-sc34.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-shadow-options-sc34.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/glsl-water-shadow-sc34.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    474      0      0  | blob      0    474      0 qa/iris-properties-2026-09-21-t14.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    491      0      0  | blob      0    491      0 qa/iris-properties-2026-09-21-t15.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     58      0      0  | blob      0     58      0 qa/nether-fog-2026-09-21-a7.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     23      0      0  | blob      0     23      0 qa/nether-heatglow-2026-09-21-a3.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     59      0      0  | blob      0     59      0 qa/nether-light-2026-09-21-a5.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      7      0      0  | blob      0      7      0 qa/option-matrix-2026-09-21-t15.txt  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      1      0      0  | blob      0      1      0 qa/provenance-2026-09-21-t15.txt  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/render-path-verification.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     25      0      0  | blob      0     25      0 qa/sc35-probe/results.json  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     66      0      0  | blob      0     66      0 qa/shadow-filter-equiv.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     73      0      0  | blob      0     73      0 qa/shaft-refract-2026-09-21-a2.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    519      0      0  | blob      0    519      0 qa/tools/compile_glsl.py  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     73      0      0  | blob      0     73      0 qa/tools/gen_rain_ripple.py  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    200      0      0  | blob      0    200      0 qa/tools/test_gate_sensitivity.py  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/verify-shadow-hardware.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt      4      0      0  | blob      0      4      0 qa/verify-shadow-software.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     17      0      0  | blob      0     17      0 qa/verify-tonemap-chain-2026-09-21-t16.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    547      0      0  | blob      0    547      0 qa/water-path-followup/results.json  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt     23      0      0  | blob      0     23      0 qa/water-path-followup/sync.json  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+  wt    194      0      0  | blob      0    194      0 qa/water-spectrum-2026-09-21-a1.log  <-- CHECKOUT/WRITE DRIFT (blob is LF)
+
+--- L4 NO-EOL       (zero-byte file: no newline byte at all) : 3 file(s) ---
+  wt      0      0      0  | blob      0      0      0 Astra/shaders/voxy.json
+  wt      0      0      0  | blob      0      0      0 qa/screenshots/.gitkeep
+  wt      0      0      0  | blob      0      0      0 qa/water-path-followup/diff-check.log
+
+--- L6 BINARY       (contains NUL; newline stats not meaningful) : 110 file(s) ---
+  wt      5   1434   1231  | blob      5   1434   1231 Astra/shaders/textures/astra-ripple-1.png
+  wt      7   2306   2259  | blob      7   2306   2259 Astra/shaders/textures/astra-ripple-2.png
+  wt     12   3134   3421  | blob     12   3134   3421 Astra/shaders/textures/astra-ripple-3.png
+  wt     13   2608   2819  | blob     13   2608   2819 Astra/shaders/textures/bliss-nether-noise.png
+  wt      1    635    819  | blob      1    635    819 Astra/shaders/textures/complementary-cloud-water.png
+  wt     13   2719   2678  | blob     13   2719   2678 Astra/shaders/textures/solas-water-noise.png
+  wt      2     59     63  | blob      2     59     63 Astra/shaders/textures/steadfast-water-noise.png
+  wt      1     74    113  | blob      1     74    113 docs/images/end-halo-preview-v3.png
+  wt      5   1033   1058  | blob      5   1033   1058 docs/images/end-halo-preview.png
+  wt      1     93     66  | blob      1     93     66 docs/images/our-ripple-flipbook.png
+  wt      3    508    449  | blob      3    508    449 docs/images/ripple-flipbook-preview.png
+  wt     35  12342  11671  | blob     35  12342  11671 qa/end-design/a4-after.npy
+  wt      8   1573   1499  | blob      8   1573   1499 qa/end-design/a4-after.png
+  wt     36  12338  11687  | blob     36  12338  11687 qa/end-design/a4-before.npy
+  wt      8   1573   1499  | blob      8   1573   1499 qa/end-design/a4-before.png
+  wt     75  24464  22960  | blob     75  24464  22960 qa/end-design/close.npy
+  wt     18   3207   3012  | blob     18   3207   3012 qa/end-design/close.png
+  wt      0      1      0  | blob      0      1      0 qa/end-design/counts-after.npy
+  wt      0      1      0  | blob      0      1      0 qa/end-design/counts-baseline.npy
+  wt     96  32274  29147  | blob     96  32274  29147 qa/end-design/panorama.npy
+  wt     18   3584   3958  | blob     18   3584   3958 qa/end-design/panorama.png
+  wt      3   1029    816  | blob      3   1029    816 qa/sc35-probe/caustics.f32
+  wt      2    198    195  | blob      2    198    195 qa/sc35-probe/caustics.png
+  wt      2    572    618  | blob      2    572    618 qa/sc35-probe/heldlight_T.f32
+  wt      1     23     22  | blob      1     23     22 qa/sc35-probe/heldlight_T.png
+  wt      2    572    618  | blob      2    572    618 qa/sc35-probe/heldlight_T0.f32
+  wt      1     23     22  | blob      1     23     22 qa/sc35-probe/heldlight_T0.png
+  wt      4   1221    890  | blob      4   1221    890 qa/sc35-probe/img2_blob.png
+  wt      3    546    536  | blob      3    546    536 qa/sc35-probe/img2_blob2.png
+  wt      6   1336   1310  | blob      6   1336   1310 qa/sc35-probe/img2_lake_right.png
+  wt      8   1976   2185  | blob      8   1976   2185 qa/sc35-probe/img2_pond2.png
+  wt      7   2355   1694  | blob      7   2355   1694 qa/sc35-probe/img2_pond_edge.png
+  wt      7   2641   2502  | blob      7   2641   2502 qa/sc35-probe/img3_seam.png
+  wt      4    896    963  | blob      4    896    963 qa/sc35-probe/img5_plants.png
+  wt      4   1158   1054  | blob      4   1158   1054 qa/sc35-probe/img5_plants2.png
+  wt      2   1316   1234  | blob      2   1316   1234 qa/sc35-probe/shore_pitch20.f32
+  wt      2    129    124  | blob      2    129    124 qa/sc35-probe/shore_pitch20.png
+  wt     13   2940   1668  | blob     13   2940   1668 qa/sc35-probe/shore_pitch42.f32
+  wt      1     48     45  | blob      1     48     45 qa/sc35-probe/shore_pitch42.png
+  wt      0   1535   1372  | blob      0   1535   1372 qa/sc35-probe/waves_camA.f32
+  wt      1    302    339  | blob      1    302    339 qa/sc35-probe/waves_camA.png
+  wt      4   1569   1330  | blob      4   1569   1330 qa/sc35-probe/waves_camB.f32
+  wt      1    315    335  | blob      1    315    335 qa/sc35-probe/waves_camB.png
+  wt     29  10007   8560  | blob     29  10007   8560 qa/screenshots/2026-09-06/01-astra-current-surface-overview.png
+  wt     23   8027   7918  | blob     23   8027   7918 qa/screenshots/2026-09-06/02-astra-current-surface-sun.png
+  wt     38   8171   8470  | blob     38   8171   8470 qa/screenshots/2026-09-06/03-astra-current-surface-shore.png
+  wt     25   7696   7930  | blob     25   7696   7930 qa/screenshots/2026-09-06/04-astra-current-surface-close.png
+  wt     27   5638   6227  | blob     27   5638   6227 qa/screenshots/2026-09-06/05-astra-current-underwater.png
+  wt     38  11672  13854  | blob     38  11672  13854 qa/screenshots/2026-09-06/06-reference-steadfast-surface-user-label.png
+  wt     45   8062  12265  | blob     45   8062  12265 qa/screenshots/2026-09-06/07-reference-steadfast-surface-user-label.png
+  wt     64  13272  13975  | blob     64  13272  13975 qa/screenshots/2026-09-06/08-reference-solas-underwater-user-label.png
+  wt     56  10757  11336  | blob     56  10757  11336 qa/screenshots/2026-09-06/09-reference-solas-underwater-user-label.png
+  wt     49  11059  10369  | blob     49  11059  10369 qa/screenshots/2026-09-06/10-astra-surface-darksky-140fps.png
+  wt     41  11318   9351  | blob     41  11318   9351 qa/screenshots/2026-09-06/11-astra-underwater-dark-particles.png
+  wt     30   9126  10603  | blob     30   9126  10603 qa/screenshots/2026-09-06/12-reference-steadfast-surface-166fps.png
+  wt      4    770   1052  | blob      4    770   1052 qa/screenshots/2026-09-06/13-astra-underwater-dark-1847.jpg
+  wt      8   1826   1432  | blob      8   1826   1432 qa/screenshots/2026-09-06/14-astra-surface-shadow-ring.jpg
+  wt      3   1630   1632  | blob      3   1630   1632 qa/screenshots/2026-09-06/15-astra-underwater-foil-1814.jpg
+  wt     51  14082  12255  | blob     51  14082  12255 qa/screenshots/2026-09-06/17-astra-surface-morning-143fps.png
+  wt     42   9714   8085  | blob     42   9714   8085 qa/screenshots/2026-09-06/18-astra-underwater-morning-166fps.png
+  wt     41  12834  11613  | blob     41  12834  11613 qa/screenshots/2026-09-06/19-astra-distant-grayfog-170fps.png
+  wt     36  11440  11527  | blob     36  11440  11527 qa/screenshots/2026-09-06/20-reference-steadfast-same-scene-144fps.png
+  wt     13   5820   6949  | blob     13   5820   6949 qa/screenshots/2026-09-07-sc34-followup/01-astra-underwater.png
+  wt     73  10969  14850  | blob     73  10969  14850 qa/screenshots/2026-09-07-sc34-followup/02-reference-underwater.png
+  wt     52  11468  12774  | blob     52  11468  12774 qa/screenshots/2026-09-07-sc34-followup/03-reference-surface.png
+  wt     43  13358  12637  | blob     43  13358  12637 qa/screenshots/2026-09-07-sc34-followup/04-astra-surface.png
+  wt      0      0      0  | blob      0      0      0 qa/water-path-followup/0.f32
+  wt      1      1     16  | blob      1      1     16 qa/water-path-followup/0.png
+  wt      0    384    768  | blob      0    384    768 qa/water-path-followup/1.f32
+  wt      1      2      1  | blob      1      2      1 qa/water-path-followup/1.png
+  wt      0    256    256  | blob      0    256    256 qa/water-path-followup/10.f32
+  wt      1      1      2  | blob      1      1      2 qa/water-path-followup/10.png
+  wt      0      0      0  | blob      0      0      0 qa/water-path-followup/11.f32
+  wt      1      1      2  | blob      1      1      2 qa/water-path-followup/11.png
+  wt      0    256    256  | blob      0    256    256 qa/water-path-followup/12.f32
+  wt      1      1      2  | blob      1      1      2 qa/water-path-followup/12.png
+  wt      0      0      0  | blob      0      0      0 qa/water-path-followup/13.f32
+  wt      1      2      1  | blob      1      2      1 qa/water-path-followup/13.png
+  wt      0    226   8797  | blob      0    226   8797 qa/water-path-followup/14.f32
+  wt      8     10     10  | blob      8     10     10 qa/water-path-followup/14.png
+  wt      0    128    134  | blob      0    128    134 qa/water-path-followup/15.f32
+  wt      1      1      2  | blob      1      1      2 qa/water-path-followup/15.png
+  wt      0    136    137  | blob      0    136    137 qa/water-path-followup/16.f32
+  wt      1     11     11  | blob      1     11     11 qa/water-path-followup/16.png
+  wt      0      0      0  | blob      0      0      0 qa/water-path-followup/17.f32
+  wt      1      1      1  | blob      1      1      1 qa/water-path-followup/17.png
+  wt      0    512    128  | blob      0    512    128 qa/water-path-followup/18.f32
+  wt      1      3      4  | blob      1      3      4 qa/water-path-followup/18.png
+  wt      0    640    512  | blob      0    640    512 qa/water-path-followup/19.f32
+  wt      1      1      1  | blob      1      1      1 qa/water-path-followup/19.png
+  wt      0    362    378  | blob      0    362    378 qa/water-path-followup/2.f32
+  wt      1      9     13  | blob      1      9     13 qa/water-path-followup/2.png
+  wt      0      0      0  | blob      0      0      0 qa/water-path-followup/20.f32
+  wt      1      1      1  | blob      1      1      1 qa/water-path-followup/20.png
+  wt      0    142    263  | blob      0    142    263 qa/water-path-followup/21.f32
+  wt      1     13     15  | blob      1     13     15 qa/water-path-followup/21.png
+  wt      0    313    350  | blob      0    313    350 qa/water-path-followup/3.f32
+  wt      2     69     79  | blob      2     69     79 qa/water-path-followup/3.png
+  wt      0      0      0  | blob      0      0      0 qa/water-path-followup/4.f32
+  wt      1      1      1  | blob      1      1      1 qa/water-path-followup/4.png
+  wt      0      0      0  | blob      0      0      0 qa/water-path-followup/5.f32
+  wt      1      2      1  | blob      1      2      1 qa/water-path-followup/5.png
+  wt      0    303    349  | blob      0    303    349 qa/water-path-followup/6.f32
+  wt      1     67     68  | blob      1     67     68 qa/water-path-followup/6.png
+  wt      0    176    182  | blob      0    176    182 qa/water-path-followup/7.f32
+  wt      1      1      2  | blob      1      1      2 qa/water-path-followup/7.png
+  wt      1    220   8778  | blob      1    220   8778 qa/water-path-followup/8.f32
+  wt      8     10     10  | blob      8     10     10 qa/water-path-followup/8.png
+  wt      0      0      0  | blob      0      0      0 qa/water-path-followup/9.f32
+  wt      1      1      1  | blob      1      1      1 qa/water-path-followup/9.png
+  Astra/shaders/voxy.json                       worktree size=0 byte(s), blob size=0 byte(s)
+  qa/screenshots/.gitkeep                       worktree size=0 byte(s), blob size=0 byte(s)
+  qa/water-path-followup/diff-check.log         worktree size=0 byte(s), blob size=0 byte(s)
+  => all NO_EOL entries are zero-byte placeholder files; there is no missing
+     trailing newline anywhere in the repository.
+
+--- context: the remaining files are clean ---
+  ALL_LF : 225 file(s), no CRLF and no lone CR (not listed individually)
+
+--- KEY READING: every text blob in the index/HEAD is LF-only ---
+  text entries (no NUL byte): 620
+  of which blobs containing CRLF: 0
+  of which blobs containing lone CR: 0
+  => the CRLF population exists ONLY in the working tree, never in history.
+     `text=auto` can therefore not rewrite any stored object.
+
+== files whose blob contains CRLF (would be re-normalised by text=auto) ==
+  (none)
+
+== every file that contains a lone CR anywhere (worktree or blob) ==
+  text files : 0
+  binary files (lone CR is payload data, not a line ending): 100
+  wt lone_cr=1231  blob lone_cr=1231  size=287512  Astra/shaders/textures/astra-ripple-1.png
+  wt lone_cr=2259  blob lone_cr=2259  size=556938  Astra/shaders/textures/astra-ripple-2.png
+  wt lone_cr=3421  blob lone_cr=3421  size=848759  Astra/shaders/textures/astra-ripple-3.png
+  wt lone_cr=2819  blob lone_cr=2819  size=695035  Astra/shaders/textures/bliss-nether-noise.png
+  wt lone_cr=819  blob lone_cr=819  size=128888  Astra/shaders/textures/complementary-cloud-water.png
+  wt lone_cr=2678  blob lone_cr=2678  size=678019  Astra/shaders/textures/solas-water-noise.png
+  wt lone_cr=63  blob lone_cr=63  size=14561  Astra/shaders/textures/steadfast-water-noise.png
+  wt lone_cr=113  blob lone_cr=113  size=40768  docs/images/end-halo-preview-v3.png
+  wt lone_cr=1058  blob lone_cr=1058  size=266035  docs/images/end-halo-preview.png
+  wt lone_cr=66  blob lone_cr=66  size=21553  docs/images/our-ripple-flipbook.png
+  wt lone_cr=449  blob lone_cr=449  size=139135  docs/images/ripple-flipbook-preview.png
+  wt lone_cr=11671  blob lone_cr=11671  size=9437312  qa/end-design/a4-after.npy
+  wt lone_cr=1499  blob lone_cr=1499  size=404919  qa/end-design/a4-after.png
+  wt lone_cr=11687  blob lone_cr=11687  size=9437312  qa/end-design/a4-before.npy
+  wt lone_cr=1499  blob lone_cr=1499  size=404919  qa/end-design/a4-before.png
+  wt lone_cr=22960  blob lone_cr=22960  size=9437312  qa/end-design/close.npy
+  wt lone_cr=3012  blob lone_cr=3012  size=808645  qa/end-design/close.png
+  wt lone_cr=29147  blob lone_cr=29147  size=9437312  qa/end-design/panorama.npy
+  wt lone_cr=3958  blob lone_cr=3958  size=1010437  qa/end-design/panorama.png
+  wt lone_cr=816  blob lone_cr=816  size=589824  qa/sc35-probe/caustics.f32
+  wt lone_cr=195  blob lone_cr=195  size=43957  qa/sc35-probe/caustics.png
+  wt lone_cr=618  blob lone_cr=618  size=589824  qa/sc35-probe/heldlight_T.f32
+  wt lone_cr=22  blob lone_cr=22  size=4321  qa/sc35-probe/heldlight_T.png
+  wt lone_cr=618  blob lone_cr=618  size=589824  qa/sc35-probe/heldlight_T0.f32
+  wt lone_cr=22  blob lone_cr=22  size=4321  qa/sc35-probe/heldlight_T0.png
+  wt lone_cr=890  blob lone_cr=890  size=266138  qa/sc35-probe/img2_blob.png
+  wt lone_cr=536  blob lone_cr=536  size=164905  qa/sc35-probe/img2_blob2.png
+  wt lone_cr=1310  blob lone_cr=1310  size=404145  qa/sc35-probe/img2_lake_right.png
+  wt lone_cr=2185  blob lone_cr=2185  size=624462  qa/sc35-probe/img2_pond2.png
+  wt lone_cr=1694  blob lone_cr=1694  size=523592  qa/sc35-probe/img2_pond_edge.png
+  wt lone_cr=2502  blob lone_cr=2502  size=628926  qa/sc35-probe/img3_seam.png
+  wt lone_cr=963  blob lone_cr=963  size=275583  qa/sc35-probe/img5_plants.png
+  wt lone_cr=1054  blob lone_cr=1054  size=349093  qa/sc35-probe/img5_plants2.png
+  wt lone_cr=1234  blob lone_cr=1234  size=589824  qa/sc35-probe/shore_pitch20.f32
+  wt lone_cr=124  blob lone_cr=124  size=30134  qa/sc35-probe/shore_pitch20.png
+  wt lone_cr=1668  blob lone_cr=1668  size=589824  qa/sc35-probe/shore_pitch42.f32
+  wt lone_cr=45  blob lone_cr=45  size=10334  qa/sc35-probe/shore_pitch42.png
+  wt lone_cr=1372  blob lone_cr=1372  size=589824  qa/sc35-probe/waves_camA.f32
+  wt lone_cr=339  blob lone_cr=339  size=89421  qa/sc35-probe/waves_camA.png
+  wt lone_cr=1330  blob lone_cr=1330  size=589824  qa/sc35-probe/waves_camB.f32
+  wt lone_cr=335  blob lone_cr=335  size=89412  qa/sc35-probe/waves_camB.png
+  wt lone_cr=8560  blob lone_cr=8560  size=2165363  qa/screenshots/2026-09-06/01-astra-current-surface-overview.png
+  wt lone_cr=7918  blob lone_cr=7918  size=1835613  qa/screenshots/2026-09-06/02-astra-current-surface-sun.png
+  wt lone_cr=8470  blob lone_cr=8470  size=1844994  qa/screenshots/2026-09-06/03-astra-current-surface-shore.png
+  wt lone_cr=7930  blob lone_cr=7930  size=1880842  qa/screenshots/2026-09-06/04-astra-current-surface-close.png
+  wt lone_cr=6227  blob lone_cr=6227  size=1420745  qa/screenshots/2026-09-06/05-astra-current-underwater.png
+  wt lone_cr=13854  blob lone_cr=13854  size=3654085  qa/screenshots/2026-09-06/06-reference-steadfast-surface-user-label.png
+  wt lone_cr=12265  blob lone_cr=12265  size=3104375  qa/screenshots/2026-09-06/07-reference-steadfast-surface-user-label.png
+  wt lone_cr=13975  blob lone_cr=13975  size=3477229  qa/screenshots/2026-09-06/08-reference-solas-underwater-user-label.png
+  wt lone_cr=11336  blob lone_cr=11336  size=2975635  qa/screenshots/2026-09-06/09-reference-solas-underwater-user-label.png
+  wt lone_cr=10369  blob lone_cr=10369  size=2901688  qa/screenshots/2026-09-06/10-astra-surface-darksky-140fps.png
+  wt lone_cr=9351  blob lone_cr=9351  size=2623596  qa/screenshots/2026-09-06/11-astra-underwater-dark-particles.png
+  wt lone_cr=10603  blob lone_cr=10603  size=2932866  qa/screenshots/2026-09-06/12-reference-steadfast-surface-166fps.png
+  wt lone_cr=1052  blob lone_cr=1052  size=265507  qa/screenshots/2026-09-06/13-astra-underwater-dark-1847.jpg
+  wt lone_cr=1432  blob lone_cr=1432  size=471837  qa/screenshots/2026-09-06/14-astra-surface-shadow-ring.jpg
+  wt lone_cr=1632  blob lone_cr=1632  size=490597  qa/screenshots/2026-09-06/15-astra-underwater-foil-1814.jpg
+  wt lone_cr=12255  blob lone_cr=12255  size=3544193  qa/screenshots/2026-09-06/17-astra-surface-morning-143fps.png
+  wt lone_cr=8085  blob lone_cr=8085  size=2188116  qa/screenshots/2026-09-06/18-astra-underwater-morning-166fps.png
+  wt lone_cr=11613  blob lone_cr=11613  size=3193099  qa/screenshots/2026-09-06/19-astra-distant-grayfog-170fps.png
+  wt lone_cr=11527  blob lone_cr=11527  size=3311923  qa/screenshots/2026-09-06/20-reference-steadfast-same-scene-144fps.png
+  wt lone_cr=6949  blob lone_cr=6949  size=1557052  qa/screenshots/2026-09-07-sc34-followup/01-astra-underwater.png
+  wt lone_cr=14850  blob lone_cr=14850  size=3627592  qa/screenshots/2026-09-07-sc34-followup/02-reference-underwater.png
+  wt lone_cr=12774  blob lone_cr=12774  size=3220713  qa/screenshots/2026-09-07-sc34-followup/03-reference-surface.png
+  wt lone_cr=12637  blob lone_cr=12637  size=2991132  qa/screenshots/2026-09-07-sc34-followup/04-astra-surface.png
+  wt lone_cr=16  blob lone_cr=16  size=456  qa/water-path-followup/0.png
+  wt lone_cr=768  blob lone_cr=768  size=262144  qa/water-path-followup/1.f32
+  wt lone_cr=1  blob lone_cr=1  size=547  qa/water-path-followup/1.png
+  wt lone_cr=256  blob lone_cr=256  size=262144  qa/water-path-followup/10.f32
+  wt lone_cr=2  blob lone_cr=2  size=542  qa/water-path-followup/10.png
+  wt lone_cr=2  blob lone_cr=2  size=358  qa/water-path-followup/11.png
+  wt lone_cr=256  blob lone_cr=256  size=262144  qa/water-path-followup/12.f32
+  wt lone_cr=2  blob lone_cr=2  size=542  qa/water-path-followup/12.png
+  wt lone_cr=1  blob lone_cr=1  size=125  qa/water-path-followup/13.png
+  wt lone_cr=8797  blob lone_cr=8797  size=262144  qa/water-path-followup/14.f32
+  wt lone_cr=10  blob lone_cr=10  size=1840  qa/water-path-followup/14.png
+  wt lone_cr=134  blob lone_cr=134  size=262144  qa/water-path-followup/15.f32
+  wt lone_cr=2  blob lone_cr=2  size=361  qa/water-path-followup/15.png
+  wt lone_cr=137  blob lone_cr=137  size=262144  qa/water-path-followup/16.f32
+  wt lone_cr=11  blob lone_cr=11  size=2735  qa/water-path-followup/16.png
+  wt lone_cr=1  blob lone_cr=1  size=356  qa/water-path-followup/17.png
+  wt lone_cr=128  blob lone_cr=128  size=262144  qa/water-path-followup/18.f32
+  wt lone_cr=4  blob lone_cr=4  size=733  qa/water-path-followup/18.png
+  wt lone_cr=512  blob lone_cr=512  size=262144  qa/water-path-followup/19.f32
+  wt lone_cr=1  blob lone_cr=1  size=516  qa/water-path-followup/19.png
+  wt lone_cr=378  blob lone_cr=378  size=262144  qa/water-path-followup/2.f32
+  wt lone_cr=13  blob lone_cr=13  size=2687  qa/water-path-followup/2.png
+  wt lone_cr=1  blob lone_cr=1  size=361  qa/water-path-followup/20.png
+  wt lone_cr=263  blob lone_cr=263  size=262144  qa/water-path-followup/21.f32
+  wt lone_cr=15  blob lone_cr=15  size=2704  qa/water-path-followup/21.png
+  wt lone_cr=350  blob lone_cr=350  size=262144  qa/water-path-followup/3.f32
+  wt lone_cr=79  blob lone_cr=79  size=15678  qa/water-path-followup/3.png
+  wt lone_cr=1  blob lone_cr=1  size=360  qa/water-path-followup/4.png
+  wt lone_cr=1  blob lone_cr=1  size=125  qa/water-path-followup/5.png
+  wt lone_cr=349  blob lone_cr=349  size=262144  qa/water-path-followup/6.f32
+  wt lone_cr=68  blob lone_cr=68  size=16054  qa/water-path-followup/6.png
+  wt lone_cr=182  blob lone_cr=182  size=262144  qa/water-path-followup/7.f32
+  wt lone_cr=2  blob lone_cr=2  size=361  qa/water-path-followup/7.png
+  wt lone_cr=8778  blob lone_cr=8778  size=262144  qa/water-path-followup/8.f32
+  wt lone_cr=10  blob lone_cr=10  size=1840  qa/water-path-followup/8.png
+  wt lone_cr=1  blob lone_cr=1  size=361  qa/water-path-followup/9.png
+
+==============================================================================
+CROSS-CHECK 1 - git's own per-file view (`git ls-files --eol`)
+==============================================================================
+  i/lf    w/crlf  attr/             367
+  i/lf    w/lf    attr/             225
+  i/-text w/-text attr/             110
+  i/lf    w/mixed attr/              25
+  i/none  w/none  attr/               3
+  (i/=index eol  w/=worktree eol  attr/=attribute source; every row above ends
+   with `attr/` empty, i.e. NO .gitattributes was in effect during this scan)
+
+==============================================================================
+CROSS-CHECK 2 - qa/session-log.md, every historical blob
+==============================================================================
+  (the incoming work order asserted 2 isolated CRs in the HEAD blob of this file)
+  commit    blob        bytes    CR     LF   CRLF  loneCR
+  c517fcdd2 663f8e568e   150958     0    898      0      0
+  a250133fe b2e9ba8e71   142568     2    881      0      2
+  115d19608 05e774d5ca   134750     2    879      0      2
+  ebc24a82a 06b06872f7   126426     2    877      0      2
+  3d13037c8 13ff8fe4b5   118347     0    876      0      0
+  bf5536139 1a84aee4fb   109409     0    875      0      0
+  3ad0fb2b3 a17839b9fa   104580     0    874      0      0
+  7e431835d b673528aa0   102364     0    873      0      0
+  63d321af7 e7fab324bc    99461     0    872      0      0
+  a53b4eeb8 eca886c7bc    96564     0    871      0      0
+  ad6e6237a cd928917bd    94052     0    870      0      0
+  1b415b672 0895fba34b    92473     0    869      0      0
+  a7f869b74 5bd2a3624b    91015     0    867      0      0
+  9df32dfa5 9c41c5129c    88860     0    852      0      0
+  ef90edb43 e91bd3a242    86822     0    841      0      0
+  7e3b1e7ba d8cf7efef6    66324     0    742      0      0
+  f3b9f5cae f5d9e80a34    56697     0    660      0      0
+  2c8e5ddd8 d1b6d6e051    55014     0    638      0      0
+  934df29f0 6e07cf1701    53385     0    613      0      0
+  a41fecd5c 345f33fbd9    50685     0    579      0      0
+  7ae6e2afd 7c104b3df7    48951     0    557      0      0
+  73083e6eb cdffca8f27    45094     0    512      0      0
+  2cf7d51bc ab9579d32d    43480     0    491      0      0
+  47b9f4b76 93ec0f226e    39541     0    449      0      0
+  c25edfece 1bd99f9846    37686     0    426      0      0
+  875fc04cc 534aec71d3    34746     0    389      0      0
+  d582382ed 51b337a75f    32036     0    359      0      0
+  40315e2e6 c6482c104e    29862     0    334      0      0
+  a04a55b61 bc375dd085    27161     0    305      0      0
+  a56ceb293 abe3424ec1    24410     0    275      0      0
+  10b57a6a1 7e68b1e280    22379     0    250      0      0
+  2f405c348 86362a64ba    19879     0    222      0      0
+  9097d0007 ed1148e9d4    17899     0    195      0      0
+  a936da55c 60fee8cd95    14523     0    160      0      0
+  6fcb0fdb6 8e73d76e27    12191     0    133      0      0
+  f1717ee37 f7308ea142     4634     0     59      0      0
+  => lone CRs were present in the three revisions ending at a250133fe (2 each);
+     they are GONE at HEAD c517fcdd2 (the file that revision carries has 0 CR bytes).
+
+==============================================================================
+RULE -> EVIDENCE mapping for the .gitattributes landed in the same ticket
+==============================================================================
+  (each rule of the landed .gitattributes and the scan class above it answers;
+   the same mapping is repeated in-line as comments in the .gitattributes file)
+  * text=auto eol=lf          <- L2/L3: 392 text files whose worktree carries CRLF
+                                 while every stored blob is LF; pins checkout to LF
+                                 regardless of the machine's core.autocrlf.
+  -text for .png/.jpg/.f32/.npy <- L6: 110 NUL-bearing files (86 of them contain
+                                 literal CRLF byte pairs, 100 contain lone CR) that a
+                                 text filter would corrupt.
+
+==============================================================================
+RULE VALIDATION - measured after .gitattributes was written (same day)
+==============================================================================
+The scan above was taken BEFORE .gitattributes existed (note its `attr/` column is
+empty in every row). Each rule was then validated in a throwaway scratch repository
+(%TEMP%\b6-attr-a with the landed file, %TEMP%\b6-attr-b with only the wildcard
+rule), so no file of this repository was written by the test.
+
+Scratch setup: `git init` + `core.autocrlf true` (mimicking this clone) + payload
+files named *.f32 carrying CRLF byte pairs; then `git add` and compare the stored
+blob with the worktree bytes.
+
+  payload (named *.f32)         case A: landed file   case B: `* text=auto eol=lf`
+                                                      alone (control)
+  ---------------------------   -------------------   ----------------------------
+  printable bytes + CRLF        byte-identical        CRLF REMOVED (crlf 10 -> 0)
+                                (crlf=10 kept)        => payload corrupted
+  control bytes + CRLF + CR     byte-identical        byte-identical
+                                (crlf + lone CR kept) (auto-detected as binary)
+
+  => `* text=auto eol=lf` ALONE rewrites a tracked payload that git's NUL-based
+     auto-detection reads as text; the first payload lost 10 line endings that way.
+     Preventing exactly that is what rule 2 (`-text` on .png/.jpg/.npy/.f32) does:
+     it is load-bearing, not decorative.
+  => rule 1 verified from the other side: a CRLF text file was stored as LF and
+     re-checked-out as LF (delete file + `git checkout-index -a -f`) even with
+     core.autocrlf=true, i.e. eol=lf wins over the machine setting on both the add
+     and the checkout side.
+  => `-text` wins over the wildcard `eol=lf`: `git check-attr` reports `text: unset`
+     for the binary paths and `text: auto, eol: lf` for text paths.
+
+IN-REPO CHECKS after landing (read-only; no add, no commit):
+  * `git check-attr -a` on 8 sampled paths: text/eol resolve exactly as designed.
+  * `git status --short` right after landing: 12 entries = 2 modified + 10 untracked
+    (that count moves while a concurrent writer is working). None of the 392
+     worktree-CRLF files appear - a rule that forced renormalisation would have
+     listed hundreds. (Those 2 modified files and the extra untracked logs belong
+     to a concurrent writer, not to this ticket.)
+  * limits of the change, stated plainly: these rules do NOT convert the existing
+     worktree CRLF of those 392 files (that needs one fresh checkout), do NOT
+     rewrite any stored object (every text blob was already LF, see the KEY READING
+     block above), and do NOT stop a Windows tool from writing CRLF to disk - such
+     bytes are simply normalised away at `git add` time, which is also why the drift
+     never surfaces as a diff.
+
+==============================================================================
+STEP 2 - HEAD blob of every worktree-CRLF text file, read with `git show HEAD:<path>`
+==============================================================================
+  The two blocks above used `git cat-file --batch` over the index (which equals
+  HEAD here: `git diff --cached --name-only HEAD` is empty). This block re-reads
+  the same content with the method the work order names, one process per file.
+
+  files checked (worktree bucket ALL_CRLF or MIXED or ISO_CR): 392
+    HEAD blob is ALL_LF    :  392
+
+  => every one of them is LF in HEAD; not a single text blob in HEAD stores CRLF.
+     The CRLF is therefore a pure working-tree artifact (core.autocrlf=true),
+     i.e. the drift surface is the whole 392-file set, not a subset of it.
+  non-LF HEAD blobs: none
+
+  files whose HEAD blob itself contains CRLF (would be renormalised on next add): 0
