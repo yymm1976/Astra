@@ -1,0 +1,17 @@
+uchimura(vec3,float x7)  upstream= 317 astra= 317  identical | mellow==upstream: True
+uchimura(vec3)           upstream= 130 astra= 130  identical | mellow==upstream: True
+agxCdl(...)              upstream= 612 astra= 627  Astra + max( + ,vec3(0.0)) | mellow==upstream: True
+agxPunchy(vec3)          upstream=  57 astra=  57  identical | mellow==upstream: True
+agx(vec3)                upstream=  56 astra=  56  identical
+RRTAndODTFit(vec3)       upstream=  86 astra=  86  identical | mellow==upstream: True
+ACESFitted(vec3)         upstream= 114 astra= 114  identical | mellow: upstream + color=pow(color,vec3(1/2.2)); + to_linear( + )
+agx constants: 6 upstream values, all reproduced
+ACES matrices: 2 upstream matrices x 9 values, all reproduced in column-major order
+ACES matrices via Mellow: relay unchanged
+discriminators valid: bakinglab 2/2, acesHill 2/2
+ACES source: BakingLab-only comments 2/2 present in lib/tonemap.glsl, acesHill-only 0/2 present
+reinhard weights: upstream reinhardJodie=0.2126,0.7152,0.0722 astra get_luminance=0.299,0.587,0.114 differ (TheCMK variant)
+not ported: Narkowicz ACES fit       markers 0/2 in lib/tonemap.glsl, unique among 6 vendored originals: True
+not ported: Seguin Rec.709 reinhard  markers 0/2 in lib/tonemap.glsl, unique among 6 vendored originals: True
+
+PASS  lib/tonemap.glsl matches upstream glsl-tone-map and BakingLab as registered

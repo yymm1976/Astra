@@ -37,8 +37,9 @@
 //    rainFactor      <- rainStrength           (reference smooths it: `smooth(1, rainStrength, 3, 3)`)
 //    dither          <- astra_sky_dither()     (reference pulls a per-pixel IGN value; the
 //                                               formula is the reference's own cloud IGN)
-//    vsBrightness    <- ASTRA_VS_BRIGHTNESS    (reference `clamp(screenBrightness,0,1)`; Astra
-//                                               declares no screenBrightness uniform)
+//    vsBrightness    <- ASTRA_VS_BRIGHTNESS    (reference `clamp(screenBrightness,0,1)`; same
+//                                               expression here - `screenBrightness` is declared
+//                                               in lib/uniforms.glsl:67, handoff P-002 / H2)
 //  Reference options with no Astra counterpart are resolved at the reference default:
 //    SPECIAL_BIOME_WEATHER off, RAIN_STYLE = 1, SUN_MOON_DURING_RAIN on,
 //    ATM_COLOR_MULTS / MOON_PHASE_INF_ATMOSPHERE off.
@@ -78,8 +79,9 @@ float astra_sky_dither() {
 	return fract(52.9829189 * fract(0.06711056 * gl_FragCoord.x + 0.00583715 * gl_FragCoord.y));
 }
 
-// Astra has no `screenBrightness` uniform; the reference clamps it to [0,1] and its
-// default (vanilla "Brightness: 50%") resolves to 1.0.
+// Same clamp as the reference (lib/common.glsl:748). `screenBrightness` is declared in
+// lib/uniforms.glsl:67 as the engine's built-in brightness value; if a loader never binds it the
+// uniform reads 0, which darkens these colours instead of resolving to the reference's default.
 #define ASTRA_VS_BRIGHTNESS clamp(screenBrightness, 0.0, 1.0)
 
 // ------------------------------------------------------------

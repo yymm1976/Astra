@@ -1,9 +1,21 @@
 #ifndef ASTRA_LIB_TONEMAP_GLSL
 #define ASTRA_LIB_TONEMAP_GLSL
 
-// From Mellow v3.4 (MIT) by TheCMK - lib/tonemap_operators.glsl + lib/tonemap.glsl (subset)
+// Immediate source: Mellow v3.4 by TheCMK (MIT) - lib/tonemap_operators.glsl + lib/tonemap.glsl.
 // Ported for Astra v1: only the 4 design operators (design.md 4.4) plus the grading
-// primitives; renamed to snake_case per design.md 3.2. License: MIT - see THIRD-PARTY.md.
+// primitives; renamed to snake_case per design.md 3.2. Ledger: THIRD-PARTY.md.
+//
+// Mellow's tonemap_operators.glsl is not all TheCMK's, and most of what it holds is a relay of
+// two further upstreams: uchimura_tonemap*() and agx_cdl() are verbatim upstream
+// glsl-tone-map (https://github.com/dmnsgn/shaders-tone-map),
+// Copyright (C) 2019 Damien Seguin, MIT - the licence text ships in
+// lib/vendor/glsl-tone-map/LICENSE.md. aces_tonemap() and its two matrices plus
+// rrt_and_odt_fit() are BakingLab (https://github.com/TheRealMJP/BakingLab, ACES.hlsl),
+// Copyright (c) 2016 MJP, MIT, the fit credited there to Stephen Hill (@self_shadow) - the
+// licence text ships in lib/vendor/bakinglab/LICENSE.txt. Only reinhard_jodie() and the three
+// grading primitives are TheCMK's own. Mellow's fifth operator, PBRNeutralToneMapping, is
+// Apache-2.0 (The Khronos Group) and is not ported here.
+//
 // Uniforms: none
 // Requires: lib/settings.glsl (TONEMAP_OPERATOR), lib/encoding.glsl (get_luminance, to_linear)
 
