@@ -108,6 +108,8 @@ C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发\_analysis\Complementary
 不只是"下界不可达"，而是所有维度都不再经过它。两条撤回都不需要翻案；改动的只是
 证据的行号，以及"上表那段代码是当前源码"这一条不再成立。
 
+**2026-09-21 B3 后续**：`reference_light.glsl` 与其在 `scene.glsl:22` 的 include 已**删除**（同一扫描确认零调用），H-002 的证据链随之终结 —— 上文"在第 15 行被所有维度 include"与"include 现在在 `scene.glsl:22`"两处描述的是删除前的状态。`shadow_water_depth()`（`global/lighting/shadowmap.glsl`）同样零调用者，但它的删除需要改 `shadowmap.glsl`，不在本单白名单内，**只登记不删**。
+
 ---
 
 ## 尚未解决（本轮遗留，需目视决策）

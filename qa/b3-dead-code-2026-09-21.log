@@ -1,0 +1,52 @@
+# B3 死代码核验与影响清单（2026-09-21）
+
+**性质**：删除单。核验来自本轮实跑的全库扫描（`errors=replace` 的逐字节 python 遍历，覆盖
+`.glsl/.fsh/.vsh/.csh/.md/.properties/.py/.txt/.log`），不是引述。
+
+## 1. 影响清单（删除前实测）
+
+| 项 | 实测 | 证据 |
+|---|---|---|
+| `global/water/reference_light.glsl` | **159 行**（原工单写 158，实测多一行） | `wc` 等价：`count(chr(10))+1` |
+| 该文件的 `waterRef_*` 符号 | **19 个**（常量 12 + 函数 7） | 正则 `waterRef_\w+` 去重计数 |
+| `water_reference_lighting()`（`:130` 定义） | **全包零调用**：所有 `.glsl/.fsh/.vsh/.csh` 里只出现定义本身 1 次 | 全库遍历，模式 `water_reference_lighting\|water_reference` |
+| 谁 include 它 | **`program/scene.glsl:22`**（无条件 include，不在任何 `#ifdef` 内） | 该行实读 |
+| `THIRD-PARTY.md` 登记 | `:204`（2026-09-10 水体入射光条） | 实读 |
+| `docs/handoffs/nether.md` | `:103-109`（H-002 复核段引用了 include 位置） | 实读 |
+| `shadow_water_depth()` | 定义 `global/lighting/shadowmap.glsl:228`，**全包零调用者** | 全库遍历；`docs/2026-09-20-*` 三份报告独立记录了同一结论 |
+
+## 2. 删除动作与门
+
+- `git rm Astra/shaders/global/water/reference_light.glsl`
+- **同步删除 `program/scene.glsl:22` 的 `#include`**（见 §3 的越界说明）
+- `Astra/THIRD-PARTY.md:204`：登记行尾追加"**[2026-09-21 B3 已删除该文件]**"并写明零调用证据；
+  历史移植事实保留（出处记录不因实现退场而消失）
+- `docs/handoffs/nether.md`：在 H-002 复核段尾追加 B3 后续，指明"include 在第 15 行/现在在 `scene.glsl:22`"
+  两处描述的都是删除前状态
+
+**门**：
+```
+python qa/tools/compile_glsl.py   -> RESULT  linked=270  failed=0  compute=27  compute_capable=true
+python qa/tools/check_pack.py     -> 16 checks: 0 FAIL, 1 WARN, 15 PASS
+                                     #4 自报 "no dangling include"（WARN 仍是既有的 voxy 接线登记）
+```
+`linked` 与删除前同为 270：被 include 的模块不是独立编译单元，删除它不影响入口计数 ——
+这正是"零调用"的第三次独立佐证。
+
+**实例同步**：`python qa/tools/sync_to_instance.py`（删除会体现在 `Extras in dest`，本单以 Missing/差异
+三项为判据；副本目录中的该文件由同步工具按"源无则报多余、不擅删"的既有约定处置）。
+
+## 3. 白名单越界一处（如实上报）
+
+删除 `reference_light.glsl` **必然**要求删除 `program/scene.glsl:22` 对它的 include ——
+否则编译门会因找不到文件而红。`program/scene.glsl` **不在 B3 的白名单内**（白名单只有
+`global/water/reference_light.glsl`、`THIRD-PARTY.md`、`docs/handoffs/*`）。
+本单执行了这 **1 行的纯删除**（无新增逻辑），理由：它是完成"删死代码"这一工单目标的最小必要条件。
+回退方式：恢复该文件 + 恢复 `scene.glsl:22` 一行。
+
+## 4. 未做的部分（白名单缺口，如实上报）
+
+`shadow_water_depth()`（`global/lighting/shadowmap.glsl:228`，约 8 行）同样零调用者，
+但工单把它的删除写进 B3 的同时**没有**把 `global/lighting/shadowmap.glsl` 列入白名单。
+按"白名单优先"处理：**只登记不删**。若用户裁定要删，改动面 = 该函数体 8 行 + 其上方注释，
+且需要重跑编译门与 check_pack（`shadowmap.glsl` 是 `lib`/`global` 多处 include 的热点文件）。

@@ -19,7 +19,6 @@
 #include "/global/water/optics.glsl"
 #include "/global/water/medium_state.glsl"
 #include "/lib/solas_water.glsl"
-#include "/global/water/reference_light.glsl"
 #include "/global/lighting/diffuse.glsl"
 #include "/global/atmosphere/fog.glsl"
 #if defined DIMENSION_NETHER
