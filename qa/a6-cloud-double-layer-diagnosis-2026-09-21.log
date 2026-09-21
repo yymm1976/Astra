@@ -1,0 +1,220 @@
+# A6 云双层：只读诊断报告（2026-09-21）
+
+**性质**：诊断期零代码改动。所有结论来自本次实读的当前源码（HEAD = A3 提交 `c1bb0da`），
+每条都给出 `文件:行`。**本报告不改任何 shader / 配置**，待用户确认根因后再决定修法。
+
+**复现所需的三项环境信息（供用户回填，见 §6）**：档位（决定 `CLOUD_MODE`）、天气、时间。
+
+---
+
+## 0. 结论先行
+
+"云双层"有两个互斥的解读，本报告把两者都查了：
+
+| 解读 | 判定 | 依据 |
+|---|---|---|
+| **U1：天空里真的画了两层云**（原版云几何 + shader 平面云） | **排除** | 绘制链上只有一处画云，且原版云几何在平面云档被 `discard`（§2） |
+| **U2：反射里的云与天上的云不是同一片**（反射迷你板与真实云的阈值/硬度/采样数不同） | **成立** | 起点差 **0.04**、边缘宽度 **0.22 vs 硬阶跃**、单点 vs 双平面 march、无水平距离上限（§3-§4） |
+
+U2 的可观测形式：水面、冰块、积水（朝上的反射面）里那层云的**边界与密度**与抬头看到的那片云对不上，
+于是同一帧里出现"两层形状不同的云"。**反射板只在晨昏窗口出现**（`morning > 0.0` 门控，§3），
+所以 U2 的判读应当限定在日出/日落前后。
+
+---
+
+## 1. 用户报告的现象
+
+用户实机反馈 7 条中的第 6 条，简记为"云双层"。工单要求核查：
+`program/sky.fsh` 绘制链、`world-1`/`world1` 变体、`global/dimension/overworld.glsl:56-70` 反射迷你板的边界。
+
+---
+
+## 2. 绘制链核查：天空只有一层云（U1 排除）
+
+### 2.1 原版云几何被显式丢弃
+
+`program/clouds.fsh:22-28`（`gbuffers_clouds` 的片元入口）：
+
+```glsl
+#if defined(DIMENSION_NETHER) || defined(DIMENSION_END) || CLOUD_MODE == CLOUD_OFF
+	discard;
+#elif CLOUD_MODE == CLOUD_PLANAR
+	// The full-screen sky path owns planar clouds, including cells where vanilla emitted no
+	// cloud geometry. Suppress this geometry pass to avoid drawing the sheet twice.
+	discard;
+#else
+	...   // CLOUD_VANILLA：原版云纹理直通（染色后写出）
+#endif
+```
+
+- `CLOUD_MODE == CLOUD_PLANAR`（BALANCED/ULTRA 档）：**discard**，注释自己写明"避免把这片云画两次"。
+- `DIMENSION_NETHER`/`DIMENSION_END`：同样 discard。
+
+### 2.2 世界变体目录
+
+- `Astra/shaders/world-1/gbuffers_clouds.fsh:3` = `#define DIMENSION_NETHER` → 命中上面的 discard 分支。
+- `Astra/shaders/world1/gbuffers_clouds.fsh:3` = `#define DIMENSION_END` → 同样 discard。
+- 两个变体都只有 4 行（`#version` + 两个 `#define` + include），**没有各自的云实现**。
+
+### 2.3 全屏天空路径
+
+`program/sky.fsh:137-141`（`gbuffers_skybasic`）：
+
+```glsl
+#if defined DIMENSION_NETHER || (!defined DIMENSION_END && CLOUD_MODE != CLOUD_VANILLA)
+	gl_FragData[0] = vec4(0.0,0.0,0.0,1.0);     // 写黑：天空在 deferred 里重算
+#else
+	gl_FragData[0] = vec4(astra_sky(worldDir), 1.0);
+#endif
+```
+
+平面云档下 skybasic 写黑，**天空像素的唯一来源是 `astra_sky()`**。
+
+### 2.4 全包"画云"的调用点只有两处
+
+| 调用点 | 用途 |
+|---|---|
+| `program/scene.glsl:47`（在 `astra_sky()` 内） | 天空合成：`sky = mix(sky, cloud.rgb, cloud.a)` |
+| `program/sky.fsh:119` | 天文体（程序日/月盘）的云遮挡：`gl_FragData[0].a *= 1.0-astra_planar_cloud(...).a` |
+
+即：`astra_planar_cloud()` 的定义在 `global/atmosphere/clouds_planar.glsl:173`，全包**只有这两个消费者**，
+没有第三方画云的地方。**U1（天空真有两层）在源码上不成立。**
+
+---
+
+## 3. 反射迷你板的边界（U2 的对象）
+
+### 3.1 它是什么
+
+`global/dimension/overworld.glsl:51-74`，`astra_sky_reflection(worldDir, roughness)` 内：
+
+```glsl
+56    #if CLOUD_MODE == CLOUD_PLANAR
+57    // Complementary reflectionBackground reflects the same atmosphere and
+58    // clouds. Here a two-fetch density plane replaces a second cloud march.
+59    float morning=astra_twilight_strength();
+60    if (morning>0.0 && safeDir.y>0.025 && cameraPosition.y<ASTRA_CLOUD_ALTITUDE) {
+61        float travel=(ASTRA_CLOUD_ALTITUDE-cameraPosition.y)/safeDir.y;
+62        vec3 hit=cameraPosition+safeDir*travel;
+63        float density=astra_cloud_noise(hit,ASTRA_CLOUD_ALTITUDE);
+64        float bias=mix(0.20,-0.20,CLOUD_COVERAGE*0.01)-0.04-0.28*astraRainFactor;
+65        float coverage=smoothstep(0.21+bias,0.43+bias,density)
+66                       *(1.0-smoothstep(2400.0,4000.0,travel));
+67        float toward=cube(max(dot(safeDir,worldSunVector),0.0));
+68        vec3 body=vec3(0.18,0.15,0.17)+astra_twilight_sunlight()*(0.08+0.13*toward);
+69        reflectedSky=mix(reflectedSky,body,coverage*morning*0.70);
+70    }
+71    #endif
+```
+
+四个门控：`CLOUD_MODE == CLOUD_PLANAR`、`morning > 0.0`（晨昏窗口，`lib/twilight.glsl:4-8` 的
+`astraTwilightFactor`，由 `shaders.properties` 的 CPU 表达式给出）、`safeDir.y > 0.025`、
+`cameraPosition.y < 192`（`ASTRA_CLOUD_ALTITUDE`，`clouds_planar.glsl:64`）。
+
+### 3.2 它被谁消费（决定它能不能被看见）
+
+| 消费者 | roughness | 可见性判定 |
+|---|---|---|
+| `program/water.glsl:239`（水面/冰的反射回落） | 水面 0.035..0.135 | 正常可见 |
+| `program/water.glsl:214`（冰顶） | 传入的 roughness | 正常可见 |
+| `program/lit.fsh:302-304`（不透明冰的顶面） | 0.08 | 正常可见 |
+| `program/deferred.fsh:15`（积水反射） | 0.18 | 门控严格，见 §3.3 |
+| `program/scene.glsl:184`（雾的天空补色） | **1.0** | **不可见**：`overworld.glsl:54` 的 `convergence = r*r*mix(0.22,1.0,smoothstep(0.10,0.40,r))` 在 r=1 时 = 1.0，`:72-73` 把 `reflectedSky` 整个替换成 `astra_sky_ambient()+astra_twilight_sky(safeDir)*0.35`，云板被完全覆盖 |
+
+所以云板只可能出现在**反射上下文**里，不会出现在雾/天空补色里。
+
+### 3.3 积水反射的门控（`deferred.fsh:137-158`）
+
+```glsl
+137    vec4 surface = texelFetch(colortex3, ivec2(gl_FragCoord.xy), 0);
+138    float standingWater = clamp(surface.a, 0.0, 1.0);
+139    if (standingWater > 0.15 && isEyeInWater == 0 && (lightData & 128u) == 0u) {
+...
+143        float upFacing = smoothstep(0.55, 0.92, n.y);
+147        float rippled = clamp((1.0 - n.y) * 400.0, 0.0, 1.0);
+148        float fresnel = 0.025+0.975*pow5(1.0-max(dot(n,-normalize(playerPos)),0.0));
+155        float weight = standingWater*upFacing*rippled*fresnel;
+156        if (weight > 0.001)
+157            source = mix(source,puddle_reflection(playerPos,n), weight);
+```
+
+四因子同时门控调用（不是只门控混合权重），`standingWater` 来自 `colortex3.a` 的稀疏积水遮罩
+（SC-39/2026-09-17 两次修正的最终形态，注释 `:112-136`）。**这条路径不构成"到处都有云"的来源。**
+
+---
+
+## 4. 量化对照：反射板 vs 真实云（U2 的证据）
+
+两边用同一个 `astra_cloud_noise()`，但**判据不同**：
+
+| 轴 | 真实云 `clouds_planar.glsl:222-225` | 反射板 `overworld.glsl:63-66` | 差 |
+|---|---|---|---|
+| 判据 | `threshold*0.5 + 0.25 + coverageBias` | `smoothstep(0.21+bias, 0.43+bias, density)` | — |
+| `threshold` | `clamp(abs(192-y)/9, 0.001, 0.999)` 再 8 次方 | 无（单点采样，y 恒为 192） | 真实云在云层中部 threshold→0，判据退化为 `0.25+bias` |
+| **起点** | `0.25 + mix(0.20,-0.20,COV/100) - 0.04 - 0.28*rain` = **0.21 + mix(...) - 0.28*rain** | `0.21 + mix(...) - 0.04 - 0.28*rain` = **0.17 + mix(...) - 0.28*rain** | **反射板低 0.04** |
+| **边缘宽度** | **硬阶跃**（`continue`，无过渡） | `smoothstep` 宽 **0.22** | 反射云更大更软 |
+| 采样 | 沿射线在 `183..201`（`192±STRETCH=9`）双平面之间 march，6..64 步（`:203`） | **单点**（只在 192 平面上取一次噪声） | 真实云有厚度，反射板是纸片 |
+| 水平距离上限 | `minPlaneDistance*|xz| > 4000` → 返回 0（`:195-196`）；march 内 `horizontalDistance2 > 4000²` break（`:219`） | 无；只有 `travel` 的 `smoothstep(2400,4000)` 淡出 | 两者的"边界"位置不同 |
+| 混合上限 | `mix(sky, cloud.rgb, cloud.a)`（alpha 由 march 累积） | `coverage * morning * **0.70**` | 反射板有不透明上限 |
+
+**读法**：同一个噪声值 `n` 在两边被判成不同的覆盖率 —— 反射板在 `n ∈ [0.17, 0.39]` 区间就开始显形，
+真实云要到 `n ≥ 0.21`（云层中部）才出现，且边缘是硬的。因此**反射里的那片云整体偏大、边界偏软、位置偏低**，
+与抬头看到的那片**不是同一片**。这与 11.E-9 已登记的"云影与可见云层不在同一密度刻度"是**同一族**
+（都源于 `-0.04` 在这条链上的分配不一致），但发生在不同的消费者上：11.E-9 是 `weather.glsl:132` 的云影臂，
+本报告是 `overworld.glsl:64` 的反射臂。
+
+---
+
+## 5. 复现步骤（离线可核部分）
+
+1. `CLOUD_MODE = CLOUD_PLANAR`（`settings.glsl` 的 `CLOUD_MODE`；BALANCED/ULTRA 档出厂即此；PERFORMANCE 档为 `0`，见 `shaders.properties` 三档 profile）。
+2. 找到一处**朝上的反射面**：水面（`water.glsl:239`）、冰顶（`lit.fsh:302`/`water.glsl:214`）、或雨后的积水（`deferred.fsh:139-157`）。
+3. 时间限定在**晨昏窗口**：`astraTwilightFactor > 0`（太阳高度约 −9° 到 +14°，`lib/twilight.glsl:5-6`）。**白天与夜间 `morning == 0`，反射板不出现**——这是判读时最容易踩空的一点。
+4. 让反射方向朝上（`safeDir.y > 0.025`）且玩家在 y < 192。
+5. 对比**同一帧**里反射中的云边界与抬头看到的云边界：
+   - 离线可判的差异：反射云的起点低 0.04、边缘宽 0.22 对硬阶跃、单点对双平面（§4 表）。
+   - 实机可判的差异：反射云的**轮廓**是否与天上的云对得上；移动视角时两者是否**同步**。
+
+---
+
+## 6. 需要用户提供的信息（工单要求）
+
+请在回传截图时附上这四项，否则本报告无法收敛到"用户看到的是哪一种"：
+
+1. **档位**（决定 `CLOUD_MODE`）：PERFORMANCE（`CLOUD_MODE=0`，无平面云）/ BALANCED / ULTRA（后两档 `CLOUD_MODE=1`，平面云）。
+2. **天气**：晴 / 雨（`astraRainFactor` 同时进两边的 bias，雨中两边都会更浓）。
+3. **时间**：昼 / 晨昏 / 夜。**这一项是决定性的**：若不是晨昏，`morning == 0`，U2 的反射板根本不出现，需要另找根因。
+4. **视线与位置**：朝水面/冰面/湿地/天空；玩家 y 是否高于 192。
+
+---
+
+## 7. 候选修法（**不实施**，待根因确认与用户裁决）
+
+| # | 修法 | 改动面 | 代价 |
+|---|---|---|---|
+| A | 把反射板的阈值与真实云对齐：起点 `0.21+bias` → `0.25+bias`（即去掉那个多减的 `-0.04`），并把 `smoothstep` 宽度从 0.22 收窄 | `overworld.glsl:64-66` | 一行级；反射云变小、变硬，可能显得太"抠" |
+| B | 让反射板复用真实云的密度函数（`astra_cloud_noise` + 同一条 threshold 判据），并补上 4000 的水平上限 | `overworld.glsl:56-70` 重写 + 可能抽一个共享函数到 `clouds_planar.glsl` | 中等；多一个消费者会牵动 §7.B.6 的"暴露但零消费者"检查，且成本上升（原注释明确说这是"two-fetch 替代第二次 march") |
+| C | 不改采样，只在反射里**压低**云的存在感（例如把 `0.70` 降到 0.45） | `overworld.glsl:69` | 一行；治标，形状仍对不上 |
+| D | 维持现状，把"反射云与真云对不上"登记为已知限制 | 仅文档 | 零风险；但用户已把它报为缺陷 |
+
+**推荐顺序**：先按 §6 拿到档位/天气/时间；若确认是晨昏时的反射云错位，A 是最小且可量化的修法（起点差 0.04 是唯一被精确测出的量），
+B 是根治但成本与风险都更高，D 仅在用户认为"反射云形状不必与真云一致"时才成立。
+
+---
+
+## 附：本报告引用的实读位置一览
+
+```
+global/dimension/overworld.glsl:51-74          反射迷你板（含四个门控与混合上限 0.70）
+program/scene.glsl:44-50, :184                 astra_sky 的云合成；fog 的天空补色（roughness=1.0 → 云板被覆盖）
+program/sky.fsh:116-122, :137-141              天文体云遮挡；skybasic 写黑
+program/clouds.fsh:22-28                       原版云几何在平面云档 discard
+program/deferred.fsh:13-16, :137-158           积水反射；四因子门控
+program/lit.fsh:301-305                        不透明冰顶反射
+program/water.glsl:214, :239                   冰/水面反射
+global/atmosphere/clouds_planar.glsl:58-64     云常数（ALTITUDE=192 / STRETCH=9 / THRESHOLD_F=4000）
+global/atmosphere/clouds_planar.glsl:173-196   平面求解与水平上限
+global/atmosphere/clouds_planar.glsl:222-225   真实云的密度判据
+lib/twilight.glsl:4-8                          astra_twilight_strength
+Astra/shaders/world-1|world1/gbuffers_clouds.fsh 世界变体（4 行，命中 discard）
+```

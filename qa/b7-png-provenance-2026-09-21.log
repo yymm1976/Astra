@@ -1,0 +1,457 @@
+B7 - PNG 归属核查 (third-party PNG provenance audit)
+date        : 2026-09-21
+repo        : C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发
+branch      : main
+mode        : READ-ONLY on Astra/ ; this log is the only artifact created
+scope       : Astra/shaders/textures/*.png  (every file in the directory)
+method      : python hashlib sha256 (no shell sha256sum); PIL for pixel decode;
+              os.listdir inventory; python os.walk instead of rg (rg unavailable)
+note        : host console may mojibake CJK - this log is UTF-8 with LF newlines
+
+==============================================================================
+1. DIRECTORY INVENTORY - Astra/shaders/textures/ (complete listing)
+==============================================================================
+
+file                                 bytes  sha256[:16]       sha256 (full)
+------------------------------------------------------------------------------
+astra-ripple-1.png                  287512  33a5cfacf7424d69  33a5cfacf7424d692a5eea22345d00b5e3b981cd977029ce5609e7a28b504f3c
+astra-ripple-2.png                  556938  1f35d37fe8b6d181  1f35d37fe8b6d1818fc46c21ac40231adf78c062cecd06c3eda5e5d0233987ee
+astra-ripple-3.png                  848759  969ed94d92eaf53b  969ed94d92eaf53bf4368f776d0255a24c4f6295f69fd301f0713d60091ab06f
+bliss-nether-noise.png              695035  77d1aa0c2195a4f6  77d1aa0c2195a4f644296b681295865cdb3c71bb6c380b69c2f43338f653acf5
+complementary-cloud-water.png       128888  49174f769c70f0d1  49174f769c70f0d13d0421ab8daf0dfacb5d0c3de4028ceeb7d0b7547c51ab60
+solas-water-noise.png               678019  9184f93b83f0ebb2  9184f93b83f0ebb2087cad018fcd5ebccbc40d05708d0f2bd868c83025a6319d
+solas-water-noise.png.mcmeta            67  e9c800d49d941e58  e9c800d49d941e58d1c9f114b4564886b0c984369fab42515935497948ea8440
+steadfast-water-noise.png            14561  b9502f10ec238b90  b9502f10ec238b9085f72de51aaf912d0b79d8b84baf67ffb73ce0a8c01c8770
+steadfast-water-noise.png.mcmeta        67  e9c800d49d941e58  e9c800d49d941e58d1c9f114b4564886b0c984369fab42515935497948ea8440
+
+Counts: 6 PNG + 2 .mcmeta = 8 files (plus . and .. excluded).
+
+PNG header / chunk census:
+
+file                               WxH            depth  color      chunks (non-IDAT)
+------------------------------------------------------------------------------
+astra-ripple-1.png                 128x7680       8      RGBA       IHDR,IEND
+astra-ripple-2.png                 128x7680       8      RGBA       IHDR,IEND
+astra-ripple-3.png                 128x7680       8      RGBA       IHDR,IEND
+bliss-nether-noise.png             512x512        8      RGBA       IHDR,sBIT,IEND
+complementary-cloud-water.png      256x256        8      RGBA       IHDR,IEND
+solas-water-noise.png              512x512        8      RGB        IHDR,iTXt,iCCP,pHYs,IEND
+steadfast-water-noise.png          64x64          8      RGBA       IHDR,IEND
+
+Observations:
+  - bliss-nether-noise.png is the only file with an sBIT chunk (source-tool fingerprint).
+  - solas-water-noise.png is the only RGB (color type 2) file and the only one carrying
+    iTXt / iCCP / pHYs - i.e. an authored image, not raw generated data (see 6.5).
+  - steadfast-water-noise.png is 64x64 RGBA8 with alpha == 255 for all 4096 pixels.
+  - astra-ripple-1..3.png are 128x7680 RGBA8 = 128x128 tiles x 60 frames (vertical flipbook).
+
+==============================================================================
+2. LEDGER CROSS-REFERENCE - Astra/THIRD-PARTY.md
+==============================================================================
+
+Ledger lines that mention these PNGs (1-based line numbers, measured):
+
+  :194  | textures/solas-water-noise.png 及 .mcmeta | 来自用户提供的 Solas V2.2b
+        shaders/tex/noise.png 及其采样元数据（素材为用户提供的现成数据文件，非 Astra
+        自写代码）                                    <- TABLE ROW, no size/hash given
+  :195  | textures/steadfast-water-noise.png 及 .mcmeta | 按当前 Iris 1.11.2 的
+        NativeImageBackedNoiseTexture 所用 Java Random(0) 填充规则生成 64x64 数据；
+        线性重复采样，以匹配 Steadfast 的 noiseTextureResolution=64   <- TABLE ROW
+  :209  - shaders/textures/complementary-cloud-water.png: Complementary r5.9 Reimagined
+        lib/textures/cloud-water.png, retained unmodified ...   <- BULLET, no size/hash
+  :221  - shaders/textures/bliss-nether-noise.png：Bliss Stable shaders/texture/noises.png
+        原文件复制，未修改（sha256 前缀 77d1aa0c2195a4f6，512x512 RGBA8 与源一致）
+  :267  - 现在 shaders/textures/astra-ripple-1..3.png 由 qa/tools/gen_rain_ripple.py
+        自行生成（显式物理模型：扩散并衰减的圆形波包，求梯度得到法线图），与参考资产无关
+  :338  #### 16.4 顺带发现 (the consolidated round-up of all four third-party PNGs)
+  :339  - .mcmeta 不能用作资产来源判据 (67 bytes, sha256 prefix e9c800d49d941e58)
+
+Registration level per file (table row vs narrative bullet, and whether a hash was recorded):
+
+file                               table row    bullet       size+sha256 recorded in ledger
+------------------------------------------------------------------------------
+astra-ripple-1.png                 NONE         indirect     NO  (name+tool only, :267-269)
+astra-ripple-2.png                 NONE         indirect     NO  (name+tool only, :267-269)
+astra-ripple-3.png                 NONE         indirect     NO  (name+tool only, :267-269)
+bliss-nether-noise.png             NONE         :221,:338    YES (:221,:338)
+complementary-cloud-water.png      NONE         :209,:338    YES (:338 only; :209 has none)
+solas-water-noise.png              :194         :338         YES (:338 only; :194 has none)
+steadfast-water-noise.png          :195         :338         YES (:338 only; :195 has none)
+
+  "indirect" for ripple = the files are named only as a glob range "astra-ripple-1..3.png",
+  and neither their byte sizes nor their hashes appear anywhere in the ledger. Verified absent:
+  tokens 287512 / 556938 / 848759 / 33a5cfac / 1f35d37f / 969ed94d -> 0 hits in THIRD-PARTY.md.
+
+GAP LIST (登记缺口):
+
+  G1. The canonical 登记表 (## 登记表, lines 18-57) contains ZERO PNG rows. All PNG
+      registration lives in later narrative sections/bullets, never in the main table.
+  G2. astra-ripple-1..3.png have NO size and NO hash recorded anywhere in the ledger, and
+      only a glob-range mention at :267 - they are the weakest-registered PNGs.
+  G3. complementary-cloud-water.png has no hash at its primary registration point (:209);
+      the size+hash appear only retroactively in 16.4 (:338).
+  G4. solas-water-noise.png and steadfast-water-noise.png have no hash at their table rows
+      (:194, :195); only 16.4 (:338) carries the numbers.
+  G5. No PNG hash is machine-checked. qa/tools/check_pack.py check #8 scans only lines
+      matching lib/ | shaders/ | program/ | .properties and compares FILENAMES
+      (check_pack.py:613-616, :637-645), then compares Steadfast EXPRESSION counts
+      (check_pack.py:657-684). It never reads or hashes any PNG. A corrupted or substituted
+      PNG would pass the gate unnoticed.
+
+16.4 (:338) numbers vs measurement - all four agree byte-for-byte:
+
+file                               declared   declared sha[:16]   measured bytes / sha[:16]
+------------------------------------------------------------------------------
+bliss-nether-noise.png             695035     77d1aa0c2195a4f6   695035 / 77d1aa0c2195a4f6  MATCH
+complementary-cloud-water.png      128888     49174f769c70f0d1   128888 / 49174f769c70f0d1  MATCH
+solas-water-noise.png              678019     9184f93b83f0ebb2   678019 / 9184f93b83f0ebb2  MATCH
+steadfast-water-noise.png          14561      b9502f10ec238b90    14561 / b9502f10ec238b90   MATCH
+
+  .mcmeta check (:339): both sidecars measured 67 bytes, sha256 prefix e9c800d49d941e58,
+  byte-identical to each other, content = {"texture":{"blur":true,"clamp":false}} with CRLF
+  -> ledger claim CORRECT. bliss-nether-noise.png and complementary-cloud-water.png indeed
+  have NO .mcmeta. CORRECT.
+
+qa/regression-checklist.md note: the task brief calls this "第 21 行"; the item is checklist
+id 21 but it physically sits at LINE 58 (the table row begins "| 21 |"). Content matches.
+
+==============================================================================
+3. BYTE-IDENTITY vs THE REFERENCE PACKAGES IN _analysis/
+==============================================================================
+
+astra file                        reference original                                        result     bytes a/b
+------------------------------------------------------------------------------
+bliss-nether-noise.png            _analysis/latest-2026-09-10/bliss-Stable/Bliss-Shader-Stable/shaders/texture/noises.png  IDENTICAL  695035/695035
+bliss-nether-noise.png            _analysis/latest-2026-09-10/bliss-shader/shaders/texture/noises.png                        IDENTICAL  695035/695035
+complementary-cloud-water.png     _analysis/Complementary r5.9/Reimagined/shaders/lib/textures/cloud-water.png          IDENTICAL  128888/128888
+complementary-cloud-water.png     _analysis/Complementary r5.9/Unbound/shaders/lib/textures/cloud-water.png             IDENTICAL  128888/128888
+complementary-cloud-water.png     _analysis/study-2026-09-20/ComplementaryUnbound_r5.9.3/shaders/lib/textures/cloud-water.png  IDENTICAL  128888/128888
+solas-water-noise.png             _analysis/Solas Shader V2.2b/shaders/tex/noise.png                                    IDENTICAL  678019/678019
+solas-water-noise.png             _analysis/latest-2026-09-10/solas-shader/shaders/tex/noise.png                        DIFFER     678019/636978
+
+Conclusion: the three "逐字节复制" claims are CONFIRMED - Astra holds an unmodified copy of
+each reference artwork.
+Caveat on the Solas row: _analysis/latest-2026-09-10/solas-shader/shaders/tex/noise.png is a
+DIFFERENT Solas build (636978 bytes, sha 912e47e64b5b5ec6) and does NOT match. The registered
+source string "Solas V2.2b shaders/tex/noise.png" is the one that matches byte-for-byte.
+
+_analysis/Steadfast-0.8.0/ contains NO .png at all (LICENSE.md, LICENSE-ADDITIONAL-TERMS.md,
+README.md and shaders/ only). There is therefore no Steadfast artwork to compare against.
+
+==============================================================================
+4. TOOLING - what each QA tool can actually generate or verify
+==============================================================================
+
+4.1 qa/tools/gen_rain_ripple.py (3018 bytes) - GENERATOR, no verification mode
+
+  Purpose (docstring :1-10): generates Astra's own rain-ripple flipbook, "no borrowed
+  artwork". Model: a field of expanding circular wavelets; the summed height field is
+  differentiated into a normal map; life shorter than the sheet and centres wrap, so the
+  animation loops seamlessly in both time and space. Three sheets differ in wavelet count,
+  expansion rate and ring width so the shader can stack them by rain intensity.
+
+  Key lines:
+    :14        S = 128; F = 60          (128x128 tiles, 60 frames -> 128x7680 sheet)
+    :18-43     def make_sheet(n_wavelets, speed, ring_w, amp, life_frac, seed)
+    :19        rng = np.random.default_rng(seed)   <- numpy PCG64, NOT java.util.Random
+    :36-38     periodic distance (dx = min(dx, S-dx)) -> tiles in space
+    :45-57     def to_normal(frames, slope): np.gradient -> encoded RGBA normal map
+    :60-63     specs = the three sheets, seeds 101 / 202 / 303
+    :69-70     path = f"Astra/shaders/textures/{name}"; Image.fromarray(tall,"RGBA").save(path)
+               <- a byte-exact fingerprint: PIL's default PNG encoder
+
+  Capability boundary: it can produce EXACTLY astra-ripple-1.png, astra-ripple-2.png and
+  astra-ripple-3.png, and nothing else. No CLI, no --check mode, no hash output, no
+  reference to any other texture. It cannot generate or verify steadfast-water-noise.png,
+  bliss-nether-noise.png, complementary-cloud-water.png or solas-water-noise.png.
+
+  VERIFIED by in-memory replay (the module's logic copied verbatim, output hashed from a
+  BytesIO buffer - no file under Astra/ was written or modified):
+
+    file                 repro bytes  disk bytes   sha_repro[:16]     result
+    --------------------------------------------------------------------------
+    astra-ripple-1.png   287512       287512       33a5cfacf7424d69   REPRODUCIBLE (byte-exact)
+    astra-ripple-2.png   556938       556938       1f35d37fe8b6d181   REPRODUCIBLE (byte-exact)
+    astra-ripple-3.png   848759       848759       969ed94d92eaf53b   REPRODUCIBLE (byte-exact)
+
+  => The tool footprint for astra-ripple-1..3.png is genuine and complete: the checked-in
+     script regenerates the checked-in bytes exactly.
+
+4.2 qa/tools/provenance_steadfast.py (3595 bytes) - TEXT CLASSIFIER, no PNG ability
+
+  Purpose (docstring :3-14): mechanically re-derives what THIRD-PARTY.md claims about the
+  CUSTOM UNIFORMS section of shaders/shaders.properties, by classifying every Astra entry
+  against every same-named Steadfast 0.8.0 definition. Classes: verbatim | literal-suffix |
+  rewritten | astra-only.
+
+  Key lines:
+    :27        ASTRA = ROOT/Astra/shaders/shaders.properties
+    :29        STEADFAST = ROOT/_analysis/Steadfast-0.8.0/shaders/shaders.properties
+    :31        KEY = ^(uniform|variable)\.(\w+)\.(\w+)\s*=\s*(.*)$   <- .properties lines only
+    :39-52     def parse(): joins backslash continuations, strips # comments
+    :55-57     def squash(s): removes ALL whitespace
+    :59-62     def strip_literal_suffix(): 1.0 -> 1 in the trailing pow() exponent only
+    :65-81     def classify(): verbatim / literal-suffix / rewritten / astra-only
+    :84-86     def counts() -> {verbatim, literal-suffix, rewritten, astra-only}
+    :89-102    def main(): --quiet prints the counts only
+
+  ANSWER TO THE BRIEF'S QUESTION: NO. provenance_steadfast.py has ZERO capability to
+  recompute steadfast-water-noise.png. It never opens a PNG, never hashes anything, never
+  reads the textures directory and imports no image library (only io/os/re/sys, :21-24).
+  Its entire input surface is one .properties file pair and its entire output is four counts
+  over uniform NAMES. It is cited in THIRD-PARTY.md:5-6 and consumed by check_pack.py:657-684
+  for the Steadfast EXPRESSION counts - a completely different claim from PNG provenance.
+
+  Its own current output (this host; identical to qa/provenance-2026-09-21-t15.txt):
+    verbatim=14 literal-suffix=2 rewritten=6 astra-only=24 total=46
+
+  => NO tool in qa/tools/ can regenerate or verify steadfast-water-noise.png. The generation
+     path has no tool footprint, exactly as the ledger itself admits at :338.
+
+  Note: neither tool is a "verifier". gen_rain_ripple.py only writes; provenance_steadfast.py
+  only counts properties expressions. Nothing in qa/ hashes a texture.
+
+==============================================================================
+5. NOISE PLUMBING - lib/noise.glsl, noisetex, complementaryCloudNoise
+==============================================================================
+
+5.1 Astra/shaders/lib/noise.glsl  ->  DOES NOT EXIST
+    os.path.exists("Astra/shaders/lib/noise.glsl") == False
+    Likewise Astra/shaders/textures/noise.png == False.
+    The only "noise.glsl" references are historical/citation comments:
+      Astra/shaders/lib/dither.glsl:4        // From Mellow v3.4 (MIT) by TheCMK - lib/noise.glsl (ign / dither)
+      Astra/shaders/global/water/surface.glsl:7   // surface_noise.glsl + surface_noise_waves.glsl + parallax.glsl
+      Astra/shaders/lib/uniforms.glsl:44     uniform float frameTimeCounter;  // lib/noise.glsl wind/water scroll
+    None of these is a live include or definition.
+
+5.2 noisetex  ->  NOT BOUND TO ANY PNG (the binding was removed)
+
+    All 3 hits for "noisetex" across Astra/shaders (python os.walk, rg unavailable):
+      Astra/shaders/lib/settings.glsl:239
+          // noisetex/noise.png were removed: nothing sampled them (consolidated review E4).
+          (the very next line, :240, is: const int noiseTextureResolution = 256;)
+      Astra/shaders/global/water/particles.glsl:24  (comment: noisetex bilinear lookup cannot
+          express the discrete cell/phase of the sparse point process, hence an integer hash)
+      Astra/shaders/textures/solas-water-noise.png:28
+          <rdf:li xml:lang="x-default">noisetex</rdf:li>
+          (this hit is INSIDE the PNG's embedded XMP metadata, not shader code - see 6.5)
+
+    => ZERO sampler2D declarations for noisetex and ZERO texture() calls on it.
+    => ANSWER: no PNG is bound to noisetex anymore. The old noise.png does not exist either.
+
+5.3 complementaryCloudNoise  ->  textures/complementary-cloud-water.png
+
+    Astra/shaders/shaders.properties:320
+        customTexture.complementaryCloudNoise=textures/complementary-cloud-water.png
+    Astra/shaders/global/atmosphere/clouds_planar.glsl:53   uniform sampler2D complementaryCloudNoise;
+    Astra/shaders/global/atmosphere/clouds_planar.glsl:93   return textureLod(complementaryCloudNoise,
+                                                            astra_rounded_cloud_coord(pos, ...), 0.0).b;
+    Astra/shaders/global/atmosphere/clouds_planar.glsl:29   (comment: dedicated complementaryCloudNoise
+                                                            binds the original ...)
+
+5.4 Complete customTexture binding table (all 7, from shaders.properties):
+
+      :130  customTexture.steadfastWaterNoise     = textures/steadfast-water-noise.png
+      :131  customTexture.solasWaterNoise         = textures/solas-water-noise.png
+      :320  customTexture.complementaryCloudNoise = textures/complementary-cloud-water.png
+      :329  customTexture.blissNetherNoise        = textures/bliss-nether-noise.png
+      :336  customTexture.astraRipple1            = textures/astra-ripple-1.png
+      :337  customTexture.astraRipple2            = textures/astra-ripple-2.png
+
+    => astra-ripple-3.png has NO customTexture binding at all (only 1 and 2 are bound;
+       lib/uniforms.glsl:38 comment likewise says "customTexture.astraRipple1/2").
+    => Every other PNG has an explicit binding.
+
+==============================================================================
+6. THE STEADFAST EXPERIMENT (the one registration that does NOT hold)
+==============================================================================
+
+6.1 What the ledger claims
+
+    THIRD-PARTY.md:195 - "按当前 Iris 1.11.2 的 NativeImageBackedNoiseTexture 所用 Java
+    Random(0) 填充规则生成 64x64 数据；线性重复采样，以匹配 Steadfast 的
+    noiseTextureResolution=64"
+
+    THIRD-PARTY.md:338 - "steadfast-water-noise.png（14561 字节，前缀 b9502f10ec238b90）是
+    Astra 按 Iris 1.11.2 NativeImageBackedNoiseTexture 的 Random(0) 规则生成，不在此列，
+    但其生成路径没有工具留痕。"
+
+6.2 The actual Iris rule, from the decompiled artifact already in this repo
+
+    _analysis/astra-sc34/NoiseTexture.txt - first line: Compiled from "NoiseTexture.java"
+    class net.irisshaders.iris.targets.backed.NoiseTexture
+
+      :99-130  private java.nio.ByteBuffer generateNoise()
+                 :101-108  iconst_3; width; imul; height; imul; newarray byte
+                           -> byte[3 * width * height]        *** 3 BYTES PER PIXEL ***
+                 :110-113  new java/util/Random; dup; lconst_0; invokespecial <init>(J)
+                           -> new java.util.Random(0L)
+                 :115-117  aload_2; aload_1; invokevirtual java/util/Random.nextBytes([B)V
+                           -> the entire buffer is filled by ONE nextBytes() call
+      :69-97   void resize(int glId, int width, int height)
+                 :84-94    texImage2D(target=3553, level=0, internalformat=32849, width, height,
+                           border=0, format=6407, type=5121, buffer)
+                           32849 = GL_RGB8, 6407 = GL_RGB, 5121 = GL_UNSIGNED_BYTE
+                 :22-23    _pixelStore(3317 = GL_UNPACK_ALIGNMENT, 1)
+                 :16-35    texParameteri: MIN 10241 = GL_LINEAR, MAG 10240 = GL_LINEAR,
+                           WRAP_S 10242 = GL_REPEAT, WRAP_T 10243 = GL_REPEAT
+                 :77-84    MAX_LEVEL 33085 -> 0; 33082/33083 -> 0; 34049 -> 0.0f
+
+    So Iris 1.11.2 produces an in-memory GL_RGB8 ByteBuffer with 3 bytes per pixel, uploaded
+    directly to a GL texture. It never encodes a PNG, and it emits no alpha channel.
+
+    Naming note: the ledger cites "NativeImageBackedNoiseTexture", but the decompiled class
+    available in this repo is net.irisshaders.iris.targets.backed.NoiseTexture. The name in
+    the ledger does not match the artifact it points at.
+
+6.3 Reproduction attempts against the actual file (all in memory)
+
+    File facts: 64x64, bit depth 8, color type 6 (RGBA), alpha == 255 for all 4096 pixels,
+    each channel spans 0..255 with std ~74 (uniform-looking).
+
+    PIL decode (authoritative - see 6.4), first 6 pixels RGB:
+      [32,180,96] [12,69,193] [1,88,112] [143,178,170] [23,90,177] [8,150,195]
+
+    Java LCG re-implemented exactly:
+      seed = (s ^ 0x5DEECE66D) & (2^48 - 1)
+      next(bits) = ((s = (s * 0x5DEECE66D + 0xB) & (2^48 - 1)) >>> (48 - bits))
+      nextBytes(n) = repeated nextInt(), consumed 4 bytes little-endian
+
+    Random(0).nextBytes(3*W*H = 12288), row-major, first bytes:
+      [96,180,32] [187,56,81] [217,212,122] ...
+    Random(0).nextBytes(4*W*H = 16384) sliced as [:3] / [1:], per-pixel nextInt() low-3 /
+    high-3 bytes, and three next(8) calls per pixel: all tested.
+
+    RESULT: pixel-exact hits = NONE, over the full cross product of
+      6 base patterns x per-pixel byte reversal {no,yes} x x-flip {no,yes} x y-flip {no,yes}.
+    Only pixel 0 matches, and only under R/B reversal (predicted [96,180,32] vs actual
+    [32,180,96]); pixel 1 already diverges (predicted [187,56,81] vs actual [12,69,193]).
+
+    Substring search: the first 64 bytes of the actual RGB data are NOT present anywhere in
+    a 4,000,000-byte Random(0).nextBytes() stream (find() == -1), nor is the per-pixel
+    reversed variant, nor the first 16 bytes. Stride-4 extraction matches only 30-61 of 12288
+    positions, i.e. chance level (~12288/256 = 48).
+
+    Other seed-0 RNGs also fail (first 12 bytes):
+      actual                        : [32, 180, 96, 12, 69, 193, 1, 88, 112, 143, 178, 170]
+      py random.Random(0).randbytes : [205, 7, 44, 216, 190, 111, 159, 98, 172, 76, 9, 194]
+      py random.Random(1).randbytes : [245, 177, 101, 34, 74, 88, 183, 145, 223, 106, 241, 216]
+      np default_rng(0).bytes       : [95, 130, 194, 217, 207, 235, 15, 163, 33, 215, 217, 130]
+      np RandomState(0).bytes       : [172, 10, 127, 140, 47, 170, 196, 151, 117, 166, 22, 183]
+
+    => The registered Iris Random(0) rule does NOT reproduce this file, in any tested
+       arrangement. The pixel content has no verifiable derivation.
+
+6.4 What the file's encoder DOES reveal
+
+    PIL round-trip (decode, then Image.fromarray(a,'RGBA').save(PNG)) reproduces the file
+    BYTE-EXACTLY at the default compress level:
+
+      compress_level=0  -> 16516 bytes  sha 908e20461923b570   (no)
+      compress_level=2  -> 14561 bytes  sha dcfd23986801282e   (no)
+      compress_level=3  -> 14561 bytes  sha dcfd23986801282e   (no)
+      compress_level=4  -> 14561 bytes  sha dcfd23986801282e   (no)
+      compress_level=5  -> 14561 bytes  sha dcfd23986801282e   (no)
+      compress_level=6  -> 14561 bytes  sha b9502f10ec238b90   MATCH  <-- PIL default
+      compress_level=7  -> 14557 bytes  sha a54a1d91a8f85635   (no)
+      compress_level=8  -> 14557 bytes  sha a54a1d91a8f85635   (no)
+      compress_level=9  -> 14557 bytes  sha a54a1d91a8f85635   (no)
+
+    => The file was written by Pillow's default PNG encoder (same idiom as
+       gen_rain_ripple.py:70, Image.fromarray(...,"RGBA").save(path)). So the encoder is
+       identified but the PIXEL SOURCE is not, and the encoder alone cannot regenerate it -
+       regenerating requires the original pixel array, which nothing in the repo can derive.
+
+6.5 Independent provenance signal on solas-water-noise.png (XMP)
+
+    solas-water-noise.png carries an iTXt chunk (1361 bytes) with XMP:
+
+      dc:title            = "noisetex"          <- the artwork's authored name
+      xmp:ModifyDate      = 2020-09-20T14:40:14+07:00
+      xmp:MetadataDate    = 2020-09-20T14:40:14+07:00
+      xmpMM:History       : stEvt:action="produced"
+                            stEvt:softwareAgent="Affinity Photo 1.8.2"
+      photoshop:ICCProfile= "sRGB IEC61966-2.1"   (plus an iCCP chunk, name sRGB IEC61966-2.1,
+                                                  596 decompressed bytes)
+      tiff:XResolution/YResolution = 72.0, ResolutionUnit = 2
+      exif:PixelXDimension/PixelYDimension = 512x512
+
+    => This is an AUTHORED artwork created in Affinity Photo on 2020-09-20 with an ICC
+       profile and a title, i.e. an artist-made texture, not a raw data dump. The ledger's
+       :194 framing "素材为用户提供的现成数据文件，非 Astra 自写代码" is accurate about it
+       being third-party data, and :338 already lists it as a byte-identical third-party copy,
+       which the hash confirms. The XMP additionally shows it is a pre-existing third-party
+       ARTWORK (2020), independent of any Astra work.
+
+==============================================================================
+7. PER-FILE CONCLUSIONS
+==============================================================================
+
+For each PNG: registration status + one line of evidence.
+
+astra-ripple-1.png        有登记 (self-generated, tool trace CONFIRMED)
+  evidence: THIRD-PARTY.md:267-269 names gen_rain_ripple.py as the generator; in-memory replay
+            of that script reproduces 287512 bytes / sha 33a5cfacf7424d69 exactly.
+  caveat  : no size/hash recorded in the ledger (G2); bound at shaders.properties:336.
+
+astra-ripple-2.png        有登记 (self-generated, tool trace CONFIRMED)
+  evidence: same generator; replay reproduces 556938 bytes / sha 1f35d37fe8b6d181 exactly.
+  caveat  : no size/hash recorded in the ledger (G2); bound at shaders.properties:337.
+
+astra-ripple-3.png        有登记 (self-generated, tool trace CONFIRMED)
+  evidence: same generator; replay reproduces 848759 bytes / sha 969ed94d92eaf53b exactly.
+  caveat  : no size/hash recorded in the ledger (G2); NOT bound by any customTexture.
+
+bliss-nether-noise.png    有登记且实测相符 (third-party, byte-identical CONFIRMED)
+  evidence: THIRD-PARTY.md:221 (with size+hash) and :338; measured 695035 /
+            77d1aa0c2195a4f6 == Bliss Stable shaders/texture/noises.png byte-for-byte
+            (_analysis/latest-2026-09-10/bliss-Stable/.../noises.png).
+  caveat  : bullet only, no 登记表 row (G1); conflicts with the :258 self-imposed
+            "no artwork assets" boundary, as :338 already records.
+
+complementary-cloud-water.png  有登记且实测相符 (third-party, byte-identical CONFIRMED)
+  evidence: THIRD-PARTY.md:209 (no hash) and :338; measured 128888 / 49174f769c70f0d1 ==
+            Complementary r5.9 lib/textures/cloud-water.png byte-for-byte (3 separate copies).
+  caveat  : no hash at the primary registration point (G3); bullet only (G1).
+
+solas-water-noise.png     有登记且实测相符 (third-party, byte-identical CONFIRMED)
+  evidence: THIRD-PARTY.md:194 (table row, no hash) and :338; measured 678019 /
+            9184f93b83f0ebb2 == Solas V2.2b shaders/tex/noise.png byte-for-byte.
+  caveat  : the table row's "用户提供的现成数据文件" wording understates it - the embedded XMP
+            shows an Affinity Photo artwork titled "noisetex" dated 2020-09-20 (6.5).
+
+steadfast-water-noise.png  登记与实测不符 (registration exists, claim NOT reproducible)
+  evidence: THIRD-PARTY.md:195 + :338 claim generation by "Iris 1.11.2
+            NativeImageBackedNoiseTexture Java Random(0)"; the decompiled rule
+            (_analysis/astra-sc34/NoiseTexture.txt:99-130) is a 3-bytes-per-pixel GL_RGB8
+            nextBytes buffer, while the file is 64x64 RGBA8 alpha=255; no arrangement of a
+            Random(0) stream (nor py/np seed-0 RNGs) reproduces its pixels, and its first
+            64 bytes do not occur anywhere in a 4 MB Random(0) stream.
+  separate finding: the file IS byte-reproducible by Pillow's default encoder from its own
+            pixels (compress_level=6 -> sha b9502f10ec238b90), so it was saved by PIL, but
+            nothing in the repo can derive its pixels.
+  status  : the file's numeric registration (14561 / b9502f10ec238b90) is CORRECT; only the
+            stated generation rule is unverifiable, and NO tool in qa/tools/ can recompute it
+            (provenance_steadfast.py is a .properties text classifier only - see 4.2).
+
+==============================================================================
+8. ACCEPTANCE SUMMARY
+==============================================================================
+
+- Every PNG in Astra/shaders/textures/ measured: 6 PNG + 2 .mcmeta, all sizes and full
+  sha256 recorded in section 1.
+- Ledger registration status determined for all 6 PNGs (section 2). No PNG is entirely
+  unregistered, but the canonical 登记表 has zero PNG rows and 5 gaps are listed (G1-G5).
+- The four hashes quoted in THIRD-PARTY.md 16.4 (:338) all match measurement exactly.
+- gen_rain_ripple.py: generates astra-ripple-1..3.png only, byte-exactly reproducible;
+  no verify mode. No other PNG.
+- provenance_steadfast.py: cannot generate or verify ANY PNG; it classifies uniform
+  expressions in shaders.properties. It has no recompute path for steadfast-water-noise.png.
+- No tool in qa/tools/ can recompute steadfast-water-noise.png (the one file whose
+  generation rule the ledger states).
+- lib/noise.glsl does not exist; noisetex is bound to no PNG (removed, settings.glsl:239);
+  complementaryCloudNoise is bound to textures/complementary-cloud-water.png
+  (shaders.properties:320, consumed at clouds_planar.glsl:53,93).
+- Astra/ was not modified. This log is the only file created.
+
+END OF LOG

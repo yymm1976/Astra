@@ -1,0 +1,244 @@
+================================================================================
+B4 — qa/tools/validate_shadow_water.py 过时性核查（只读任务，未修改任何工具/shader）
+================================================================================
+日期       : 2026-09-21
+仓库       : C:\Users\杨铭\Desktop\MC模组开发\Astra光影开发
+git        : main @ c1bb0da363c909f9406b37952f45e93d7fe5aacd (2026-09-21 17:58:14 +0800)
+被检工具   : qa/tools/validate_shadow_water.py  (11228 bytes, sha256[0:16] = 93ec2f4c75440f10)
+说明       : 本文件第 1-7 行是原样捕获的运行输出（含退出码）；其后为核查证据。
+
+================================================================================
+[1] 实测运行 — 复现失败形态（与原描述逐字一致）
+================================================================================
+命令 : python qa/tools/validate_shadow_water.py    (cwd = 仓库根)
+原始输出（本文件第 1-7 行，逐字）：
+
+  GPU: NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2
+  Shadow plane: pixels=27556, max depth error=0.1107716904917071
+  Exception in thread "main" java.lang.RuntimeException: Shadow plane mismatch
+  	at RenderPathValidation.main(RenderPathValidation.java:58)
+
+  EXIT_CODE=1
+
+与 checklist 第 1 项备注（qa/regression-checklist.md:10）记载的形态逐字吻合：
+  "影面 27556 像素、`max depth error=0.1107716904917071`、
+   `RuntimeException: Shadow plane mismatch`，退出码 1"  → 全部命中，无偏差。
+
+关键补充（核查新发现，见 [5]）：失败发生在**第一个**门（影面深度模型），
+Java 栈帧 RenderPathValidation.java:58 = 该门；工具在此抛异常退出，因此第 2-4 段
+（太阳可见性 / 边界过冲 / 33 帧固定接收点位移）**本次一行都没跑**，
+它们在当前包上的状态属"未知"，不能记作 PASS，也不能记作 FAIL。
+
+================================================================================
+[2] 工具内嵌的 Java 参考模型：位置与假设的投影形态
+================================================================================
+位置：qa/tools/validate_shadow_water.py:8-126，即 Python 源码里的
+      JAVA = r''' ... ''' 字符串字面量（整个 Java 程序都内嵌在这里）。
+      行号换算：Java 行 = Python 行 - 7（已用栈帧验证：Python:65 → Java:58 ✓）。
+
+模型相关的逐字代码（Python 行号 / Java 行号）：
+
+  :32 / :25  static float plane(float x,float y){return .31f*x-.23f*y+.12f;}
+  :52 / :45  glBegin(GL_TRIANGLES);vertex(-.8f,-.8f);vertex(.8f,-.8f);vertex(.8f,.8f);
+             vertex(-.8f,-.8f);vertex(.8f,.8f);vertex(-.8f,.8f);glEnd();
+             → 被测平面只画 **2 个三角形**（[-0.8,0.8]^2 的方形，沿 y=x 对角线切开）
+  :53 / :46  float[] depths=new float[256*256];glReadPixels(0,0,256,256,GL_DEPTH_COMPONENT,...)
+  :55 / :48  for(int y=12;y<244;y++)for(int x=12;x<244;x++){
+  :56 / :49   float z=depths[y*256+x];if(z>=1)continue;
+  :57 / :50   double qx=(x+.5)/128-1,qy=(y+.5)/128-1,r=Math.max(Math.abs(qx),Math.abs(qy));
+  :58 / :51   // Independent numerical inversion of the forward warp, rather than the shader inverse.
+  :59 / :52   double lo=0,hi=10;for(int k=0;k<60;k++){double m=(lo+hi)/2;
+              if(m/(.2+.8*m)<r)lo=m;else hi=m;}
+  :60 / :53   double scale=(lo+hi)/2/Math.max(r,1e-12);
+  :61 / :54   double expected=.5+.1*(.31*qx*scale-.23*qy*scale+.12);
+  :65 / :58   if(count<20000||maxError>2e-6)throw new RuntimeException("Shadow plane mismatch");
+
+该模型假设的投影形态（可逐项对照）：
+
+  a) 范数 = **方形（Chebyshev）**而非径向：:57 用 r = max(|qx|,|qy|)，即等值线是正方形。
+     —— 只有 warp 也按"方形"归一，这个反演才成立。
+  b) 前向 warp = p.xy / (0.8 * max(|p.x|,|p.y|) + 0.2)：:59 对 m/(.2+.8*m) 二分求逆。
+     —— 常数 0.2 / 0.8 硬编码，即隐式假定 shadow_map_bias = 0.8。
+  c) 深度尺度 = z * 0.2：:61 的 `.5+.1*(plane)` 说明窗口深度 = 0.5 + 0.1*z_world
+     （等价于 NDC z 被乘 0.2，再 0.5+0.5*z 映射）。当前实现乘的是 0.5（见 [3]）。
+  d) 采样方式 = 像素中心点采样：在 256x256 深度缓冲的像素中心 (x+.5)/128-1 上取
+     栅格化深度，与该像素反演出的解析平面深度逐点比较；门限 maxError <= 2e-6，
+     且覆盖像素数必须 >= 20000。
+
+这个模型不是随便写的：它**精确等于 2026-09-09 换源之前** Astra 自己的实现：
+  git 6fcb0fd:Astra/shaders/lib/distort.glsl（2026-09-08 提交，即工具的引入提交）
+    const float shadow_map_bias = 1.0 - 25.6 / shadowDistance;
+    return max(abs(pos.x), abs(pos.y)) * shadow_map_bias + (1.0 - shadow_map_bias);   // SUN_PATH_ROTATION==0 的方形分支
+    return vec3(pos.xy / factor, pos.z * 0.2);
+  配合 git 6fcb0fd:Astra/shaders/lib/settings.glsl:  #define SHADOW_DISTANCE 128
+    → shadow_map_bias = 1 - 25.6/128 = 0.8  →  factor = 0.8*M + 0.2   （= :59 的 .2+.8*m ✓）
+    → pos.z*0.2 → 窗口深度 = 0.5 + 0.1*z                              （= :61 的 .5+.1*(...) ✓）
+  且 shaders.properties 从未声明 SUN_PATH_ROTATION（文件内 #ifndef 默认 0）→ 方形分支 ✓
+  工具的 git 历史只有这一个提交，此后从未改动：
+    $ git log --format='%H %ad %s' --date=short -- qa/tools/validate_shadow_water.py
+    6fcb0fdb624f343cf81a6424133218cc3de5ad8b 2026-09-08 chore: checkpoint water/shadow visual-round work for rollback
+
+================================================================================
+[3] 当前 pack 的阴影投影实现：位置与数学形态
+================================================================================
+注意：任务给的路径 Astra/shaders/global/shadow/distort.glsl **不存在**；
+      全库按文件名/内容检索（SHADOW_DISTORT、distort）命中处即下列文件。
+
+主实现：Astra/shaders/lib/distort.glsl
+  :16  const float SHADOW_DISTORT_CORE = 25.6;
+  :17  const float SHADOW_DISTORT_FACTOR = SHADOW_DISTORT_CORE / float(SHADOW_DISTANCE);
+  :19  float get_distort_factor(vec2 pos) {
+  :20      return length(pos) + SHADOW_DISTORT_FACTOR;
+  :21  }
+  :24  vec3 distort(vec3 pos) {
+  :25      #ifdef DIMENSION_END
+  :26      return vec3(pos.xy,pos.z*0.5);
+  :27      #else
+  :28      float factor = get_distort_factor(pos.xy);
+  :29      return vec3(pos.xy / factor, pos.z * 0.5);
+  :33  vec3 undistort(vec3 pos) {   // 解析逆：q = p/(|p|+a) → p = q * a/(1-|q|)，像域为开单位圆盘
+  :39      float factor = SHADOW_DISTORT_FACTOR / max(1.0 - length(pos.xy), 1e-5);
+  :40      return vec3(pos.xy * factor, pos.z / 0.5);
+
+关键常量与数值（工具跑的是 BALANCED 档）：
+  Astra/shaders/lib/settings.glsl:68   #define SHADOW_DISTANCE 256
+  Astra/shaders/shaders.properties:161 profile.BALANCED=... SHADOW_DISTANCE=256 ...
+  → SHADOW_DISTORT_FACTOR = 25.6/256 = 0.1   （即 a = 0.1，**径向**）
+  → 窗口深度 = 0.5 + 0.5*(z*0.5) = 0.5 + 0.25*z
+  （2026-09-21 b20abd0 之前 a 是写死的 0.20；见 git show 540dd01:Astra/shaders/lib/distort.glsl）
+  （DIMENSION_END 分支不 warp，只 z*0.5；本次工具展开的是非 END 面）
+
+生产/消费两端的调用点：
+  Astra/shaders/program/shadow.vsh:124  gl_Position.xyz = distort(gl_Position.xyz / gl_Position.w) * gl_Position.w;
+  Astra/shaders/global/lighting/shadowmap.glsl:218  vec3 shadowPos = distort(player_shadow(playerPos + worldNormal*bias)) * 0.5 + 0.5;
+  （其余调用点：global/water/light_shafts.glsl:116、program/deferred.fsh:86、program/water_state.fsh:40）
+
+换源点（git）：
+  6fcb0fd 2026-09-08  Mellow v3.4 方形畸变（max(abs()) + shadow_map_bias + z*0.2） = 工具内嵌的模型
+  540dd01 2026-09-10  Steadfast 0.8.0 径向投影（length(pos)+0.20 + z*0.5）
+  b20abd0 2026-09-21  SHADOW_DISTORT_CORE 锚定影距 → 25.6/SHADOW_DISTANCE = 0.1
+
+================================================================================
+[4] 结构性不一致判定：是（工具已过时）
+================================================================================
+结论一句话：工具内嵌的参考模型是"方形 warp + 0.2·z"，而当前实现是"径向 warp
+(length + 0.1) + 0.5·z"，两者在**范数、常数、深度尺度**三项上同时不同，
+不是参数漂移而是结构性不一致 —— 该工具对当前实现必然判 FAIL。
+
+证据一（两边源码，见 [2]/[3]）：
+  工具 qa/tools/validate_shadow_water.py:57   r = max(|qx|,|qy|)          ← 方形
+  实现 Astra/shaders/lib/distort.glsl:20      length(pos) + 0.1           ← 径向
+  工具 qa/tools/validate_shadow_water.py:59   m/(.2+.8*m)                ← a=0.2, 方形常数
+  实现 Astra/shaders/lib/distort.glsl:16-17   25.6/SHADOW_DISTANCE = 0.1  ← a=0.1
+  工具 qa/tools/validate_shadow_water.py:61   .5+.1*(plane)  (z*0.2)
+  实现 Astra/shaders/lib/distort.glsl:29      pos.z*0.5                  (z*0.5)
+
+证据二（本次实测 + 独立数值复算，方法见 [5]）：
+  用当前 distort 复算工具那套 2 三角形方形平面的栅格化，得到
+      覆盖像素 = 27556   （与工具实测 27556 **完全相同**）
+  再套工具内嵌模型逐像素比较，得到
+      maxError = 0.1107727228987877  （工具实测 0.1107716904917071，相对差 ≈1e-5）
+  → 实测失败形态可以被"当前实现 + 工具旧模型"逐位复现，量级完全由模型不匹配解释，
+    与真正的渲染回归无关。
+
+证据三（失败与旧描述一致）：见 [1]，逐字命中 checklist:10 记载。
+
+================================================================================
+[5] 独立数值复算（numpy 栅格化仿真；验证 + 处置选项的量化依据）
+================================================================================
+方法：按工具 Java 字面量复刻几何（2 个三角形覆盖 [-0.8,0.8]^2，顶点 z=0.31x-0.23y+0.12），
+      顶点经对应 distort 映射后做屏幕空间重心插值（w=1，线性插值成立），
+      深度缓冲 = 0.5+0.5*ndc_z，未被覆盖处 = 1（与 glClearDepth(1) 一致），
+      再逐像素跑工具的判定式（含 60 次二分反演）。
+  自检：把 distort 换成恒等映射（此时深度对屏幕坐标严格仿射），
+        仿真结果 vs 解析模型 = 1.1e-16  → 栅格化/插值实现无误。
+
+复算结果表（误差 = 与"该实现对应模型"的逐像素最大深度差）：
+
+  栅格化所用实现                     覆盖像素    对工具旧模型     对当前径向模型
+  ---------------------------------  ---------  --------------  ----------------
+  方形 warp（6fcb0fd，a=0.2,z*0.2）   53824      0.0149          —
+  径向 warp（当前，a=0.1,z*0.5）      27556      0.1107727(*)   0.0608
+  (*) 工具实测 0.1107716904917071 —— 复现一致（见 [4] 证据二）
+
+两条重要副产物：
+
+  (i) 只有第一段是 warp 相关的。工具在同一进程里还有 3 段判定，它们比较的是相对量
+      （遮挡侧 vs 透光侧的亮度、边界过冲、固定接收点在 33 帧相机运动下的世界误差），
+      不内嵌任何 warp 模型；本次因第一段抛异常，这 3 段**未执行**，状态未知。
+
+  (ii) 换源带来的"方法失配"比模型失配更深一层。径向映射把屏幕坐标 → 源坐标的
+       放大率从中心到边缘差约 100 倍（p = q·a/(1-|q|)，|q|→1 时发散），而工具只画
+       2 个三角形；线性插值因此不再等于解析平面值。实测网格收敛：
+         2x2 网格(8 tri) 0.0485 → 8x8 0.00851 → 32x32 0.00059 → 64x64 0.000148
+       （约 O(1/N^2)，要压到门限 2e-6 需 N ≈ 512-1024，即 ~5e5-2e6 个三角形）
+       方形 warp 时代同样存在这个插值残差，只是数值略小（1x1 网格即 0.0149）。
+       → **只把模型公式改对，工具仍然会红**：还要同时改测量方式（加密网格）。
+
+  (iii) 存疑项（未解，如实记账）：docs/2026-09-08-shadow-water-path-repair.md:18 记载
+       换源前该工具曾 PASS（"53,824 个像素…最大深度误差 2.73e-7"）。我的复算给出
+       覆盖像素 53824（完全一致），但同一模型下最大误差是 0.0149 而非 2.73e-7。
+       工具文件在 git 里只有一个提交（6fcb0fd，与文档同日），无法从历史版本核对。
+       因此 checklist 隐含的"以前是绿的、只是模型没同步"这一半**未获证实**：
+       2.73e-7 可能来自当日某个更细网格的中间版本（该数字与"2 三角形"几何不符），
+       也可能当时的判定式不同。结构性过时的结论不受影响，但"非新增回归"的
+       举证链在重写后必须重新建立。
+
+================================================================================
+[6] 处置建议（三选一，本次均未实施；改动面 + 风险）
+================================================================================
+选项 (a) 对齐参考模型重写工具模型段
+  改动面：qa/tools/validate_shadow_water.py:8-126（内嵌 Java）；具体
+          :57  r 由 max(|qx|,|qy|) 改为 length(q)；
+          :58-60 常数 0.2/0.8 → a = SHADOW_DISTORT_CORE/SHADOW_DISTANCE（0.1），
+                 或直接用解析逆 p = q·a/(1-|q|)；
+          :61  .5+.1*(plane) → .5+.25*(plane)（z*0.5）；
+          :52  2 个三角形 → 512x512 以上网格（否则见 [5](ii) 必红）；
+          :131 建议同时从 profile 读取 SHADOW_DISTANCE 而非写死 a（现只覆盖
+               SHADOW_RESOLUTION；换档会改变 a，见 Astra/shaders/lib/settings.glsl:246-340 的档位表）；
+          :57 的像素窗口不变（|q|<=0.9023 内覆盖 27556 > 门槛 20000，仍够）。
+  风险：中高。(1) 模型改对仍不够，必须加密网格（慢，2e6 三角形级别的即时模式绘制）；
+        (2) [5](iii) 的历史 PASS 存疑，重写后若变绿，只能证明"当下自洽"，
+            不能证明"自 2026-09-09 无非回归"；(3) 只有第一段被验证，后 3 段
+            （:66-120）在同一进程内，重写后需一次跑完才知其状态；(4) 与
+            Astra/shaders/lib/distort.glsl 形成"实现 + 复刻"的双份公式，需
+            防漂移（例如加一条等价性探针，像 qa/tools/shadow_filter_equiv.py 那样）。
+
+选项 (b) 标注弃用 + 改 checklist 口径（不重写）
+  改动面：qa/regression-checklist.md:10（把"Java 参考模型待重写"改成"该工具自
+          2026-09-09 起对当前投影失效，已弃用/不作验收依据"）；
+          docs/2026-09-20-shader-pack-design-survey.md:733、:751、:1306、:1457
+          （P1-5/P1-9/P1-7 的验证条把该工具列为验证手段，需改口径）；
+          docs/2026-09-13-astra-full-audit.md:243（探针清单）；
+          qa/render-path-verification.log（今天这次失败运行的产物，标记为已知红）。
+  风险：低（纯文档）。代价：本包**唯一**的驱动级（真 GL 渲染）阴影链路验证消失——
+        check_pack.py / compile_glsl.py 是静态/离线门，shadow_frustum_probe.py 是静态几何，
+        都不渲染。且 [5](i) 说明后 3 段（含"不透明遮挡仍生效、露天水体仍受光"
+        "边界不超出物理端点""固定接收点不被主视图平移带走"）本来是有价值的断言，
+        一并弃用等于放弃这几条覆盖。
+
+选项 (c) 换测量方式（保留工具其余部分，最小必需改动）
+  改动面（推荐的最小形态，二选一或并用）：
+    c1. 拆除第一段（:52-65）改用"自洽对照"：不再拿解析模型比栅格深度，
+        改为在同一 GL 上下文里用两套顶点/片元着色器画同一平面并比对
+        （形如 qa/tools/shadow_filter_equiv.py 做过的前后等价对照），
+        或直接让测试片元着色器写 gl_FragDepth = 逐像素解析值，
+        从而绕开 [5](ii) 的网格插值残差；
+        改动面限定在 qa/tools/validate_shadow_water.py:52-65 与 :141-156（自建 solar 着色器处）。
+    c2. 保留解析模型但只做"形态断言"而不做 2e-6 数值断言：
+        改为断言 p = q·a/(1-|q|) 与实现侧 distort/undistort 的一致性
+        （纯数学/离线，可放进 compile_glsl 或新的等价探针），
+        把驱动级的 2e-6 门降级为"覆盖像素数 + 误差单调衰减"。
+  风险：中。(c1) 若测试着色器复刻 distort，同样有"实现与复刻同漂移"的风险，
+        需独立公式来源；(c2) 把数值门降级=更弱的断言，需明确记入 checklist
+        以免日后被当成强证据。收益：不必把工具改成 2e6 三角形，且能保住后 3 段覆盖。
+
+================================================================================
+[7] 一句话汇报
+================================================================================
+失败形态与描述逐字一致（27556 / 0.1107716904917071 / Shadow plane mismatch / 退出码 1，
+且已数值复现）；工具内嵌的 Java 模型在 qa/tools/validate_shadow_water.py:8-126
+（模型核心 :57-:61），假设的是 2026-09-08 那版"方形（max）warp + 0.2·z"；
+当前实现是 Astra/shaders/lib/distort.glsl:16-31 的"径向（length）+ 0.1 + 0.5·z"；
+判定为结构性不一致（工具已过时，非渲染回归）；处置建议见 [6] 的 (a)/(b)/(c)。
+================================================================================

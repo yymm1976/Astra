@@ -1,0 +1,564 @@
+B9 核查日志 · docs/2026-09-21-current-state-review.md 逐条事实核验
+========================================================================
+核查对象 : docs/2026-09-21-current-state-review.md（未跟踪，git status = ??）
+对象自述 : 基准 commit b20abd0（2026-09-21 01:09），审查方式"只读实跑"
+核查时点 : 2026-09-21，HEAD = c1bb0da（"Execute A3..."），b20abd0 之后第 18 个 commit
+核查方式 : 只读。现场复跑两个地面真值工具 + python 现场统计 + git 逐版本文本比对
+环境     : NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2，OpenGL 4.6.0 NVIDIA 572.83
+本日志权限 : 只读核查，未 add/commit/rm 任何文件；唯一新建文件为本日志 + qa/b9-compile-now.log
+
+【判定口径】
+  通过 = 声明在当时（b20abd0）成立，且此刻仍与源码/现场实测一致
+  过时 = 声明在 b20abd0 成立（或沿引 survey 快照成立），但当前 HEAD 已不成立
+  驳回 = 声明在 b20abd0 也不成立（数字错、口径混淆、或误读引用来源）
+
+========================================================================
+【0. 判定汇总】
+------------------------------------------------------------------------
+  逐条核验 58 条：通过 30 / 过时 23 / 驳回 5
+
+  §1 地面真值     6 条 → 通过 3 / 过时 2 / 驳回 1
+  §2 规模快照    14 条 → 通过 6 / 过时 7 / 驳回 1
+  §3 执行盘点    18 条 → 通过 11 / 过时 5 / 驳回 2
+  §4 未决台账     5 条 → 通过 5
+  §5 流程缺口     5 条 → 通过 1 / 过时 3 / 驳回 1
+  §6 决策点       3 条 → 通过 2 / 过时 1
+  §7 建议         4 条 → 通过 1 / 过时 3
+  附 命令块       3 条 → 通过 1 / 过时 2
+  （§0"一句话结论"的两句不单列，分别并入 C5-1 与 C4-2/C5-2 核验）
+
+  驳回 5：C1-6（"前进了 11 个 commit" 数字错，且与本文 §3 自相矛盾）
+          C2-10（"10 个 compute 阶段" 口径混淆：10 是 .csh 文件数，compute 阶段是 9）
+          C3-14（"RENDER_SCALE 是死的" 误读——那是参照包 E-LITE 的死值，Astra 包内无此符号）
+          C3-17（"P0-1 落差没有任何文档记录" —— survey §11.F-1 早已逐字记录）
+          C5-4（同上 P0-1 无记录的重复表述）
+
+  一句话：这份报告在 b20abd0 那个时点上是**可信的**（哈希、commit 内容、台账、
+  survey 引文几乎全对），但它已被此后 18 个 commit 全面推过时——尤其它自称"本次
+  实跑，非引述"的 §1 地面真值最先失效。
+
+========================================================================
+【1. §1 地面真值（自称"本次实跑，非引述"）】
+------------------------------------------------------------------------
+C1-1 check_pack.py "16 项检查：0 FAIL / 1 WARN / 15 PASS"
+  声称：16 项 0F/1W/15P
+  实测：现场复跑 qa/tools/check_pack.py → "16 checks: 0 FAIL, 1 WARN, 15 PASS"，exit 0
+  判定：通过（当时与现在一致）
+  证据：. 现场复跑输出（本日志 §8.1）；qa/checkpack-2026-09-21-t17-final.log 同值
+
+C1-2 "唯一 WARN = Voxy C5 未接线"
+  声称：唯一 WARN 是 Voxy C5 未接线
+  实测：现场 check #4 两条 WARN：pending wiring: voxy_opaque.glsl / voxy_translucent.glsl
+        <- owner C5（voxy.json patch data, not an #include entry）
+  判定：通过
+  证据：qa/tools/check_pack.py:396-397 输出格式；现场复跑输出
+
+C1-3 compile_glsl.py "linked=267, failed=0, compute=27, compute_capable=true"，
+     三档 profile 全编译通过，RTX 4050 / 572.83 / GL 4.6
+  声称：267 / 0 / 27
+  实测：现场复跑 → RESULT linked=270 failed=0 compute=27 compute_capable=true，exit 0
+        同一命令：OPENGL_RENDERER=NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2
+                    OPENGL_VERSION=4.6.0 NVIDIA 572.83
+        BATCH 1/1 rows=PERFORMANCE..ULTRA rc=0（三档确实全通过）
+  判定：过时（267 是 b20abd0..T14 时代的真值；T15 起为 270）
+  证据：qa/b9-compile-now.log（现场）；历史序列（全部为已入库日志的实测值）
+        qa/glsl-consolidated-fixes.log … 09-21 09:00 qa/glsl-2026-09-21-t14-default.log = 267
+        09-21 10:41 qa/glsl-2026-09-21-t15-runner-postrestore.txt = 270（首次 270）
+        此后 t15/t16/t17/a1/a2/a3/a5/a7 全部 270，含现场复跑
+  附注：267→270 的 3 个新增入口 = T15（exposure.vsh/fsh + composite5）、T17 等新增 pass
+
+C1-4 "git status 工作树干净（0 未提交）"
+  声称：工作树干净
+  实测：现场 `git status --short` → "?? docs/2026-09-21-current-state-review.md"（1 项未跟踪）
+        该未跟踪文件正是本报告自身；HEAD 也已是 c1bb0da，非 b20abd0
+  判定：过时（当时成立；现在至少 1 个未跟踪文件，HEAD 前进了 18 个 commit）
+  证据：现场 git status 输出；git rev-list --count b20abd0..HEAD = 18
+
+C1-5 "与 09-20 汇总报告锚定的 9df32df（同样 267/0/27、0 FAIL/1 WARN）一致"
+  声称：9df32df 时代同样 267/0/27 且 0 FAIL/1 WARN
+  实测：9df32df 时代 check_pack.py 实际只有 11 项检查
+        （git show 9df32df:qa/tools/check_pack.py → Check ids = 1..11）
+        session-log「2026-09-20 三方审查汇总修复」节原文："check_pack.py 0 FAIL / 1 WARN / 10 PASS"
+        → 0 FAIL / 1 WARN 成立；qa/glsl-consolidated-fixes.log = linked=267 failed=0 compute=27 成立
+  判定：通过（附注：当时是 11 项检查，"16 项"是 T2/T3/T4 逐轮加检查之后的事）
+  证据：git show 9df32df:qa/tools/check_pack.py；qa/session-log.md:852 附近
+
+C1-6 "修复没有回退，反而在干净树上前进了 11 个 commit"
+  声称：相对 9df32df 前进 11 个 commit
+  实测：git rev-list --count 9df32df..b20abd0 = 9
+        且本文 §3 自己写的是"又前进了 9 个 commit"——同一文档内 11 vs 9 自相矛盾
+  判定：驳回（数字错误 + 内部自相矛盾）
+  证据：git rev-list --count 9df32df..b20abd0 → 9
+
+========================================================================
+【2. §2 规模与成熟度快照】
+------------------------------------------------------------------------
+统计方法（本次统一口径，可复现）：
+  文件集 = Astra/shaders 下后缀 ∈ {.glsl,.vsh,.fsh,.csh,.json}
+  行数   = splitlines()（不含尾换行）；另给"含尾换行"口径作对照
+  b20abd0 侧通过 git ls-tree + git cat-file --batch 读 blob（不检出、不改树）
+
+C2-1 "246 个着色器文件"
+  声称：246
+  实测：b20abd0 = 246（含 .json；不含 .json 为 245）
+        HEAD    = 251（含 .json；不含 .json 为 250）
+  判定：过时（对 b20abd0 正确；对 HEAD 少 5 个文件）
+  证据：现场 python 遍历 Astra/shaders；git ls-tree -r b20abd0 Astra/shaders
+
+C2-2 "~9,800 GLSL 行"
+  声称：~9,800（正文括注"survey：行数约为一线包中位数的 55%"）
+  实测：b20abd0 = 9,504 行（含尾换行口径 9,749）
+        HEAD    = 10,003 行（含尾换行口径 10,253）
+        9,804 这个数字只在 survey 的自身快照 14cd4fe 上复现：
+          14cd4fe = 9,560 行（含尾换行口径 9,805 ≈ survey 的 9,804）
+  判定：过时（沿引 survey 在 14cd4fe 的口径，未在 b20abd0 重测；现在约 1.0 万行）
+  证据：git cat-file --batch 逐版本统计（见 §8.2 版本序列）
+
+C2-3 "381 最长行"
+  声称：381
+  实测：b20abd0 = 381（Astra/shaders/lib/settings.glsl）；HEAD = 381（同一文件）
+  判定：通过（此数字同时是 survey 表里"全场最短一档"的列，仍成立）
+  证据：现场 python max(len(line)) 统计
+
+C2-4 "0.451 注释比"
+  声称：0.451
+  实测：纯 "//" 行占比：b20abd0 = 0.318，HEAD = 0.333，14cd4fe = 0.313
+        字符口径（注释字符数 / 总字符数）：b20abd0 = 0.464，HEAD = 0.483，14cd4fe = 0.460
+        survey 自己在 §11.C 承认："注释比 0.451 的口径未能反推（纯 // 行比为 0.306）"
+  判定：过时（口径不可精确复现；字符口径下最接近的 0.460 也只是 survey 快照值，
+        今天同一口径是 0.483。数字本身是从 survey 抄来的，不是本次实跑）
+  证据：现场两种口径统计（见 §8.2）；survey §11.C（HEAD:1081）
+
+C2-5 "67 个选项（27 bool + 40 slider/enum）"
+  声称：67 = 27 bool + 40 slider/enum
+  实测：调用 qa/tools/option_matrix.py::parse_options 解析 settings.glsl：
+        b20abd0 = 67（bool 27 + slider/enum 40）  ← 与声称逐位一致
+        HEAD    = 71（bool 31 + slider/enum 40）
+        check_pack #1 现在也自报："71 options: 71 with value list, 31 bool, 40 slider/enum"
+  判定：过时（b20abd0 正确；+4 个 bool = T9 GODRAYS_SUN_OCCLUSION、T13
+        UNDERWATER_SHAFT_CALIBRATION、T14 CLOUD_SHADOWS、T15 AUTO_EXPOSURE）
+  证据：现场 option_matrix.parse_options（git show 取 settings.glsl）；
+        qa/checkpack-2026-09-21-t13.log(#1: 69=29+40) → t14(70=30+40) → t15/t16/t17(71=31+40)
+
+C2-6 "182 个编译入口"
+  声称：182
+  实测：check_pack 的 is_entry 口径（lib/ 与 global/ 之外的 .vsh/.fsh）
+        b20abd0 = 182；HEAD = 186；check_pack #4 现在自报"186 compiled entries"
+  判定：过时（b20abd0 正确；T15 新增 4 个入口 pass，与 session-log 记录的 182→186 吻合）
+  证据：现场 git ls-tree 统计；qa/checkpack-2026-09-21-t13.log 与 t17-final.log 的 #4 行
+
+C2-7 "3 档 profile 各 67 token"
+  声称：67 token/档
+  实测：解析 shaders.properties 的 profile.* 行值词数：b20abd0 = 67/67/67；HEAD = 71/71/71
+  判定：过时
+  证据：现场解析；qa/checkpack-2026-09-21-t*/#2 行（69→70→71 tokens, complete=True）
+
+C2-8 "7 大分类"
+  实测：现场 check #2 → "1 main screen + 7 categories: FOG, LIGHTING, PERFORMANCE,
+        POST, SHADOWS, SKY, WATER"；shaders.properties 的 screen.* = 7 个分类 + 主屏
+  判定：通过
+
+C2-9 "zh_CN + en_US 双语全覆盖"
+  实测：check #3 → zh_CN.lang 71 titles / 71 comments；en_US.lang 71 / 71（键集相等）
+  判定：通过（当时 67/67，同样"全覆盖"成立）
+
+C2-10 "10 个 compute 阶段（world-1 下界体素彩色光 shadowcomp + A–H 共 9 个 +
+      nether_light.csh）"
+  声称：10 个 compute 阶段
+  实测：.csh 文件 = 10（与 check #11 的"10 compute shader(s)"一致）
+        但真正的 Iris compute 阶段 = 9：program/nether_light.csh 是 include-only 模块
+        （check_pack.py:1030-1031 明写："Include-only module (e.g. program/nether_light.csh
+         pulled in by the world-1/shadowcompN.csh wrappers)"）
+        shaders.properties:357-365 只声明 9 条 program.world-1/shadowcomp*.enabled
+        Astra/README.md:20 也写"9 个 compute 阶段"
+  判定：驳回（把 .csh 文件数当成 compute 阶段数；Astra 自己的 README 与 gate 都写 9）
+  证据：git ls-tree HEAD Astra/shaders **/*.csh（10 个）；
+        qa/tools/check_pack.py:1030-1031；Astra/shaders/shaders.properties:339-365；
+        Astra/README.md:20
+
+C2-11 "这是 design.md '零 compute' 的唯一已登记例外（README:20 已如实标注）"
+  实测：Astra/README.md:20 = "下界体素彩色光为独立例外（9 个 compute 阶段 + 3 张自定义图像）"
+        确为已登记的例外；check #11 亦报 3 custom image(s)
+  判定：通过（附注：README 的数字是 9，见 C2-10）
+
+C2-12 "10 张 colortex（0–9）+ shadowcolor0"
+  声称：colortex0..9 共 10 张 + shadowcolor0
+  实测：b20abd0：colortex0..colortex9 全部有消费者（colortex1 无 format 声明但有
+        size.buffer 与采样者），check #14 列出 10 个"已声明缓冲"= colortex0,2,3,4,5,6,7,8,9
+        + shadowcolor0（colortex1 无声明故不在列）
+        HEAD：多出 colortex10 —— T15 自动曝光的 1×1 历史缓冲
+          shaders.properties:42 size.buffer.colortex10=1 1
+          global/post/exposure.glsl:25/104/136、program/exposure.fsh
+  判定：过时（b20abd0 成立；现在 colortex 有 0..10 共 11 张）
+  证据：git grep colortex10 b20abd0 → 0 命中；git grep colortex10 HEAD → 3 文件命中
+
+C2-13 "4 种 tonemap 算子"
+  实测：lib/settings.glsl:19-22 TONEMAP_UCHIMURA/AGX/ACES/REINHARD_JODIE = 4
+  判定：通过
+
+C2-14 "6 个 enum 选项"
+  实测：check #2 自报 "6 enum/dropdown option(s) (not sliders)"：CLOUD_MODE,
+        SHADOW_FILTER_MODE, SKY_MODE, SUN_MOON_MODE, TONEMAP_OPERATOR, WATER_CHARACTER
+  判定：通过
+
+========================================================================
+【3. §3 09-20 re-audit 轮执行盘点】
+------------------------------------------------------------------------
+C3-1 "9df32df 之后 main 又前进了 9 个 commit"
+  实测：git rev-list --count 9df32df..b20abd0 = 9（3b5ac22, 46fafab, 14cd4fe, cc18b33,
+        f952887, b7b2aff, e1f5304, 452f460, b20abd0）
+  判定：通过（但与 §1 的"11 个 commit"矛盾，见 C1-6）
+
+C3-2 "P2-10 上游隔离 | e1f5304 | 建 lib/vendor/ + README，许可文本不外溢 | check #15"
+  实测：e1f5304 新建 Astra/shaders/lib/vendor/README.md（+42 行）；
+        check #14/#15 两个 Check id 首次出现在 e1f5304 的 check_pack.py 里
+        （git show e1f5304:qa/tools/check_pack.py → Check ids 1..15）
+        现场 check #15 = PASS："lib/vendor/ exists: 2 upstream directory(ies), 11 file(s),
+        0 file(s) carrying licence text outside it"
+  判定：通过
+
+C3-3 "P2-11 | e1f5304 | 60 条活跃声明覆盖 10 缓冲，注释里 0 隐藏声明 | check #14"
+  实测：check #14 note 逐字一致："60 live engine declaration(s) covering 10 buffer(s):
+        colortex0=7, colortex2=1, colortex3=2, colortex4=1, colortex5=1, colortex6=1,
+        colortex7=2, colortex8=2, colortex9=1, shadowcolor0=2; 0 declaration(s) hidden in comments"
+        （t13 日志里 colortex0=6，t15 起 colortex0=7）
+  判定：通过
+
+C3-4 "P2-12 | b7b2aff | 每个选项两值都编译；删 84 个无人读的 marker define；83 行矩阵"
+  实测：git show b7b2aff 的 diff 中被删除且匹配 ^-\s*#define\s+[A-Z] 的行 = 84 行
+        qa/glsl-2026-09-20-option-matrix.log（该 commit 引入）末行
+        "RESULT_ALL batches=11 rows=83 entries_per_row=89 linked=7387 failed=0"
+  判定：通过（84 与 83 逐位复现）
+
+C3-5 "P2-18 | 452f460 | 下界 compute 按维度门控；删 Iris 从不读的 key | check #16"
+  实测：该 commit 改 shaders.properties 104 行；check id 16 首现于 452f460 的 check_pack.py
+        现在 check #16 note：world-1/world1 两个维度目录、35 program gate、0 inert namespaced directive
+        shaders.properties 里已无任何 compute.* 键（现场解析 compute_keys=0）
+  判定：通过
+
+C3-6 "P1-5 / P1-9 | b20abd0 | SHADOW_DISTORT_CORE=25.6 固定格半径 + 解析逆
+      （已核 distort.glsl，工程扎实）"
+  实测：Astra/shaders/lib/distort.glsl（b20abd0 与 HEAD 同）：
+          const float SHADOW_DISTORT_CORE = 25.6;
+          const float SHADOW_DISTORT_FACTOR = SHADOW_DISTORT_CORE / float(SHADOW_DISTANCE);
+  判定：通过
+
+C3-7 "P0-1（部分）| f952887 | 救活 DITHERING；随档变化 token 13→19 | check #12"
+  实测：现场解析 profile 三档值向量：
+        9df32df: 67 token, P-B=10, B-U=5, P-U=13, union=13   ← "13"成立
+        b20abd0: 67 token, P-B=15, B-U=7, P-U=19, union=19   ← "19"成立
+        且 T13 日志 #12 原文："19 of 69 listed tokens vary across tiers"
+  判定：通过
+
+C3-8 "P1-16 前置（LOD 约定）| cc18b33 | 清理 re-audit 注释腐烂 + 重锚 LOD 前提"
+  实测：该 commit message = "Fix the comment rot from the re-audit and re-anchor the LOD
+        prerequisite"；改动 = global/post/bloom.glsl(13)、program/composite1.fsh(6)、
+        program/scattering.fsh(3)、survey(29)
+  判定：通过
+
+C3-9 "P0-2 云阴影（现 0 命中，19 款参照里 8 款有）"
+  实测：b20abd0 的 Astra/shaders 下 "cloud…shadow" 只有 2 处命中，且全是注释：
+          global/atmosphere/clouds_planar.glsl:43 "lib/lighting/cloudShadows.glsl（尚未接线）"
+          global/atmosphere/clouds_planar.glsl:241 注释
+        无任何实装/选项 → "0 命中"按实装口径成立
+  判定：通过（附注：有 2 处注释引用，非字面 0 命中）
+
+C3-10 "P0-3 自动曝光——与 design §4.1 直接冲突（§4.1 已决'用日光压制取代自动曝光'）"
+  实测：.specs/astra-shader/design.md:230 §4.1 方块光行原文确含"替代自动曝光"，
+        并在 SC-41 里被记为"本行原写'替代自动曝光'"
+  判定：过时（当时成立；T15/SC-41 已于 09-21 翻案，design.md:524-528 有完整决议）
+  证据：.specs/astra-shader/design.md:224-230、:306-307、:524-528
+
+C3-11 "P1-6 太阳/云遮蔽全局强度——现为解析量，不采深度（survey 三大可核实缺口之一）"
+  实测：T9（a53b4ee "Fade the beam field by how much geometry covers the sun disc"）
+        已落地：program/scattering.fsh 的日面窗口 7×7 探针 + colortex1 传递 +
+        settings.glsl 新增 GODRAYS_SUN_OCCLUSION（现为可选开关，默认关）
+  判定：过时（已被 T9 覆盖）
+
+C3-12 "P1-7 焦散烘焙进 shadow pass、P1-16 时域滤波水下光束主体、P1-17 水体吸收侧面/
+      实时项 仍未落地"
+  实测：P1-17 → a7f869b（T6，已落地，含 water_path_probe 断言 8→19）
+        P1-16 前置 → 1b415b6（T7，已落地）
+        P1-16 主体（时域滤波）→ ad6e623（T8，读参照源码后撤单，零改动）
+        P1-7 → 63d321a（T10，五条前提逐点实测不成立，零改动；但顺带登记了死代码）
+  判定：过时（三项均已在 T6–T10 分头处置）
+
+C3-13 "P2-13 MIT 复用清单 仍未落地"
+  实测：T16 = 115d196 "audit chain of title, because a pack-root MIT proves nothing"，
+        产物写在 Astra/THIRD-PARTY.md:289-341（§「2026-09-21 T16 · P2-13」）、
+        并搬入 lib/vendor/{glsl-tone-map,bakinglab} 共 11 个文件
+        结论是"前提证伪、十条可用增量 0"，以权属审计代替清单
+  判定：过时（已被 T16 以另一种形式覆盖）
+
+C3-14 "P2-19 分辨率旋钮（RENDER_SCALE 目前是死的——滑杆在 properties 里被注释）"
+  声称：Astra 的 RENDER_SCALE 是死值
+  实测：Astra 包内根本不存在 RENDER_SCALE：
+          git grep RENDER_SCALE b20abd0 → 仅 2 处命中，全在 survey 正文里
+          git grep RENDER_SCALE HEAD   → 同上，Astra/shaders 下 0 命中
+        survey 原文（b20abd0:341-342、:997）说的"RENDER_SCALE 是死的"指的是**E-LITE**
+        这个参照包（lib/config.glsl:272、properties:144）
+  判定：驳回（张冠李戴：把参照包 E-LITE 的死值记成 Astra 的；本文 §3 表格里该括号
+        是唯一的来源级错误）
+  证据：git grep -n RENDER_SCALE b20abd0 / HEAD；survey 341,342,997 行
+
+C3-15 "P2-20 水下光束标定——需实机对拍"
+  实测：T13 = bf55361 "land the three shaft calibration curves behind a default-off
+        switch"；settings.glsl 新增 UNDERWATER_SHAFT_CALIBRATION（三档出厂关），
+        改 global/water/light_shafts.glsl
+  判定：过时（标定已实装；"仍需实机 A/B"这一保留意见仍成立，但"未落地"不再成立）
+
+C3-16 "P0-1 只算部分完成：差量密度只有 22%/10%/28%、可变 token 19/67，
+       远未达 survey §9.4 的验收线（≥35 token / ≥50% 密度）"
+  实测：b20abd0 现场解析 → 15/67=22.4%、7/67=10.4%、19/67=28.4%，union 19 ✓
+        （与 T13 日志 "#12 … 19 of 69 listed tokens vary" 的 22%/10%/28% 同源）
+  判定：通过（数字逐位复现）
+
+C3-17 "且这道落差没有任何文档记录"
+  声称：P0-1 的半成落差没有任何文档记录
+  实测：**survey 在本报告基准 commit 时点就已记录**：
+        - docs/2026-09-20-shader-pack-design-survey.md §11.F-1（由 f952887/T1 写入）：
+          b20abd0:1150 / HEAD:1184 原文——"「第一步收缩」未执行，差量密度因此停在
+          22% / 10%，不达验证条要求的 ≥50%"，并给出未执行的理由（design 3.3 既有约定、
+          稀疏差量会让基准锚点失效）
+        - b20abd0 的 survey 里 "P0-1" 出现 14 次，11.F-1 段存在（git 校验为 True）
+  判定：驳回（与同一份 survey 的内容直接冲突；本报告自己引用了 survey §9.4 的验收线，
+        却漏读了紧邻的 §11.F-1 执行记录）
+  证据：git show b20abd0:docs/2026-09-20-shader-pack-design-survey.md | grep 22% → 1 命中（:1150）
+
+C3-18 "自动化门禁也看不见（check #12 只报告密度，不设阈值）"
+  实测：qa/tools/check_pack.py:1143-1158 读毕——三对档位比较只 c.note 密度，
+        唯一的 FAIL 规则是"随档变化的数值旋钮必须有成本分类"（TIER_* 集合）
+  判定：通过
+
+========================================================================
+【4. §4 未决前提台账（qa/open-premises.md P-1..P-6）】
+------------------------------------------------------------------------
+C4-1 "P-1..P-6 全部仍未闭环"
+  实测：qa/open-premises.md 自 3b5ac22（2026-09-20 02:12）以来**未再修改**
+        （git log --oneline -- qa/open-premises.md → 只有 9df32df、3b5ac22 两笔；
+         HEAD 版与 b20abd0 版逐字节相同 → python 比对 True）
+        6 行 P-1..P-6 全部在列，全部有"现状"，无一行有闭环/已解决标记
+  判定：通过（此刻仍全部未闭环）
+  证据：现场读 qa/open-premises.md（2339 B）；git show b20abd0:qa/open-premises.md 比对
+
+C4-2 "P-4：qa/benchmarks.md 是空模板（所有 FPS 单元格空白）"
+  实测：qa/benchmarks.md = 1326 B，三张表（主世界 4 行 / 下界 2 行 / 末地 1 行）
+        的 FPS 与"达标"列全部为空，会话记录索引表也只有表头
+  判定：通过（此刻仍空）
+
+C4-3 "09-12 起六轮改动（晨昏/雨景/SC-39×2/性能轮/09-20 修复）全无画面与帧率证据"
+  实测：benchmarks.md 空（同上）；qa/screenshots/ 的最后写入时间为 2026-09-07，
+        此后无新截图入库
+  判定：通过（"无登记证据"口径成立；无截图这一事实可核，但"没有在游戏里看过"不可证否）
+
+C4-4 "P-3：全部证据来自 NVIDIA 4050；AMD/Intel/Mesa 零验证"
+  实测：现场复跑仍是唯一 vendor：OPENGL_VENDOR=NVIDIA Corporation，
+        RTX 4050 Laptop / 572.83 / GL 4.6；仓库内无任何他厂驱动日志
+  判定：通过（此刻仍成立；数字 267 应更新为 270，见 C1-3）
+
+C4-5 "P-4 是总闸：四项'需实机对拍'（光束标定、水色、植被透光、晨雾方向）
+      + P-1/P-5/P-6 + P2-20 全部无法从'源码正确'升级为'画面正确'"
+  实测：qa/regression-checklist.md（现 21,891 B）仍列大量"待实机"条目，
+        含 6a 畸变边界、10a 水吸收侧面、17a GODRAYS_SUN_OCCLUSION 四项判定、
+        19a AUTO_EXPOSURE 八项——与"总闸未开"的结论一致
+  判定：通过
+
+========================================================================
+【5. §5 流程与文档缺口（本报告自称"新发现"）】
+------------------------------------------------------------------------
+C5-1 "session-log 断更：最后一条是 9df32df；其后 9 个 commit（3b5ac22…b20abd0）
+      无一条会话记录"
+  实测：git show b20abd0:qa/session-log.md → 852 行，末节即"2026-09-20 三方审查汇总修复"，
+        不含任何 T0–T17 字样（'借鉴调研重审执行轮' in 该版本 = False；46fafab/3b5ac22
+        也都不在文本里）→ 报告发布时**确实断更**
+        HEAD 版 = 883 行，已新增整节"## 2026-09-20 借鉴调研重审执行轮（T0–T17，按工单顺序，
+        每单一个本地 commit）"，T0–T17 逐条列出并挂哈希（cc18b33/f952887/b7b2aff/
+        e1f5304/452f460/b20abd0/a7f869b/1b415b6/ad6e623/a53b4ee/9d94b5d/63d321a/
+        7e43183/3ad0fb2/bf55361/3d13037/ebc24a8/115d196/T17）
+  判定：过时（该缺口已被 T 轮收尾补齐，报告的头部结论"短板在收尾纪律"不再成立）
+  证据：git show b20abd0:qa/session-log.md（852 行，末尾无 T 轮）；
+        qa/session-log.md:854-883（HEAD，含 T0–T17 索引）
+
+C5-2 "benchmarks.md 仍空（P-4 持续）：全项目零帧率数据"
+  实测：qa/benchmarks.md 仍为 1326 B 空模板（与 C4-2 同一事实）
+  判定：通过（仍成立）
+
+C5-3 "lib/vendor/ 只有 README：P2-10 的'隔离结构'已就位，但上游代码实际搬入被推迟到 T16"
+  实测：HEAD 的 lib/vendor/ = README.md + bakinglab/{ACES.hlsl.orig, LICENSE.txt,
+        README.md} + glsl-tone-map/{LICENSE.md, README.md, aces.glsl.orig,
+        acesHill.glsl.orig, agx.glsl.orig, reinhardJodie.glsl.orig, uchimura.glsl.orig}
+        = 2 个上游目录、11 个文件（check #15 同值）；全部由 T16（115d196）搬入
+  判定：过时（T16 已按期完成搬入，"推迟"已兑现）
+  证据：现场 ls -R Astra/shaders/lib/vendor/；qa/tools/check_pack.py check #15 输出；
+        git show --stat 115d196
+
+C5-4 "P0-1 的半成状态无记录：…落差既没进 open-premises 也没进任何文档"
+  实测：前半成立（open-premises.md 确未记录），后半不成立：survey §11.F-1 早已逐字记录
+        （见 C3-17）。本行与 §3 的 C3-17 是同一处错误的重复表述
+  判定：驳回（"没进任何文档"证否；"没进 open-premises"成立，属于部分正确）
+  证据：同 C3-17
+
+C5-5 "§0 一句话结论：上一轮（09-20 re-audit）的 **8 个执行 commit** 没有一条写进
+      qa/session-log.md"
+  实测：核心事实成立（当时确实没有任何 T 轮记录，见 C5-1）；但数字与本文 §5.1 冲突：
+        §5.1 写"9 个 commit（3b5ac22…b20abd0）"，git rev-list --count 9df32df..b20abd0 = 9。
+        按"执行 re-audit 工单"口径实际是 6 条（cc18b33/f952887/b7b2aff/e1f5304/
+        452f460/b20abd0），另 3 条（3b5ac22/46fafab/14cd4fe）是报告与调研的记录提交。
+        → 8 既不是 9 也不是 6，同一文档内两个数字互相矛盾
+  判定：过时（缺口已被补齐；且数字口径内部矛盾，需按 9=全部/6=执行 说明）
+  证据：git rev-list --count 9df32df..b20abd0；本文 §3 首段与 §5.1 的措辞对照
+
+========================================================================
+【6. §6 决策点 / §7 建议 是否已被后续工作覆盖】
+------------------------------------------------------------------------
+C6-1 "§6 决策点①：P0-3 自动曝光——翻案 design §4.1 还是维持日光压制？（survey 倾向维持）"
+  实测：T15（ebc24a8）已按"先翻案、再实现、默认关"执行：
+        .specs/astra-shader/design.md:524 §SC-41「自动曝光翻案与实施决议（2026-09-21，
+        调研 §6 P0-3 / 工单 T15）」；design.md:230 §4.1 行已就地更正；
+        settings.glsl 新增 //#define AUTO_EXPOSURE // [false true]（三档出厂关）；
+        新增 global/post/exposure.glsl(161 行)、program/exposure.vsh/fsh、composite5
+  判定：过时（决策点已被 T15 回答并落地）
+
+C6-2 "§6 决策点②：P0-1 档位语义——是否投入把可变 token 推到 ≥35 / 密度 ≥50%"
+  实测：T12（3ad0fb2）只处理 P2-14/P2-19（连续分辨率旋钮，暂缓），未触碰档位语义；
+        现场 check #12 现密度 15/71=21%、7/71=10%、19/71=27%，union 19/71
+  判定：通过（该决策点至今仍开放，未被后续工作覆盖）
+
+C6-3 "§6 决策点③：P-4 排期（安排一次实机会话）"
+  实测：benchmarks.md 仍空（C4-2）、regression-checklist 仍列"待实机"多项
+  判定：通过（仍开放）
+
+C7-1 "§7 建议1：补登 session-log（把 re-audit 执行轮按模板补一节），同时把 P0-1 半成、
+      vendor T16 推迟写进 open-premises.md"
+  实测：主项已做（session-log 补了 T0–T17 整节，见 C5-1）；
+        副项未做：qa/open-premises.md 至今未改动（git log 只有 9df32df/3b5ac22）
+  判定：过时（建议的主体已执行；open-premises 的两处补记确实仍缺，这部分可与
+        §4 的通过判定合看）
+
+C7-2 "§7 建议2：安排一次实机会话（最高价值）"
+  实测：benchmarks.md 空、screenshots 无 09-12 之后新图
+  判定：通过（仍未执行）
+
+C7-3 "§7 建议3：随后做低风险视觉缺口——P0-2 云阴影、P1-6 太阳遮蔽
+      （survey 判定廉价且 Astra 现无）"
+  实测：两项均已落地：T14 = 3d13037（CLOUD_SHADOWS，默认关，program/scene.glsl +27 行）、
+        T9 = a53b4ee（GODRAYS_SUN_OCCLUSION）；两者都带 lang 文案与档位门
+  判定：过时（建议已被执行）
+
+C7-4 "§7 建议4：P0-3 先决策再动手，避免与 §4.1 撞车"
+  实测：已按此路径执行（T15 先写 SC-41 决议再实现）→ 建议被采纳并完成
+  判定：过时
+
+========================================================================
+【7. 附录"本次引用的地面真值命令"块】
+------------------------------------------------------------------------
+C8-1 "python qa/tools/check_pack.py  # 16 checks: 0 FAIL / 1 WARN / 15 PASS"
+  实测：现场复跑逐字相同（exit 0）
+  判定：通过
+
+C8-2 "python qa/tools/compile_glsl.py  # linked=267 failed=0 compute=27 (RTX4050/572.83/GL4.6)"
+  实测：现场复跑 linked=270 failed=0 compute=27（其余标识一致）
+  判定：过时
+
+C8-3 "git log --oneline -12 ; git status  # clean tree, HEAD b20abd0"
+  实测：HEAD = c1bb0da（b20abd0 之后 18 个 commit）；git status 有 1 个未跟踪文件
+  判定：过时
+
+========================================================================
+【8. 复跑原始输出与统计附录】
+------------------------------------------------------------------------
+8.1 现场 check_pack.py（关键行）
+  Astra pack validator | pack=Astra/shaders | python=3.10.11
+  [PASS] #1 … . 71 options: 71 with value list, 31 bool, 40 slider/enum
+  [PASS] #2 … . 1 main screen + 7 categories: FOG, LIGHTING, PERFORMANCE, POST, SHADOWS, SKY, WATER
+              . 6 enum/dropdown option(s) (not sliders)
+              . sliders=34 vs 34 slider-typed options
+              . profile.PERFORMANCE: 71 tokens, complete=True（BALANCED/ULTRA 同）
+  [PASS] #4 … . 186 compiled entries, 54 lib/global modules, 52 reachable, 2 waiting on their owner task
+  [PASS] #11 … . 0 staged texture directive(s); 3 custom image(s); 10 compute shader(s); 53 engine const(s)
+  [PASS] #12 … . PERFORMANCE vs BALANCED: 15 value diff(s), density 15/71 = 21%
+               . BALANCED vs ULTRA: 7 value diff(s), density 7/71 = 10%
+               . PERFORMANCE vs ULTRA: 19 value diff(s), density 19/71 = 27%
+               . 19 of 71 listed tokens vary across tiers
+  [PASS] #14 … . 60 live engine declaration(s) covering 10 buffer(s) …; 0 declaration(s) hidden in comments
+  [PASS] #15 … . lib/vendor/ exists: 2 upstream directory(ies), 11 file(s), 0 file(s) carrying licence text outside it
+  [WARN] #4  ~ pending wiring: voxy_opaque.glsl <- owner C5 ; voxy_translucent.glsl <- owner C5
+  16 checks: 0 FAIL, 1 WARN, 15 PASS   (exit 0)
+
+8.2 现场 compile_glsl.py（qa/b9-compile-now.log）
+  BATCH 1/1 rows=PERFORMANCE..ULTRA rc=0
+  OPENGL_VENDOR    NVIDIA Corporation
+  OPENGL_RENDERER  NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2
+  OPENGL_VERSION   4.6.0 NVIDIA 572.83
+  RESULT           linked=270  failed=0  compute=27  compute_capable=true
+  EXIT=0
+
+  历史序列（已入库日志，"linked" 首次变化点）
+    09-20 20:50 option-matrix / 09-21 09:00 t14-default …… 267（b20abd0..T14 全为 267）
+    09-21 10:41 t15-runner-postrestore ………………… 270（首次 270）
+    09-21 10:41..17:58 t15/t16/t17/a1/a2/a3/a5/a7 …… 270
+
+8.3 规模统计（现场 python，方法见 §2 抬头）
+  revision   files(含json)  files(不含json)  splitlines  含尾换行   最长行  注释比(//行)  字符口径
+  14cd4fe    246            245               9,560       9,805      381     0.313        0.460
+  b20abd0    246            245               9,504       9,749      381     0.318        0.464
+  HEAD       251            250              10,003      10,253      381     0.333        0.483
+  （survey 自报 245 / 9,804 / 381 / 0.451 —— 9,804 只在 14cd4fe 的"含尾换行"口径上复现）
+
+8.4 选项 / 入口 / 档位序列（现场解析）
+  revision   选项(全部)  其中 bool  slider/enum  profile token  compiled entries
+  9df32df       67          27         40         67/67/67        182
+  b20abd0       67          27         40         67/67/67        182
+  HEAD          71          31         40         71/71/71        186
+  profile 差量（值，非名字）：9df32df = 10/5/13（union 13）→ b20abd0 = 15/7/19（union 19）
+  新增 4 个 bool 的来源：T9 GODRAYS_SUN_OCCLUSION / T13 UNDERWATER_SHAFT_CALIBRATION /
+  T14 CLOUD_SHADOWS / T15 AUTO_EXPOSURE（git diff b20abd0..HEAD -- lib/settings.glsl）
+
+8.5 本报告 §3 表格 commit 存在性与内容（git cat-file -t 全部为 commit）
+  e1f5304 2026-09-20 21:39  Isolate third-party sources and gate buffer declarations (P2-10, P2-11)
+  b7b2aff 2026-09-20 21:03  Compile every option pair and drop the 84 marker defines nothing reads
+  452f460 2026-09-20 23:49  Gate the Nether compute stages per dimension and drop the keys Iris never reads (P2-18)
+  b20abd0 2026-09-21 01:09  Anchor the shadow distortion core to the shadow distance (P1-9, P1-5)
+  f952887 2026-09-20 19:27  Make the tier ladder schedule real work and un-dead the DITHERING option
+  cc18b33 2026-09-20 18:26  Fix the comment rot from the re-audit and re-anchor the LOD prerequisite
+  引用到的两个边界提交也存在：9df32df（09-20 02:11 三方审查修复）、3b5ac22（09-20 02:12）、
+  46fafab（09-20 02:24 参照包研究）
+  → §3 表格里"工单↔commit↔落地内容"的对应关系全部核对为真（哈希无编造、message 与内容相符）
+
+8.6 b20abd0 之后新增的 18 个 commit（本报告未覆盖）
+  a7f869b T6 P1-17 / 1b415b6 T7 / ad6e623 T8 / a53b4ee T9 P1-6 / 9d94b5d /
+  63d321a T10 P1-7 / 7e43183 T11 / 3ad0fb2 T12 P2-14+P2-19 / bf55361 T13 P2-20 /
+  3d13037 T14 P0-2 / ebc24a8 T15 P0-3 / 115d196 T16 P2-13 / a250133 T17 P0-4 /
+  72cd632 A2 / 0e83757 A1 / eb6401b A7 / d672fdf A5 / c1bb0da A3(=HEAD)
+
+========================================================================
+【9. 去留建议（仅建议，未实施任何文件操作）】
+------------------------------------------------------------------------
+不建议直接删除。三个可选处置，按推荐度排序：
+
+建议 A（推荐）· 补充时点注记后提交，作为"b20abd0 历史快照"归档
+  - 理由：① 哈希、commit 内容、台账、survey 引文几乎全对，有史料价值；
+           ② 它的三条"新发现"里有一条（session-log 断更）确实促成了 T 轮收尾补齐，
+              是有效的流程干预记录；
+           ③ 但它自称"实跑地面真值"的 §1、§2 已被 18 个 commit 全面推过时，
+              若原样入库会被后来者当成当前状态。
+  - 做法（若采纳）：在文首加一段"本快照对应 b20abd0；此后 18 个 commit 已改变
+    §1/§2 的数字，最新值见 qa/checkpack-2026-09-21-t17-final.log 与
+    qa/glsl-2026-09-21-t17-matrix.log"，并把 C3-14（RENDER_SCALE 张冠李戴）、
+    C3-17/§5.4（P0-1 记录）两处驳回项就地更正，再提交。
+
+建议 B · 保持未跟踪（次选）
+  - 若认为它只是 B9 核查的输入材料、不想再往 docs/ 增一份近似重复的时点报告，
+    可原样留在工作树。风险：`git status` 长期显示 ?? 项，且没有任何东西提示它是
+    历史快照而不是当前状态。
+
+建议 C · 删除（不推荐）
+  - 只有一种理由成立：认定它除了三条有效发现外都是 survey 的转述，而 survey 本身
+    仍在持续更新（T 轮已把 11.F-1..11.F-17 全部写回），信息无独特性。
+    但 §5 的"流程缺口"一节是 survey 里没有的独立观察，删掉会损失这条干预证据。
+
+不建议把它"按现状提交为当前状态"——59 条里 23 条过时、5 条驳回，其中 §1 的三条
+地面真值全部失效，直接入库会制造新的注释腐烂（正是本仓库 T0 工单在治的病）。
+
+========================================================================
+EOF  B9 核查完成 · 只读 · HEAD=c1bb0da · 未 add/commit/rm 任何文件
