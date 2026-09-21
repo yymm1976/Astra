@@ -4,6 +4,7 @@
 #include "/lib/encoding.glsl"
 #include "/lib/dither.glsl"
 #include "/lib/tonemap.glsl"
+#include "/global/post/exposure.glsl"
 
 // ============================================================
 //  Astra v1 - global/post/grading.glsl
@@ -17,7 +18,13 @@
 //  macro the top-level shell injects (DIMENSION_NETHER / DIMENSION_END).
 // ============================================================
 //
-// --- INTERFACE CONTRACT: four slots, and the space each one runs in ---------
+// --- INTERFACE CONTRACT: five slots, and the space each one runs in ----------
+//
+//   vec3 apply_auto_exposure(vec3 linearHDR)
+//       LINEAR / scene-referred, and the FIRST thing the chain does. A measured scene
+//       gain, so it has to be outside the tone curve and outside the user's slider.
+//       final calls it on the air arm only (design.md SC-41): the underwater display
+//       curve and the nether/end dimensions keep the manual exposure.
 //
 //   vec3 apply_exposure(vec3 linearHDR)
 //       LINEAR / scene-referred. Must run BEFORE the tonemap: exposure is a
@@ -39,7 +46,8 @@
 //       screenPos is gl_FragCoord.xy in device pixels, not 0..1.
 //
 // Full §2.2 final-chain order, therefore:
-//   colortex0 -> apply_exposure -> tonemap -> sRGB encode -> apply_grading
+//   colortex0 -> apply_auto_exposure (optional) -> apply_exposure -> tonemap
+//             -> sRGB encode -> apply_grading
 //             -> apply_vignette (optional) -> apply_output_dither -> gl_FragData[0]
 //
 // --- why display space ------------------------------------------------------
@@ -114,6 +122,19 @@ float grading_dimension_exposure() {
 
 vec3 apply_exposure(vec3 linearHDR) {
 	return linearHDR * (EXPOSURE * 0.01 * grading_dimension_exposure());
+}
+
+// Auto-exposure sits in front of apply_exposure rather than inside it: it is a scene
+// measurement, and the user's slider stays the thing it multiplies. Like apply_vignette,
+// the function always exists and returns its input untouched when the option is off, so
+// the call site needs no #ifdef of its own - and the #ifdef has to be spelled this way
+// for Iris to treat AUTO_EXPOSURE as an option at all (see apply_output_dither below).
+vec3 apply_auto_exposure(vec3 linearHDR) {
+	#ifdef AUTO_EXPOSURE
+		return linearHDR * astra_ae_gain();
+	#else
+		return linearHDR;
+	#endif
 }
 
 // ------------------------------------------------------------

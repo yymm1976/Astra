@@ -98,9 +98,12 @@ void main() {
     // every underwater pixel (consolidated review D4 / Hunyuan A1). TONEMAP_OPERATOR
     // applies to the air path only; lang documents that.
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    // apply_auto_exposure is a compile-time no-op unless AUTO_EXPOSURE is on, and it
+    // belongs on this arm only (design.md SC-41): underwater keeps the Solas curve on
+    // the manual slider, and nether/end have no metering pass to read.
     vec3 displayColor = isEyeInWater == 1
         ? solas_water_display(apply_exposure(hdr))
-        : srgb_encode(apply_tonemap(apply_exposure(hdr)));
+        : srgb_encode(apply_tonemap(apply_exposure(apply_auto_exposure(hdr))));
     #else
     vec3 displayColor = srgb_encode(apply_tonemap(apply_exposure(hdr)));
     #endif

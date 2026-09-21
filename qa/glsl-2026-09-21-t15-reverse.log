@@ -1,0 +1,38 @@
+=== T15 REVERSE COMPILE VERIFICATION 2026-09-21T10:40:18+08:00 ===
+target      Astra/shaders/global/post/grading.glsl
+sha256(clean)  37eb919f985bc8d5c4e0d0533889a241812dd851cb294a01d11305abd7139d53
+sha256(probe)  367e7548cfbbfe51cccffb074d0033a603d25ea2e6f7cb1d462df11d9adc8b74
+sha256(now)    37eb919f985bc8d5c4e0d0533889a241812dd851cb294a01d11305abd7139d53
+
+probe: grading.glsl apply_auto_exposure() 的 #ifdef AUTO_EXPOSURE 真臂
+       'return linearHDR * astra_ae_gain();' -> 'return linearHDR * astraT15ReverseProbeMustFail;'
+       假臂（return linearHDR;）未改。合并源中该行为第 134 行。
+
+[A] 出厂侧（选项关）python qa/tools/compile_glsl.py --match final -> rc=0
+    BATCH 1/1 rows=PERFORMANCE..ULTRA rc=0
+    OPENGL_VENDOR	NVIDIA Corporation
+    OPENGL_RENDERER	NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2
+    OPENGL_VERSION	4.6.0 NVIDIA 572.83
+    RESULT	linked=9	failed=0	compute=0	compute_capable=true
+    => linked=9 failed=0：注入非法标识符后出厂侧仍然全绿，证明 AUTO_EXPOSURE 关时真臂不参编。
+
+[B] 强制侧（选项开）python qa/tools/compile_glsl.py --match final --set AUTO_EXPOSURE= -> rc=1
+    BATCH 1/1 rows=PERFORMANCE..ULTRA rc=1
+    RESULT	linked=0	failed=9	compute=0	compute_capable=true
+    COMPILE_FAIL 9 项，全部为同一错误：
+    11(134) : error C1503: undefined variable "astraT15ReverseProbeMustFail"
+      PERFORMANCE:final.fsh
+      PERFORMANCE:world-1/final.fsh
+      PERFORMANCE:world1/final.fsh
+      BALANCED:final.fsh
+      BALANCED:world-1/final.fsh
+      BALANCED:world1/final.fsh
+      ULTRA:final.fsh
+      ULTRA:world-1/final.fsh
+      ULTRA:world1/final.fsh
+    => 3 profiles x 3 dimensions(final.fsh/world-1/world1) 无一幸免，证明该 #ifdef 在每一档、
+       每一个维度的 final 中都真实生效，而非只在主世界某档生效。
+
+[C] 还原：按备份字节写回，sha256(now)==sha256(clean)，探针字符串已不存在。
+    注意：[A][B] 两次运行是在带探针的副本上做的，只用于分支证据；出厂像素零变化的判据
+    以还原后重跑的 qa/glsl-2026-09-21-t15-runner.txt 三档扫描为准（见下方 RUNNER 段）。

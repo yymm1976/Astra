@@ -227,7 +227,7 @@ Astra/
 |---|---|---|
 | 直射光 | Lambert + 自适应 normal-offset bias（sampler2DShadow 硬件 PCF + 4-tap 软化，≤16 texel） | Steadfast |
 | 环境光 | 仿原版方向性环境光 `(0.67+0.33·Ny)`、skylight 立方衰减、minAmbient 洞穴底色 | Steadfast |
-| 方块光 | `pow⁴` 衰减 + **日光压制**（blocklightSuppression：日光越强方块光越弱，替代自动曝光，避免闪变） | Steadfast |
+| 方块光 | `pow⁴` 衰减 + **日光压制**（blocklightSuppression：日光越强方块光越弱）——本行原写"替代自动曝光"，SC-41（2026-09-21）已推翻该排他论断：压制是**光照项**、自动曝光是**显示增益**，二者不同轴且可并存；本机制与出厂状态均不变 | Steadfast |
 | 彩色阴影 | shadowcolor0 染色（**染色玻璃/水/染色板投彩色影；透明玻璃不投影**） | Steadfast |
 | 静态阴影回退 | 影距外用 skylight 阈值近似（`smoothstep(13.5/15, 14.5/15)`），5–10 格交叉淡化 | Steadfast（源自 Photon） |
 | SSS | 叶子/植被经验近似：影内固定 0.7071 直射 + 前向散射提升 | Steadfast |
@@ -253,7 +253,7 @@ Astra/
 | 空气透视 | 雾色随视向-太阳夹角偏移（晨昏地平线染色）——Refrax 风格的廉价实现点 | Refrax 思路，自实现 |
 | 生物群系 | 雾/环境光带轻微 biome tint（custom uniform 平滑温度/湿度） | Refrax 思路，自实现 |
 | 云 | 默认：原版云直通+调色；可选项：平面 wispy 云（噪声多层，极便宜） | Mellow |
-| 云影 | v1 不做（roadmap 候选，Refrax 3-slab 方案） | — |
+| 云影 | 已落地为 `CLOUD_SHADOWS` 选项（2026-09-21 T14 `3d13037`，本行原写"v1 不做"是腐烂）：复用出厂既有的单平面云密度场 `astra_cloud_transmission` 沿光向投到地面，2D 廉价形态而非 Refrax 3-slab；三档一律 `!`，强度与掠射淡出待实机 | BSL / Complementary Reimagined 思路 |
 
 **决议（SC-12，E 系，2026-09-05）：平面 wispy 云实现归 D2。** 云与 Minishita 天空/日月/星星共用同一条大气链（视向、太阳角、雾混合全在同一处），拆给两档会产出两套接口；`global/atmosphere/clouds_planar.glsl` 与 `program/clouds.fsh` 的消费者由 D2 任务行确立。`CLOUD_MODE` 保持 0/1/2 三档不砍。
 
@@ -303,7 +303,8 @@ SC-32 水面细节补充：未解析波层的 roughness 采用与波相位无关
 | 色彩分级 | 曝光/饱和/自然饱和/对比/色温；**出厂默认值以 Refrax 风格为校准目标**（起始值：饱和 1.12 / 自然饱和 1.15 / 对比 1.04，开发期对照 Refrax 截图迭代） | Refrax 风格目标 |
 | 风格层 | 所有风格参数集中在 `global/post/grading.glsl` 单一预设块——整包"观感"只调这一个文件 | 设计约定 |
 | 抖动 | IGN 输出抖动（无 AA 下防 banding 的必需品） | Steadfast |
-| 明确不做 | 自动曝光、暗角（默认）、色差、胶片颗粒、DOF、运动模糊、描边 | 清爽哲学 |
+| 自动曝光 | **SC-41（2026-09-21）新增加入本表**：`AUTO_EXPOSURE` 可关选项、三档出厂 `!`；有界场景增益（夹在 `[AE_MIN, AE_MAX]` 内）乘在用户 `EXPOSURE` 滑杆之上，逐帧一次 1 片元测光 + 帧时间归一的不对称平滑，只在主世界空气路径生效 | 调研 §6 P0-3 |
+| 明确不做 | 暗角（默认）、色差、胶片颗粒、DOF、运动模糊、描边（自动曝光原列本行，SC-41 移出） | 清爽哲学 |
 
 **决议：E1（SC-32，2026-09-07）final 在既有 HDR+bloom+godrays 后追加水下颗粒，再执行 SC-16 单次 sRGB 链。** 颗粒不参与 bloom 采集，避免微尘被再次扩成光斑。godrays 保持 8 次深度采样，取消额外起点采样；60°视角阈值为0.5，曝光因子夹0..1，离屏深度不采样。该项修复屏幕空间光束边缘，不将 scene.glsl 的水下角向亮晕表述为有遮挡的体积光束。
 
@@ -515,7 +516,34 @@ E1–E4 不整体标完成：本次完成可由源码确认的修复与书面裁
 - **水色分工修订（覆盖 §4.3/SC-34 的"空气侧只做吸收"禁令）**：空气侧在吸收之外增加受控的水体单次散射项（`water_body_color × (1−T)`），空气侧观感目标定为"青绿→深蓝的深度行程 + 菲涅尔反射叠加"；水下体积源仍然不进入空气侧路径。
 - **lit varying 预算重订（覆盖 §3.2 的 9 标量冻结）**：按 pass 组合上限计——基础 9（texcoord/lightcoord/tint/faceData）+ 位置/阴影 6（cameraRelativePosition/surfaceShadowPosition）+ 水面切线系 10，逐顶点预投影是性能取舍；新增位置/shadow varying 必须过闸门。
 - **"零 compute/零彩光"边界修订（覆盖 §0/§2.1）**：下界体素彩色光（9 个 compute 阶段 + 3 张自定义图像）自 NETHER_VOXEL_LIGHT 起为一等公民例外。
-- **global→global 子分层承认（覆盖 §3.2 决议字句）**：大气（clouds_planar/stars→sky_gradient）与末地（end→end_blackhole→end_system→end_ring→end_geometry）两条单向链合法；校验器须补 global 内部边规则。
+- **global→global 子分层承认（覆盖 §3.2 决议字句）**：大气（clouds_planar/stars→sky_gradient）、末地（end→end_blackhole→end_system→end_ring→end_geometry）、后期（post/grading→post/exposure，SC-41）三条单向链合法；校验器须补 global 内部边规则。
 - **SKY_MODE 出厂=渐变（覆盖 §4.2 的 Minishita 默认）**：Complementary 渐变移植为出厂天空，Minishita 为可选手动档；在其获得天穹 LUT 之前不得改回默认（逐像素 2 视采样 + 1 光采样积分不可接受）。
 - **deferred 恒开重申（§2.2 旧条件作废，沿 SC-34-F1）**：ASTRA_SCENE_COPY 与三维度 deferred 常开是现行契约；条件化属未来演进，须先改本条。
 - **colortex5 语义重申**：RG=水面高度、B=天光、A=水面有效性标志（water_state.fsh 消费），任何 pass 不得挪作他用。
+
+## SC-41 自动曝光翻案与实施决议（2026-09-21，调研 §6 P0-3 / 工单 T15）
+
+**决议：E1/E2，用户裁定"先翻案 design 4.1 再实现，默认关"。** 本节推翻 §4.1 方块光行与 §4.4"明确不做"行里"以日光抑制取代自动曝光"这一排他论断，把自动曝光改为**可关选项 `AUTO_EXPOSURE`、三档出厂 `!`**。翻案理由不是"参照包都有所以要有"：Complementary Reimagined（66,417,800 下载）全包 `auto.?exposure|eyeAdaptation` 零命中，调研已核实。成立的那一条是**洞穴↔露天过渡**——本包是"日光越强方块光越弱"的压制模型，走进洞穴时压制项归零、天光项同时归零，画面对暗部的唯一补偿手段只剩用户手改 `EXPOSURE` 滑杆；压制项作用于**光照**，无法补偿一个已经整体偏暗的场景。收益按调研 §11.D 的判词记为"少一次手改滑杆"，不记为"补齐必需品"。
+
+**不翻案的部分**：`BLOCKLIGHT_SUPPRESSION` 机制、其出厂开启状态、以及它相对 `EXPOSURE` 的优先级全部不变。二者不同轴——压制改的是"方块光在被日光照射时贡献多少"，自动曝光改的是"场景线性 HDR 进曲线前整体乘多少"。`settings.glsl:49` 的 "(replaces auto-exposure, design 4.1)" 措辞随本条就地更正。
+
+**实施契约（缓冲、pass、编码、消费点）**
+
+- 测光 = 新增 `composite5`，片元数每帧 1（`program/exposure.fsh`），输出 `colortex10`，`size.buffer.colortex10=1 1`。1 片元 pass 的先例是本包既有的 `program/water_state.fsh`（composite，写 `colortex6`，同为 1×1、逐帧不清零）；跨帧持久历史即靠这一条性质成立。
+- 时序合法性：`colortex0` 的最后一个写者是 composite3（`water_composite.fsh`），composite4 写 `colortex7`，故 composite5 读到的 `colortex0` 正是 final 将消费的那份场景线性 HDR。测光不得放在 composite3 之前，也不得放在写 `colortex0` 的 pass 内（禁止读正在写的缓冲，§2.2 既有禁令）。
+- 门控：`program.composite5.enabled=AUTO_EXPOSURE` 与两条 `program.world-1|world1/composite5.enabled=false` 一律写在 properties 预处理分支**之外**——`check_pack` #16 明文规定坐在 `#ifdef X` 里的门恰在需要关掉它时消失（`:327-329` 的 voxel 门同一教训）。下界/末地不测光：两维度的出厂曝光走 `GRADING_EXPOSURE_NETHER/END`（`global/post/grading.glsl:77,81`），是纯维度常量，掺进场景相关增益会同时毁掉"两维度可独立辨识"的一等公民目标（§4.5）。
+- 历史编码必须格式无关（SC-27 全线 Iris 默认格式、禁活跃格式 const）：`t = (log2(gain) - log2(AE_MIN)) / (log2(AE_MAX) - log2(AE_MIN))` 夹到 `[0,1]` 存 `.r`。默认格式无论 RGBA8 还是 RGBA16F 都能原样承载 `[0,1]`；按 `water_pack_surface_height` 对 `colortex6` 的 255 量化处理解，本包实际按 8-bit 归一化对待 1×1 缓冲，故 `[0.60, 2.20]` 的 1.874 octaves 摊到 255 码 = 每码 0.51% 增益台阶，量化台阶不可见且被平滑吸收。
+- 消费点：`global/post/grading.glsl` 的 `apply_auto_exposure()`，线性/前置 tonemap，紧接 `apply_exposure()` 之前。`apply_exposure` 仍是用户滑杆的唯一落点；新增这一槽而非把两件事塞进同一函数，是为了让"用户增益"与"传感器增益"各自可关。
+
+**对调研「做法」的两条实测偏离**
+
+1. 调研要求"在 `program/water_bloom.fsh` 已有的 mipmap 链上取最粗一级做亮度"。**不采纳**，两条实测理由：① 那条链属于 `colortex0`，其 `colortex0MipmapEnabled` 声明只在 `program/water_bloom.fsh:5` 出现，而 composite4 的门是 `program.composite4.enabled=BLOOM`（properties:55）且 PERFORMANCE 档出厂 `!BLOOM`（`:149`）——在该档启用本选项会**新引入**一整条全分辨率 HDR mip 链的生成，与调研「成本」条"一次 mipmap fetch…可忽略"直接矛盾；② 1 片元视口内没有相邻片元，隐式 LOD 的导数无定义，取级本身不可靠。改为**定步长 `texelFetch` 网格**（`AE_GRID=8` → 64 次整数取点，`textureSize()` 推步距），零带宽、零格式假设、与 BLOOM 完全解耦；`texelFetch` 亦是 `water_state.fsh` 在同型 1 片元 pass 里已经采用的取点方式。
+2. 调研「依据」点名的六包一律用 mipmap 或直方图，本包两者都不用。这是主动偏离，不是遗漏；若日后 `colortex0` 的 mip 链成为常态（例如 PERFORMANCE 也开 BLOOM），可再评估换源，但**测光源不得依赖任何会被别的开关关掉的缓冲**——`colortex2`（泛光采集）当年就是因 `BLOOM` 开关会改变曝光而被排除。
+
+**工单要求采纳的三条性质，落点**
+
+- *对高光截断*（Photon `program/c4_taa_exposure.vsh:39-170` 的中位数诉求的等价形式）：逐抽先 `clamp(luminance, AE_FLOOR, AE_CLIP)` 再进 `log2`，太阳入镜不再抬走整体测光。本包不做直方图中位数——一帧一个片元拿不到分布。
+- *NaN 守卫*：历史有效性用 `.a` 标志位而非"数值 ≤0"判定（Refrax 的 `prev<=0.0` 判据在 `[0.60,2.20]` 的码域会把"增益触底"误判成"无历史"）；解出的历史码若非有限也当帧用 target 重置。测光自身若得 NaN 直接返回中性 1.0。
+- *变暗/变亮不对称速率*：`AE_RATE_FAST`（场景变亮 → 增益下降，2.5）快、`AE_RATE_SLOW`（场景变暗 → 增益上升，0.5）慢，出洞不炸白；混合权重按帧时间归一 `1 - exp(-frameTime·rate)`，故与帧率无关。混合在 `log2` 域做，且差值不足一个量化码（`AE_LOG_CODE`）时直接吸附到 target，否则 8-bit 历史会在两个码之间永远抖动。
+
+**出厂足迹与验收边界**：选项关 ⇒ composite5 不编译、`colortex10` 只余一张 1×1 纹理、`apply_auto_exposure` 原样返回输入，出厂像素零变化（判据：三档默认扫描 + `qa/iris-properties-resolved.txt` 快照 + 反向编译验证）。开起来的观感——呼吸感、洞穴进出节奏、日面入镜是否仍压暗、水下冻结是否正确——全部离线不可判，进 `qa/regression-checklist.md` 待实机行；本节不构成"无闪变"或"性能可接受"的结论。附带补记：§4.2 云影行原写"v1 不做"，实际已由 T14 `3d13037` 落地，本轮同批更正。

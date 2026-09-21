@@ -46,7 +46,8 @@
 #define BLOCKLIGHT_STRENGTH 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Blocklight strength, %
 #define BLOCKLIGHT_SUPPRESSION // [false true]
-// Suppress blocklight by daylight (replaces auto-exposure, design 4.1)
+// Suppress blocklight by daylight. It was documented as a replacement for auto-exposure
+// until SC-41 overturned that: this is a lighting term, auto-exposure is a display gain.
 #define HANDHELD_LIGHTING // [false true]
 // Dynamic handheld light source
 #define HANDHELD_LIGHT_STRENGTH 100 // [0 25 50 75 100 125 150 175 200 225 250 275 300 325 350 375 400]
@@ -185,6 +186,9 @@
 // 0 = Uchimura (default), 1 = AgX, 2 = ACES, 3 = Reinhard-Jodie
 #define EXPOSURE 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Color grading: exposure, %
+//#define AUTO_EXPOSURE // [false true]
+// Scene-measured exposure gain on top of the slider above (bounded to about one stop
+// either way, overworld air only; needs in-game A/B, design.md SC-41)
 #define SATURATION 100 // [50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150]
 // Color grading: saturation (factory 105 after second visual round; 2026-09-07 -> 100)
 #define VIBRANCE 100 // [50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150]
