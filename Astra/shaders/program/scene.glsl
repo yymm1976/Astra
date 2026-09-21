@@ -235,10 +235,37 @@ vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
         // The bed receives the same incident daylight as the bank. A second
         // reference palette made daytime transmission blue while torchlight
         // stayed cyan. Interface absorption owns the water colour, once.
+
+        #ifdef CLOUD_SHADOWS
+            // PROVENANCE: BSL (lib/lighting/shadows.glsl:295-374, All Rights Reserved) +
+            //   Complementary Reimagined r5.9 (lib/lighting/cloudShadows.glsl:60, License
+            //   1.7) - IDEA ONLY, no code and no formula transplanted: project 2D cloud
+            //   density along the light onto the ground, and fade that projection near the
+            //   horizon. Every expression and constant below is Astra's own; THIRD-PARTY.md.
+            // astraRainFactor is deliberately NOT a weight here: weather.glsl folds it
+            // into the cloud density threshold, so multiplying by it again would double-
+            // count the storm. static_shadow() is the pack's own "fully open to sky"
+            // test - the one diffuse.glsl:253 uses for the shadow-map fallback - so a
+            // roofed or underground surface never catches a cloud shadow. The horizon
+            // fade is required, not cosmetic: near the horizon this single-plane trace
+            // runs hundreds of blocks sideways and stops being this fragment's
+            // occluder, and it also covers the `lightDir.y <= 0.01` early-out in
+            // astra_cloud_transmission, whose 0.0 would otherwise cut grazing moonlight
+            // to a quarter.
+            vec3 cloudLightDir = normalize(view_player(lightVector));
+            float cloudWeight = 0.75 * static_shadow(skylight)
+                              * smoothstep(0.0, 0.2, cloudLightDir.y);
+            if (isEyeInWater == 0 && cloudWeight > 0.0) {
+                params.directLightSurface *= mix(1.0,
+                    astra_cloud_transmission(playerPos + cameraPosition, cloudLightDir),
+                    cloudWeight);
+            }
+        #else
         if (isEyeInWater == 0 && astraRainFactor > 0.01) {
             float cloudLight = astra_cloud_transmission(playerPos + cameraPosition, normalize(view_player(lightVector)));
             params.directLightSurface *= mix(1.0, cloudLight, astraRainFactor * 0.75);
         }
+        #endif
         bool sss = material >= 2u && material <= 6u;
         #ifndef SSS_FOLIAGE
             sss = false;

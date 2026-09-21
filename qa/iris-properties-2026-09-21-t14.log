@@ -1,0 +1,474 @@
+KNOWN bool=AIR_PERSPECTIVE
+KNOWN bool=ASTRA_BASIC
+KNOWN bool=ASTRA_END_BLACKHOLE_GLSL
+KNOWN bool=ASTRA_END_BODY_CACHE
+KNOWN bool=ASTRA_END_GEOMETRY_GLSL
+KNOWN bool=ASTRA_END_LIGHT_GLSL
+KNOWN bool=ASTRA_END_RING_GLSL
+KNOWN bool=ASTRA_END_SKY_BUFFER
+KNOWN bool=ASTRA_END_SYSTEM_GLSL
+KNOWN bool=ASTRA_ENTITY
+KNOWN bool=ASTRA_GLOBAL_ATMOSPHERE_CLOUDS_PLANAR_GLSL
+KNOWN bool=ASTRA_GLOBAL_ATMOSPHERE_FOG_GLSL
+KNOWN bool=ASTRA_GLOBAL_ATMOSPHERE_SKY_GRADIENT_GLSL
+KNOWN bool=ASTRA_GLOBAL_ATMOSPHERE_SKY_MINISHITA_GLSL
+KNOWN bool=ASTRA_GLOBAL_ATMOSPHERE_STARS_GLSL
+KNOWN bool=ASTRA_GLOBAL_DIMENSION_END_GLSL
+KNOWN bool=ASTRA_GLOBAL_DIMENSION_NETHER_GLSL
+KNOWN bool=ASTRA_GLOBAL_DIMENSION_OVERWORLD_GLSL
+KNOWN bool=ASTRA_GLOBAL_LIGHTING_BLOCKLIGHT_GLSL
+KNOWN bool=ASTRA_GLOBAL_LIGHTING_DIFFUSE_GLSL
+KNOWN bool=ASTRA_GLOBAL_LIGHTING_SHADOWMAP_GLSL
+KNOWN bool=ASTRA_GLOBAL_LIGHTING_SSS_GLSL
+KNOWN bool=ASTRA_GLOBAL_LIGHTING_WIND_GLSL
+KNOWN bool=ASTRA_GLOBAL_POST_BLOOM_GLSL
+KNOWN bool=ASTRA_GLOBAL_POST_GODRAYS_GLSL
+KNOWN bool=ASTRA_GLOBAL_POST_GRADING_GLSL
+KNOWN bool=ASTRA_GLOBAL_WATER_ABSORPTION_GLSL
+KNOWN bool=ASTRA_GLOBAL_WATER_CAUSTICS_GLSL
+KNOWN bool=ASTRA_GLOBAL_WATER_LIGHT_SHAFTS_GLSL
+KNOWN bool=ASTRA_GLOBAL_WATER_OPTICS_GLSL
+KNOWN bool=ASTRA_GLOBAL_WATER_PARTICLES_GLSL
+KNOWN bool=ASTRA_GLOBAL_WATER_RAYTRACE_GLSL
+KNOWN bool=ASTRA_GLOBAL_WATER_REFRACTION_GLSL
+KNOWN bool=ASTRA_GLOBAL_WATER_SURFACE_GLSL
+KNOWN bool=ASTRA_HAND
+KNOWN bool=ASTRA_LIB_BAYER_GLSL
+KNOWN bool=ASTRA_LIB_COLORS_GLSL
+KNOWN bool=ASTRA_LIB_DISTORT_GLSL
+KNOWN bool=ASTRA_LIB_DITHER_GLSL
+KNOWN bool=ASTRA_LIB_ENCODING_GLSL
+KNOWN bool=ASTRA_LIB_POW_GLSL
+KNOWN bool=ASTRA_LIB_SETTINGS_GLSL
+KNOWN bool=ASTRA_LIB_TONEMAP_GLSL
+KNOWN bool=ASTRA_LIB_TRANSFORMS_GLSL
+KNOWN bool=ASTRA_LIB_UNIFORMS_GLSL
+KNOWN bool=ASTRA_NETHER_COLORED_LIGHT
+KNOWN bool=ASTRA_NETHER_VOLUME_GLSL
+KNOWN bool=ASTRA_PROGRAM_SCENE_GLSL
+KNOWN bool=ASTRA_PROGRAM_WATER_GLSL
+KNOWN bool=ASTRA_SHAFT_MARCH_PASS
+KNOWN bool=ASTRA_SKY_TEXTURED
+KNOWN bool=ASTRA_SOLAS_WATER_GLSL
+KNOWN bool=ASTRA_TERRAIN
+KNOWN bool=ASTRA_TRANSLUCENT
+KNOWN bool=ASTRA_TWILIGHT_GLSL
+KNOWN bool=ASTRA_UNDERWATER_SHAFTS
+KNOWN bool=ASTRA_WATER_BUFFER_FORMATS_GLSL
+KNOWN bool=ASTRA_WATER_MEDIUM_STATE_GLSL
+KNOWN bool=ASTRA_WATER_PASS
+KNOWN bool=ASTRA_WATER_REFERENCE_LIGHT_GLSL
+KNOWN bool=ASTRA_WEATHER
+KNOWN bool=ASTRA_WEATHER_GLSL
+KNOWN bool=BIOME_TINT
+KNOWN bool=BLOCKLIGHT_SUPPRESSION
+KNOWN bool=BLOOM
+KNOWN bool=BORDER_FOG
+KNOWN bool=CAVE_FOG
+KNOWN bool=CLOUD_SHADOWS
+KNOWN bool=COLORED_SHADOWS
+KNOWN bool=DIMENSION_END
+KNOWN bool=DIMENSION_NETHER
+KNOWN bool=DITHERING
+KNOWN bool=END_NEBULA
+KNOWN bool=FANCY_TRANSLUCENTS
+KNOWN bool=GODRAYS
+KNOWN bool=GODRAYS_SUN_OCCLUSION
+KNOWN bool=HANDHELD_LIGHTING
+KNOWN bool=LIGHTNING_FLASH
+KNOWN bool=NETHER_VOXEL_LIGHT
+KNOWN bool=SCREENSPACE_REFLECTIONS
+KNOWN bool=SCREENSPACE_REFRACTION
+KNOWN bool=SHADOWS
+KNOWN bool=SSS_FOLIAGE
+KNOWN bool=STARS
+KNOWN bool=STATIC_SHADOW_FALLBACK
+KNOWN bool=UNDERWATER_LIGHT_SHAFTS
+KNOWN bool=UNDERWATER_PARTICLES
+KNOWN bool=UNDERWATER_SHAFT_CALIBRATION
+KNOWN bool=VIGNETTE
+KNOWN bool=VOXY_SUPPORT
+KNOWN bool=WATER_CAUSTICS
+KNOWN bool=WATER_WAVES
+KNOWN bool=WAVING_FOLIAGE
+KNOWN str=BIOME_TINT_STRENGTH
+KNOWN str=BLOCKLIGHT_STRENGTH
+KNOWN str=BLOOM_STRENGTH
+KNOWN str=CLOUD_COVERAGE
+KNOWN str=CLOUD_MODE
+KNOWN str=COLOR_TEMPERATURE
+KNOWN str=CONTRAST
+KNOWN str=EMISSIVE_STRENGTH
+KNOWN str=END_FOG_DENSITY
+KNOWN str=END_PRECESSION_MINUTES
+KNOWN str=ENTITY_SHADOW_DISTANCE
+KNOWN str=EXPOSURE
+KNOWN str=FOG_DENSITY
+KNOWN str=GODRAYS_STRENGTH
+KNOWN str=HANDHELD_LIGHT_STRENGTH
+KNOWN str=MIN_AMBIENT
+KNOWN str=MOONLIGHT_STRENGTH
+KNOWN str=NETHER_FOG_DENSITY
+KNOWN str=REFRACTION_STRENGTH
+KNOWN str=SATURATION
+KNOWN str=SHADOW_DISTANCE
+KNOWN str=SHADOW_FILTER_MODE
+KNOWN str=SHADOW_RESOLUTION
+KNOWN str=SHADOW_SOFTNESS
+KNOWN str=SKYLIGHT_STRENGTH
+KNOWN str=SKY_FOG_STRENGTH
+KNOWN str=SKY_MODE
+KNOWN str=SSS_STRENGTH
+KNOWN str=SUNLIGHT_STRENGTH
+KNOWN str=SUN_MOON_MODE
+KNOWN str=TONEMAP_OPERATOR
+KNOWN str=UNDERWATER_FOG_DENSITY
+KNOWN str=UNDERWATER_SHAFT_SAMPLES
+KNOWN str=UNDERWATER_SHAFT_STRENGTH
+KNOWN str=VIBRANCE
+KNOWN str=WATER_ABSORPTION
+KNOWN str=WATER_CHARACTER
+KNOWN str=WATER_WAVE_HEIGHT
+KNOWN str=WATER_WAVE_SPEED
+KNOWN str=WAVING_FOLIAGE_STRENGTH
+===TIER BALANCED
+GATE program.composite.enabled=true EFFECTIVE=true
+GATE program.composite1.enabled=1 EFFECTIVE=true
+GATE program.composite2.enabled=true EFFECTIVE=true
+GATE program.composite3.enabled=true EFFECTIVE=true
+GATE program.composite4.enabled=1 EFFECTIVE=true
+GATE program.deferred.enabled=true EFFECTIVE=true
+GATE program.shadow.enabled=1 EFFECTIVE=true
+GATE program.world-1/composite.enabled=false EFFECTIVE=false
+GATE program.world-1/composite1.enabled=1 EFFECTIVE=true
+GATE program.world-1/composite2.enabled=false EFFECTIVE=false
+GATE program.world-1/composite3.enabled=false EFFECTIVE=false
+GATE program.world-1/composite4.enabled=false EFFECTIVE=false
+GATE program.world-1/deferred.enabled=true EFFECTIVE=true
+GATE program.world-1/shadow.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcomp.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompA.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompB.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompC.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompD.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompE.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompF.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompG.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompH.enabled=1 EFFECTIVE=true
+GATE program.world1/composite.enabled=false EFFECTIVE=false
+GATE program.world1/composite1.enabled=1 EFFECTIVE=true
+GATE program.world1/composite2.enabled=false EFFECTIVE=false
+GATE program.world1/composite3.enabled=false EFFECTIVE=false
+GATE program.world1/composite4.enabled=false EFFECTIVE=false
+GATE program.world1/deferred.enabled=true EFFECTIVE=true
+GATE program.world1/deferred1.enabled=true EFFECTIVE=true
+GATE program.world1/prepare.enabled=true EFFECTIVE=true
+GATE program.world1/shadow.enabled=1 EFFECTIVE=true
+BUFFER size.buffer.colortex1=0.5 0.5
+BUFFER size.buffer.colortex2=0.25 0.25
+BUFFER size.buffer.colortex6=1 1
+BUFFER size.buffer.colortex7=0.25 0.25
+BUFFER size.buffer.colortex8=294 1
+BUFFER size.buffer.colortex9=0.75 0.75
+OVERRIDE AIR_PERSPECTIVE wanted=true kind=bool value=true
+OVERRIDE BIOME_TINT wanted=true kind=bool value=true
+OVERRIDE BIOME_TINT_STRENGTH wanted=50 kind=str value=50
+OVERRIDE BLOCKLIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE BLOCKLIGHT_SUPPRESSION wanted=true kind=bool value=true
+OVERRIDE BLOOM wanted=true kind=bool value=true
+OVERRIDE BLOOM_STRENGTH wanted=100 kind=str value=100
+OVERRIDE BORDER_FOG wanted=true kind=bool value=true
+OVERRIDE CAVE_FOG wanted=true kind=bool value=true
+OVERRIDE CLOUD_COVERAGE wanted=50 kind=str value=50
+OVERRIDE CLOUD_MODE wanted=1 kind=str value=1
+OVERRIDE CLOUD_SHADOWS wanted=false kind=bool value=false
+OVERRIDE COLORED_SHADOWS wanted=true kind=bool value=true
+OVERRIDE COLOR_TEMPERATURE wanted=0 kind=str value=0
+OVERRIDE CONTRAST wanted=102 kind=str value=102
+OVERRIDE DITHERING wanted=true kind=bool value=true
+OVERRIDE EMISSIVE_STRENGTH wanted=100 kind=str value=100
+OVERRIDE END_FOG_DENSITY wanted=100 kind=str value=100
+OVERRIDE END_NEBULA wanted=true kind=bool value=true
+OVERRIDE END_PRECESSION_MINUTES wanted=36 kind=str value=36
+OVERRIDE ENTITY_SHADOW_DISTANCE wanted=64 kind=str value=64
+OVERRIDE EXPOSURE wanted=100 kind=str value=100
+OVERRIDE FANCY_TRANSLUCENTS wanted=true kind=bool value=true
+OVERRIDE FOG_DENSITY wanted=50 kind=str value=50
+OVERRIDE GODRAYS wanted=false kind=bool value=false
+OVERRIDE GODRAYS_STRENGTH wanted=100 kind=str value=100
+OVERRIDE GODRAYS_SUN_OCCLUSION wanted=false kind=bool value=false
+OVERRIDE HANDHELD_LIGHTING wanted=true kind=bool value=true
+OVERRIDE HANDHELD_LIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE LIGHTNING_FLASH wanted=true kind=bool value=true
+OVERRIDE MIN_AMBIENT wanted=8 kind=str value=8
+OVERRIDE MOONLIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE NETHER_FOG_DENSITY wanted=70 kind=str value=70
+OVERRIDE NETHER_VOXEL_LIGHT wanted=true kind=bool value=true
+OVERRIDE REFRACTION_STRENGTH wanted=100 kind=str value=100
+OVERRIDE SATURATION wanted=100 kind=str value=100
+OVERRIDE SCREENSPACE_REFLECTIONS wanted=true kind=bool value=true
+OVERRIDE SCREENSPACE_REFRACTION wanted=true kind=bool value=true
+OVERRIDE SHADOWS wanted=true kind=bool value=true
+OVERRIDE SHADOW_DISTANCE wanted=256 kind=str value=256
+OVERRIDE SHADOW_FILTER_MODE wanted=0 kind=str value=0
+OVERRIDE SHADOW_RESOLUTION wanted=2048 kind=str value=2048
+OVERRIDE SHADOW_SOFTNESS wanted=2 kind=str value=2
+OVERRIDE SKYLIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE SKY_FOG_STRENGTH wanted=15 kind=str value=15
+OVERRIDE SKY_MODE wanted=1 kind=str value=1
+OVERRIDE SSS_FOLIAGE wanted=true kind=bool value=true
+OVERRIDE SSS_STRENGTH wanted=60 kind=str value=60
+OVERRIDE STARS wanted=true kind=bool value=true
+OVERRIDE STATIC_SHADOW_FALLBACK wanted=true kind=bool value=true
+OVERRIDE SUNLIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE SUN_MOON_MODE wanted=0 kind=str value=0
+OVERRIDE TONEMAP_OPERATOR wanted=0 kind=str value=0
+OVERRIDE UNDERWATER_FOG_DENSITY wanted=40 kind=str value=40
+OVERRIDE UNDERWATER_LIGHT_SHAFTS wanted=true kind=bool value=true
+OVERRIDE UNDERWATER_PARTICLES wanted=false kind=bool value=false
+OVERRIDE UNDERWATER_SHAFT_CALIBRATION wanted=false kind=bool value=false
+OVERRIDE UNDERWATER_SHAFT_SAMPLES wanted=7 kind=str value=7
+OVERRIDE UNDERWATER_SHAFT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE VIBRANCE wanted=100 kind=str value=100
+OVERRIDE VIGNETTE wanted=false kind=bool value=false
+OVERRIDE VOXY_SUPPORT wanted=false kind=bool value=false
+OVERRIDE WATER_ABSORPTION wanted=100 kind=str value=100
+OVERRIDE WATER_CAUSTICS wanted=true kind=bool value=true
+OVERRIDE WATER_CHARACTER wanted=1 kind=str value=1
+OVERRIDE WATER_WAVES wanted=true kind=bool value=true
+OVERRIDE WATER_WAVE_HEIGHT wanted=100 kind=str value=100
+OVERRIDE WATER_WAVE_SPEED wanted=100 kind=str value=100
+OVERRIDE WAVING_FOLIAGE wanted=true kind=bool value=true
+OVERRIDE WAVING_FOLIAGE_STRENGTH wanted=100 kind=str value=100
+===TIER PERFORMANCE
+GATE program.composite.enabled=true EFFECTIVE=true
+GATE program.composite1.enabled=BLOOM EFFECTIVE=false
+GATE program.composite2.enabled=true EFFECTIVE=true
+GATE program.composite3.enabled=true EFFECTIVE=true
+GATE program.composite4.enabled=BLOOM EFFECTIVE=false
+GATE program.deferred.enabled=true EFFECTIVE=true
+GATE program.shadow.enabled=1 EFFECTIVE=true
+GATE program.world-1/composite.enabled=false EFFECTIVE=false
+GATE program.world-1/composite1.enabled=BLOOM EFFECTIVE=false
+GATE program.world-1/composite2.enabled=false EFFECTIVE=false
+GATE program.world-1/composite3.enabled=false EFFECTIVE=false
+GATE program.world-1/composite4.enabled=false EFFECTIVE=false
+GATE program.world-1/deferred.enabled=true EFFECTIVE=true
+GATE program.world-1/shadow.enabled=NETHER_VOXEL_LIGHT EFFECTIVE=false
+GATE program.world-1/shadowcomp.enabled=NETHER_VOXEL_LIGHT EFFECTIVE=false
+GATE program.world-1/shadowcompA.enabled=NETHER_VOXEL_LIGHT EFFECTIVE=false
+GATE program.world-1/shadowcompB.enabled=NETHER_VOXEL_LIGHT EFFECTIVE=false
+GATE program.world-1/shadowcompC.enabled=NETHER_VOXEL_LIGHT EFFECTIVE=false
+GATE program.world-1/shadowcompD.enabled=NETHER_VOXEL_LIGHT EFFECTIVE=false
+GATE program.world-1/shadowcompE.enabled=NETHER_VOXEL_LIGHT EFFECTIVE=false
+GATE program.world-1/shadowcompF.enabled=NETHER_VOXEL_LIGHT EFFECTIVE=false
+GATE program.world-1/shadowcompG.enabled=NETHER_VOXEL_LIGHT EFFECTIVE=false
+GATE program.world-1/shadowcompH.enabled=NETHER_VOXEL_LIGHT EFFECTIVE=false
+GATE program.world1/composite.enabled=false EFFECTIVE=false
+GATE program.world1/composite1.enabled=BLOOM EFFECTIVE=false
+GATE program.world1/composite2.enabled=false EFFECTIVE=false
+GATE program.world1/composite3.enabled=false EFFECTIVE=false
+GATE program.world1/composite4.enabled=false EFFECTIVE=false
+GATE program.world1/deferred.enabled=true EFFECTIVE=true
+GATE program.world1/deferred1.enabled=true EFFECTIVE=true
+GATE program.world1/prepare.enabled=true EFFECTIVE=true
+GATE program.world1/shadow.enabled=1 EFFECTIVE=true
+BUFFER size.buffer.colortex1=0.25 0.25
+BUFFER size.buffer.colortex2=0.25 0.25
+BUFFER size.buffer.colortex6=1 1
+BUFFER size.buffer.colortex7=0.25 0.25
+BUFFER size.buffer.colortex8=294 1
+BUFFER size.buffer.colortex9=0.75 0.75
+OVERRIDE AIR_PERSPECTIVE wanted=false kind=bool value=false
+OVERRIDE BIOME_TINT wanted=true kind=bool value=true
+OVERRIDE BIOME_TINT_STRENGTH wanted=50 kind=str value=50
+OVERRIDE BLOCKLIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE BLOCKLIGHT_SUPPRESSION wanted=true kind=bool value=true
+OVERRIDE BLOOM wanted=false kind=bool value=false
+OVERRIDE BLOOM_STRENGTH wanted=100 kind=str value=100
+OVERRIDE BORDER_FOG wanted=true kind=bool value=true
+OVERRIDE CAVE_FOG wanted=true kind=bool value=true
+OVERRIDE CLOUD_COVERAGE wanted=50 kind=str value=50
+OVERRIDE CLOUD_MODE wanted=0 kind=str value=0
+OVERRIDE CLOUD_SHADOWS wanted=false kind=bool value=false
+OVERRIDE COLORED_SHADOWS wanted=true kind=bool value=true
+OVERRIDE COLOR_TEMPERATURE wanted=0 kind=str value=0
+OVERRIDE CONTRAST wanted=102 kind=str value=102
+OVERRIDE DITHERING wanted=true kind=bool value=true
+OVERRIDE EMISSIVE_STRENGTH wanted=100 kind=str value=100
+OVERRIDE END_FOG_DENSITY wanted=100 kind=str value=100
+OVERRIDE END_NEBULA wanted=true kind=bool value=true
+OVERRIDE END_PRECESSION_MINUTES wanted=28 kind=str value=28
+OVERRIDE ENTITY_SHADOW_DISTANCE wanted=48 kind=str value=48
+OVERRIDE EXPOSURE wanted=100 kind=str value=100
+OVERRIDE FANCY_TRANSLUCENTS wanted=false kind=bool value=false
+OVERRIDE FOG_DENSITY wanted=50 kind=str value=50
+OVERRIDE GODRAYS wanted=false kind=bool value=false
+OVERRIDE GODRAYS_STRENGTH wanted=100 kind=str value=100
+OVERRIDE GODRAYS_SUN_OCCLUSION wanted=false kind=bool value=false
+OVERRIDE HANDHELD_LIGHTING wanted=true kind=bool value=true
+OVERRIDE HANDHELD_LIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE LIGHTNING_FLASH wanted=true kind=bool value=true
+OVERRIDE MIN_AMBIENT wanted=8 kind=str value=8
+OVERRIDE MOONLIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE NETHER_FOG_DENSITY wanted=70 kind=str value=70
+OVERRIDE NETHER_VOXEL_LIGHT wanted=false kind=bool value=false
+OVERRIDE REFRACTION_STRENGTH wanted=100 kind=str value=100
+OVERRIDE SATURATION wanted=100 kind=str value=100
+OVERRIDE SCREENSPACE_REFLECTIONS wanted=false kind=bool value=false
+OVERRIDE SCREENSPACE_REFRACTION wanted=false kind=bool value=false
+OVERRIDE SHADOWS wanted=true kind=bool value=true
+OVERRIDE SHADOW_DISTANCE wanted=192 kind=str value=192
+OVERRIDE SHADOW_FILTER_MODE wanted=0 kind=str value=0
+OVERRIDE SHADOW_RESOLUTION wanted=1024 kind=str value=1024
+OVERRIDE SHADOW_SOFTNESS wanted=2 kind=str value=2
+OVERRIDE SKYLIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE SKY_FOG_STRENGTH wanted=15 kind=str value=15
+OVERRIDE SKY_MODE wanted=1 kind=str value=1
+OVERRIDE SSS_FOLIAGE wanted=false kind=bool value=false
+OVERRIDE SSS_STRENGTH wanted=60 kind=str value=60
+OVERRIDE STARS wanted=true kind=bool value=true
+OVERRIDE STATIC_SHADOW_FALLBACK wanted=true kind=bool value=true
+OVERRIDE SUNLIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE SUN_MOON_MODE wanted=0 kind=str value=0
+OVERRIDE TONEMAP_OPERATOR wanted=0 kind=str value=0
+OVERRIDE UNDERWATER_FOG_DENSITY wanted=40 kind=str value=40
+OVERRIDE UNDERWATER_LIGHT_SHAFTS wanted=true kind=bool value=true
+OVERRIDE UNDERWATER_PARTICLES wanted=false kind=bool value=false
+OVERRIDE UNDERWATER_SHAFT_CALIBRATION wanted=false kind=bool value=false
+OVERRIDE UNDERWATER_SHAFT_SAMPLES wanted=4 kind=str value=4
+OVERRIDE UNDERWATER_SHAFT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE VIBRANCE wanted=100 kind=str value=100
+OVERRIDE VIGNETTE wanted=false kind=bool value=false
+OVERRIDE VOXY_SUPPORT wanted=false kind=bool value=false
+OVERRIDE WATER_ABSORPTION wanted=100 kind=str value=100
+OVERRIDE WATER_CAUSTICS wanted=false kind=bool value=false
+OVERRIDE WATER_CHARACTER wanted=1 kind=str value=1
+OVERRIDE WATER_WAVES wanted=true kind=bool value=true
+OVERRIDE WATER_WAVE_HEIGHT wanted=100 kind=str value=100
+OVERRIDE WATER_WAVE_SPEED wanted=100 kind=str value=100
+OVERRIDE WAVING_FOLIAGE wanted=false kind=bool value=false
+OVERRIDE WAVING_FOLIAGE_STRENGTH wanted=100 kind=str value=100
+===TIER ULTRA
+GATE program.composite.enabled=true EFFECTIVE=true
+GATE program.composite1.enabled=1 EFFECTIVE=true
+GATE program.composite2.enabled=true EFFECTIVE=true
+GATE program.composite3.enabled=true EFFECTIVE=true
+GATE program.composite4.enabled=1 EFFECTIVE=true
+GATE program.deferred.enabled=true EFFECTIVE=true
+GATE program.shadow.enabled=1 EFFECTIVE=true
+GATE program.world-1/composite.enabled=false EFFECTIVE=false
+GATE program.world-1/composite1.enabled=1 EFFECTIVE=true
+GATE program.world-1/composite2.enabled=false EFFECTIVE=false
+GATE program.world-1/composite3.enabled=false EFFECTIVE=false
+GATE program.world-1/composite4.enabled=false EFFECTIVE=false
+GATE program.world-1/deferred.enabled=true EFFECTIVE=true
+GATE program.world-1/shadow.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcomp.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompA.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompB.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompC.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompD.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompE.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompF.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompG.enabled=1 EFFECTIVE=true
+GATE program.world-1/shadowcompH.enabled=1 EFFECTIVE=true
+GATE program.world1/composite.enabled=false EFFECTIVE=false
+GATE program.world1/composite1.enabled=1 EFFECTIVE=true
+GATE program.world1/composite2.enabled=false EFFECTIVE=false
+GATE program.world1/composite3.enabled=false EFFECTIVE=false
+GATE program.world1/composite4.enabled=false EFFECTIVE=false
+GATE program.world1/deferred.enabled=true EFFECTIVE=true
+GATE program.world1/deferred1.enabled=true EFFECTIVE=true
+GATE program.world1/prepare.enabled=true EFFECTIVE=true
+GATE program.world1/shadow.enabled=1 EFFECTIVE=true
+BUFFER size.buffer.colortex1=0.5 0.5
+BUFFER size.buffer.colortex2=0.25 0.25
+BUFFER size.buffer.colortex6=1 1
+BUFFER size.buffer.colortex7=0.25 0.25
+BUFFER size.buffer.colortex8=294 1
+BUFFER size.buffer.colortex9=0.75 0.75
+OVERRIDE AIR_PERSPECTIVE wanted=true kind=bool value=true
+OVERRIDE BIOME_TINT wanted=true kind=bool value=true
+OVERRIDE BIOME_TINT_STRENGTH wanted=50 kind=str value=50
+OVERRIDE BLOCKLIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE BLOCKLIGHT_SUPPRESSION wanted=true kind=bool value=true
+OVERRIDE BLOOM wanted=true kind=bool value=true
+OVERRIDE BLOOM_STRENGTH wanted=100 kind=str value=100
+OVERRIDE BORDER_FOG wanted=true kind=bool value=true
+OVERRIDE CAVE_FOG wanted=true kind=bool value=true
+OVERRIDE CLOUD_COVERAGE wanted=50 kind=str value=50
+OVERRIDE CLOUD_MODE wanted=1 kind=str value=1
+OVERRIDE CLOUD_SHADOWS wanted=false kind=bool value=false
+OVERRIDE COLORED_SHADOWS wanted=true kind=bool value=true
+OVERRIDE COLOR_TEMPERATURE wanted=0 kind=str value=0
+OVERRIDE CONTRAST wanted=102 kind=str value=102
+OVERRIDE DITHERING wanted=true kind=bool value=true
+OVERRIDE EMISSIVE_STRENGTH wanted=100 kind=str value=100
+OVERRIDE END_FOG_DENSITY wanted=100 kind=str value=100
+OVERRIDE END_NEBULA wanted=true kind=bool value=true
+OVERRIDE END_PRECESSION_MINUTES wanted=36 kind=str value=36
+OVERRIDE ENTITY_SHADOW_DISTANCE wanted=96 kind=str value=96
+OVERRIDE EXPOSURE wanted=100 kind=str value=100
+OVERRIDE FANCY_TRANSLUCENTS wanted=true kind=bool value=true
+OVERRIDE FOG_DENSITY wanted=50 kind=str value=50
+OVERRIDE GODRAYS wanted=true kind=bool value=true
+OVERRIDE GODRAYS_STRENGTH wanted=100 kind=str value=100
+OVERRIDE GODRAYS_SUN_OCCLUSION wanted=false kind=bool value=false
+OVERRIDE HANDHELD_LIGHTING wanted=true kind=bool value=true
+OVERRIDE HANDHELD_LIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE LIGHTNING_FLASH wanted=true kind=bool value=true
+OVERRIDE MIN_AMBIENT wanted=8 kind=str value=8
+OVERRIDE MOONLIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE NETHER_FOG_DENSITY wanted=70 kind=str value=70
+OVERRIDE NETHER_VOXEL_LIGHT wanted=true kind=bool value=true
+OVERRIDE REFRACTION_STRENGTH wanted=100 kind=str value=100
+OVERRIDE SATURATION wanted=100 kind=str value=100
+OVERRIDE SCREENSPACE_REFLECTIONS wanted=true kind=bool value=true
+OVERRIDE SCREENSPACE_REFRACTION wanted=true kind=bool value=true
+OVERRIDE SHADOWS wanted=true kind=bool value=true
+OVERRIDE SHADOW_DISTANCE wanted=256 kind=str value=256
+OVERRIDE SHADOW_FILTER_MODE wanted=0 kind=str value=0
+OVERRIDE SHADOW_RESOLUTION wanted=4096 kind=str value=4096
+OVERRIDE SHADOW_SOFTNESS wanted=8 kind=str value=8
+OVERRIDE SKYLIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE SKY_FOG_STRENGTH wanted=15 kind=str value=15
+OVERRIDE SKY_MODE wanted=0 kind=str value=0
+OVERRIDE SSS_FOLIAGE wanted=true kind=bool value=true
+OVERRIDE SSS_STRENGTH wanted=60 kind=str value=60
+OVERRIDE STARS wanted=true kind=bool value=true
+OVERRIDE STATIC_SHADOW_FALLBACK wanted=true kind=bool value=true
+OVERRIDE SUNLIGHT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE SUN_MOON_MODE wanted=1 kind=str value=1
+OVERRIDE TONEMAP_OPERATOR wanted=0 kind=str value=0
+OVERRIDE UNDERWATER_FOG_DENSITY wanted=40 kind=str value=40
+OVERRIDE UNDERWATER_LIGHT_SHAFTS wanted=true kind=bool value=true
+OVERRIDE UNDERWATER_PARTICLES wanted=false kind=bool value=false
+OVERRIDE UNDERWATER_SHAFT_CALIBRATION wanted=false kind=bool value=false
+OVERRIDE UNDERWATER_SHAFT_SAMPLES wanted=10 kind=str value=10
+OVERRIDE UNDERWATER_SHAFT_STRENGTH wanted=100 kind=str value=100
+OVERRIDE VIBRANCE wanted=100 kind=str value=100
+OVERRIDE VIGNETTE wanted=false kind=bool value=false
+OVERRIDE VOXY_SUPPORT wanted=false kind=bool value=false
+OVERRIDE WATER_ABSORPTION wanted=100 kind=str value=100
+OVERRIDE WATER_CAUSTICS wanted=true kind=bool value=true
+OVERRIDE WATER_CHARACTER wanted=1 kind=str value=1
+OVERRIDE WATER_WAVES wanted=true kind=bool value=true
+OVERRIDE WATER_WAVE_HEIGHT wanted=100 kind=str value=100
+OVERRIDE WATER_WAVE_SPEED wanted=100 kind=str value=100
+OVERRIDE WAVING_FOLIAGE wanted=true kind=bool value=true
+OVERRIDE WAVING_FOLIAGE_STRENGTH wanted=100 kind=str value=100
+Iris resolved colortex6: 1x1
+SLF4J: No SLF4J providers were found.
+SLF4J: Defaulting to no-operation (NOP) logger implementation
+SLF4J: See https://www.slf4j.org/codes.html#noProviders for further details.
+
+70 option(s) declared in lib/settings.glsl, 93 boolean + 40 string discovered by Iris
+checked 210 profile option assignment(s) against the Iris option store
+PERFORMANCE -> BALANCED: +14 gate(s) on, -0 | 24 on in BALANCED
+     added: program.composite1.enabled, program.composite4.enabled, program.world-1/composite1.enabled, program.world-1/shadow.enabled, program.world-1/shadowcomp.enabled, program.world-1/shadowcompA.enabled, program.world-1/shadowcompB.enabled, program.world-1/shadowcompC.enabled, program.world-1/shadowcompD.enabled, program.world-1/shadowcompE.enabled, program.world-1/shadowcompF.enabled, program.world-1/shadowcompG.enabled, program.world-1/shadowcompH.enabled, program.world1/composite1.enabled
+BALANCED -> ULTRA: +0 gate(s) on, -0 | 24 on in ULTRA
+size.buffer.colortex1 by tier: PERFORMANCE=0.25 0.25 | BALANCED=0.5 0.5 | ULTRA=0.5 0.5
+size.buffer keys varying by tier: size.buffer.colortex1
+NOTE BALANCED -> ULTRA schedules identically; only shader-side cost knobs differ (gated by check_pack.py)
+0 tier-differential failure(s)

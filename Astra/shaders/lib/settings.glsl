@@ -91,6 +91,9 @@
 // 0 = vanilla clouds, 1 = planar wispy clouds, 2 = off
 #define CLOUD_COVERAGE 50 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
 // Planar cloud coverage, % (CLOUD_MODE=1 only)
+//#define CLOUD_SHADOWS // [false true]
+// Project the planar cloud field onto the ground in clear weather as well as rain.
+// Off by default in every tier; the strength and the horizon fade need in-game A/B.
 #define AIR_PERSPECTIVE // [false true]
 // View-angle-dependent horizon tinting at sunrise/sunset (Refrax style)
 #define BIOME_TINT // [false true]

@@ -31,6 +31,10 @@
   Complementary r5.9 `lib/atmospherics/sky.glsl:11-99` + `lib/colors/skyColors.glsl:5-54` 的逐字移植，
   函数签名 `vec3 astra_gradient_sky(vec3 worldDir)` 保持不变，编译通过（linked=234 failed=0）
 - **主任务侧待办**：把三个 profile 的 `SKY_MODE=0` 改为 `SKY_MODE=1`（或在确认画面后决定保留 0）
+- **复核（2026-09-21，T14 轮实测 · 关闭本条）**：本条写时 profile 在 `:150-152`，现址 `:149-151`。
+  待办已执行：`a572e5d` 把三档全置 `SKY_MODE=1`。此后 T1（`f952887`，档位重做）把 ULTRA 改为
+  `SKY_MODE=0`（Minishita）。当前实测：PERFORMANCE=1、BALANCED=1、ULTRA=0。
+  即"新天空出厂可见"在低/中两档成立，ULTRA 走另一条天空路径。
 
 ### H2 — 平面云默认关闭（P1）
 
@@ -44,6 +48,12 @@
   `lib/atmospherics/clouds/cloudCoord.glsl` + `reimaginedClouds.glsl` + `lib/colors/cloudColors.glsl`
   重写形状与着色，签名 `vec4 astra_planar_cloud(vec3, vec3, vec3)` 保持不变
 - **主任务侧待办**：决定是否把 PERFORMANCE / BALANCED 的 `CLOUD_MODE` 提到 1
+- **复核（2026-09-21，T14 轮实测 · 关闭本条）**：本条写时 profile 在 `:150-151`，现址 `:149-151`。
+  当前实测：PERFORMANCE=`CLOUD_MODE=0`、BALANCED=`CLOUD_MODE=1`、ULTRA=`CLOUD_MODE=1`
+  （BALANCED 的 0→1 出自 `a572e5d`）。即待办取了一半：中/高两档可见平面云，低档仍是 vanilla 云。
+  与 T14 的直接后果：`astra_cloud_transmission` 在 `CLOUD_MODE != CLOUD_PLANAR` 时整体退化为
+  `return 1.0`（`global/atmosphere/weather.glsl:123-125`），故 PERFORMANCE 档即使手动打开
+  `CLOUD_SHADOWS` 也没有云影——该选项实际只在 BALANCED / ULTRA 有效，已写进语言文件与实机清单。
 
 ### H3 — `astra_planar_cloud` 的两个光照参数已不再被读取（P2）
 
@@ -80,6 +90,22 @@
 - **本侧已完成**：坐标函数（`astra_rounded_cloud_coord`、`astra_modify_trace_pos`、`astra_2d_cloud_sample`）
   已按参考实现并可直接复用；未提供云影采样函数
 - **主任务侧待办**：如需云影，调用上述三个函数做 `eastVec/northVec` 投影并接入 diffuse.glsl
+- **复核（2026-09-21，T14 已落地 · 关闭本条）**：已实现，但落地形态与本条设想不同——
+  未新建 `eastVec/northVec` 投影，也未改 `global/lighting/diffuse.glsl`。原因：本包早已有
+  沿光向追迹云密度的自有函数 `astra_cloud_transmission`（`global/atmosphere/weather.glsl:122-136`，
+  单平面追迹 + 2 次 `textureLod`），且它**已经**被 `program/scene.glsl` 用于雨天压暗直射光；
+  真正的缺口是「晴天不投、雨天才投」这一处不对称，而不是缺机制。故 T14 只做两件事：
+  在 `program/scene.glsl:238-262` 用 `#ifdef CLOUD_SHADOWS` 把该调用从雨天门里搬出来，
+  并补上参考包同样有的掠射衰减（参照 Complementary r5.9 Reimagined
+  `lib/lighting/cloudShadows.glsl:60` 的 `sqrt3(1.0 - abs(EdotL))`，表达式自写）。
+  遮蔽门改为本包自有的 `static_shadow(skylight)`（屋顶/洞穴不投）。出厂三档均 `!CLOUD_SHADOWS`，
+  实机标定项见 `qa/regression-checklist.md` 的 T14 行。
+  与参照的实质差异：Reimagined 读的是云 pass 预先渲染的 `gaux4`（因此阴影与可见云严格同形），
+  Astra 是各自独立追迹密度场——`weather.glsl:132` 的阈值等于可见云层 `:316` 那条
+  `smoothstep(0.21+coverageBias, 0.43+coverageBias, noise)` 的下沿，但少了 `coverageBias`
+  （`:181`）里的 `-0.04`，且把 0.21→0.43 的渐变换成 ±0.025 的硬窗口，故阴影与云片存在
+  注册错位（阴影只落在比可见云更浓的部分），须实机 A/B 判断是否补偿。出处登记见
+  `Astra/THIRD-PARTY.md` 的 `shaders/program/scene.glsl` 行（仅思路，BSL ARR + Complementary 1.7）。
 
 ### H6 — 云的自身阴影（shadow map）未接入（P3）
 

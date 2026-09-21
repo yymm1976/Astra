@@ -40,9 +40,13 @@
 //     is 1.0; every term it feeds collapses to the reference's skyFadeM = 1.0.
 //
 //  NOT PORTED (needs a public boundary change - see docs/handoffs/sky-clouds.md):
-//   - lib/lighting/cloudShadows.glsl (cloud shadows cast onto the ground)
 //   - the mainClouds.glsl:56-78 camera-position precision wrap
 //   - AURORA_STYLE / NIGHT_NEBULAE additive terms
+//
+//  LEFT THIS LIST (2026-09-21): ground shadows from lib/lighting/cloudShadows.glsl are
+//   wired in clear weather behind CLOUD_SHADOWS, and the consumer is program/scene.glsl -
+//   this file only supplies the density field that astra_cloud_transmission() traces.
+//   The reference's gaux4 read-back has no Astra equivalent and nothing was copied.
 // ============================================================
 
 #include "/global/atmosphere/sky_gradient.glsl"
