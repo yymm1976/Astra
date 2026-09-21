@@ -1,0 +1,59 @@
+=== A5 Nether emissive / block-light probe ===
+Astra applies ONE multiplier to every species (nether_light.csh:34); the
+reference gives each kind its own (lib/vx/blocklightColor.glsl).
+
+--- Part 1: voxel emission, Astra before -> after vs reference ---
+  kind                                     Astra x1.5               Astra x3.5               reference
+  3 orange (torch, magma, campfire...)     (1.50, 0.45, 0.068)   (3.50, 1.05, 0.158)   (3.50, 1.75, 0.53)
+  11 lava                                  (1.50, 0.27, 0.038)   (3.50, 0.63, 0.088)   (5.00, 0.90, 0.10)
+  4 yellow (glowstone, redstone lamp)      (1.50, 0.99, 0.330)   (3.50, 2.31, 0.770)   (5.50, 3.30, 1.65)
+  10 soul fire                             (0.08, 0.93, 1.500)   (0.19, 2.17, 3.500)   (0.35, 2.10, 3.50)
+
+  ratio to reference on the dominant channel, before -> after:
+    3 orange (torch, magma, campfire...)     0.43 -> 1.00
+    11 lava                                  0.30 -> 0.70
+    4 yellow (glowstone, redstone lamp)      0.27 -> 0.64
+    10 soul fire                             0.43 -> 1.00
+
+  x3.5 is the reference multiplier for the torch / soul / candle family, the
+  Nether's most common emitters; the single-multiplier design cannot match the
+  *2.0 magma and *5.5 glowstone ends at the same time. Before the change every
+  family sat at 26-43% of the reference; after it the torch family matches and
+  lava reaches 70%.
+
+--- Part 2: block light + held light composition ---
+  Astra nether_block_lighting():  I = pow(block,2.75)*B + pow(held,2.75)
+  reference mainLighting.glsl:765: block = sqrt(block^2 + held^2)
+    block=0.50 held=0.00 | straight sum 0.1487 -> sqrt-sum 0.1487 (x1.000) | reference sqrt-sum
+    block=1.00 held=0.00 | straight sum 1.0000 -> sqrt-sum 1.0000 (x1.000) | reference sqrt-sum
+    block=0.50 held=0.50 | straight sum 0.2973 -> sqrt-sum 0.2102 (x0.707) | reference sqrt-sum
+    block=1.00 held=1.00 | straight sum 1.0000 -> sqrt-sum 1.0000 (x1.000) | reference sqrt-sum
+    block=0.80 held=0.30 | straight sum 0.5779 -> sqrt-sum 0.5426 (x0.939) | reference sqrt-sum
+
+  with no hand light the two forms agree exactly (held=0 -> sqrt(b^2) = b), so
+  the change only affects frames where a light source is held: it removes the
+  early saturation to 1.0 and keeps colour separation between the two sources.
+  BLOCKLIGHT_COLOR (4.4, 2.9, 1.7) is unchanged.
+
+--- Part 3: the :142-152 lighting block, Astra vs reference, item by item ---
+  sceneLighting base     identical
+      reference: (netherColor + 0.5*lavaLightColor)*(0.9+0.45*vs)
+      Astra    : (netherCol + 0.5*NETHER_LAVA_LIGHT_COLOR)*(0.9+0.45*VS)
+  lava direction term    identical
+      reference: lavaLightColor * pow2(|NdotN|*0.5 + max0(-NdotU))*(0.7+0.35*vs)
+      Astra    : NETHER_LAVA_LIGHT_COLOR * (lavaDir*lavaDir) * (0.7 + 0.35*VS)
+  min-light base         identical
+      reference: 0.005625 + vsBrightness * 0.043
+      Astra    : 0.005625 + NETHER_VS_BRIGHTNESS * 0.043
+  min-light tint         identical
+      reference: vec3(0.45, 0.475, 0.6)
+      Astra    : NETHER_FLOOR_TINT
+  min-light block fade   identical
+      reference: * (1.0 - lightmapYM)
+      Astra    : * (1.0 - blockLight)
+  night-vision add       identical
+      reference: + nightVision * vec3(0.5, 0.5, 0.75)
+      Astra    : + params.nightVision * NETHER_NIGHT_VISION_TINT_REF
+
+  => the :142-152 block needs no change: every factor already matches the
+     reference source line by line. The measured gap was in nether_light.csh.

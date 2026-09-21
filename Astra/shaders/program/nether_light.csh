@@ -31,7 +31,13 @@ void main() {
     uint raw=texelFetch(astraVoxelSampler,p,0).r;
     uint id=raw & 255u;
     bool solid=(raw & 256u) != 0u;
-    vec3 color=emission(id)*1.5;
+    // One multiplier for every species cannot reproduce the reference's per-kind
+    // radiance (lib/vx/blocklightColor.glsl: torch/soul/candle *3.5, shroomlight *4.5,
+    // lava/portal *5.0, glowstone/froglight *5.5, magma/amethyst *2.0). At *1.5 every
+    // family sat at 26-43% of the reference (qa/tools/nether_light_probe.py Part 1).
+    // 3.5 is the reference's torch-family multiplier - the Nether's most common
+    // emitters - and brings lava to 70% and glowstone to 64%.
+    vec3 color=emission(id)*3.5;
     #if ASTRA_LIGHT_STEP > 0
     {
         // Only non-solid cells diffuse. raw == 0 is cleared air and is the common case:

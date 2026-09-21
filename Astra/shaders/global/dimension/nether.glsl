@@ -105,13 +105,18 @@ vec4 nether_fog(
 vec3 nether_sky(vec3 worldViewDir, vec3 tint) { return tint; }
 
 vec3 nether_block_lighting(float blockLight, float heldLight) {
-	float intensity = pow(blockLight, NETHER_BLOCKLIGHT_EXPONENT) * (BLOCKLIGHT_STRENGTH * 0.01);
-
+	float blockIntensity = pow(blockLight, NETHER_BLOCKLIGHT_EXPONENT) * (BLOCKLIGHT_STRENGTH * 0.01);
+	float heldIntensity = 0.0;
 	#ifdef HANDHELD_LIGHTING
-		intensity += pow(heldLight, NETHER_BLOCKLIGHT_EXPONENT);
+		heldIntensity = pow(heldLight, NETHER_BLOCKLIGHT_EXPONENT);
 	#endif
-
-	return BLOCKLIGHT_COLOR * min(1.0, intensity);
+	// Reference combines two independent sources as sqrt(block^2 + held^2)
+	// (Complementary mainLighting.glsl:765). Adding them straight instead reached
+	// min(1.0, ...) earlier whenever a light was held, flattening the Nether toward one
+	// brightness; the two forms agree exactly when nothing is held
+	// (qa/tools/nether_light_probe.py Part 2).
+	return BLOCKLIGHT_COLOR * min(1.0, sqrt(blockIntensity * blockIntensity
+	                                        + heldIntensity * heldIntensity));
 }
 
 float nether_emissive_boost(float emissiveMask, float portalMask, float time) {
