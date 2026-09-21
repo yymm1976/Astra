@@ -12,9 +12,15 @@
 // Astra density scale. The reference runs this march over a longer distance with more
 // samples; Astra keeps 16 samples and shortens the march, so the per-step densities
 // are dialled down to keep the plumes readable instead of blanketing the view.
+// 2026-09-21 A7 measured which of the three terms that dialling actually left visible
+// (qa/tools/nether_fog_probe.py Part 3, a 16-step recurrence over a 64-block ray):
+// the PLUME already spends 49% of the medium's transmittance, so it IS the volume and
+// is deliberately left alone; HAZE contributed 0.81% and the CEILING had 0.00021
+// density at y >= 90, both below anything a frame can show. Those two are raised to
+// the smallest values that register, without touching the plume.
 const float ASTRA_NETHER_PLUME_SCALE = 0.55;
-const float ASTRA_NETHER_HAZE_SCALE = 0.30;
-const float ASTRA_NETHER_CEILING_SCALE = 0.35;
+const float ASTRA_NETHER_HAZE_SCALE = 0.90;
+const float ASTRA_NETHER_CEILING_SCALE = 0.70;
 uniform sampler2D blissNetherNoise;
 float astra_bliss_density(in vec3 pos){
 	pos /= 18.;

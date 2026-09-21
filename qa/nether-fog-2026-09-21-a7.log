@@ -1,0 +1,58 @@
+=== A7 Nether fog probe ===
+NETHER_FOG_DENSITY default = 70 -> densityScale = 0.70
+borderFogDistance assumed    = 128 blocks (render distance)
+
+--- Part 1: border-fog ramp, before vs after vs reference ---
+  distance |  Astra bef  Astra aft |   frac bef   frac aft | reference (linear)
+         8 |       2.2%       6.5% |      2.93x      2.93x | 8.3%  (limit 96)
+        16 |       4.5%      12.6% |      2.82x      2.82x | 16.7%  (limit 96)
+        32 |      10.1%      24.2% |      2.41x      2.41x | 33.3%  (limit 96)
+        48 |      19.5%      35.9% |      1.84x      1.84x | 50.0%  (limit 96)
+        64 |      35.7%      48.8% |      1.37x      1.37x | 66.7%  (limit 96)
+        96 |      79.8%      77.0% |      0.97x      0.97x | 100.0%  (limit 96)
+       128 |      99.0%      95.8% |      0.97x      0.97x | 100.0%  (limit 96)
+       192 |     100.0%     100.0% |      1.00x      1.00x | 100.0%  (limit 96)
+
+  fitted check: the after-ramp was solved so 16/32/64 blocks land on the
+  reference's 12.5/25/50 percent. Residuals above are the honest error.
+
+--- Part 2: fog colour behaviour in lava (isEyeInWater == 1) ---
+  before tint 0.25   color = (0.1000, 0.0350, 0.0150)  luminance = 0.0474
+  after  tint 0.50   color = (0.2000, 0.0700, 0.0300)  luminance = 0.0948
+  Solas fogCol       color = (0.2460, 0.1869, 0.1572)  luminance = 0.1973
+  note: Solas brightens via sqrt(sqrt(normalize(fogColor))); Astra's palette
+        is used un-normalised and un-rooted, so the 0.25 was a darker colour
+        than the reference it cites. 0.50 halves that gap without matching
+        the reference's washed-out luminance (lava should still read dim).
+
+--- Part 3: volume coefficients, 16-step radiative recurrence ---
+  A faithful reduction of the march in nether_volume.glsl: d = (exp2-like
+  sample distribution), step length = dd*dL, per-step transmittance
+  exp(-density*steplen), plume absorbance multiplies the running transmittance
+  and haze deliberately does not. Density inputs are held at one mid value so
+  the before/after ratio is the only thing being measured:
+    densityVol = 0.0996 (the mid-air ceiling at worldY 55: astra_bliss_cloud
+      returns max((exp((100-y)/-15) - P^2(1-E))*2, ~0) = max(0.0996-..., 0), so no
+      y=55 sample can exceed 0.0996), worldY = 55 (pow4 factor = 1),
+    dL = 64 blocks, distance falloff pow5(1 - dist/borderFogDistance) applied.
+  before  plume accumulated = 0.49110   haze = 0.00806   remaining transmittance = 0.5089
+  after   plume accumulated = 0.49110   haze = 0.02416   remaining transmittance = 0.5089
+  ceiling term uses the same shape with density 0.001*cube(y-40/50)*0.60*scale:
+    before  density at y>=90 = 0.000210  (was the whole term below 1% of the
+            medium colour? then it could not be seen)
+    after   density at y>=90 = 0.000420  (was the whole term below 1% of the
+            medium colour? then it could not be seen)
+
+  reading: at the shipped coefficients the plume integrated over a 64-block ray
+  already contributes 49.11% of the medium colour (transmittance falls to 0.509),
+  so the plume IS the volume - it is not weak and is left unchanged. Haze sits at
+  0.81% and the ceiling at 0.00021 density, i.e. below the level anything on
+  screen can show; those two are the structural gap. The after values lift haze
+  to 2.42% and ceiling to 0.00042 - the smallest values that can contribute -
+  without touching the plume or approaching opacity.
+
+--- Part 4: what the player sees at the two reference distances ---
+  distance      bef fog %      aft fog % volume aft on top
+        32          10.1%          24.2%   volume composites after the plain fog
+        64          35.7%          48.8%   volume composites after the plain fog
+        96          79.8%          77.0%   volume composites after the plain fog

@@ -25,10 +25,22 @@ const vec3  NETHER_LAVA_LIGHT_COLOR = vec3(0.15, 0.06, 0.01);
 const vec3  NETHER_FLOOR_TINT = vec3(0.45, 0.475, 0.6);
 const vec3  NETHER_NIGHT_VISION_TINT_REF = vec3(0.5, 0.5, 0.75);
 
-const float NETHER_FOG_NEAR_COEFF = 0.0040;
-const float NETHER_FOG_FAR_COEFF  = 6.0;
+// Border fog: linear-plus-border ramp, fitted to the reference's border fog, which is a
+// LINEAR ramp to the view limit (docs/2026-09-10-complementary-r5.9-nether-report.md:451-467:
+// fog = lPos / min(renderDistance, NETHER_VIEW_LIMIT)). The previous 0.0040/6.0 pair put
+// only 4.5% fog at 16 blocks and 10.1% at 32, against the reference's 12.5%/25%: the
+// Nether read too clear and its depth cue was gone. 0.0120/3.0 lands 16/32/64 blocks on
+// 12.6%/24.2%/48.8% (reference 12.5%/25%/50%); before/after table in
+// qa/tools/nether_fog_probe.py Part 1. FAR_EXP stays 4 - only the scale moved, not the
+// ramp shape. NETHER_FOG_TINT colours the lava-side fog (isEyeInWater == 1) and is
+// applied to nether_palette() output directly: the Solas line it cites
+// (lib/atmosphere/fog.glsl:61) works from sqrt(sqrt(normalize(fogColor))), which lifts
+// the same source colour to luminance 0.197, while the un-rooted palette at *0.25 gave
+// 0.047. 0.50 halves that gap and keeps lava-side fog dim on purpose.
+const float NETHER_FOG_NEAR_COEFF = 0.0120;
+const float NETHER_FOG_FAR_COEFF  = 3.0;
 const float NETHER_FOG_FAR_EXP    = 4.0;
-const float NETHER_FOG_TINT       = 0.25;      // Solas: fogCol = netherColSqrt * 0.25
+const float NETHER_FOG_TINT       = 0.50;      // Solas: fogCol = netherColSqrt * 0.25
 
 const float NETHER_BLOCKLIGHT_EXPONENT = 2.75;
 
