@@ -1,0 +1,49 @@
+=== B1 probe: three cloud-density arms, same noise field ===
+
+--- Part 1: lower edge in noise units, across coverage and rain ---
+  coverage   rain |      visible    occlusion   reflection |      occ - vis     refl - vis
+         0    0.0 |       0.4100       0.4100       0.3700 |       0.000000      -0.040000
+         0    0.5 |       0.2700       0.2700       0.2300 |       0.000000      -0.040000
+         0    1.0 |       0.1300       0.1300       0.0900 |       0.000000      -0.040000
+        25    0.0 |       0.3100       0.3100       0.2700 |       0.000000      -0.040000
+        25    0.5 |       0.1700       0.1700       0.1300 |       0.000000      -0.040000
+        25    1.0 |       0.0300       0.0300      -0.0100 |       0.000000      -0.040000
+        50    0.0 |       0.2100       0.2100       0.1700 |       0.000000      -0.040000
+        50    0.5 |       0.0700       0.0700       0.0300 |       0.000000      -0.040000
+        50    1.0 |      -0.0700      -0.0700      -0.1100 |      -0.000000      -0.040000
+        75    0.0 |       0.1100       0.1100       0.0700 |       0.000000      -0.040000
+        75    0.5 |      -0.0300      -0.0300      -0.0700 |      -0.000000      -0.040000
+        75    1.0 |      -0.1700      -0.1700      -0.2100 |      -0.000000      -0.040000
+       100    0.0 |       0.0100       0.0100      -0.0300 |       0.000000      -0.040000
+       100    0.5 |      -0.1300      -0.1300      -0.1700 |      -0.000000      -0.040000
+       100    1.0 |      -0.2700      -0.2700      -0.3100 |       0.000000      -0.040000
+
+  => occlusion - visible is 0.000000 across the whole grid: the two arms sit on the
+     SAME lower edge. The 0.04 in the ticket is the gap between the 0.25 base of
+     the visible test and the 0.21 base of the occlusion test, which is exactly
+     cancelled by the -0.04 that coverageBias already carries. Both numbers are
+     real; they are the same number.
+
+--- Part 2: which arm the 0.04 really separates ---
+  visible start    = 0.2100
+  occlusion start  = 0.2100
+  reflection start = 0.1700
+  => the reflection board is the arm that is 0.04 low, and that is the A6 finding
+     (overworld.glsl:64-66 vs clouds_planar.glsl:225), not an occlusion mismatch.
+
+--- Part 3: edge width, measured on the quantity each arm actually shapes ---
+  visible cloud  : a hard `continue` on the march sample; the rendered edge width
+                   is the march step planeDistanceDif/sampleCount (6..64 samples
+                   across the 18-block sheet), i.e. roughly 0.3..3 blocks of world
+                   space - NOT a 0.22-wide smoothstep.
+  occlusion arm  : smoothstep over +/-0.025 = 0.05 noise units.
+  reflection     : smoothstep over 0.22 noise units  <- this is where the 0.22 in
+                   the ticket comes from.
+  => the '4.4x harder' comparison took the reflection board's 0.22 as if it were the
+     visible cloud's edge. Against the visible cloud's actual hard cut, the occlusion
+     window is a softening, not a hardening.
+
+Conclusion: 11.E-9's two premises do not hold against the current source, so no
+change is made. The ticket's own acceptance line ('compare the shadow edge with the
+cloud it comes from') stays valid for the CLOUD_SHADOWS option, which is off in all
+three tiers; the reflection-board offset it does describe belongs to A6.

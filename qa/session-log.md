@@ -896,3 +896,22 @@ P1-5（`composite2` 的 GODRAYS 门控）、P2-4（静态阴影兜底）也都�
 - **门控**：每个 A 单都跑三档默认 `compile_glsl.py`，七次均为 `linked=270 failed=0 compute=27 compute_capable=true`（日志 `qa/glsl-2026-09-21-a{1,2,3,4,5,7}-default.log`）。本轮**未新增任何用户选项**（A2/A1/A7/A5/A3 全是常量与阈值改动），故不需要"强制开扫描"，穷举面输入恒等、`--matrix` 未重跑；选项面零变化，`inspect_iris_properties.py` 与快照无 diff。同步：每单 `sync_to_instance.py` 后 `Missing 0 / 差异 0 / 多余 0`。
 - **待实机**（全部进 `qa/regression-checklist.md`）：10c（A2 三项，含"朝天看水面无光束"这一维与回退路径）、10d（A1 四项，**须在中性/冷色河床上判浅水青**）、13a（A7 四项）、13b（A5 四项，含"无手持光时须与改动前逐像素相同"）、13c（A3 三项）、15a（A4 三项 + 一条"天体遍历成本未量化"的边界）、7c（A6 四项环境信息回填 + 四个候选修法待裁决）。
 - **本轮的方法产出**：`shaft_refract_probe.py`（refract 语义的代数+扫描）、`water_spectrum_probe.py`（水色链路三通道与色相）、`nether_fog_probe.py`（雾的逐距离 + 16 步辐射递推）、`nether_light_probe.py`（体素光的逐类对照 + 组合律）、`nether_heat_glow_probe.py`（热辉光响应）、`end_march_count.py`（GPU 计数插桩）。六个探针都写出了**可复算的前后对照**，是本轮"诊断先于改动"的载体。
+
+## 2026-09-21 B1 · 11.E-9「云阴影密度标度」→ 前提证伪，零改动收口
+
+工单要求"读 `scene.glsl` 消费端后修密度标度失配：遮蔽起点 0.04/窗口 0.05 vs 可见云 0.21+coverageBias"。
+按目标二的规则先核前提，**两条前提都不成立**，故本单**零 shader 改动**，产物是登记单。
+
+**把三条臂写成同一噪声值域上的下沿**（探针 `qa/tools/cloud_threshold_probe.py`，日志 `qa/b1-cloud-threshold-2026-09-21.log`）：
+
+| 臂 | 源码 | 下沿（云层中部，y=192 ⇒ `threshold*0.5` 消失） |
+|---|---|---|
+| 可见云 | `clouds_planar.glsl:181,225` | `0.25 + coverageBias` = `0.25 + mix - 0.04 - 0.28r` = **0.21 + mix − 0.28r** |
+| 遮蔽臂 | `weather.glsl:132` | `0.21 + mix - 0.28r` |
+| 反射板 | `overworld.glsl:64-65` | `0.21 + bias` = **0.17 + mix − 0.28r** |
+
+- **"遮蔽起点比可见云高 0.04"不成立**：两者**逐点相同**（coverage ∈ {0,25,50,75,100} × rain ∈ {0,0.5,1} 共 15 组，`occ - vis = 0.000000`）。11.E-9 的错因是把可见云判据的基础常数 **0.25** 读成了 **0.21** —— 而 `0.25 + coverageBias` 恰好 = `0.21 + mix - 0.28r`，与遮蔽臂逐项相同；coverageBias 里那个 `-0.04` 正是用来抵消 0.25 与 0.21 的差的。
+- **"影子边缘比云硬 4.4 倍"不成立**：那个 **0.22** 是**反射板**的 `smoothstep(0.21+bias, 0.43+bias, …)` 宽度，不是可见云的边缘；可见云是 march 里的**硬 `continue`**，其渲染边缘宽度是采样步长 `planeDistanceDif/sampleCount`（6..64 抽样跨 18 格云层，约 0.3–3 格世界距离）。拿可见云的真实边缘比，遮蔽臂的 ±0.025 窗口是**软化**而不是硬化。
+- **真正低 0.04 的是反射板**：`0.17 + mix − 0.28r` 对可见云 `0.21 + mix − 0.28r` —— 这正是 A6 已登记的那条（`overworld.glsl` vs `clouds_planar.glsl`），两条工单讲的是同一族常数的**不同分支**。
+
+**处置**：`program/scene.glsl` 与 `clouds_planar.glsl`（本单白名单）**零改动**；`weather.glsl`（11.E-9 原定的补偿点）本来就不在白名单，现在也不需要动。连带更正：`qa/regression-checklist.md` 的 7a 行第①项原写着"离线已核出注册错位…补偿方向就是该两条"，已就地改为"B1 已证伪，判定时不要预期系统性错位；真正低 0.04 的是反射板"，避免实机判定带着错误的先验。`CLOUD_SHADOWS` 仍在三档出厂关，7a 的其余五项判定不受影响。
