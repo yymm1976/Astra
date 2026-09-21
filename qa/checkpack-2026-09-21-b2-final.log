@@ -1,0 +1,52 @@
+Astra pack validator | pack=Astra/shaders | python=3.10.11
+========================================================================
+[PASS] #1 settings.glsl option registry (design 3.3: 60-80 options)
+       . 71 options: 71 with value list, 31 bool, 40 slider/enum
+[PASS] #2 shaders.properties screen/sliders/profile <-> settings.glsl bijection
+       . 1 main screen + 7 categories: FOG, LIGHTING, PERFORMANCE, POST, SHADOWS, SKY, WATER
+       . 6 enum/dropdown option(s) (not sliders): CLOUD_MODE, SHADOW_FILTER_MODE, SKY_MODE, SUN_MOON_MODE, TONEMAP_OPERATOR, WATER_CHARACTER
+       . sliders=34 vs 34 slider-typed options
+       . profile.PERFORMANCE: 71 tokens, complete=True
+       . profile.BALANCED: 71 tokens, complete=True
+       . profile.ULTRA: 71 tokens, complete=True
+[PASS] #3 lang files cover every option with title + comment
+       . zh_CN.lang: 71 titles, 71 comments
+       . en_US.lang: 71 titles, 71 comments
+[WARN] #4 include graph (design 3.2 layering): no dangling include, every entry reaches lib/settings.glsl, no unwired module, no layer violation
+       ~ pending wiring: voxy_opaque.glsl <- owner C5 (voxy.json patch data, not an #include entry)
+       ~ pending wiring: voxy_translucent.glsl <- owner C5 (voxy.json patch data, not an #include entry)
+       . 186 compiled entries, 54 lib/global modules, 52 reachable, 2 waiting on their owner task, 0 unwired-and-unregistered
+[PASS] #5 engine/vanilla symbols referenced by lib|global must be declared in the declaration layer (settings/uniforms)
+[PASS] #6 custom uniforms: shaders.properties <-> GLSL uniform declarations
+       . 27 uniform.* + 22 variable.* in properties; 88 uniform decl(s) across the include tree
+[PASS] #7 block.properties / entity.properties syntax + ID sanity
+       . block.properties: 20 id groups
+       . entity.properties: 5 id groups
+       . 23 minecraft: id(s) absent from all 4 reference packs (new/renamed, verify at smoke): minecraft:bamboo_sapling, minecraft:blue_ice, minecraft:conduit, minecraft:crying_obsidian, minecraft:end_stone, minecraft:end_stone_bricks, minecraft:frosted_ice, minecraft:glass, minecraft:glass_pane, minecraft:hanging_roots, minecraft:ice, minecraft:leaf_litter
+[PASS] #8 THIRD-PARTY.md ledger <-> file provenance headers <-> license rules (design 9)
+       . 69 ledger rows
+       . Steadfast expression-diff matches every ledger count: verbatim=14 literal-suffix=2 rewritten=6 astra-only=27 (stated 12x)
+[PASS] #9 bayer.glsl ordered-dither matrix correctness
+       . matches canonical recursive Bayer8 (row-major, [y*8+x] indexing)
+[PASS] #10 M1 'minimal final chain' (design 7: tonemap + sRGB) actually present
+       . final.fsh: 114 lines of code, tonemap/sRGB present=True
+[PASS] #11 Iris 1.11.2 parser contracts (SC-21..SC-27)
+       . 0 staged texture directive(s); 3 custom image(s); 10 compute shader(s); 53 engine const(s); 2 Voxy uniform declaration(s); Iris default buffer formats; 100/31 boolean option(s) wired
+[PASS] #12 profile tier differential (survey 6 P0-1: cost-monotone ladder)
+       . PERFORMANCE vs BALANCED: 15 value diff(s), density 15/71 = 21%
+       . BALANCED vs ULTRA: 7 value diff(s), density 7/71 = 10%
+       . PERFORMANCE vs ULTRA: 19 value diff(s), density 19/71 = 27%
+       . 19 of 71 listed tokens vary across tiers; non-cost by design: END_PRECESSION_MINUTES
+       . resolved per-tier pass and buffer sets: qa/tools/inspect_iris_properties.py
+[PASS] #13 option consumers and branch symbols (survey 6 P2-12 option matrix)
+       . 71 option(s), 41 of which can flip a preprocessor branch; pairwise matrix = 89 row(s), python qa/tools/compile_glsl.py --matrix
+[PASS] #14 buffer declarations live, unique and consumed (survey 6 P2-11)
+       . 60 live engine declaration(s) covering 10 buffer(s): colortex0=7, colortex2=1, colortex3=2, colortex4=1, colortex5=1, colortex6=1, colortex7=2, colortex8=2, colortex9=1, shadowcolor0=2; 0 declaration(s) hidden in comments
+[PASS] #15 lib/vendor/ isolation and no multiplied licence text (survey 6 P2-10)
+       . lib/vendor/ exists: 2 upstream directory(ies) (lib/vendor/bakinglab, lib/vendor/glsl-tone-map), 11 file(s), 0 file(s) carrying licence text outside it
+[PASS] #16 per-dimension pipeline trimming uses keys Iris parses (survey P2-18)
+       . dimension folders world-1, world1; 35 program gate(s) (27 folder-qualified), 0 inert namespaced directive(s)
+       . 8 folder gate(s) whose pass file exists only at the pack root (world-1/composite2, world-1/composite3, world-1/composite4, world-1/composite5, world1/composite2, world1/composite3, world1/composite4, world1/composite5): redundant if a dimension folder drops a pass it does not ship, load-bearing if Iris inherits the root source instead - 8 of them read a literal false, which switches the pass off either way
+       . per-dimension buffer sizing is not expressible on Iris 1.11.2 - size.buffer.* is keyed by the bare buffer name - so P2-18's allocation clause is closed by check_dimension_gating's namespaced-key rule instead
+========================================================================
+16 checks: 0 FAIL, 1 WARN, 15 PASS
