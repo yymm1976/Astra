@@ -13,24 +13,40 @@
 vec3 water_absorption_coefficient() {
     return vec3(0.055, 0.028, 0.010) * (WATER_ABSORPTION * 0.01);
 }
-vec3 water_surface_absorption() {
+vec3 water_surface_absorption(float appearanceDepth) {
     // Air-side appearance per block of vertical depth, separate from volume
-    // extinction. The 2026-09-20 consolidated review (C1) re-orders every spectrum so
-    // GREEN is absorbed FASTER than blue past the shallow band: the transmission then
-    // converges on deep blue with depth - the shallow-to-deep cyan-green to deep-blue
-    // transition - instead of freezing on teal-green. COLD keeps its original
-    // ordering (it was already blue-deep).
+    // extinction. Two ends interpolated by appearanceDepth (2026-09-21 A1):
+    //
+    //   shallow end - BLUE absorbed FASTER than green, so green survives and the
+    //     transmission is cyan-green. The 2026-09-20 consolidated review (C1) re-ordered
+    //     every spectrum so green was absorbed faster at EVERY depth; that fixed the deep
+    //     end but left the shallow transmission blue-leaning (g/b = 0.96 at 0 blocks),
+    //     so the shallows' cyan could only come from a warm bed - on a neutral bed they
+    //     read blue-teal (measured 184.6 deg hue). This end puts the green back.
+    //   deep end - green absorbed much faster than blue, by a wider margin than the old
+    //     single spectrum (gap 0.25 vs 0.04 per block; Steadfast's equivalent gap is
+    //     2/16 = 0.125 per block), so the water converges on deep blue with depth
+    //     instead of staying teal (measured 16 blocks: blue/green 1.63 -> 5.48).
+    //
+    // COLD keeps a single spectrum: it is the "blue from the shallows down" character.
+    vec3 shallow, deep;
     #if WATER_CHARACTER == WATER_COLD
-        vec3 coefficient = vec3(1.000, 0.2200, 0.0800);
+        shallow = vec3(1.000, 0.2200, 0.0800);
+        deep    = vec3(1.000, 0.2200, 0.0800);
     #elif WATER_CHARACTER == WATER_TROPICAL
         // Strongest red removal; green survives the shallow band for the Caribbean
         // cyan, blue wins the deep end.
-        vec3 coefficient = vec3(2.000, 0.0800, 0.0550);
+        shallow = vec3(2.000, 0.0400, 0.0700);
+        deep    = vec3(2.000, 0.2400, 0.0450);
     #else
-        // Default: clear cyan shallows, teal middle depths, deep blue water.
-        vec3 coefficient = vec3(1.000, 0.1000, 0.0600);
+        // Default: clear cyan-green shallows, teal middle depths, deep blue water.
+        shallow = vec3(1.000, 0.0500, 0.0900);
+        deep    = vec3(1.000, 0.3000, 0.0500);
     #endif
-    return coefficient * (WATER_ABSORPTION * 0.01);
+    // appearanceDepth is depth + 1 capped at 24 (water_surface_medium below), so the
+    // blend spans the first 15 blocks and then holds the deep end.
+    float blend = clamp((appearanceDepth - 1.0) / 15.0, 0.0, 1.0);
+    return mix(shallow, deep, blend) * (WATER_ABSORPTION * 0.01);
 }
 // Spectral single-scattering coefficient (100% fog-density reference point).
 // Kept small in red so the teal selectivity bought above is not diluted.
@@ -72,7 +88,7 @@ vec3 water_body_color() {
 vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight) {
     float depth = max(verticalDepth, 0.0);
     float appearanceDepth = clamp(depth + 1.0, 0.0, 24.0);
-    vec3 transmission = exp(-appearanceDepth * water_surface_absorption());
+    vec3 transmission = exp(-appearanceDepth * water_surface_absorption(appearanceDepth));
     // Single-scattering fill: as the bed fades, the water's own colour takes over.
     return radiance * transmission
          + water_body_color() * clamp(incidentLight, 0.0, 2.0) * (1.0 - transmission);
