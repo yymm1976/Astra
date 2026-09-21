@@ -191,8 +191,8 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 | global/water/surface.glsl、refraction.glsl、absorption.glsl、program/water.glsl 空气侧 | Steadfast 0.8.0，coderbot，既有 GPL-3.0-or-later 及 Section 7 条款继续适用；恢复波场、视差、折射推进、吸收和 Fresnel 关系 |
 | global/water/caustics.glsl、lib/solas_water.glsl、global/water/light_shafts.glsl | Solas V2.2b，Septonious；表达式级适配 waterNormals/waterCaustics、waterFog、lightColor、volumetricLight、post/tonemap 及 composite3/4/5/14；不是仅思路借鉴 |
 | program/shadow.fsh、global/lighting/diffuse.glsl、program/water.glsl 水下侧 | 在既有出处之上接入 Solas 焦散投射、环境／直射混合、界面法线与 Fresnel/alpha 组合 |
-| textures/solas-water-noise.png 及 .mcmeta | 来自用户提供的 Solas V2.2b shaders/tex/noise.png 及其采样元数据（素材为用户提供的现成数据文件，非 Astra 自写代码） |
-| textures/steadfast-water-noise.png 及 .mcmeta | 按当前 Iris 1.11.2 的 NativeImageBackedNoiseTexture 所用 Java Random(0) 填充规则生成 64×64 数据；线性重复采样，以匹配 Steadfast 的 noiseTextureResolution=64 |
+| textures/solas-water-noise.png 及 .mcmeta | 来自用户提供的 Solas V2.2b shaders/tex/noise.png 及其采样元数据（素材为用户提供的现成数据文件，非 Astra 自写代码）。**2026-09-21 B7 补登记（原行缺字节数与哈希）**：png **678019 字节**，sha256 前缀 **`9184f93b83f0ebb2`**，与本地 `_analysis/Solas Shader V2.2b/shaders/tex/noise.png` 逐字节相同（同目录 `latest-2026-09-10/solas-shader` 的那份是 636978 字节 / 前缀 `912e47e64b5b5ec6` 的另一构建，**不**匹配，勿引错）；该 png 是唯一带 iTXt/iCCP/pHYs 的文件，内嵌 XMP 显示其为 Affinity Photo 1.8.2 于 2020-09-20 产出、标题 `noisetex` 的既有美术资产。.mcmeta **67 字节**，sha256 前缀 **`e9c800d49d941e58`** |
+| textures/steadfast-water-noise.png 及 .mcmeta | 64×64 RGBA8（4096 个像素的 alpha 恒为 255，每通道满量程、std≈74），线性重复采样，以匹配 Steadfast 的 noiseTextureResolution=64。**2026-09-21 B7 就地更正——原写「按当前 Iris 1.11.2 的 NativeImageBackedNoiseTexture 所用 Java Random(0) 填充规则生成」已被实测推翻**：Iris 侧 `NoiseTexture.generateNoise()` 是每像素 3 字节的 `byte[3*w*h]`，由**一次** `new java.util.Random(0L).nextBytes()` 填满，再经 `texImage2D(…, 32849=GL_RGB8, 6407=GL_RGB, …)` 直接上传 GPU，**从不编码 PNG**（反编译件 `_analysis/astra-sc34/NoiseTexture.txt`；该件里的类名是 `net.irisshaders.iris.targets.backed.NoiseTexture`，与旧登记所写的 `NativeImageBackedNoiseTexture` 也对不上）；而本文件的像素在任何测试过的排列下都无法由 `Random(0)` 复现（只有第 0 个像素在 R/B 互换下「相等」，第 1 个像素即分岔；首 64 字节在 4 MB 的 `Random(0)` nextBytes 流中零命中；py `random`/numpy 的其余 seed-0 RNG 亦不符）。**确实成立的只有编码器**：用 Pillow 默认档 `compress_level=6` 从本文件自身的像素重存，可逐字节复现 **14561 字节**、sha256 前缀 **`b9502f10ec238b90`**（`compress_level` 2–5 输出同长度但另一哈希，7–9 为 14557 字节）。**结论：本文件的像素来源在仓库内无法复算**——既不能证明它是第三方美术资产，也不能证明是 Astra 自生成，`qa/tools/` 内也没有任何工具能重算它（`provenance_steadfast.py` 只分类表达式文本，不读 png）。**处置方向待用户裁定：重生成、替换还是保留，本条一律不决定**，与 16.4 里三条美术资产同归 SC-14 发布门。.mcmeta **67 字节**，sha256 前缀 **`e9c800d49d941e58`**（与 solas 那份逐字节相同） |
 | shaders.properties | 接入并加前缀的 Solas 时间表达式，以及两组独立纹理绑定 |
 | program/lit.vsh、lit.fsh、scene.glsl、scattering.fsh、final.fsh | **自写**（Astra 管线适配/组合层，非借用行）：调用及组合以上对应来源，仍保留 Astra 的 SSR、天空、局部光和部分后处理。本行的出处由被调用的各模块行各自登记，此处不重复登记 |
 
@@ -206,7 +206,7 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 - `shaders/global/water/bloom_capture.glsl` and `bloom_resolve.glsl` adapt Solas V2.2b `lib/post/computeBloom.glsl` and `getBloom.glsl`, retaining tile layout, sample weights, encoding and blend equations; sampler names and default option expressions adapted. Solas attribution and license treatment remain as recorded above.
 - `program/water_composite.fsh` and `program/water_bloom.fsh` integrate those reference operations into Astra pass order.
 
-- `shaders/textures/complementary-cloud-water.png`: Complementary r5.9 Reimagined `lib/textures/cloud-water.png`, retained unmodified for the ported cloud sampler; same Complementary attribution and license terms recorded above.
+- `shaders/textures/complementary-cloud-water.png`: Complementary r5.9 Reimagined `lib/textures/cloud-water.png`, retained unmodified for the ported cloud sampler; same Complementary attribution and license terms recorded above. **2026-09-21 B7 补登记（原行缺字节数与哈希）**：**128888 字节**，sha256 前缀 **`49174f769c70f0d1`**，与本地三个 Complementary 副本逐字节相同（r5.9 Reimagined、r5.9 Unbound、`study-2026-09-20/ComplementaryUnbound_r5.9.3`）；256×256 RGBA8，无 `.mcmeta`。
 
 ### 2026-09-10 维度与天气重做
 
@@ -267,6 +267,12 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
   现在 `shaders/textures/astra-ripple-1..3.png` 由
   `qa/tools/gen_rain_ripple.py` **自行生成**（显式物理模型：扩散并衰减的圆形波包，
   求梯度得到法线图），与参考资产无关。
+  **2026-09-21 B7 补登记（原行只有一个 glob 文件名，无字节数、无哈希，是登记最薄的一组）**：
+  三张均为 128×7680 RGBA8（128×128 瓦片 × 60 帧竖排），分别 **287512 / 556938 / 848759 字节**，
+  sha256 前缀 **`33a5cfacf7424d69` / `1f35d37fe8b6d181` / `969ed94d92eaf53b`**。
+  该脚本以 seed 101/202/303 驱动 numpy PCG64（不是 `java.util.Random`），其逻辑按内存重放
+  （输出到 BytesIO、不写盘）可从脚本逐字节复现上述三组哈希，是包内唯一有完整工具留痕的 PNG；
+  另注 `astra-ripple-3.png` 没有任何 `customTexture` 绑定（只有 1/2 被 `shaders.properties` 引到）。
   边界原则：**代码级移植按专有处理并登记；图像/音频等美术资产一律不得取用。**
 - `shaders/global/water/light_shafts.glsl`：**结构移植**参考的
   `UnderwaterVolumetricFog`——`caustics³` 调制、`1/max(3, d*0.1)` 距离衰减、
@@ -335,7 +341,8 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 #### 16.4 顺带发现（登记，不在本条修）
 
 - **同一 MIT 包内的近亲文件需要注释级判别式**：`aces.glsl` 与 `acesHill.glsl` 数值几乎一致，靠常数比对无法区分；`reinhardJodie.glsl` 的 Rec.709 三元组同时出现在 `agx.glsl` 的 EOTF 里（Astra `lib/tonemap.glsl:130` 的 `const vec3 lw` 属于已移植的 AgX 块），曾使「未移植」断言假阳性。复算脚本因此改为只用各文件唯一字符串，并自行断言唯一性。
-- **美术资产与台账自订边界冲突**：`shaders/textures/bliss-nether-noise.png`（695035 字节，sha256 前缀 `77d1aa0c2195a4f6`，Bliss 原件逐字节复制）、`shaders/textures/complementary-cloud-water.png`（128888 字节，前缀 `49174f769c70f0d1`）、`shaders/textures/solas-water-noise.png`（678019 字节，前缀 `9184f93b83f0ebb2`）与本文件 `:258`「图像／音频等美术资产一律不得取用」相矛盾（`solas-water-noise` 另有「用户提供的现成数据文件」一句登记）。`steadfast-water-noise.png`（14561 字节，前缀 `b9502f10ec238b90`）是 Astra 按 Iris 1.11.2 `NativeImageBackedNoiseTexture` 的 `Random(0)` 规则生成，不在此列，但其生成路径没有工具留痕。**分发前须重生成或替换，属 SC-14 发布门范围，等用户裁定，本条不擅动。**
+- **美术资产与台账自订边界冲突**：`shaders/textures/bliss-nether-noise.png`（695035 字节，sha256 前缀 `77d1aa0c2195a4f6`，Bliss 原件逐字节复制）、`shaders/textures/complementary-cloud-water.png`（128888 字节，前缀 `49174f769c70f0d1`）、`shaders/textures/solas-water-noise.png`（678019 字节，前缀 `9184f93b83f0ebb2`）与本文件 `:270`「图像／音频等美术资产一律不得取用」相矛盾（该句的当前行号是 `:270`，原写 `:258` 与现文件不符，2026-09-21 B7 实测更正；`solas-water-noise` 另有「用户提供的现成数据文件」一句登记）。`steadfast-water-noise.png`（14561 字节，前缀 `b9502f10ec238b90`）**不属于「Astra 按规则生成」这一列**——2026-09-21 B7 复算把「按 Iris 1.11.2 `NativeImageBackedNoiseTexture` 的 `Random(0)` 规则生成」这条说明**推翻**了：Iris 那个类是 3 字节/像素、经 `GL_RGB8` 直接上传、**根本不落 PNG**，而本文件的像素在任何排列下都无法由 `Random(0)` 复现（详见上表该行与 `qa/b7-png-provenance-2026-09-21.log`）。确实成立的只有「编码器是 Pillow 默认档 `compress_level=6`」；**像素来源在仓库内无法复算**，因此它**既不能证明是第三方美术资产、也不能证明是 Astra 自生成**，且没有任何工具能重算它。**故其处置方向与前三个文件一并归 SC-14 发布门、待用户裁定：重生成、替换还是保留，本条不擅动。**
 - **`.mcmeta` 不能用作资产来源判据**：`shaders/textures/` 下实测只有两个 `.mcmeta`——`solas-water-noise.png.mcmeta` 与 `steadfast-water-noise.png.mcmeta`，均 67 字节、内容逐字节相同（`{"texture":{"blur":true,"clamp":false}}`，CRLF，sha256 前缀 `e9c800d49d941e58`），而 `bliss-nether-noise.png` 与 `complementary-cloud-water.png` 根本没有 `.mcmeta`（本条初稿写「三个第三方 png 的 `.mcmeta` 均为 67 字节」，2026-09-21 复查目录实测更正）。关键在于这两个同哈希的 sidecar 一个属于第三方原件、一个属于 Astra 自生成资产，即 `.mcmeta` 携带的信息与来源无关；来源判定只能靠 png 本体哈希。
 - **交接文档已过期（注释腐烂）**：`docs/handoffs/nether.md:24,252-272,320`、`docs/handoffs/end.md:55-62`、`docs/handoffs/sky-clouds.md:180` 仍写「Astra 无 `screenBrightness`／本侧只能用常量 0.5／1.0」，而 `lib/uniforms.glsl:67` 已声明且被两个宏消费（见 16.2 第 9 行）。P-002 与 H2 实为已落地，登记状态未更新。
 - **§7「MIT ⇒ 可自由复用」的前提只在该包自己就是持有人时成立**：本轮实测四个参照包里 Mellow 的 `tonemap_operators.glsl`（中继 Seguin＋BakingLab）、`global/post/smaa.glsl`（无署名）、RenderPearl 的 `compat.glsl:1`（中继 gist）、Miniature（根本没有 LICENSE）四种失效形态各不相同；今后任何复用须逐文件跑一遍 16.3 的配方。
+- **校验缺口（2026-09-21 B7 登记，未修）：本文件已为每张 PNG 记下字节数与 sha256 前缀，但没有任何机器校验它们。** `qa/tools/check_pack.py` 第 8 项只按**文件名**比对：`:613-616` 行把以 `|` 开头且含 `lib/`／`shaders/`／`program/`／`.properties` 的表行收进待检清单，`:637-645` 行再从每行的拼接文本里取出**第一个** `.png`/`.glsl`/`.fsh`/… 文件名，去 `PACK = Astra/shaders` 下找同名文件——**从不读取它的字节**；随后的 `:657-684` 行比对的是 Steadfast 表达式计数。全脚本不含 `hashlib`／`sha256`，`qa/tools/` 里也没有第二个门校验贴图字节（`gen_rain_ripple.py` 只写不读，`sync_to_instance.py` 的 sha256 只用于决定往实例同步时拷哪几个文件）。**因此替换或损坏任何一张 PNG 都能静默通过第 8 项**：本节登记的哈希目前只能靠人工按 B7 的方法复算（`qa/b7-png-provenance-2026-09-21.log` 第 1 节给出全部字节数与完整 sha256）。同一盲区的另一半：canonical `## 登记表`（`:18` 起）至今**零 PNG 行**，PNG 登记只散在上述散文与本节，第 8 项的表格扫描根本看不到这些文件（即 B7 报告里的 G1）。要闭环就须给第 8 项加一条读字节比哈希的检查——本条不擅自改门。
