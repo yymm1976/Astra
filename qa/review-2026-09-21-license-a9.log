@@ -1,0 +1,2228 @@
+================================================================================
+LICENSE COMPLIANCE FORENSICS — independent read-only pass (section: a9)
+Repo: C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发
+Date: 2026-09-21T18:56:44+08:00
+Branch: main   HEAD: d3ea2d9
+Tool: Python Python 3.10.11  sha256sum: sha256sum (GNU coreutils) 8.32
+NOTE: no repo file was modified; scratch scripts live in %TEMP%.
+================================================================================
+
+### [1] full-repo license-keyword scan (python, recursive, text-extension filter)
+$ python $TEMP/a9_license_scan.py   # recursive walk of repo root, skip .git, text extensions only
+TOTAL keyword-bearing lines: 2161
+
+FILES CONTAINING LICENSE-PROSE-LIKE LINES (230):
+   Astra/THIRD-PARTY.md   (6 textlike lines)
+   Astra/shaders/lib/tonemap.glsl   (2 textlike lines)
+   Astra/shaders/lib/vendor/bakinglab/README.md   (1 textlike lines)
+   _analysis/Mellow Shader v3.4/LICENSE   (1 textlike lines)
+   _analysis/Mellow Shader v3.4/LICENSE-APACHE   (5 textlike lines)
+   _analysis/Mellow Shader v3.4/shaders/global/post/cas.glsl   (1 textlike lines)
+   _analysis/Mellow Shader v3.4/shaders/lib/tonemap_operators.glsl   (1 textlike lines)
+   _analysis/Refrax_v1.3.1/shaders/lib/cas.glsl   (1 textlike lines)
+   _analysis/Refrax_v1.3.1/shaders/lib/fsr1.glsl   (1 textlike lines)
+   _analysis/Steadfast-0.8.0/LICENSE-ADDITIONAL-TERMS.md   (2 textlike lines)
+   _analysis/Steadfast-0.8.0/LICENSE.md   (11 textlike lines)
+   _analysis/Steadfast-0.8.0/README.md   (1 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/block.properties   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/clrwl_gbuffers.fsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/clrwl_gbuffers.vsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/clrwl_gbuffers_translucent.fsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/clrwl_gbuffers_translucent.vsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/clrwl_shadow.fsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/clrwl_shadow.vsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/colorwheel.properties   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/composite.fsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/composite.vsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/deferred.fsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/deferred.vsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/dh_terrain.fsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/dh_terrain.vsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/dh_water.fsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/dh_water.vsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/clouds/cirrus.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/fog.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/lighting/diffuse.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/lighting/shadowmap.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/lighting/translucent.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/materialIDs.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/sky.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/sky/gradient.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/sky/minishita.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/tonemap_settings.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/water/absorption.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/water/absorption_refraction.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/water/absorption_settings.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/water/caustics_noise.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/water/caustics_noise_waves.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/water/parallax.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/water/refraction.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/water/surface_basic.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/water/surface_noise.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/water/surface_noise_waves.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/environment/wind.glsl   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/final.fsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/final.vsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/gbuffers_armor_glint.fsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/gbuffers_armor_glint.vsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/gbuffers_basic.fsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/gbuffers_basic.vsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/gbuffers_beaconbeam.fsh   (3 textlike lines)
+   _analysis/Steadfast-0.8.0/shaders/gbuffers_beaconbeam.vsh   (3 textlike lines)
+
+--- breakdown by top-level dir (license-prose marker files) + Astra-only detail ---
+$ python $TEMP/a9_license_scope.py
+=== A. files whose content matches LICENSE-PROSE markers, counted per top-level dir ===
+   _analysis                232 files with license-prose-like lines
+   Astra                    7 files with license-prose-like lines
+   qa                       5 files with license-prose-like lines
+   docs                     1 files with license-prose-like lines
+
+=== B. ASTRAPACK-ONLY view: every license-prose-like line inside Astra/ ===
+total: 17 lines in 7 files
+Astra/THIRD-PARTY.md:12 | !! OUTSIDE VENDOR !! | | Mellow | v3.4 | 根许可证 MIT（`Copyright (c) 2026 TheCMK`）**但包内逐文件中继第三方声明** | 自由，保留出处注释——注释必须是**该文件里实际声明的那个持有人**，
+Astra/THIRD-PARTY.md:22 | !! OUTSIDE VENDOR !! | | `shaders/lib/tonemap.glsl` | **逐算子持有人（2026-09-21 T16 两次更正，原记"整文件 = Mellow (MIT) by TheCMK"不成立）**：**(1)** `uc
+Astra/THIRD-PARTY.md:297 | !! OUTSIDE VENDOR !! | **本条的实际产物不是清单，而是逐文件权属（chain-of-title）审计。** 调研 §7 给 P2-13 的前提「MIT ⇒ 本次唯一能直接搬的部分」不成立：一个包的根许可证不是包内任一份文件的持有人。实测——M
+Astra/THIRD-PARTY.md:305 | !! OUTSIDE VENDOR !! | | `shaders/lib/vendor/glsl-tone-map/LICENSE.md` | glsl-tone-map 2.3.1（npm `glsl-tone-map@2.3.1`，仓库 `dmnsgn/sha
+Astra/THIRD-PARTY.md:312 | !! OUTSIDE VENDOR !! | | `shaders/lib/vendor/bakinglab/ACES.hlsl.orig` | `TheRealMJP/BakingLab` 的 `BakingLab/ACES.hlsl`，1322 字节，sha25
+Astra/THIRD-PARTY.md:322 | !! OUTSIDE VENDOR !! | | 2 CAS 锐化（LIGHT 仅思路／RenderPearl、Mellow 的 AMD MIT 版） | Mellow `global/post/cas.glsl` 64 行，`:1-7` 是 AMD 的 MIT 原
+Astra/shaders/lib/distort.glsl:4 | !! OUTSIDE VENDOR !! | // From Steadfast 0.8.0 lib/distort.glsl, copyright (C) 2026 coderbot.
+Astra/shaders/lib/tonemap.glsl:11 | !! OUTSIDE VENDOR !! | // Copyright (C) 2019 Damien Seguin, MIT - the licence text ships in
+Astra/shaders/lib/tonemap.glsl:14 | !! OUTSIDE VENDOR !! | // Copyright (c) 2016 MJP, MIT, the fit credited there to Stephen Hill (@self_shadow) - the
+Astra/shaders/lib/vendor/bakinglab/LICENSE.txt:3 | IN-VENDOR          | Copyright (c) 2016 MJP
+Astra/shaders/lib/vendor/bakinglab/LICENSE.txt:5 | IN-VENDOR          | Permission is hereby granted, free of charge, to any person obtaining a copy
+Astra/shaders/lib/vendor/bakinglab/LICENSE.txt:15 | IN-VENDOR          | THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+Astra/shaders/lib/vendor/bakinglab/README.md:13 | IN-VENDOR          | | `LICENSE.txt` | 仓库 `LICENSE` 原文：MIT / `Copyright (c) 2016 MJP` |
+Astra/shaders/lib/vendor/glsl-tone-map/LICENSE.md:1 | IN-VENDOR          | Copyright (C) 2019 Damien Seguin
+Astra/shaders/lib/vendor/glsl-tone-map/LICENSE.md:3 | IN-VENDOR          | Permission is hereby granted, free of charge, to any person obtaining a copy
+Astra/shaders/lib/vendor/glsl-tone-map/LICENSE.md:13 | IN-VENDOR          | THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+Astra/shaders/lib/vendor/glsl-tone-map/README.md:3 | IN-VENDOR          | 来源：npm 包 `glsl-tone-map@2.3.1`（仓库 `dmnsgn/shaders-tone-map`，`Copyright (C) 2019 Damien Seguin`）。
+
+### [1b] the two attribution-bearing source files outside vendor (full head)
+$ sed -n '1,20p' Astra/shaders/lib/distort.glsl
+     1	#ifndef ASTRA_LIB_DISTORT_GLSL
+     2	#define ASTRA_LIB_DISTORT_GLSL
+     3	
+     4	// From Steadfast 0.8.0 lib/distort.glsl, copyright (C) 2026 coderbot.
+     5	// GPL-3.0-or-later with its Section 7 additional terms; see Astra/LICENSE
+     6	// and THIRD-PARTY.md. Keep this projection paired with shadow_map_position.
+     7	#include "/lib/settings.glsl"
+     8	
+     9	// k = this constant * SHADOW_DISTANCE is the block radius that lands at half
+    10	// the map edge, and it sets the whole detail profile: blocks/texel =
+    11	// 2 * (r + k) ^ 2 / (R * k). Steadfast shipped the plain 0.20 for its own
+    12	// 160-block map (k = 32); reusing it at Astra's shipping 256 gives k = 51.2 and
+    13	// halves near-field density. Anchoring on blocks keeps detail fixed while
+    14	// SHADOW_DISTANCE changes only reach - the cost is a wider rim beyond the
+    15	// receiver edge, which shadowDistanceRenderMul = 1.5 partly fills upstream.
+    16	const float SHADOW_DISTORT_CORE = 25.6;
+    17	const float SHADOW_DISTORT_FACTOR = SHADOW_DISTORT_CORE / float(SHADOW_DISTANCE);
+    18	
+    19	float get_distort_factor(vec2 pos) {
+    20	    return length(pos) + SHADOW_DISTORT_FACTOR;
+
+$ sed -n '1,30p' Astra/shaders/lib/tonemap.glsl
+     1	#ifndef ASTRA_LIB_TONEMAP_GLSL
+     2	#define ASTRA_LIB_TONEMAP_GLSL
+     3	
+     4	// Immediate source: Mellow v3.4 by TheCMK (MIT) - lib/tonemap_operators.glsl + lib/tonemap.glsl.
+     5	// Ported for Astra v1: only the 4 design operators (design.md 4.4) plus the grading
+     6	// primitives; renamed to snake_case per design.md 3.2. Ledger: THIRD-PARTY.md.
+     7	//
+     8	// Mellow's tonemap_operators.glsl is not all TheCMK's, and most of what it holds is a relay of
+     9	// two further upstreams: uchimura_tonemap*() and agx_cdl() are verbatim upstream
+    10	// glsl-tone-map (https://github.com/dmnsgn/shaders-tone-map),
+    11	// Copyright (C) 2019 Damien Seguin, MIT - the licence text ships in
+    12	// lib/vendor/glsl-tone-map/LICENSE.md. aces_tonemap() and its two matrices plus
+    13	// rrt_and_odt_fit() are BakingLab (https://github.com/TheRealMJP/BakingLab, ACES.hlsl),
+    14	// Copyright (c) 2016 MJP, MIT, the fit credited there to Stephen Hill (@self_shadow) - the
+    15	// licence text ships in lib/vendor/bakinglab/LICENSE.txt. Only reinhard_jodie() and the three
+    16	// grading primitives are TheCMK's own. Mellow's fifth operator, PBRNeutralToneMapping, is
+    17	// Apache-2.0 (The Khronos Group) and is not ported here.
+    18	//
+    19	// Uniforms: none
+    20	// Requires: lib/settings.glsl (TONEMAP_OPERATOR), lib/encoding.glsl (get_luminance, to_linear)
+    21	
+    22	// https://64.github.io/tonemapping/
+    23	vec3 reinhard_jodie(vec3 v) {
+    24	    float l = get_luminance(v);
+    25	    vec3 tv = v / (1.0 + v);
+    26	    return mix(v / (1.0 + l), tv, tv);
+    27	}
+    28	
+    29	// Uchimura 2017, "HDR theory and practice"
+    30	// Math: https://www.desmos.com/calculator/gslcdxvipg
+
+$ wc -l Astra/shaders/lib/distort.glsl Astra/shaders/lib/tonemap.glsl
+   44 Astra/shaders/lib/distort.glsl
+  229 Astra/shaders/lib/tonemap.glsl
+  273 total
+
+### [2] Astra/LICENSE is it a real license text? declared license present anywhere?
+$ grep -in -e 'GPL' -e 'General Public' -e 'Section 7' -e 'permission is hereby' -e 'SPDX' Astra/LICENSE ; echo EXIT=$?
+8:rewrite/replace GPL or all-rights-reserved derived modules, then re-decide the
+EXIT=0
+
+$ wc -l Astra/LICENSE ; wc -c Astra/LICENSE
+9 Astra/LICENSE
+445 Astra/LICENSE
+
+$ ls -R Astra/shaders/lib/vendor
+Astra/shaders/lib/vendor:
+README.md
+bakinglab
+glsl-tone-map
+
+Astra/shaders/lib/vendor/bakinglab:
+ACES.hlsl.orig
+LICENSE.txt
+README.md
+
+Astra/shaders/lib/vendor/glsl-tone-map:
+LICENSE.md
+README.md
+aces.glsl.orig
+acesHill.glsl.orig
+agx.glsl.orig
+reinhardJodie.glsl.orig
+uchimura.glsl.orig
+
+$ find Astra -iname '*LICENSE*' -o -iname '*COPYING*' -o -iname '*NOTICE*' | sort
+Astra/LICENSE
+Astra/shaders/lib/vendor/bakinglab/LICENSE.txt
+Astra/shaders/lib/vendor/glsl-tone-map/LICENSE.md
+
+### [2b] distort.glsl vs upstream _analysis/Steadfast-0.8.0/shaders/lib/distort.glsl
+$ ls _analysis/Steadfast-0.8.0/shaders/lib/distort.glsl
+-rw-r--r-- 1 杨铭 197121 1700 May  9 22:00 _analysis/Steadfast-0.8.0/shaders/lib/distort.glsl
+$ wc -l _analysis/Steadfast-0.8.0/shaders/lib/distort.glsl ; sed -n '1,40p' ...
+28 _analysis/Steadfast-0.8.0/shaders/lib/distort.glsl
+     1	// Steadfast is a fast and high-quality graphical overhaul for Minecraft (JE)
+     2	// Copyright (C) 2026 coderbot
+     3	//
+     4	// This program is free software: you can redistribute it and/or modify
+     5	// it under the terms of the GNU General Public License as published by
+     6	// the Free Software Foundation, either version 3 of the License, or
+     7	// (at your option) any later version.
+     8	//
+     9	// This program is distributed in the hope that it will be useful,
+    10	// but WITHOUT ANY WARRANTY; without even the implied warranty of
+    11	// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    12	// GNU General Public License for more details.
+    13	// 
+    14	// You should have received a copy of the GNU General Public License
+    15	// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+    16	
+    17	// Modified from /shaders/distort.glsl in
+    18	// https://github.com/shaderLABS/Shadow-Tutorial
+    19	
+    20	// Distortion factor for the shadow map. Has no effect when shadow distortion is
+    21	// disabled. Lower values mean higher quality near the player and lower quality
+    22	// far away.
+    23	#define SHADOW_DISTORT_FACTOR 0.20 // [0.00 0.01 0.02 0.03 0.04 0.05 0.06 0.07 0.08 0.09 0.10 0.11 0.12 0.13 0.14 0.15 0.16 0.17 0.18 0.19 0.20 0.21 0.22 0.23 0.24 0.25 0.26 0.27 0.28 0.29 0.30 0.31 0.32 0.33 0.34 0.35 0.36 0.37 0.38 0.39 0.40 0.41 0.42 0.43 0.44 0.45 0.46 0.47 0.48 0.49 0.50 0.51 0.52 0.53 0.54 0.55 0.56 0.57 0.58 0.59 0.60 0.61 0.62 0.63 0.64 0.65 0.66 0.67 0.68 0.69 0.70 0.71 0.72 0.73 0.74 0.75 0.76 0.77 0.78 0.79 0.80 0.81 0.82 0.83 0.84 0.85 0.86 0.87 0.88 0.89 0.90 0.91 0.92 0.93 0.94 0.95 0.96 0.97 0.98 0.99 1.00]
+    24	
+    25	vec3 distort(vec3 pos) {
+    26		float factor = length(pos.xy) + SHADOW_DISTORT_FACTOR;
+    27		return vec3(pos.xy / factor, pos.z * 0.5);
+    28	}
+
+$ cat -n Astra/shaders/lib/distort.glsl   (LIFETIME COMPARISON below: Steadfast requires the GPL header be kept)
+     1	#ifndef ASTRA_LIB_DISTORT_GLSL
+     2	#define ASTRA_LIB_DISTORT_GLSL
+     3	
+     4	// From Steadfast 0.8.0 lib/distort.glsl, copyright (C) 2026 coderbot.
+     5	// GPL-3.0-or-later with its Section 7 additional terms; see Astra/LICENSE
+     6	// and THIRD-PARTY.md. Keep this projection paired with shadow_map_position.
+     7	#include "/lib/settings.glsl"
+     8	
+     9	// k = this constant * SHADOW_DISTANCE is the block radius that lands at half
+    10	// the map edge, and it sets the whole detail profile: blocks/texel =
+    11	// 2 * (r + k) ^ 2 / (R * k). Steadfast shipped the plain 0.20 for its own
+    12	// 160-block map (k = 32); reusing it at Astra's shipping 256 gives k = 51.2 and
+    13	// halves near-field density. Anchoring on blocks keeps detail fixed while
+    14	// SHADOW_DISTANCE changes only reach - the cost is a wider rim beyond the
+    15	// receiver edge, which shadowDistanceRenderMul = 1.5 partly fills upstream.
+    16	const float SHADOW_DISTORT_CORE = 25.6;
+    17	const float SHADOW_DISTORT_FACTOR = SHADOW_DISTORT_CORE / float(SHADOW_DISTANCE);
+    18	
+    19	float get_distort_factor(vec2 pos) {
+    20	    return length(pos) + SHADOW_DISTORT_FACTOR;
+    21	}
+    22	
+    23	// Shadow clip space distortion: packs resolution near the player
+    24	vec3 distort(vec3 pos) {
+    25	    #ifdef DIMENSION_END
+    26	    return vec3(pos.xy,pos.z*0.5);
+    27	    #else
+    28	    float factor = get_distort_factor(pos.xy);
+    29	    return vec3(pos.xy / factor, pos.z * 0.5);
+    30	    #endif
+    31	}
+    32	
+    33	vec3 undistort(vec3 pos) {
+    34	    #ifdef DIMENSION_END
+    35	    return vec3(pos.xy,pos.z/0.5);
+    36	    #else
+    37	    // Analytic inverse of q = p / (length(p) + a). The image of finite
+    38	    // points is the open unit disk; callers must reject its unused corners.
+    39	    float factor = SHADOW_DISTORT_FACTOR / max(1.0 - length(pos.xy), 1e-5);
+    40	    return vec3(pos.xy * factor, pos.z / 0.5);
+    41	    #endif
+    42	}
+    43	
+    44	#endif
+
+$ diff <(sed -n '25,28p' _analysis/Steadfast-0.8.0/shaders/lib/distort.glsl) <(sed -n '19,22p' Astra/shaders/lib/distort.glsl); echo DIFF-EXIT=$?
+1,3c1,2
+< vec3 distort(vec3 pos) {
+< 	float factor = length(pos.xy) + SHADOW_DISTORT_FACTOR;
+< 	return vec3(pos.xy / factor, pos.z * 0.5);
+---
+> float get_distort_factor(vec2 pos) {
+>     return length(pos) + SHADOW_DISTORT_FACTOR;
+4a4
+> 
+DIFF-EXIT=1
+
+### [2c] the GPL-3.0 + Section 7 additional terms that Astra's own source cites
+$ ls -l _analysis/Steadfast-0.8.0/LICENSE*
+-rw-r--r-- 1 杨铭 197121  2959 May  9 22:00 _analysis/Steadfast-0.8.0/LICENSE-ADDITIONAL-TERMS.md
+-rw-r--r-- 1 杨铭 197121 34893 May  9 22:00 _analysis/Steadfast-0.8.0/LICENSE.md
+$ cat -n _analysis/Steadfast-0.8.0/LICENSE-ADDITIONAL-TERMS.md
+     1	## Additional Licensing Terms
+     2	
+     3	Steadfast comes with the following two additional terms permitted via Section 7
+     4	of the GNU General Public License v3 (GPLv3):
+     5	
+     6	1. (GPLv3 7b) On any page, message, or other medium that conveys Steadfast or a
+     7	   modified version of it, the following legal notice must occur prominently and
+     8	   as reasonably early as possible in the main text. This must be before any
+     9	   download link conveying Steadfast or a modified version.
+    10		> Steadfast is free and open-source software developed by coderbot, and can be downloaded from https://modrinth.com/shader/steadfast-shaders (Modrinth), https://www.curseforge.com/minecraft/shaders/steadfast (CurseForge), or https://github.com/coderbot16/Steadfast (GitHub). Anyone can modify and distribute it under the terms of the GNU General Public License, version 3.
+    11		* If in doubt, "as reasonably early as possible" should at least mean within
+    12		  the first 10 sentences of the text or in the first minute of spoken audio.
+    13		* It is not necessary to read off links in spoken audio.
+    14		* Video and audio mediums are generally not seen as conveying Steadfast unless
+    15		  you are offering a direct download of Steadfast or any modified version.
+    16	2. (GPLv3 7c and 7e) "Steadfast" is an unregistered common-law trademark.
+    17		* When conveying a modified version of Steadfast, the human readable name or
+    18		  branding of your modified version must end with
+    19		  `(edit of coderbot's Steadfast)` to avoid misrepresenting the origin of the
+    20		  modified version.
+    21		* The name "Steadfast" must not occur in the human readable name or branding
+    22		  of your modified version outside of the verbatim occurrence within those
+    23		  parentheses.
+    24		* The name "Steadfast" must not occur in any non-human-readable names of
+    25		  modified versions, except when similarly being used to signal that the
+    26		  modified version is an edit of Steadfast.
+    27		* A human readable name is generally the name that's prominently displayed
+    28		  on any project page, message, or other medium. For example, "Steadfast".
+    29		* A non-human-readable name is generally present in URLs, paths, and other
+    30		  in-code identifiers.
+    31		* For example, a modified version could have a human readable name of
+    32		  "Notfast (edit of coderbot's Steadfast)", and a non-human-readable name of
+    33		  `notfast` in URLs and paths.
+    34		* The file name must include a semantically equivalent version of the same
+    35		  `(edit of coderbot's Steadfast)` as in the human-readable name. If in
+    36		  doubt, use the suffix `-edit-of-coderbot-Steadfast`.
+    37		* For example, `Notfast-edit-of-coderbot-Steadfast.zip` is acceptable.
+    38	
+    39	I spent thousands of hours developing Steadfast for fun, and these help some
+    40	boundaries to ensure that credit is given where it is due. I would be happy to
+    41	convey a version of Steadfast to you without these terms by request in cases
+    42	where it is clear that you have put significant effort into modifications that
+    43	do not have a place in Steadfast itself. Thanks, and enjoy Steadfast!
+
+$ head -5 _analysis/Steadfast-0.8.0/LICENSE.md ; grep -c '' _analysis/Steadfast-0.8.0/LICENSE.md
+# GNU GENERAL PUBLIC LICENSE
+
+Version 3, 29 June 2007
+
+Copyright (C) 2007 Free Software Foundation, Inc.
+675
+
+### [2d] does the SHIPPED pack (Astra/) carry the Section 7(b)/7(c) notices Steadfast demands?
+$ grep -rIn -e 'coderbot' -e "edit of coderbot" -e 'modrinth.com/shader/steadfast' -e 'curseforge.com/minecraft/shaders/steadfast' Astra/
+Astra/\THIRD-PARTY.md:13:| Steadfast | 0.8.0 | GPLv3 + 两条 §7 附加条款（作者 coderbot） | 自由；文件头保留 GPL 声明。**7b**：任何传播 Steadfast 或其修改版的页面须在主文靠前处原样给出署名句（含 Modrinth/CurseForge/GitHub 三个下载源）。**7c/7e**：传播修改版时，人类可读名称与文件名必须以 `(edit of coderbot's Steadfast)` 结尾（文件名可用后缀 `-edit-of-coderbot-Steadfast`），且 "Steadfast" 不得出现在该括号之外的名称里 |
+Astra/\THIRD-PARTY.md:26:| `shaders/lib/distort.glsl` | Steadfast 0.8.0（`lib/distort.glsl`，作者 coderbot） | 径向扭曲与 Z 缩放表达式移植；Astra 增补解析逆变换。2026-09-09 与 shadow_map_position 成套替换原 Mellow 方形扭曲，删除无调用的 compute_bias。**2026-09-20 改常数为按影距归一**：Steadfast 的裸 `0.20` 是其 160 格影距下的调参产物（核半径 = 因子 × 影距 = 32 格），Astra 出厂 256 格沿用会把高解析核推到 51.2 格、近场密度减半；现改为 `SHADOW_DISTORT_CORE = 25.6`（格）`/ float(SHADOW_DISTANCE)`，近场纹素密度与影距解耦，滑条只改变覆盖距离，代价是短影距下外圈空转面积增大（D=64 时 49.0%，D=256 时 17.4%，`shadowDistanceRenderMul = 1.5` 在上游侧部分利用该外圈）。为此新增本文件对 `lib/settings.glsl` 的显式 include——这是包内第一处 lib→settings 直接包含（其余 22 处全在 `shaders/program/` 入口，靠包含顺序拿到选项），settings.glsl 自带包含守卫，入口已包含时本行不重复展开，作用是让常量初始化式不隐式依赖包含顺序 | GPLv3 + §7 两条附加条款 | 文件头 GPL 来源说明 |
+Astra/\THIRD-PARTY.md:29:| `shaders/shaders.properties` 的 `CUSTOM UNIFORMS` 段 | Steadfast 0.8.0（`shaders/shaders.properties`，作者 coderbot）；其中 11 条 `astraSolas*` 为 Solas V2.2b 时间/日相表达式的 Astra 改写 | **表达式级移植**（2026-09-05 复核更正：原记"结构借鉴"不成立）。Astra 侧 **49** 条（`check_pack.py` 第 6 项行数口径 27 `uniform.*` + 22 `variable.*`，且实测 49 个名称无同名重复）：verbatim=14 literal-suffix=2 rewritten=6 astra-only=27（逐字相同 / 仅字面量后缀差异 / 同名改写 / 自写；2026-09-21 随月相 CPU 标量新增 3 条自写表达式复算）；逐条名单与复核方法见下节 | Steadfast 部分：GPLv3 + §7 两条附加条款；`astraSolas*` 部分：Solas 未声明 | 段内注释 `Expression-level port from Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot ...` |
+Astra/\THIRD-PARTY.md:131:  若按"Steadfast 修改版"传播，§7c/7e 还要求人类可读名称与文件名以 `(edit of coderbot's Steadfast)`
+Astra/\THIRD-PARTY.md:191:| global/water/surface.glsl、refraction.glsl、absorption.glsl、program/water.glsl 空气侧 | Steadfast 0.8.0，coderbot，既有 GPL-3.0-or-later 及 Section 7 条款继续适用；恢复波场、视差、折射推进、吸收和 Fresnel 关系 |
+Astra/\shaders\shaders.properties:172:# by coderbot - its shaders.properties CUSTOM UNIFORMS section. Per-entry borrow
+Astra/\shaders\global\lighting\blocklight.glsl:10://     additional terms) by coderbot, source: _analysis/Steadfast-0.8.0/shaders/environment/
+Astra/\shaders\global\lighting\diffuse.glsl:9:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\global\atmosphere\fog.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\global\lighting\wind.glsl:20://   coderbot). No Steadfast expression survives in this file — the shape, the coefficient set
+Astra/\shaders\global\lighting\sss.glsl:19://     additional terms) by coderbot:
+Astra/\shaders\global\lighting\shadowmap.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\global\post\godrays.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\global\water\refraction.glsl:3:// Adapted from Steadfast 0.8.0 environment/water/refraction.glsl, coderbot.
+Astra/\shaders\global\water\surface.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\lib\distort.glsl:4:// From Steadfast 0.8.0 lib/distort.glsl, copyright (C) 2026 coderbot.
+Astra/\shaders\lib\colors.glsl:12://     additional terms) by coderbot, source: _analysis/Steadfast-0.8.0/shaders/
+Astra/\shaders\program\shadow.fsh:2:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\program\shadow.vsh:2:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\program\water.glsl:6:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot:
+GREP-EXIT=0
+
+$ grep -rIn -e 'GNU General Public' -e 'GPL-3.0' -e 'GPLv3' Astra/ --include=* | head -30
+Astra/\THIRD-PARTY.md:13:| Steadfast | 0.8.0 | GPLv3 + 两条 §7 附加条款（作者 coderbot） | 自由；文件头保留 GPL 声明。**7b**：任何传播 Steadfast 或其修改版的页面须在主文靠前处原样给出署名句（含 Modrinth/CurseForge/GitHub 三个下载源）。**7c/7e**：传播修改版时，人类可读名称与文件名必须以 `(edit of coderbot's Steadfast)` 结尾（文件名可用后缀 `-edit-of-coderbot-Steadfast`），且 "Steadfast" 不得出现在该括号之外的名称里 |
+Astra/\THIRD-PARTY.md:26:| `shaders/lib/distort.glsl` | Steadfast 0.8.0（`lib/distort.glsl`，作者 coderbot） | 径向扭曲与 Z 缩放表达式移植；Astra 增补解析逆变换。2026-09-09 与 shadow_map_position 成套替换原 Mellow 方形扭曲，删除无调用的 compute_bias。**2026-09-20 改常数为按影距归一**：Steadfast 的裸 `0.20` 是其 160 格影距下的调参产物（核半径 = 因子 × 影距 = 32 格），Astra 出厂 256 格沿用会把高解析核推到 51.2 格、近场密度减半；现改为 `SHADOW_DISTORT_CORE = 25.6`（格）`/ float(SHADOW_DISTANCE)`，近场纹素密度与影距解耦，滑条只改变覆盖距离，代价是短影距下外圈空转面积增大（D=64 时 49.0%，D=256 时 17.4%，`shadowDistanceRenderMul = 1.5` 在上游侧部分利用该外圈）。为此新增本文件对 `lib/settings.glsl` 的显式 include——这是包内第一处 lib→settings 直接包含（其余 22 处全在 `shaders/program/` 入口，靠包含顺序拿到选项），settings.glsl 自带包含守卫，入口已包含时本行不重复展开，作用是让常量初始化式不隐式依赖包含顺序 | GPLv3 + §7 两条附加条款 | 文件头 GPL 来源说明 |
+Astra/\THIRD-PARTY.md:29:| `shaders/shaders.properties` 的 `CUSTOM UNIFORMS` 段 | Steadfast 0.8.0（`shaders/shaders.properties`，作者 coderbot）；其中 11 条 `astraSolas*` 为 Solas V2.2b 时间/日相表达式的 Astra 改写 | **表达式级移植**（2026-09-05 复核更正：原记"结构借鉴"不成立）。Astra 侧 **49** 条（`check_pack.py` 第 6 项行数口径 27 `uniform.*` + 22 `variable.*`，且实测 49 个名称无同名重复）：verbatim=14 literal-suffix=2 rewritten=6 astra-only=27（逐字相同 / 仅字面量后缀差异 / 同名改写 / 自写；2026-09-21 随月相 CPU 标量新增 3 条自写表达式复算）；逐条名单与复核方法见下节 | Steadfast 部分：GPLv3 + §7 两条附加条款；`astraSolas*` 部分：Solas 未声明 | 段内注释 `Expression-level port from Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot ...` |
+Astra/\THIRD-PARTY.md:33:| `shaders/global/lighting/shadowmap.glsl` | Steadfast 0.8.0（`environment/lighting/shadowmap.glsl` 的 ShadowMapping/SampleShadows/静态回退、`program/world/lit.vsh` 的 ShadowMapPosition、`program/shadow/shadow.vsh` 的水面高度编码） | **表达式级移植**（snake_case 重命名；shadowMapResolution/shadowDistance/entityShadowDistanceMul/shadowHardwareFiltering 上移到 lib/settings.glsl 不在此重复；彩色阴影组合与焦散接口为 Astra 增补）。**2026-09-20 两处偏置与畸变常数解耦**：掠射项原借用 `SHADOW_DISTORT_FACTOR`（当时恰为 0.20 格），该常数已改为按影距归一后不再代表格数，故改用文件内 `shadowGrazingBias = 0.20`（出厂默认数值不变）；末地分支的固定 `+0.015` 格并入单一纹素倍率 `0.46`（= 原 0.30 加 0.015 格在 2048 档下的纹素数），使该项整体随 SHADOW_RESOLUTION 缩放而非部分冻结 | GPLv3 + §7 两条附加条款 | 文件头 GPL 声明 |
+Astra/\THIRD-PARTY.md:34:| `shaders/program/shadow.vsh` | Steadfast 0.8.0（`program/shadow/shadow.vsh`） | **表达式级移植**（block.properties 原始 ID 判据替代其 materialID 解码；玻璃剔除坐标由 `vec4(-1.0)` 修正为 `vec4(0,0,2,1)`——原写法落在远平面角上，裁剪不可靠） | GPLv3 + §7 两条附加条款 | 文件头 GPL 声明 |
+Astra/\THIRD-PARTY.md:35:| `shaders/program/shadow.fsh` | Steadfast 0.8.0（`program/shadow/shadow.fsh`）+ Solas V2.2b（`program/shadow.glsl` 的半透明染色混合思路） | **表达式级移植**（Steadfast 壳）+ 结构借鉴（Solas 染色公式）；`smoothstep(1.0, 0.9, a)` 透明度判定与 srgb_decode 为 Astra 组合 | Steadfast：GPLv3 + §7 / Solas：未声明 | 文件头 GPL 声明（Steadfast 部分） |
+Astra/\THIRD-PARTY.md:36:| `shaders/global/atmosphere/fog.glsl` | Steadfast 0.8.0（`environment/fog.glsl` 的 FogV2） | **表达式级移植**（雾色改为参数而非 custom uniform——Astra 的 Z3 uniform 集冻结于 SC-14，雾色归 D2/C1；FOG_DENSITY/UNDERWATER_FOG_DENSITY/SKY_FOG_STRENGTH 在此接入；空气透视与 biome tint 为 Astra 自实现，Refrax 仅思路） | GPLv3 + §7 两条附加条款 | 文件头 GPL 声明 |
+Astra/\THIRD-PARTY.md:38:| `shaders/global/post/godrays.glsl` + `shaders/program/composite.fsh`（pass 体） | Steadfast 0.8.0（`program/post/noisy_godrays.fsh`） | **表达式级移植**（起步抖动换 Astra 自写 lib/bayer.glsl；`windowToScreenGodrays`/`screenLightVector` 两个 CPU uniform 改为 composite.vsh 顶点级投影，避免动 Z3 冻结的 uniform 集） | GPLv3 + §7 两条附加条款 | 文件头 GPL 声明 |
+Astra/\THIRD-PARTY.md:43:| `shaders/global/lighting/diffuse.glsl` | Steadfast 0.8.0（`environment/lighting/diffuse.glsl`） | **表达式级移植**（Astra 改动：不复现 Steadfast 的 `SurfaceFragment` struct——GBuffer 解码归 E1；`lightVector`（视图空间、冻结集内）经 `lib/transforms.glsl view_player()` 重建世界向量；`NIGHT_DESATURATION_EFFECT` 不在 design.md 4.1 范围，已丢弃） | GPLv3 + §7 两条附加条款 | 文件头 GPL 派生声明（整段 derivative + GPL-3.0-or-later） |
+Astra/\THIRD-PARTY.md:44:| `shaders/global/lighting/sss.glsl` | **双来源（2026-09-10 起）**：树叶分支 = Complementary r5.9（`lib/lighting/mainLighting.glsl:111-113` 的 `NdotL = mix(NdotL, 1.0, 0.35)`，subsurfaceMode == 2，`:118` max0 自clamp）；地面植被分支与强度混合 = Steadfast 0.8.0（`environment/lighting/diffuse.glsl` 的前向散射包裹项） | **表达式级移植** + Astra 增补强度控制（Steadfast 无 SSS 滑条：`sss_wrap()` 以 plain Lambert 到全强度 wrap 的 mix 表达，100 即逐字等价、0 即关闭；与 B1 `shadow_mapping()` 的除数归一化不得重复施加。参考的平坦直射 NdotLM=1.0、前向高光与影缘天光混合三项需扩 diffuse.glsl 接口，见 docs/handoffs/terrain-foliage.md 待办 3） | 树叶分支：**Complementary License 1.7（专有）**；地面分支：GPLv3 + §7 两条附加条款 | 文件头双来源声明（含 Steadfast GPL 派生段） |
+Astra/\THIRD-PARTY.md:49:| `shaders/global/water/surface.glsl` | **Steadfast 0.8.0（`environment/water/surface_noise.glsl` + `surface_noise_waves.glsl` + `parallax.glsl` + `lib/valueNoise.glsl`/`valueNoiseDerivatives.glsl`）— SC-24 换源，2026-09-06 起由"自写解析波"改为 Steadfast 派生** | **表达式级移植**（ripple[4]+crest[2] 噪声波场、解析导数梯度、Nyquist 比率受限、4 步自适应视差；Astra 改动：两个噪声 lib 内联并加 `surface_` 前缀（与 Solas 出身的 caustics 同编译单元）；删 textureGather/FDM 回退分支；`WATER_AA` 四档固定 BALANCED；切线空间视线由 `worldPos - cameraPosition` 现算且 Z 取 -abs(y)；roughness = 被滤掉的坡度能量，为本包对 Steadfast 的增补） | GPLv3 + §7 两条附加条款 | 文件头 GPL 派生声明 |
+Astra/\THIRD-PARTY.md:130:  (a) 把这 24 条重写为 Astra 自有表达式；(b) 整包按 GPLv3 发布并满足 §7b 署名句。
+Astra/\THIRD-PARTY.md:134:- **范围更正（2026-09-05 登记；2026-09-06 SC-24 换源、2026-09-10 地形植被轮换源后两次更新）**：上面 (a) 只覆盖 `shaders.properties` 的 21 条表达式，不覆盖 GLSL 侧。`grep -rl "^// From Steadfast" shaders/` 现命中 **9 个文件**——`global/lighting/`（diffuse、sss、shadowmap）、`global/atmosphere/fog.glsl`、`global/post/godrays.glsl`、`global/water/surface.glsl`、`lib/distort.glsl`、`program/water.glsl`、`program/shadow.vsh`、`program/shadow.fsh`——它们与那 21 条同属 §7 条款的作用域。**名单已两次变动**：`global/water/` 的 absorption、caustics、refraction 经 SC-24 换源为 Solas 派生（11 → 9）；`global/lighting/wind.glsl` 经 2026-09-10 地形植被轮换源为 Complementary 派生、不再命中本 grep（同时 `lib/distort.glsl`、`program/water.glsl` 进入名单，故计数仍为 9）；`sss.glsl` 仍命中（地面植被分支为 Steadfast 派生），但其树叶分支已换为 Complementary。故 (a) 的真实工作量是「21 条表达式 + 9 个文件的表达重写」，(b) 则是整包转 GPLv3。SC-14 仍是 ⏸ 待用户拍板，本条只更正其影响面，不改候选与结论。
+Astra/\THIRD-PARTY.md:191:| global/water/surface.glsl、refraction.glsl、absorption.glsl、program/water.glsl 空气侧 | Steadfast 0.8.0，coderbot，既有 GPL-3.0-or-later 及 Section 7 条款继续适用；恢复波场、视差、折射推进、吸收和 Fresnel 关系 |
+Astra/\THIRD-PARTY.md:204:- `shaders/global/water/reference_light.glsl` adapted from Steadfast 0.8.0 `environment/sky/minishita.glsl` and the matching `shaders.properties` atmospheric/light expressions. Prefix and water-path integration changes by Astra; retains Steadfast GPL-3.0-or-later and additional Section 7 terms already recorded above. **[2026-09-21 B3 已删除该文件]**：159 行、19 个 `waterRef_*` 与 `water_reference_lighting()`经全包扫描零调用（唯一提及是 `program/scene.glsl` 的 include），文件与其 include 一并删除；本条登记作为历史移植事实保留。
+Astra/\README.md:54:- 第三方代码逐模块台账见 [THIRD-PARTY.md](THIRD-PARTY.md)：Mellow/MIT 逐行移植（6 个 lib 模块 + block 基础表）、Steadfast/GPLv3 + §7 附加条款的 custom uniform 表达式级移植（发布前须重写或整包转 GPL）、Refrax 与 Solas 仅分类思路级借鉴。
+Astra/\shaders\shaders.properties:171:# Expression-level port from Steadfast 0.8.0 (GPLv3 + Section 7 additional terms)
+Astra/\shaders\global\atmosphere\fog.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\global\atmosphere\fog.glsl:7:// This file is a derivative of Steadfast and is licensed under the GNU General Public
+Astra/\shaders\global\atmosphere\fog.glsl:8:// License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+Astra/\shaders\global\lighting\shadowmap.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\global\lighting\shadowmap.glsl:9:// Public License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+Astra/\shaders\global\lighting\blocklight.glsl:9://   - held_light_strength(), block_lighting(): From Steadfast 0.8.0 (GPLv3 + Section 7
+Astra/\shaders\global\lighting\blocklight.glsl:12://     This file is a derivative of Steadfast and is licensed under the GNU General Public
+Astra/\shaders\global\lighting\blocklight.glsl:13://     License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+Astra/\shaders\global\lighting\diffuse.glsl:9:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\global\lighting\diffuse.glsl:12:// This file is a derivative of Steadfast and is licensed under the GNU General Public
+Astra/\shaders\global\lighting\diffuse.glsl:13:// License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+Astra/\shaders\global\lighting\sss.glsl:18://   GROUND-FOLIAGE wrap + the strength-mix design — from Steadfast 0.8.0 (GPLv3 + Section 7
+Astra/\shaders\global\lighting\sss.glsl:23://     General Public License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+
+$ grep -rIn "Section 7" Astra/
+Astra/\shaders\shaders.properties:171:# Expression-level port from Steadfast 0.8.0 (GPLv3 + Section 7 additional terms)
+Astra/\shaders\global\lighting\sss.glsl:18://   GROUND-FOLIAGE wrap + the strength-mix design — from Steadfast 0.8.0 (GPLv3 + Section 7
+Astra/\shaders\global\lighting\shadowmap.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\global\lighting\shadowmap.glsl:11:// license including Steadfast's Section 7 additional terms.
+Astra/\shaders\lib\colors.glsl:11://   - BLOCKLIGHT_COLOR, MIN_AMBIENT_TINT: From Steadfast 0.8.0 (GPLv3 + Section 7
+Astra/\shaders\lib\colors.glsl:17://     license including Steadfast's Section 7 additional terms.
+Astra/\THIRD-PARTY.md:29:| `shaders/shaders.properties` 的 `CUSTOM UNIFORMS` 段 | Steadfast 0.8.0（`shaders/shaders.properties`，作者 coderbot）；其中 11 条 `astraSolas*` 为 Solas V2.2b 时间/日相表达式的 Astra 改写 | **表达式级移植**（2026-09-05 复核更正：原记"结构借鉴"不成立）。Astra 侧 **49** 条（`check_pack.py` 第 6 项行数口径 27 `uniform.*` + 22 `variable.*`，且实测 49 个名称无同名重复）：verbatim=14 literal-suffix=2 rewritten=6 astra-only=27（逐字相同 / 仅字面量后缀差异 / 同名改写 / 自写；2026-09-21 随月相 CPU 标量新增 3 条自写表达式复算）；逐条名单与复核方法见下节 | Steadfast 部分：GPLv3 + §7 两条附加条款；`astraSolas*` 部分：Solas 未声明 | 段内注释 `Expression-level port from Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot ...` |
+Astra/\THIRD-PARTY.md:191:| global/water/surface.glsl、refraction.glsl、absorption.glsl、program/water.glsl 空气侧 | Steadfast 0.8.0，coderbot，既有 GPL-3.0-or-later 及 Section 7 条款继续适用；恢复波场、视差、折射推进、吸收和 Fresnel 关系 |
+Astra/\THIRD-PARTY.md:204:- `shaders/global/water/reference_light.glsl` adapted from Steadfast 0.8.0 `environment/sky/minishita.glsl` and the matching `shaders.properties` atmospheric/light expressions. Prefix and water-path integration changes by Astra; retains Steadfast GPL-3.0-or-later and additional Section 7 terms already recorded above. **[2026-09-21 B3 已删除该文件]**：159 行、19 个 `waterRef_*` 与 `water_reference_lighting()`经全包扫描零调用（唯一提及是 `program/scene.glsl` 的 include），文件与其 include 一并删除；本条登记作为历史移植事实保留。
+Astra/\shaders\lib\distort.glsl:5:// GPL-3.0-or-later with its Section 7 additional terms; see Astra/LICENSE
+Astra/\shaders\global\lighting\wind.glsl:17://   GPLv3 + Section 7 terms this file carried before the 2026-09-10 re-sourcing.
+Astra/\shaders\global\atmosphere\fog.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\global\atmosphere\fog.glsl:9:// _analysis/Steadfast-0.8.0/LICENSE.md, including Steadfast's Section 7 additional terms.
+Astra/\shaders\global\lighting\blocklight.glsl:9://   - held_light_strength(), block_lighting(): From Steadfast 0.8.0 (GPLv3 + Section 7
+Astra/\shaders\global\lighting\blocklight.glsl:15://     license including Steadfast's Section 7 additional terms.
+Astra/\shaders\global\lighting\diffuse.glsl:9:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\global\lighting\diffuse.glsl:15:// license including Steadfast's Section 7 additional terms.
+Astra/\shaders\global\water\refraction.glsl:4:// GPL-3.0-or-later with Section 7 terms; see Astra/LICENSE and THIRD-PARTY.md.
+Astra/\shaders\global\post\godrays.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\global\post\godrays.glsl:9:// _analysis/Steadfast-0.8.0/LICENSE.md, including Steadfast's Section 7 additional terms.
+Astra/\shaders\global\water\surface.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\global\water\surface.glsl:12:// license including Steadfast's Section 7 additional terms.
+Astra/\shaders\program\shadow.fsh:2:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\program\shadow.fsh:6:// _analysis/Steadfast-0.8.0/LICENSE.md, including Steadfast's Section 7 additional terms.
+Astra/\shaders\program\water.glsl:6:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot:
+Astra/\shaders\program\water.glsl:9:// This derivative retains GPL-3.0-or-later and its Section 7 terms; see
+Astra/\shaders\program\shadow.vsh:2:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/\shaders\program\shadow.vsh:6:// _analysis/Steadfast-0.8.0/LICENSE.md, including Steadfast's Section 7 additional terms.
+
+### [2e] every in-pack pointer to a license text that is OUTSIDE the pack (the _analysis/ boundary)
+$ grep -rn '_analysis/' Astra/ | grep -i -e 'licen' -e 'LICENSE' 
+Astra/\shaders\global\atmosphere\fog.glsl:9:// _analysis/Steadfast-0.8.0/LICENSE.md, including Steadfast's Section 7 additional terms.
+Astra/\shaders\global\lighting\sss.glsl:14://     License: "Complementary License Agreement 1.7" (_analysis/Complementary r5.9/
+Astra/\shaders\global\lighting\sss.glsl:24://     _analysis/Steadfast-0.8.0/LICENSE.md.
+Astra/\shaders\global\lighting\shadowmap.glsl:10:// _analysis/Steadfast-0.8.0/LICENSE.md. Redistribution is permitted only under that
+Astra/\shaders\global\lighting\blocklight.glsl:14://     _analysis/Steadfast-0.8.0/LICENSE.md. Redistribution is permitted only under that
+Astra/\shaders\global\post\godrays.glsl:9:// _analysis/Steadfast-0.8.0/LICENSE.md, including Steadfast's Section 7 additional terms.
+Astra/\shaders\global\water\surface.glsl:11:// _analysis/Steadfast-0.8.0/LICENSE.md. Redistribution is permitted only under that
+Astra/\shaders\lib\colors.glsl:16://     _analysis/Steadfast-0.8.0/LICENSE.md. Redistribution is permitted only under that
+Astra/\shaders\global\lighting\diffuse.glsl:14:// _analysis/Steadfast-0.8.0/LICENSE.md. Redistribution is permitted only under that
+Astra/\shaders\program\shadow.fsh:6:// _analysis/Steadfast-0.8.0/LICENSE.md, including Steadfast's Section 7 additional terms.
+Astra/\shaders\program\shadow.vsh:6:// _analysis/Steadfast-0.8.0/LICENSE.md, including Steadfast's Section 7 additional terms.
+Astra/\shaders\global\lighting\wind.glsl:16://   (_analysis/Complementary r5.9/Reimagined/License.txt) — proprietary, and NOT the
+count of source lines pointing outside the pack:
+17
+
+$ ls Astra/_analysis 2>&1   # does the pack carry that path?
+ls: cannot access 'Astra/_analysis': No such file or directory
+
+### [2f] three-way: does any Astra/ file ship the GPL-3.0 text itself?
+$ grep -rl 'GNU GENERAL PUBLIC LICENSE' Astra/
+GREP-EXIT=1  (1 = none found)
+
+### [2g] Complementary (proprietary) traces: in-pack headers vs README summary
+$ grep -rIln 'Complementary' Astra/
+Astra/\THIRD-PARTY.md
+Astra/\shaders\shaders.properties
+Astra/\shaders\global\atmosphere\sky_minishita.glsl
+Astra/\shaders\global\atmosphere\clouds_planar.glsl
+Astra/\shaders\global\atmosphere\stars.glsl
+Astra/\shaders\global\atmosphere\sky_gradient.glsl
+Astra/\shaders\global\atmosphere\fog.glsl
+Astra/\shaders\global\dimension\nether.glsl
+Astra/\shaders\global\lighting\diffuse.glsl
+Astra/\shaders\global\dimension\overworld.glsl
+Astra/\shaders\global\dimension\nether_volume.glsl
+Astra/\shaders\global\lighting\wind.glsl
+Astra/\shaders\global\lighting\sss.glsl
+Astra/\shaders\lib\pow.glsl
+Astra/\shaders\lib\twilight.glsl
+Astra/\shaders\program\lit.fsh
+Astra/\shaders\program\scene.glsl
+Astra/\shaders\world-1\final.fsh
+Astra/\shaders\program\water.glsl
+Astra/\shaders\world1\final.fsh
+
+$ grep -rn 'Complementary' Astra/README.md ; echo EXIT=$?
+EXIT=1
+
+### [2h] every in-pack line mentioning Complementary (attribution vs mere mention)
+$ grep -rn 'Complementary' Astra/shaders/ 
+Astra/shaders/\shaders.properties:322:# Nether biome palette, Complementary r5.9 mode 3.
+Astra/shaders/\global\atmosphere\sky_gradient.glsl:5://  Astra v1 - overworld sky, ported from Complementary r5.9 (Reimagined).
+Astra/shaders/\global\atmosphere\sky_gradient.glsl:10://  Reference root: _analysis/Complementary r5.9/Reimagined/shaders/
+Astra/shaders/\global\atmosphere\fog.glsl:72:// Complementary's mainFog weight for the low-altitude air, as a function of the same
+Astra/shaders/\global\atmosphere\clouds_planar.glsl:7://  Complementary r5.9 (Reimagined) cloud model.
+Astra/shaders/\global\atmosphere\clouds_planar.glsl:8://  Reference root: _analysis/Complementary r5.9/Reimagined/shaders/
+Astra/shaders/\global\lighting\diffuse.glsl:139:		// model (Complementary mainLighting.glsl:241-254 subsurfaceHighlight), kept
+Astra/shaders/\global\lighting\diffuse.glsl:169:        // Complementary mainLighting.glsl: SIDE_SHADOWING uses a wrapped
+Astra/shaders/\global\atmosphere\sky_minishita.glsl:10://   The reference pack for this task (Complementary r5.9) has NO physically-based
+Astra/shaders/\global\dimension\overworld.glsl:57:    // Complementary reflectionBackground reflects the same atmosphere and
+Astra/shaders/\global\atmosphere\stars.glsl:5://  Astra v1 - star field, ported from Complementary r5.9 (Reimagined).
+Astra/shaders/\global\atmosphere\stars.glsl:6://  Reference root: _analysis/Complementary r5.9/Reimagined/shaders/
+Astra/shaders/\global\lighting\sss.glsl:8://   LEAVES wrap — ported from Complementary r5.9 (Reimagined and Unbound are byte-identical
+Astra/shaders/\global\lighting\sss.glsl:10://       source: _analysis/Complementary r5.9/Reimagined/shaders/lib/lighting/mainLighting.glsl
+Astra/shaders/\global\lighting\sss.glsl:14://     License: "Complementary License Agreement 1.7" (_analysis/Complementary r5.9/
+Astra/shaders/\global\lighting\sss.glsl:64://   isLeaves  — true for LEAVES-class material (Complementary mode-2 wrap, see below),
+Astra/shaders/\global\lighting\sss.glsl:72://   leaves (Complementary mainLighting.glsl:113, subsurfaceMode == 2):
+Astra/shaders/\global\lighting\sss.glsl:99:// Complementary's form (mainLighting.glsl:241-242, 250-254):
+Astra/shaders/\global\lighting\wind.glsl:6:// Complementary r5.9 (Reimagined and Unbound are byte-identical for this file).
+Astra/shaders/\global\lighting\wind.glsl:7://   source: _analysis/Complementary r5.9/Reimagined/shaders/lib/materials/
+Astra/shaders/\global\lighting\wind.glsl:15:// License: the ported math is under the "Complementary License Agreement 1.7"
+Astra/shaders/\global\lighting\wind.glsl:16://   (_analysis/Complementary r5.9/Reimagined/License.txt) — proprietary, and NOT the
+Astra/shaders/\global\lighting\wind.glsl:21://   and the amplitude chain are all Complementary r5.9 now — so nothing here is Steadfast
+Astra/shaders/\global\lighting\wind.glsl:24://   re-decided for the Complementary source before any publication — raised in
+Astra/shaders/\global\dimension\nether.glsl:1:// Astra Nether integration: Complementary r5.9 mainLighting/common biome palette.
+Astra/shaders/\global\dimension\nether.glsl:61:// Complementary feeds this palette directly to both ambient light and mainFog.
+Astra/shaders/\global\dimension\nether.glsl:114:	// (Complementary mainLighting.glsl:765). Adding them straight instead reached
+Astra/shaders/\global\dimension\nether.glsl:144:	// Complementary uses the palette directly in lighting; the earlier sRGB
+Astra/shaders/\global\dimension\nether_volume.glsl:141:            // same Complementary biome illumination as the haze, so the ceiling
+Astra/shaders/\lib\pow.glsl:10://   Complementary r5.9  lib/util/commonFunctions.glsl   pow2 / pow3 / pow4 / pow5
+Astra/shaders/\lib\twilight.glsl:11:    // Linear-light calibration of Complementary's warm light/ambient split.
+Astra/shaders/\program\water.glsl:257:            // Complementary's solar highlight is shadow-gated. A shaded bank
+Astra/shaders/\program\scene.glsl:140:            // Complementary mainFog: denser low-altitude air and a distance
+Astra/shaders/\program\scene.glsl:240:            //   Complementary Reimagined r5.9 (lib/lighting/cloudShadows.glsl:60, License
+Astra/shaders/\program\lit.fsh:203:        // view). Complementary gives its end stone a per-texel roughness from the
+Astra/shaders/\program\lit.fsh:235:        // the same derivative-based idea Complementary uses for its generated
+Astra/shaders/\world-1\final.fsh:7:// every working reference pack on this Iris ships them commented out (Complementary
+Astra/shaders/\world1\final.fsh:7:// every working reference pack on this Iris ships them commented out (Complementary
+
+### [2i] upstream Complementary license (proprietary) — is redistribution permitted?
+$ ls -l '_analysis/Complementary r5.9/Reimagined/License.txt'
+-rw-r--r-- 1 杨铭 197121 5802 Sep 10 16:37 _analysis/Complementary r5.9/Reimagined/License.txt
+$ grep -n -i -e 'redistribut' -e 'permission' -e 'modify' -e 'sell' -e 'license' '_analysis/Complementary r5.9/Reimagined/License.txt' | head -40
+12:         a. Redistributing (parts of) The Pack
+13:         b. Modifying code of The Pack
+56:            redistribute This Pack using a direct file upload.
+58:  1.3. This Pack is allowed to be redistributed as a Modified Pack as long as
+86:  2.1. Any usage or redistribution of any part of This Pack that isn't
+88:       treated as "All Rights Reserved". Only exceptions are the files that
+
+$ head -40 '_analysis/Complementary r5.9/Reimagined/License.txt'
+     1	Complementary License Agreement 1.7
+     2	===================================
+     3	
+     4	0. Terminology
+     5	--------------
+     6	  0.1. "The Pack" and/or "This Pack" means the software package that this
+     7	       specific license file you are reading from is found in.
+     8	
+     9	  0.2. "Normal Usage" means usage of The Pack as intended for the general
+    10	       public. This includes most usage, but the following usages are
+    11	       definitely NOT considered Normal Usage:
+    12	         a. Redistributing (parts of) The Pack
+    13	         b. Modifying code of The Pack
+    14	
+    15	  0.3. "User" and/or "Users" means people that are using The Pack under our
+    16	       definition of Normal Usage.
+    17	
+    18	  0.4. "Modpack" means a modification package made for the video
+    19	       game "Minecraft: Java Edition".
+    20	
+    21	  0.5. "Modified Pack" means a software package that consists of The Pack but
+    22	       with the code intentionally being changed to differ from The Pack.
+    23	
+    24	  0.6. "Original Pack" means one of two things:
+    25	         a. If "This Pack" is an original Complementary Development product,
+    26	            meaning that this specific license file you are reading from is
+    27	            found inside an original Complementary Development product, then
+    28	            "Original Pack" directly means the same thing as "This Pack".
+    29	         b. But if "This Pack" is not an original Complementary Development
+    30	            product, meaning that this specific license file you are reading
+    31	            from is found inside a pack that was created using the grant
+    32	            detailed at section "1.3", then "Original Pack" refers to the
+    33	            pack created by Complementary Development that must be mentioned
+    34	            in the description page(s) of This Pack.
+    35	
+    36	1. Grants
+    37	---------
+    38	  1.1. All Users are free to use This Pack for Normal Usage. This isn't
+    39	       limited to, but includes:
+    40	         a. Using The Pack for gameplay
+
+$ sed -n '50,100p' '_analysis/Complementary r5.9/Reimagined/License.txt'
+     1	            the responsibility of the author of the Modpack.
+     2	         c. The contents of This Pack must not be modified in any way,
+     3	            including simple variable changes or block property additions.
+     4	         d. This Pack must be added to the Modpack by using Modrinth or
+     5	            CurseForge's existing systems, similar to how Modpack developers
+     6	            add any other mods to their Modpacks. It is not allowed to
+     7	            redistribute This Pack using a direct file upload.
+     8	
+     9	  1.3. This Pack is allowed to be redistributed as a Modified Pack as long as
+    10	       the following conditions are met:
+    11	         a. The Original Pack must be visibly credited in the description
+    12	            page(s) of the Modified Pack, with a link to the official
+    13	            Complementary Development website.
+    14	         b. This license file must still be left inside the Modified Pack
+    15	            without any changes being made to it, and it must be updated to
+    16	            the latest one found in the latest version of the Original Pack
+    17	            every time the Modified Pack gets updated to make more use of the
+    18	            code from the Original Pack.
+    19	         c. The Modified Pack must not have the word "Complementary" in its
+    20	            name, and there should be at least 3 character difference between
+    21	            the name of the Modified Pack and the Original Pack. Adding or
+    22	            removing non-alphabetic characters or the removal of
+    23	            "Complementary" does not count as a character difference.
+    24	         d. The Modified Pack must look noticeably different from the
+    25	            Original Pack in multiple common gameplay scenarios that must
+    26	            include daytime overworld visuals, regardless of the setting or
+    27	            variable changes in the Modified Pack and/or the Original Pack.
+    28	         e. The Modified Pack must not have any other license agreements
+    29	            or terms other than this agreement, regardless of how much new
+    30	            code has been added to the Modified Pack.
+    31	         f. The Modified Pack must have a significant amount of human-written
+    32	            code additions that noticeably contribute to the final visuals in
+    33	            multiple common gameplay scenarios
+    34	
+    35	2. Denied Cases
+    36	---------------
+    37	  2.1. Any usage or redistribution of any part of This Pack that isn't
+    38	       explicitly covered in the "Grants" section of this license should be
+    39	       treated as "All Rights Reserved". Only exceptions are the files that
+    40	       contain a notice that they are covered by a different license.
+    41	
+    42	  2.2. This agreement only applies to the version of This Pack that this exact
+    43	       file can be found in. This agreement is not valid for future or past
+    44	       versions of The Pack unless they contain the exact same agreement.
+    45	
+    46	3. License Infringement
+    47	-----------------------
+    48	  3.1. By using This Pack for any purpose, you agree that Complementary
+    49	       Development has the right to take action against you in the case of a
+    50	       license infringement, regardless of This Pack being the Original Pack
+    51	       or not.
+
+### [2j] Complementary License 1.7 §1.3(b): 'this license file must still be left inside the Modified Pack'
+$ grep -rl 'Complementary License Agreement' Astra/ ; echo EXIT=$?
+Astra/\THIRD-PARTY.md
+Astra/\shaders\global\lighting\sss.glsl
+Astra/\shaders\global\lighting\wind.glsl
+EXIT=0  (1 = the license file is NOT shipped in the pack)
+
+$ find Astra -iname 'License*' -o -iname '*.txt' | sort
+Astra/LICENSE
+Astra/shaders/lib/vendor/bakinglab/LICENSE.txt
+Astra/shaders/lib/vendor/glsl-tone-map/LICENSE.md
+
+### [2k] Complementary §1.3(a): official-site credit in the pack's description/README?
+$ grep -rn -i -e 'complementary' -e 'complementary.dev' Astra/README.md ; echo EXIT=$?
+EXIT=1 (1 = absent)
+
+$ ls -d '_analysis/Complementary r5.9' && find '_analysis/Complementary r5.9' -maxdepth 2 -type d | sort
+_analysis/Complementary r5.9
+_analysis/Complementary r5.9
+_analysis/Complementary r5.9/Reimagined
+_analysis/Complementary r5.9/Reimagined/shaderFile_1
+_analysis/Complementary r5.9/Reimagined/shaderFile_2
+_analysis/Complementary r5.9/Reimagined/shaderFile_3
+_analysis/Complementary r5.9/Reimagined/shaders
+_analysis/Complementary r5.9/Unbound
+_analysis/Complementary r5.9/Unbound/shaderFile_1
+_analysis/Complementary r5.9/Unbound/shaderFile_2
+_analysis/Complementary r5.9/Unbound/shaderFile_3
+_analysis/Complementary r5.9/Unbound/shaders
+
+### [4] lib/vendor/ inventory: size + sha256 (first 16 hex) + does it carry upstream license text?
+$ find Astra/shaders/lib/vendor -type f -printf '%s\t%p\n' | sort -k2
+2747	Astra/shaders/lib/vendor/README.md
+1322	Astra/shaders/lib/vendor/bakinglab/ACES.hlsl.orig
+1060	Astra/shaders/lib/vendor/bakinglab/LICENSE.txt
+1921	Astra/shaders/lib/vendor/bakinglab/README.md
+1057	Astra/shaders/lib/vendor/glsl-tone-map/LICENSE.md
+1632	Astra/shaders/lib/vendor/glsl-tone-map/README.md
+508	Astra/shaders/lib/vendor/glsl-tone-map/aces.glsl.orig
+931	Astra/shaders/lib/vendor/glsl-tone-map/acesHill.glsl.orig
+3772	Astra/shaders/lib/vendor/glsl-tone-map/agx.glsl.orig
+449	Astra/shaders/lib/vendor/glsl-tone-map/reinhardJodie.glsl.orig
+1924	Astra/shaders/lib/vendor/glsl-tone-map/uchimura.glsl.orig
+
+$ sha256sum $(find Astra/shaders/lib/vendor -type f | sort)
+fc6feac24f92c210     2747  Astra/shaders/lib/vendor/README.md
+0dab4dbfbd748dd4     1322  Astra/shaders/lib/vendor/bakinglab/ACES.hlsl.orig
+751878625007bd94     1060  Astra/shaders/lib/vendor/bakinglab/LICENSE.txt
+3027bd6e1a65e148     1921  Astra/shaders/lib/vendor/bakinglab/README.md
+84cc14c5d563a1ce     1057  Astra/shaders/lib/vendor/glsl-tone-map/LICENSE.md
+163d15c6bee0efe2     1632  Astra/shaders/lib/vendor/glsl-tone-map/README.md
+9dba1fa9b194efe1      508  Astra/shaders/lib/vendor/glsl-tone-map/aces.glsl.orig
+9f2ceac42f38b38e      931  Astra/shaders/lib/vendor/glsl-tone-map/acesHill.glsl.orig
+a6f456911665c606     3772  Astra/shaders/lib/vendor/glsl-tone-map/agx.glsl.orig
+9a05daa3fe1c88cc      449  Astra/shaders/lib/vendor/glsl-tone-map/reinhardJodie.glsl.orig
+bc1d1dc6cd239cf8     1924  Astra/shaders/lib/vendor/glsl-tone-map/uchimura.glsl.orig
+
+$ grep -c '' Astra/shaders/lib/vendor/*/*.orig Astra/shaders/lib/vendor/*/*
+--- license-text presence test (per vendor file: lines matching MIT/copyright/permission markers) ---
+Astra/shaders/lib/vendor/README.md                                     2 license-marker lines
+Astra/shaders/lib/vendor/bakinglab/ACES.hlsl.orig                      1 license-marker lines
+Astra/shaders/lib/vendor/bakinglab/LICENSE.txt                         9 license-marker lines
+Astra/shaders/lib/vendor/bakinglab/README.md                           3 license-marker lines
+Astra/shaders/lib/vendor/glsl-tone-map/LICENSE.md                      8 license-marker lines
+Astra/shaders/lib/vendor/glsl-tone-map/README.md                       3 license-marker lines
+Astra/shaders/lib/vendor/glsl-tone-map/aces.glsl.orig                  0
+0 license-marker lines
+Astra/shaders/lib/vendor/glsl-tone-map/acesHill.glsl.orig              0
+0 license-marker lines
+Astra/shaders/lib/vendor/glsl-tone-map/agx.glsl.orig                   0
+0 license-marker lines
+Astra/shaders/lib/vendor/glsl-tone-map/reinhardJodie.glsl.orig         0
+0 license-marker lines
+Astra/shaders/lib/vendor/glsl-tone-map/uchimura.glsl.orig              0
+0 license-marker lines
+
+### [4b] THIRD-PARTY.md's own vendor claims vs measured
+$ wc -l Astra/THIRD-PARTY.md
+348 Astra/THIRD-PARTY.md
+$ grep -n -e 'sha256' -e 'sha25' Astra/THIRD-PARTY.md | head -40
+156:C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载，voxy.json清空；未移植其代码或实现完整适配。
+194:| textures/solas-water-noise.png 及 .mcmeta | 来自用户提供的 Solas V2.2b shaders/tex/noise.png 及其采样元数据（素材为用户提供的现成数据文件，非 Astra 自写代码）。**2026-09-21 B7 补登记（原行缺字节数与哈希）**：png **678019 字节**，sha256 前缀 **`9184f93b83f0ebb2`**，与本地 `_analysis/Solas Shader V2.2b/shaders/tex/noise.png` 逐字节相同（同目录 `latest-2026-09-10/solas-shader` 的那份是 636978 字节 / 前缀 `912e47e64b5b5ec6` 的另一构建，**不**匹配，勿引错）；该 png 是唯一带 iTXt/iCCP/pHYs 的文件，内嵌 XMP 显示其为 Affinity Photo 1.8.2 于 2020-09-20 产出、标题 `noisetex` 的既有美术资产。.mcmeta **67 字节**，sha256 前缀 **`e9c800d49d941e58`** |
+195:| textures/steadfast-water-noise.png 及 .mcmeta | 64×64 RGBA8（4096 个像素的 alpha 恒为 255，每通道满量程、std≈74），线性重复采样，以匹配 Steadfast 的 noiseTextureResolution=64。**2026-09-21 B7 就地更正——原写「按当前 Iris 1.11.2 的 NativeImageBackedNoiseTexture 所用 Java Random(0) 填充规则生成」已被实测推翻**：Iris 侧 `NoiseTexture.generateNoise()` 是每像素 3 字节的 `byte[3*w*h]`，由**一次** `new java.util.Random(0L).nextBytes()` 填满，再经 `texImage2D(…, 32849=GL_RGB8, 6407=GL_RGB, …)` 直接上传 GPU，**从不编码 PNG**（反编译件 `_analysis/astra-sc34/NoiseTexture.txt`；该件里的类名是 `net.irisshaders.iris.targets.backed.NoiseTexture`，与旧登记所写的 `NativeImageBackedNoiseTexture` 也对不上）；而本文件的像素在任何测试过的排列下都无法由 `Random(0)` 复现（只有第 0 个像素在 R/B 互换下「相等」，第 1 个像素即分岔；首 64 字节在 4 MB 的 `Random(0)` nextBytes 流中零命中；py `random`/numpy 的其余 seed-0 RNG 亦不符）。**确实成立的只有编码器**：用 Pillow 默认档 `compress_level=6` 从本文件自身的像素重存，可逐字节复现 **14561 字节**、sha256 前缀 **`b9502f10ec238b90`**（`compress_level` 2–5 输出同长度但另一哈希，7–9 为 14557 字节）。**结论：本文件的像素来源在仓库内无法复算**——既不能证明它是第三方美术资产，也不能证明是 Astra 自生成，`qa/tools/` 内也没有任何工具能重算它（`provenance_steadfast.py` 只分类表达式文本，不读 png）。**处置方向待用户裁定：重生成、替换还是保留，本条一律不决定**，与 16.4 里三条美术资产同归 SC-14 发布门。.mcmeta **67 字节**，sha256 前缀 **`e9c800d49d941e58`**（与 solas 那份逐字节相同） |
+209:- `shaders/textures/complementary-cloud-water.png`: Complementary r5.9 Reimagined `lib/textures/cloud-water.png`, retained unmodified for the ported cloud sampler; same Complementary attribution and license terms recorded above. **2026-09-21 B7 补登记（原行缺字节数与哈希）**：**128888 字节**，sha256 前缀 **`49174f769c70f0d1`**，与本地三个 Complementary 副本逐字节相同（r5.9 Reimagined、r5.9 Unbound、`study-2026-09-20/ComplementaryUnbound_r5.9.3`）；256×256 RGBA8，无 `.mcmeta`。
+221:- `shaders/textures/bliss-nether-noise.png`：Bliss Stable `shaders/texture/noises.png` 原文件复制，未修改（sha256 前缀 `77d1aa0c2195a4f6`，512×512 RGBA8 与源一致）。Bliss 用 `texture.noise = texture/noises.png` 的自动绑定；Astra 因 `noisetex` 已占用为自有的 256×256 噪声，改用 `customTexture.blissNetherNoise` 独立绑定，因此**采样过滤/包裹参数与参考不同**（Astra 为 Iris 自定义纹理默认值），这是已知保真差异。
+270:  **2026-09-21 B7 补登记（原行只有一个 glob 文件名，无字节数、无哈希，是登记最薄的一组）**：
+271:  三张均为 128×7680 RGBA8（128×128 瓦片 × 60 帧竖排），分别 **287512 / 556938 / 848759 字节**，
+272:  sha256 前缀 **`33a5cfacf7424d69` / `1f35d37fe8b6d181` / `969ed94d92eaf53b`**。
+274:  （输出到 BytesIO、不写盘）可从脚本逐字节复现上述三组哈希，是包内唯一有完整工具留痕的 PNG；
+305:| `shaders/lib/vendor/glsl-tone-map/LICENSE.md` | glsl-tone-map 2.3.1（npm `glsl-tone-map@2.3.1`，仓库 `dmnsgn/shaders-tone-map`）根 `LICENSE.md`，1057 字节，sha256 前缀 `84cc14c5d563a1ce` | 本目录全部上游文件的许可原文（唯一一份） | MIT／`Copyright (C) 2019 Damien Seguin` |
+306:| `shaders/lib/vendor/glsl-tone-map/uchimura.glsl.orig` | 同上包 `uchimura.glsl`，1924 字节，sha256 前缀 `bc1d1dc6cd239cf8` | `lib/tonemap.glsl` 的 `uchimura_tonemap_full`／`uchimura_tonemap` 原件 | MIT（Seguin） |
+307:| `shaders/lib/vendor/glsl-tone-map/agx.glsl.orig` | 同上包 `agx.glsl`，3772 字节，sha256 前缀 `a6f456911665c606` | `agx_cdl`／`agx_punchy`／`agx_tonemap`、AgX 常数与四张 inset/outset 矩阵原件 | MIT（Seguin） |
+308:| `shaders/lib/vendor/glsl-tone-map/aces.glsl.orig` | 同上包 `aces.glsl`，508 字节，sha256 前缀 `9dba1fa9b194efe1` | **未移植**（Narkowicz 亮度曲线版 ACES）。留档为权属判别式旁证：`vec3 aces(vec3 x)` 与 `const float a = 2.51;` 两个串在 `lib/tonemap.glsl` 命中 0 | MIT（Seguin） |
+309:| `shaders/lib/vendor/glsl-tone-map/acesHill.glsl.orig` | 同上包 `acesHill.glsl`，931 字节，sha256 前缀 `9f2ceac42f38b38e` | **未移植**（Seguin 对同一份 BakingLab fit 的 GLSL 移植，与 `aces.glsl` 数值近乎相同而注释不同）。留档为旁证：其独有注释在 `lib/tonemap.glsl` 命中 0／2 | MIT（Seguin） |
+310:| `shaders/lib/vendor/glsl-tone-map/reinhardJodie.glsl.orig` | 同上包 `reinhardJodie.glsl`，449 字节，sha256 前缀 `9a05daa3fe1c88cc` | **未移植**。Astra 的 `reinhard_jodie` 是 TheCMK 变体（`get_luminance(v)`，Rec.601 权重），上游这份用 `const vec3 lw` + `dot`（Rec.709）。判别串 `reinhardJodie`／`dot(x, lw)` 在 `lib/tonemap.glsl` 命中 0 | MIT（Seguin） |
+311:| `shaders/lib/vendor/bakinglab/README.md` | 无参考（Astra 自写：jsDelivr 取件 URL 与两条完整 sha256、同日复抓一致的记录、HLSL→GLSL 机械转写清单、Mellow 中继说明） | 本目录自述 | — |
+312:| `shaders/lib/vendor/bakinglab/ACES.hlsl.orig` | `TheRealMJP/BakingLab` 的 `BakingLab/ACES.hlsl`，1322 字节，sha256 `0dab4dbfbd748dd4d6a3f38cef00155cfa4ffb5f6a8dddf4b3368aff52e4b23f` | `aces_input_mat`／`aces_output_mat`／`rrt_and_odt_fit`／`aces_tonemap` 原件（HLSL，`.orig` 后缀使其不进编译与静态检查） | MIT（`Copyright (c) 2016 MJP`，文件内把该 fit 署名给 Stephen Hill `@self_shadow`） |
+313:| `shaders/lib/vendor/bakinglab/LICENSE.txt` | 同上仓库根 `LICENSE`，1060 字节，sha256 `751878625007bd944c6f0b8b43e1bbdf47da639975d49c358832043a31f1f3e8` | 本目录许可原文 | MIT |
+336:- **glsl-tone-map**：`https://registry.npmjs.org/glsl-tone-map/-/glsl-tone-map-2.3.1.tgz`，tarball 13228 字节，`sha256 = 106d5d84e22ee37023f862aa22bacfd6699582518b3721ad947bbc0fa3f666e5`，`sha1 = fae727df7a09227c8621b54deba18084c30c0889`；`package.json` 记 `license: MIT`、`repository.directory: packages/glsl-tone-map`。本目录 5 个 `.orig` 加 `LICENSE.md` 已逐字节比对为与该 tarball 一致。
+337:- **BakingLab**：无版本发布，取 jsDelivr `@master`（2026-09-21 抓取并同日复抓，两次逐字节一致）：`https://cdn.jsdelivr.net/gh/TheRealMJP/BakingLab@master/BakingLab/ACES.hlsl`（1322 字节，sha256 见 16.1）与 `https://cdn.jsdelivr.net/gh/TheRealMJP/BakingLab@master/LICENSE`（1060 字节，sha256 见 16.1）。
+344:- **美术资产与台账自订边界冲突**：`shaders/textures/bliss-nether-noise.png`（695035 字节，sha256 前缀 `77d1aa0c2195a4f6`，Bliss 原件逐字节复制）、`shaders/textures/complementary-cloud-water.png`（128888 字节，前缀 `49174f769c70f0d1`）、`shaders/textures/solas-water-noise.png`（678019 字节，前缀 `9184f93b83f0ebb2`）与本文件 `:270`「图像／音频等美术资产一律不得取用」相矛盾（该句的当前行号是 `:270`，原写 `:258` 与现文件不符，2026-09-21 B7 实测更正；`solas-water-noise` 另有「用户提供的现成数据文件」一句登记）。`steadfast-water-noise.png`（14561 字节，前缀 `b9502f10ec238b90`）**不属于「Astra 按规则生成」这一列**——2026-09-21 B7 复算把「按 Iris 1.11.2 `NativeImageBackedNoiseTexture` 的 `Random(0)` 规则生成」这条说明**推翻**了：Iris 那个类是 3 字节/像素、经 `GL_RGB8` 直接上传、**根本不落 PNG**，而本文件的像素在任何排列下都无法由 `Random(0)` 复现（详见上表该行与 `qa/b7-png-provenance-2026-09-21.log`）。确实成立的只有「编码器是 Pillow 默认档 `compress_level=6`」；**像素来源在仓库内无法复算**，因此它**既不能证明是第三方美术资产、也不能证明是 Astra 自生成**，且没有任何工具能重算它。**故其处置方向与前三个文件一并归 SC-14 发布门、待用户裁定：重生成、替换还是保留，本条不擅动。**
+345:- **`.mcmeta` 不能用作资产来源判据**：`shaders/textures/` 下实测只有两个 `.mcmeta`——`solas-water-noise.png.mcmeta` 与 `steadfast-water-noise.png.mcmeta`，均 67 字节、内容逐字节相同（`{"texture":{"blur":true,"clamp":false}}`，CRLF，sha256 前缀 `e9c800d49d941e58`），而 `bliss-nether-noise.png` 与 `complementary-cloud-water.png` 根本没有 `.mcmeta`（本条初稿写「三个第三方 png 的 `.mcmeta` 均为 67 字节」，2026-09-21 复查目录实测更正）。关键在于这两个同哈希的 sidecar 一个属于第三方原件、一个属于 Astra 自生成资产，即 `.mcmeta` 携带的信息与来源无关；来源判定只能靠 png 本体哈希。
+348:- **校验缺口（2026-09-21 B7 登记，未修）：本文件已为每张 PNG 记下字节数与 sha256 前缀，但没有任何机器校验它们。** `qa/tools/check_pack.py` 第 8 项只按**文件名**比对：`:613-616` 行把以 `|` 开头且含 `lib/`／`shaders/`／`program/`／`.properties` 的表行收进待检清单，`:637-645` 行再从每行的拼接文本里取出**第一个** `.png`/`.glsl`/`.fsh`/… 文件名，去 `PACK = Astra/shaders` 下找同名文件——**从不读取它的字节**；随后的 `:657-684` 行比对的是 Steadfast 表达式计数。全脚本不含 `hashlib`／`sha256`，`qa/tools/` 里也没有第二个门校验贴图字节（`gen_rain_ripple.py` 只写不读，`sync_to_instance.py` 的 sha256 只用于决定往实例同步时拷哪几个文件）。**因此替换或损坏任何一张 PNG 都能静默通过第 8 项**：本节登记的哈希目前只能靠人工按 B7 的方法复算（`qa/b7-png-provenance-2026-09-21.log` 第 1 节给出全部字节数与完整 sha256）。同一盲区的另一半：canonical `## 登记表`（`:18` 起）至今**零 PNG 行**，PNG 登记只散在上述散文与本节，第 8 项的表格扫描根本看不到这些文件（即 B7 报告里的 G1）。要闭环就须给第 8 项加一条读字节比哈希的检查——本条不擅自改门。
+
+### [5-prep] upstream reference trees available locally (for byte-identity tests)
+$ ls -d _analysis/*/ | sort
+_analysis/Complementary r5.9/
+_analysis/Mellow Shader v3.4/
+_analysis/Refrax_v1.3.1/
+_analysis/Solas Shader V2.2b/
+_analysis/Steadfast-0.8.0/
+_analysis/astra-sc34/
+_analysis/bakinglab/
+_analysis/iris-runtime/
+_analysis/latest-2026-09-10/
+_analysis/npm/
+_analysis/performance-study-2026-09-16/
+_analysis/study-2026-09-20/
+$ ls -d _analysis/*/*/ 2>/dev/null | sort | head -40
+_analysis/Complementary r5.9/Reimagined/
+_analysis/Complementary r5.9/Unbound/
+_analysis/Mellow Shader v3.4/shaders/
+_analysis/Refrax_v1.3.1/shaders/
+_analysis/Solas Shader V2.2b/shaders/
+_analysis/Steadfast-0.8.0/shaders/
+_analysis/latest-2026-09-10/bliss-Stable/
+_analysis/latest-2026-09-10/bliss-Unstable/
+_analysis/latest-2026-09-10/bliss-shader/
+_analysis/latest-2026-09-10/complementary-reimagined/
+_analysis/latest-2026-09-10/complementary-unbound/
+_analysis/latest-2026-09-10/iterationT-3.2.0/
+_analysis/latest-2026-09-10/solas-shader/
+_analysis/npm/package/
+_analysis/performance-study-2026-09-16/bsl-shaders/
+_analysis/performance-study-2026-09-16/complementary-reimagined/
+_analysis/performance-study-2026-09-16/makeup-ultra-fast-shaders/
+_analysis/performance-study-2026-09-16/photon-shader/
+_analysis/performance-study-2026-09-16/steadfast-shaders/
+_analysis/study-2026-09-20/ComplementaryUnbound_r5.9.3/
+$ ls Astra/shaders/textures/
+total 3174
+drwxr-xr-x 1 杨铭 197121      0 Sep 20 01:53 .
+drwxr-xr-x 1 杨铭 197121      0 Sep 21 14:46 ..
+-rw-r--r-- 1 杨铭 197121 287512 Sep 11 13:45 astra-ripple-1.png
+-rw-r--r-- 1 杨铭 197121 556938 Sep 11 13:45 astra-ripple-2.png
+-rw-r--r-- 1 杨铭 197121 848759 Sep 11 13:45 astra-ripple-3.png
+-rw-r--r-- 1 杨铭 197121 695035 Sep 10 22:29 bliss-nether-noise.png
+-rw-r--r-- 1 杨铭 197121 128888 Sep 10 21:14 complementary-cloud-water.png
+-rw-r--r-- 1 杨铭 197121 678019 Sep 10 00:28 solas-water-noise.png
+-rw-r--r-- 1 杨铭 197121     67 Sep 10 00:55 solas-water-noise.png.mcmeta
+-rw-r--r-- 1 杨铭 197121  14561 Sep 10 00:55 steadfast-water-noise.png
+-rw-r--r-- 1 杨铭 197121     67 Sep 10 00:55 steadfast-water-noise.png.mcmeta
+
+### [5] PNG + vendor hashes measured, and byte-identity vs local upstream copies
+$ python $TEMP/a9_png_vendor_check.py   (walk is read-only, hashlib only)
+=== MEASURED: Astra/shaders/textures/* ===
+  Astra/shaders/textures/astra-ripple-1.png           287512 bytes  sha256:33a5cfacf7424d69
+  Astra/shaders/textures/astra-ripple-2.png           556938 bytes  sha256:1f35d37fe8b6d181
+  Astra/shaders/textures/astra-ripple-3.png           848759 bytes  sha256:969ed94d92eaf53b
+  Astra/shaders/textures/bliss-nether-noise.png       695035 bytes  sha256:77d1aa0c2195a4f6
+  Astra/shaders/textures/complementary-cloud-water.png    128888 bytes  sha256:49174f769c70f0d1
+  Astra/shaders/textures/solas-water-noise.png        678019 bytes  sha256:9184f93b83f0ebb2
+  Astra/shaders/textures/solas-water-noise.png.mcmeta        67 bytes  sha256:e9c800d49d941e58
+  Astra/shaders/textures/steadfast-water-noise.png     14561 bytes  sha256:b9502f10ec238b90
+  Astra/shaders/textures/steadfast-water-noise.png.mcmeta        67 bytes  sha256:e9c800d49d941e58
+
+=== MEASURED: Astra/shaders/lib/vendor/** ===
+  Astra/shaders/lib/vendor/README.md                              2747 bytes  sha256:fc6feac24f92c210
+  Astra/shaders/lib/vendor/bakinglab/ACES.hlsl.orig               1322 bytes  sha256:0dab4dbfbd748dd4
+  Astra/shaders/lib/vendor/bakinglab/LICENSE.txt                  1060 bytes  sha256:751878625007bd94
+  Astra/shaders/lib/vendor/bakinglab/README.md                    1921 bytes  sha256:3027bd6e1a65e148
+  Astra/shaders/lib/vendor/glsl-tone-map/LICENSE.md               1057 bytes  sha256:84cc14c5d563a1ce
+  Astra/shaders/lib/vendor/glsl-tone-map/README.md                1632 bytes  sha256:163d15c6bee0efe2
+  Astra/shaders/lib/vendor/glsl-tone-map/aces.glsl.orig            508 bytes  sha256:9dba1fa9b194efe1
+  Astra/shaders/lib/vendor/glsl-tone-map/acesHill.glsl.orig        931 bytes  sha256:9f2ceac42f38b38e
+  Astra/shaders/lib/vendor/glsl-tone-map/agx.glsl.orig            3772 bytes  sha256:a6f456911665c606
+  Astra/shaders/lib/vendor/glsl-tone-map/reinhardJodie.glsl.orig     449 bytes  sha256:9a05daa3fe1c88cc
+  Astra/shaders/lib/vendor/glsl-tone-map/uchimura.glsl.orig       1924 bytes  sha256:bc1d1dc6cd239cf8
+
+=== BYTE-IDENTITY TEST vs local upstream copies ===
+  Astra/shaders/textures/solas-water-noise.png  sha256:9184f93b83f0ebb2087cad018fcd5ebccbc40d05708d0f2bd868c83025a6319d  678019 bytes
+      _analysis/Solas Shader V2.2b/shaders/tex/noise.png                     IDENTICAL (678019 bytes, sha256:9184f93b83f0ebb2)
+      _analysis/latest-2026-09-10/solas-shader/shaders/tex/noise.png         differs (636978 bytes, sha256:912e47e64b5b5ec6)
+  Astra/shaders/textures/complementary-cloud-water.png  sha256:49174f769c70f0d13d0421ab8daf0dfacb5d0c3de4028ceeb7d0b7547c51ab60  128888 bytes
+      _analysis/Complementary r5.9/Reimagined/shaders/lib/textures/cloud-water.png IDENTICAL (128888 bytes, sha256:49174f769c70f0d1)
+      _analysis/Complementary r5.9/Unbound/shaders/lib/textures/cloud-water.png IDENTICAL (128888 bytes, sha256:49174f769c70f0d1)
+      _analysis/study-2026-09-20/ComplementaryUnbound_r5.9.3/shaders/lib/textures/cloud-water.png IDENTICAL (128888 bytes, sha256:49174f769c70f0d1)
+  Astra/shaders/textures/bliss-nether-noise.png  sha256:77d1aa0c2195a4f644296b681295865cdb3c71bb6c380b69c2f43338f653acf5  695035 bytes
+      [MISSING locally] _analysis/latest-2026-09-10/bliss-Stable/shaders/texture/noises.png
+      _analysis/latest-2026-09-10/bliss-shader/shaders/texture/noises.png    IDENTICAL (695035 bytes, sha256:77d1aa0c2195a4f6)
+      [MISSING locally] _analysis/latest-2026-09-10/bliss-Unstable/shaders/texture/noises.png
+
+=== steadfast-water-noise.png: any byte-identical twin anywhere in repo? ===
+   twins found: 0 (0 = source not reproducible in-repo)
+
+=== vendor .orig files: byte-identical to any local upstream file? ===
+  Astra/shaders/lib/vendor/bakinglab/ACES.hlsl.orig          TWIN -> _analysis\bakinglab\ACES.hlsl
+  Astra/shaders/lib/vendor/glsl-tone-map/aces.glsl.orig      TWIN -> _analysis\npm\package\aces.glsl
+  Astra/shaders/lib/vendor/glsl-tone-map/acesHill.glsl.orig  TWIN -> _analysis\npm\package\acesHill.glsl
+  Astra/shaders/lib/vendor/glsl-tone-map/agx.glsl.orig       TWIN -> _analysis\npm\package\agx.glsl
+  Astra/shaders/lib/vendor/glsl-tone-map/reinhardJodie.glsl.orig TWIN -> _analysis\npm\package\reinhardJodie.glsl
+  Astra/shaders/lib/vendor/glsl-tone-map/uchimura.glsl.orig  TWIN -> _analysis\npm\package\uchimura.glsl
+
+### [4c] vendor LICENSE files byte-identical to upstream license files?
+  _analysis/bakinglab/LICENSE                        vs Astra/shaders/lib/vendor/bakinglab/LICENSE.txt          CMP: IDENTICAL
+  _analysis/bakinglab/ACES.hlsl                      vs Astra/shaders/lib/vendor/bakinglab/ACES.hlsl.orig       CMP: IDENTICAL
+  npm upstream LICENSE vs vendored LICENSE.md:
+-rw-r--r-- 1 杨铭 197121 1057 Oct 26  1985 _analysis/npm/package/LICENSE.md
+  CMP: IDENTICAL
+
+$ cat -n Astra/shaders/lib/vendor/README.md
+     1	# `lib/vendor/` — 第三方文件物理隔离目录
+     2	
+     3	依据 `Astra/design.md` §9.2 与 `docs/2026-09-20-shader-pack-design-survey.md` P2-10 建立。
+     4	本目录是全包**唯一**存放第三方原始文件与许可证原文的地方。机械检查见 `python qa/tools/check_pack.py` 第 15 项。
+     5	
+     6	## 目录形状
+     7	
+     8	一个上游一个目录，目录名 = 上游包的小写名：
+     9	
+    10	```
+    11	lib/vendor/renderpearl/
+    12	    LICENSE.txt          许可证原文；上游归档不带许可证时，写该许可证的标准全文，
+    13	                         并在 README.md 里给出来源 URL 与版本（P2-13 的 Miniature 条目就是这种）
+    14	    README.md            登记：取自哪个版本、哪个文件、Astra 侧改了什么、按什么条款使用
+    15	    compat.glsl.orig     （可选）上游源码原件，逐字保留，`.orig` 后缀使编译与静态检查都不把它当代码
+    16	```
+    17	
+    18	取用方式两种，都合法：
+    19	
+    20	- **A · 改写进正常分层**：本目录只放许可证与原件备查；Astra 实际使用的文件按正常分层放在 `lib/`、`global/`、`program/` 里，文件头写 1–3 行出处短注，并在 `Astra/THIRD-PARTY.md` 登记一行。`THIRD-PARTY.md` 登记表里的既有借用行全部是这种。
+    21	- **B · 原样编译进包**：上游模块直接放本目录（不带 `.orig`），由包内 `#include "/lib/vendor/<up>/x.glsl"` 引用。此时它就是普通模块，`check_pack.py` 的 include 图、符号声明、选项消费、穷举编译各项一律适用——没人 include 的 vendor 模块就是孤儿，会 FAIL。
+    22	
+    23	## 登记规则
+    24	
+    25	1. 每个目录必须在 `Astra/THIRD-PARTY.md` 有登记行：目录本身写 `shaders/lib/vendor/<upstream>/`，
+    26	   其中**除 README.md 外**的每个文件按全路径 `shaders/lib/vendor/<upstream>/<file>` 单独登记。
+    27	   README.md 是 Astra 自写文本，由其所在目录行覆盖。
+    28	2. 每个目录必须带许可证原文（文件名以 `LICENSE` / `LICENCE` / `COPYING` 开头）。缺这一条即 FAIL。
+    29	3. 许可证正文**只存在于本目录**。包内任何其他文件出现 MIT / BSD / GPL 正文段落即为 FAIL。
+    30	
+    31	## 反规范：许可声明绝不乘以文件数
+    32	
+    33	本目录存在的另一半理由是防止参照包里同一个错误——把许可头逐文件复制：
+    34	
+    35	| 包 | 内嵌许可头的文件数 | 行数 | 占全包 |
+    36	|---|---|---|---|
+    37	| VanillaPlus | 224 | 4,384 | 38.5% |
+    38	| Sildur's | 109 | 1,526 | 8.2% |
+    39	| LIGHT | 72 | 1,461 | 11.3% |
+    40	
+    41	Astra 的文件头惯例是 1–3 行短注：来源包 + 版本 + SPDX 标识 + 指向本目录与 `THIRD-PARTY.md`。
+    42	署名条款（MIT 要求保留版权行与许可声明）由**该声明出现在 THIRD-PARTY.md 与本目录各一次**满足，不由乘以文件数满足。
+
+### [1c] is the 'license prose only inside lib/vendor/' rule machine-enforced? (check_pack.py item 15)
+$ ls qa/tools/ 2>&1 | head ; grep -n 'vendor' qa/tools/check_pack.py | head -40
+__pycache__
+bloom_lod_probe.py
+check_pack.py
+cloud_threshold_probe.py
+compile_glsl.py
+cost_census.py
+end_march_count.py
+gen_rain_ripple.py
+inspect_iris_properties.py
+nether_fog_probe.py
+nether_heat_glow_probe.py
+nether_light_probe.py
+nether_voxel_model.py
+option_matrix.py
+p01_sky_diagnosis.py
+provenance_steadfast.py
+render_end_design.py
+review_20260911_numerics.py
+sc35_image_analysis.py
+sc35_probe.py
+--- grep vendor in check_pack.py ---
+1380:# ------------------------------------------------------- vendor isolation (survey P2-10)
+1382:VENDOR = PACK / "lib" / "vendor"
+1394:def check_vendor_isolation():
+1397:    c = Check(15, "lib/vendor/ isolation and no multiplied licence text (survey 6 P2-10)")
+1408:        c.fail("shaders/lib/vendor/ missing - design 9.2 and survey P2-10 keep every "
+1412:        c.fail("shaders/lib/vendor/README.md missing: a convention nobody can read next to "
+1423:            c.fail(f"{path}: inside lib/vendor/ but absent from Astra/THIRD-PARTY.md - "
+1441:        c.fail(f"{path}: carries licence text ({'; '.join(hits)}) outside lib/vendor/. Keep "
+1442:               f"one copy in the upstream's vendor directory; a per-file licence header is "
+1446:    c.note(f"lib/vendor/ exists: {len(dirs)} upstream directory(ies) "
+1699:    check_vendor_isolation()
+
+$ grep -n 'SPDX' Astra/ -r | head -20 ; echo EXIT=$?
+Astra/\shaders\lib\vendor\README.md:41:Astra 的文件头惯例是 1–3 行短注：来源包 + 版本 + SPDX 标识 + 指向本目录与 `THIRD-PARTY.md`。
+EXIT=0
+
+$ ls Astra/design.md .specs/astra-shader/design.md 2>&1
+ls: cannot access 'Astra/design.md': No such file or directory
+.specs/astra-shader/design.md
+
+$ sed -n '1378,1450p' qa/tools/check_pack.py | cat -n  # check_vendor_isolation (item 15) source
+
+
+# ------------------------------------------------------- vendor isolation (survey P2-10)
+
+VENDOR = PACK / "lib" / "vendor"
+
+# The paragraphs that belong once in a licence file and never in a per-file header: survey 2
+# counted the alternative - VanillaPlus repeats its header 224x (4,384 lines = 38.5% of the
+# pack), Sildur's 109x (8.2%), LIGHT 72x (11.3%).
+LICENCE_BODIES = (
+    "Permission is hereby granted, free of charge",       # MIT / X11
+    "Redistribution and use in source and binary forms",  # BSD / GPLv2 clause 1
+    "GNU GENERAL PUBLIC LICENSE",                         # GPL full text
+)
+
+
+def check_vendor_isolation():
+    """Survey 6 P2-10. Upstream code, its raw licence text and its registration row in one
+    physically isolated directory - the landing spot for the MIT reuse list (P2-13, T16)."""
+    c = Check(15, "lib/vendor/ isolation and no multiplied licence text (survey 6 P2-10)")
+    led = ROOT / "Astra" / "THIRD-PARTY.md"
+    if not led.exists():
+        c.fail("Astra/THIRD-PARTY.md missing (check 8 owns its content, this one its paths)")
+        return c
+    ledger = read(led).replace("`", "")
+
+    def registered(path):
+        return path in ledger or ("shaders/" + path) in ledger
+
+    if not VENDOR.is_dir():
+        c.fail("shaders/lib/vendor/ missing - design 9.2 and survey P2-10 keep every "
+               "third-party file and its licence in one isolated directory per upstream")
+        return c
+    if not (VENDOR / "README.md").exists():
+        c.fail("shaders/lib/vendor/README.md missing: a convention nobody can read next to "
+               "the directory it governs is not a convention")
+
+    files = sorted(p for p in VENDOR.rglob("*") if p.is_file())
+    for p in files:
+        path = pk(p)
+        # A directory's own README is Astra text registered by its directory row; every
+        # upstream file - licence or source - has to be registered under its own path.
+        if p.name == "README.md" and registered(pk(p.parent)):
+            continue
+        if not registered(path):
+            c.fail(f"{path}: inside lib/vendor/ but absent from Astra/THIRD-PARTY.md - "
+                   f"register the path, the upstream source file and the licence (design 9.2)")
+
+    for d in sorted(p for p in VENDOR.iterdir() if p.is_dir()):
+        names = [x.name.lower() for x in d.iterdir() if x.is_file()]
+        if not any(n.startswith(("license", "licence", "copying")) for n in names):
+            c.fail(f"{pk(d)}/: upstream code with no licence text beside it. Copy the upstream "
+                   f"licence, or write out the standard text when its archive ships none "
+                   f"(survey P2-13) - either way it lives here, not in a per-file comment")
+
+    strays = []
+    for p in walk_shader_files():
+        if VENDOR in p.parents:
+            continue
+        hits = [b for b in LICENCE_BODIES if b in read(p)]
+        if hits:
+            strays.append((pk(p), hits))
+    for path, hits in strays:
+        c.fail(f"{path}: carries licence text ({'; '.join(hits)}) outside lib/vendor/. Keep "
+               f"one copy in the upstream's vendor directory; a per-file licence header is "
+               f"the VanillaPlus failure mode (4,384 of 11,373 lines)")
+
+    dirs = sorted(pk(p) for p in VENDOR.iterdir() if p.is_dir())
+    c.note(f"lib/vendor/ exists: {len(dirs)} upstream directory(ies) "
+           f"({', '.join(dirs) or 'none yet - T16 fills it'}), {len(files)} file(s), "
+           f"{len(strays)} file(s) carrying licence text outside it")
+    return c
+
+
+### [1d] empirical: which licence strings does check 15 actually match? (case sensitivity)
+$ grep -n -e 'def write' -e 'open(' -e 'write_text' -e '\.write' qa/tools/check_pack.py | head -20   # does it write anything?
+--- case sensitivity test of the three LICENCE_BODIES patterns ---
+  GPLv3 recommended per-file notice (mixed case) -> matched: NONE (check 15 blind)
+  GPLv3 all-caps title                           -> matched: ['GNU GENERAL PUBLIC LICENSE']
+  MIT body                                       -> matched: ['Permission is hereby granted, free of charge']
+  Steadfast SS7 additional-terms wording         -> matched: NONE (check 15 blind)
+  CC-BY / Apache notice                          -> matched: NONE (check 15 blind)
+
+### [1e] run the project's own gate; capture item 15 verdict (read-only script, no writes)
+$ python qa/tools/check_pack.py   # tail: item 15 + summary
+       . 23 minecraft: id(s) absent from all 4 reference packs (new/renamed, verify at smoke): minecraft:bamboo_sapling, minecraft:blue_ice, minecraft:conduit, minecraft:crying_obsidian, minecraft:end_stone, minecraft:end_stone_bricks, minecraft:frosted_ice, minecraft:glass, minecraft:glass_pane, minecraft:hanging_roots, minecraft:ice, minecraft:leaf_litter
+[PASS] #8 THIRD-PARTY.md ledger <-> file provenance headers <-> license rules (design 9)
+       . 69 ledger rows
+       . Steadfast expression-diff matches every ledger count: verbatim=14 literal-suffix=2 rewritten=6 astra-only=27 (stated 12x)
+[PASS] #9 bayer.glsl ordered-dither matrix correctness
+       . matches canonical recursive Bayer8 (row-major, [y*8+x] indexing)
+[PASS] #10 M1 'minimal final chain' (design 7: tonemap + sRGB) actually present
+       . final.fsh: 114 lines of code, tonemap/sRGB present=True
+[PASS] #11 Iris 1.11.2 parser contracts (SC-21..SC-27)
+       . 0 staged texture directive(s); 3 custom image(s); 10 compute shader(s); 53 engine const(s); 2 Voxy uniform declaration(s); Iris default buffer formats; 99/31 boolean option(s) wired
+[PASS] #12 profile tier differential (survey 6 P0-1: cost-monotone ladder)
+       . PERFORMANCE vs BALANCED: 15 value diff(s), density 15/71 = 21%
+       . BALANCED vs ULTRA: 7 value diff(s), density 7/71 = 10%
+       . PERFORMANCE vs ULTRA: 19 value diff(s), density 19/71 = 27%
+       . 19 of 71 listed tokens vary across tiers; non-cost by design: END_PRECESSION_MINUTES
+       . resolved per-tier pass and buffer sets: qa/tools/inspect_iris_properties.py
+[PASS] #13 option consumers and branch symbols (survey 6 P2-12 option matrix)
+       . 71 option(s), 41 of which can flip a preprocessor branch; pairwise matrix = 89 row(s), python qa/tools/compile_glsl.py --matrix
+[PASS] #14 buffer declarations live, unique and consumed (survey 6 P2-11)
+       . 60 live engine declaration(s) covering 10 buffer(s): colortex0=7, colortex2=1, colortex3=2, colortex4=1, colortex5=1, colortex6=1, colortex7=2, colortex8=2, colortex9=1, shadowcolor0=2; 0 declaration(s) hidden in comments
+[PASS] #15 lib/vendor/ isolation and no multiplied licence text (survey 6 P2-10)
+       . lib/vendor/ exists: 2 upstream directory(ies) (lib/vendor/bakinglab, lib/vendor/glsl-tone-map), 11 file(s), 0 file(s) carrying licence text outside it
+[PASS] #16 per-dimension pipeline trimming uses keys Iris parses (survey P2-18)
+       . dimension folders world-1, world1; 35 program gate(s) (27 folder-qualified), 0 inert namespaced directive(s)
+       . 8 folder gate(s) whose pass file exists only at the pack root (world-1/composite2, world-1/composite3, world-1/composite4, world-1/composite5, world1/composite2, world1/composite3, world1/composite4, world1/composite5): redundant if a dimension folder drops a pass it does not ship, load-bearing if Iris inherits the root source instead - 8 of them read a literal false, which switches the pass off either way
+       . per-dimension buffer sizing is not expressible on Iris 1.11.2 - size.buffer.* is keyed by the bare buffer name - so P2-18's allocation clause is closed by check_dimension_gating's namespaced-key rule instead
+[PASS] #17 built-in uniform type faces (Iris registration <-> GLSL declaration)
+       . 28 built-in declaration(s) checked against 151 registered names; 0 mismatches
+========================================================================
+17 checks: 0 FAIL, 1 WARN, 16 PASS
+
+### [3] ledger completeness: every in-pack provenance header vs THIRD-PARTY.md; registered-but-absent paths
+$ python $TEMP/a9_ledger_cross.py
+=== A. files in Astra/ carrying a provenance/attribution header (first 40 lines) ===
+files with such a line: 35
+
+shaders/shaders/block.properties                           REGISTERED
+        :3  # Base tables ported from Mellow Shader v3.4 (MIT, by TheCMK) - see THIRD-PARTY.md.
+shaders/shaders/global/atmosphere/clouds_planar.glsl       !! NOT IN LEDGER !!
+        :31  //   - Sample count: taken from the CLOUD_QUALITY == 1 branch
+shaders/shaders/global/atmosphere/fog.glsl                 REGISTERED
+        :5  // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+shaders/shaders/global/atmosphere/sky_gradient.glsl        !! NOT IN LEDGER !!
+        :5  //  Astra v1 - overworld sky, ported from Complementary r5.9 (Reimagined).
+        :9  //  PROVENANCE - every expression below is copied from the reference pack.
+shaders/shaders/global/atmosphere/stars.glsl               !! NOT IN LEDGER !!
+        :5  //  Astra v1 - star field, ported from Complementary r5.9 (Reimagined).
+shaders/shaders/global/dimension/end_blackhole.glsl        REGISTERED
+        :5  // its source/provenance remains registered in THIRD-PARTY.md.
+shaders/shaders/global/dimension/nether_volume.glsl        REGISTERED
+        :3  // Adapted from X0nk Bliss Stable lib/nether_fog.glsl, retrieved 2026-09-10.
+shaders/shaders/global/lighting/blocklight.glsl            !! NOT IN LEDGER !!
+        :8  // Provenance (dual source — see THIRD-PARTY.md):
+        :9  //   - held_light_strength(), block_lighting(): From Steadfast 0.8.0 (GPLv3 + Section 7
+        :16  //   - lightning_point_light(): adapted from Refrax v1.3.1 (proprietary), source:
+        :20  //     PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - REWRITE REQUIRED before distribution
+shaders/shaders/global/lighting/diffuse.glsl               REGISTERED
+        :9  // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+shaders/shaders/global/lighting/shadowmap.glsl             REGISTERED
+        :5  // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+shaders/shaders/global/lighting/sss.glsl                   REGISTERED
+        :7  // Provenance after the 2026-09 terrain-foliage round (per-category):
+        :8  //   LEAVES wrap — ported from Complementary r5.9 (Reimagined and Unbound are byte-identical
+        :18  //   GROUND-FOLIAGE wrap + the strength-mix design — from Steadfast 0.8.0 (GPLv3 + Section 7
+shaders/shaders/global/lighting/wind.glsl                  REGISTERED
+        :18  //   Historical provenance: the previous wave shape was an expression-level port of Steadfast
+shaders/shaders/global/post/bloom.glsl                     REGISTERED
+        :11  // PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - structure borrowed from
+shaders/shaders/global/post/godrays.glsl                   REGISTERED
+        :5  // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+shaders/shaders/global/water/absorption.glsl               REGISTERED
+        :6  // SC-34, written for Astra. Beer-Lambert extinction in inverse blocks. All
+shaders/shaders/global/water/bloom_capture.glsl            REGISTERED
+        :1  // Adapted from Solas V2.2b computeBloom.glsl by Septonious; see THIRD-PARTY.md.
+shaders/shaders/global/water/bloom_resolve.glsl            !! NOT IN LEDGER !!
+        :1  // Adapted from Solas V2.2b getBloom.glsl by Septonious; see THIRD-PARTY.md.
+shaders/shaders/global/water/caustics.glsl                 REGISTERED
+        :3  // Adapted from Solas V2.2b lib/water/waterCaustics.glsl by Septonious.
+shaders/shaders/global/water/light_shafts.glsl             REGISTERED
+        :3  // Adapted from Solas V2.2b volumetricLight.glsl and composite3/5 by Septonious.
+shaders/shaders/global/water/optics.glsl                   REGISTERED
+        :3  // Written for Astra: dielectric interface equations, in world space.
+shaders/shaders/global/water/particles.glsl                REGISTERED
+        :5  // written for Astra (self-authored). No reference-pack expressions are ported.
+shaders/shaders/global/water/raytrace.glsl                 REGISTERED
+        :5  // New Astra implementation based on the project specification and Khronos GLSL
+shaders/shaders/global/water/refraction.glsl               REGISTERED
+        :3  // Adapted from Steadfast 0.8.0 environment/water/refraction.glsl, coderbot.
+shaders/shaders/global/water/surface.glsl                  REGISTERED
+        :5  // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+shaders/shaders/lib/bayer.glsl                             REGISTERED
+        :6  // by 4) - written for Astra from the textbook definition; public-domain pattern.
+shaders/shaders/lib/colors.glsl                            !! NOT IN LEDGER !!
+        :10  // Provenance (dual source — see THIRD-PARTY.md):
+        :11  //   - BLOCKLIGHT_COLOR, MIN_AMBIENT_TINT: From Steadfast 0.8.0 (GPLv3 + Section 7
+        :18  //   - LIGHTNING_TINT: adapted from Refrax v1.3.1 (proprietary), source:
+        :20  //     PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - REWRITE REQUIRED before distribution
+shaders/shaders/lib/distort.glsl                           REGISTERED
+        :4  // From Steadfast 0.8.0 lib/distort.glsl, copyright (C) 2026 coderbot.
+shaders/shaders/lib/dither.glsl                            REGISTERED
+        :4  // From Mellow v3.4 (MIT) by TheCMK - lib/noise.glsl (ign / dither)
+shaders/shaders/lib/encoding.glsl                          REGISTERED
+        :4  // From Mellow v3.4 (MIT) by TheCMK - lib/util.glsl (encodeUnitVector/decodeUnitVector,
+shaders/shaders/lib/solas_water.glsl                       REGISTERED
+        :4  // Adapted from Solas V2.2b by Septonious: common.glsl, waterFog.glsl,
+shaders/shaders/lib/tonemap.glsl                           REGISTERED
+        :4  // Immediate source: Mellow v3.4 by TheCMK (MIT) - lib/tonemap_operators.glsl + lib/tonemap.glsl.
+shaders/shaders/lib/transforms.glsl                        REGISTERED
+        :4  // From Mellow v3.4 (MIT) by TheCMK - lib/transformations.glsl
+shaders/shaders/program/shadow.fsh                         REGISTERED
+        :2  // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+shaders/shaders/program/shadow.vsh                         REGISTERED
+        :2  // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+shaders/shaders/program/water.glsl                         REGISTERED
+        :6  // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot:
+
+=== B. unregistered provenance files (6) ===
+   shaders/shaders/global/atmosphere/clouds_planar.glsl
+   shaders/shaders/global/atmosphere/sky_gradient.glsl
+   shaders/shaders/global/atmosphere/stars.glsl
+   shaders/shaders/global/lighting/blocklight.glsl
+   shaders/shaders/global/water/bloom_resolve.glsl
+   shaders/shaders/lib/colors.glsl
+
+=== C. reverse test: vendor/README.md style file-header convention 'SPDX' anywhere? ===
+   files carrying an SPDX tag: 0 []
+
+=== D. registered-but-absent files (ledger names a path that does not exist in the pack) ===
+   ABSENT: shaders/Lib/IndividualFounctions/EndSky.glsl
+   ABSENT: shaders/Lib/Utilities.glsl
+   ABSENT: shaders/global/water/reference_light.glsl
+   ABSENT: shaders/texture/noises.png
+   ABSENT: shaders/textures/astra-ripple-1..3.png
+
+### [3b] the 6 'not-registered' candidates re-checked by basename (brace-glob rows count as registered?)
+--- grep -n 'clouds_planar' Astra/THIRD-PARTY.md ---
+14:| Complementary | r5.9（Reimagined / Unbound，2026-09-02） | **Complementary License Agreement 1.7**（专有，非 GPL；`License.txt` 随包，1.2/1.3 节允许 modpack 收录与 Modified Pack 再分发但有条�
+135:- **Complementary 来源行（新增，2026-09-10）**：`global/lighting/wind.glsl`、`global/lighting/sss.glsl`（树叶分支）、`global/atmosphere/{sky_gradient,stars,clouds_planar}.glsl`、`global/dimension/{e
+149:| global/atmosphere/sky_minishita.glsl、sky_gradient.glsl、stars.glsl、clouds_planar.glsl；global/dimension/overworld.glsl；program/sky.fsh、clouds.fsh | D2自写大气/星场/云与调用；Minishita使用固�
+329:| 9 `get_min_light`（绑 `screenBrightness`／`nightVision`） | Mellow `lib/tonemap.glsl`（119 行）`:84-89`，体内三句：`clamp(MIN_LIGHT_AMOUNT + screenBrightness * 0.1 - 0.1, 0.0, 0.5)` → `to_linear` →
+--- grep -n 'sky_gradient' Astra/THIRD-PARTY.md ---
+14:| Complementary | r5.9（Reimagined / Unbound，2026-09-02） | **Complementary License Agreement 1.7**（专有，非 GPL；`License.txt` 随包，1.2/1.3 节允许 modpack 收录与 Modified Pack 再分发但有条�
+135:- **Complementary 来源行（新增，2026-09-10）**：`global/lighting/wind.glsl`、`global/lighting/sss.glsl`（树叶分支）、`global/atmosphere/{sky_gradient,stars,clouds_planar}.glsl`、`global/dimension/{e
+149:| global/atmosphere/sky_minishita.glsl、sky_gradient.glsl、stars.glsl、clouds_planar.glsl；global/dimension/overworld.glsl；program/sky.fsh、clouds.fsh | D2自写大气/星场/云与调用；Minishita使用固�
+329:| 9 `get_min_light`（绑 `screenBrightness`／`nightVision`） | Mellow `lib/tonemap.glsl`（119 行）`:84-89`，体内三句：`clamp(MIN_LIGHT_AMOUNT + screenBrightness * 0.1 - 0.1, 0.0, 0.5)` → `to_linear` →
+--- grep -n 'stars' Astra/THIRD-PARTY.md ---
+14:| Complementary | r5.9（Reimagined / Unbound，2026-09-02） | **Complementary License Agreement 1.7**（专有，非 GPL；`License.txt` 随包，1.2/1.3 节允许 modpack 收录与 Modified Pack 再分发但有条�
+135:- **Complementary 来源行（新增，2026-09-10）**：`global/lighting/wind.glsl`、`global/lighting/sss.glsl`（树叶分支）、`global/atmosphere/{sky_gradient,stars,clouds_planar}.glsl`、`global/dimension/{e
+149:| global/atmosphere/sky_minishita.glsl、sky_gradient.glsl、stars.glsl、clouds_planar.glsl；global/dimension/overworld.glsl；program/sky.fsh、clouds.fsh | D2自写大气/星场/云与调用；Minishita使用固�
+--- grep -n 'blocklight' Astra/THIRD-PARTY.md ---
+326:| 6 原版光贴图当 LUT Miniature `common/getAmbientColor.glsl:2` | 该文件 18 行，`:2` `vec4 ambient = texture2D(lightmap, vec2(AMBIENT_UV.s, skyLight));` 引用准确；**整个 `shaders/` 目录内无任何
+--- grep -n 'bloom_resolve' Astra/THIRD-PARTY.md ---
+206:- `shaders/global/water/bloom_capture.glsl` and `bloom_resolve.glsl` adapt Solas V2.2b `lib/post/computeBloom.glsl` and `getBloom.glsl`, retaining tile layout, sample weights, encoding and blend equations; sampler na
+--- grep -n 'lib/colors.glsl' Astra/THIRD-PARTY.md ---
+50:| `shaders/global/dimension/nether.glsl` | Solas V2.2b（`lib/common.glsl` 的维度裁剪、其多云雾噪声塑形结构）+ Mellow v3.4（`lib/colors.glsl` 下界调色与 `global/lighting/lighting.glsl` 下界光
+51:| `shaders/global/dimension/end.glsl` | Mellow v3.4（`lib/colors.glsl:42,70,74,78,82` 调色数值；`global/atmosphere/sky.glsl:54-65,105-131` 星野与末地天空；`global/atmosphere/fog.glsl:37-50` 真空雾；`
+--- grep -n 'colors.glsl' Astra/THIRD-PARTY.md ---
+50:| `shaders/global/dimension/nether.glsl` | Solas V2.2b（`lib/common.glsl` 的维度裁剪、其多云雾噪声塑形结构）+ Mellow v3.4（`lib/colors.glsl` 下界调色与 `global/lighting/lighting.glsl` 下界光
+51:| `shaders/global/dimension/end.glsl` | Mellow v3.4（`lib/colors.glsl:42,70,74,78,82` 调色数值；`global/atmosphere/sky.glsl:54-65,105-131` 星野与末地天空；`global/atmosphere/fog.glsl:37-50` 真空雾；`
+--- grep -n 'end_blackhole' Astra/THIRD-PARTY.md ---
+228:当前 `end_blackhole.glsl` 的 `bh_Blackbody` 继续保留下述 IterationT 来源和授权口径。旧文件里的 WarpSpace、旋转矩阵、纹理噪声、FBM、pcurve、IGN 等未被当前渲染路径使用的�
+230:本次 `end_geometry.glsl`、`end_ring.glsl`、`end_system.glsl`、`program/end_illumination.fsh` 的虚拟轨道、实体距离场、消光、求交和每帧可见性计算，以及 `end_blackhole.glsl` 当前光路
+234:- `shaders/global/dimension/end_blackhole.glsl`：**移植**（非思路借鉴）IterationT 3.2.0
+--- grep -n 'nether_volume' Astra/THIRD-PARTY.md ---
+220:- `shaders/global/dimension/nether_volume.glsl`：适配 X0nk Bliss Stable `lib/nether_fog.glsl`（沿程 16 步积分、Plumes/floorPlumes/Erosion/Roof 与 Floor 高度衰减结构、haze/ceiling smoke 三段合成�
+288:- nether_volume.glsl 继续为 Bliss nether_fog.glsl 派生。指数样点递推是同一表达式的代数改写；顶层烟雾色改为 Complementary 群系色。
+
+### [3c] canonical ledger table: first-column keys (rows starting with '| `shaders/')
+rows: 51
+  :22  `shaders/lib/tonemap.glsl`
+  :23  `shaders/lib/encoding.glsl`
+  :24  `shaders/lib/transforms.glsl`
+  :25  `shaders/lib/pow.glsl`
+  :26  `shaders/lib/distort.glsl`
+  :27  `shaders/lib/dither.glsl`
+  :28  `shaders/lib/bayer.glsl`
+  :29  `shaders/shaders.properties` 的 `CUSTOM UNIFORMS` 段
+  :30  `shaders/block.properties` 基础表（10001–10007、10021–10027）
+  :31  `shaders/block.properties` Astra 补全区（10010、10011，以及并入 10002/10004/10022/10025/10026/10027 的原版补漏 ID）
+  :32  `shaders/entity.properties`
+  :33  `shaders/global/lighting/shadowmap.glsl`
+  :34  `shaders/program/shadow.vsh`
+  :35  `shaders/program/shadow.fsh`
+  :36  `shaders/global/atmosphere/fog.glsl`
+  :37  `shaders/global/lighting/wind.glsl`
+  :38  `shaders/global/post/godrays.glsl` + `shaders/program/composite.fsh`（pass 体）
+  :39  `shaders/global/post/bloom.glsl` + `shaders/program/composite1.fsh`（pass 体）
+  :40  `shaders/program/scattering.fsh` 的 `godrays_sun_visibility()` 与 `shaders/program/final.fsh` 的读回
+  :41  `shaders/lib/settings.glsl` 的 ENGINE KNOBS 增补（entityShadowDistanceMul / shadowHardwareFiltering，SC-13）
+  :42  `shaders/program/composite.vsh` 的 lightScreenPos 投影
+  :43  `shaders/global/lighting/diffuse.glsl`
+  :44  `shaders/global/lighting/sss.glsl`
+  :45  `shaders/global/water/absorption.glsl`
+  :46  `shaders/global/water/caustics.glsl`
+  :47  `shaders/global/water/refraction.glsl`
+  :48  `shaders/global/water/particles.glsl`
+  :49  `shaders/global/water/surface.glsl`
+  :50  `shaders/global/dimension/nether.glsl`
+  :51  `shaders/global/dimension/end.glsl`
+  :52  `shaders/global/post/grading.glsl`
+  :54  `shaders/global/water/light_shafts.glsl`
+  :55  `shaders/program/scene.glsl`（2026-09-21 T14 新增 `CLOUD_SHADOWS` 地面云影臂）
+  :56  `shaders/global/post/exposure.glsl`（2026-09-21 T15 新增 `AUTO_EXPOSURE`）
+  :164  `shaders/global/water/optics.glsl`
+  :165  `shaders/program/water.glsl`
+  :166  `shaders/global/water/raytrace.glsl`
+  :167  `shaders/program/scene.glsl`、`shaders/global/water/light_shafts.glsl`
+  :168  `shaders/global/lighting/diffuse.glsl`、`shaders/global/water/surface.glsl`
+  :169  `shaders/global/water/caustics.glsl`、`shaders/global/post/bloom.glsl`
+  :303  `shaders/lib/vendor/README.md`
+  :304  `shaders/lib/vendor/glsl-tone-map/README.md`
+  :305  `shaders/lib/vendor/glsl-tone-map/LICENSE.md`
+  :306  `shaders/lib/vendor/glsl-tone-map/uchimura.glsl.orig`
+  :307  `shaders/lib/vendor/glsl-tone-map/agx.glsl.orig`
+  :308  `shaders/lib/vendor/glsl-tone-map/aces.glsl.orig`
+  :309  `shaders/lib/vendor/glsl-tone-map/acesHill.glsl.orig`
+  :310  `shaders/lib/vendor/glsl-tone-map/reinhardJodie.glsl.orig`
+  :311  `shaders/lib/vendor/bakinglab/README.md`
+  :312  `shaders/lib/vendor/bakinglab/ACES.hlsl.orig`
+  :313  `shaders/lib/vendor/bakinglab/LICENSE.txt`
+
+probe blocklight.glsl        -> NO TABLE ROW
+probe lib/colors.glsl        -> NO TABLE ROW
+
+--- any mention at all (whole file) of these exact paths ---
+  shaders/global/lighting/blocklight.glsl        occurrences: 0
+  shaders/lib/colors.glsl                        occurrences: 0
+  lighting/blocklight.glsl                       occurrences: 1
+
+### [3d] the two unregistered files, full headers
+$ sed -n '1,22p' Astra/shaders/global/lighting/blocklight.glsl | cat -n
+     1	#ifndef ASTRA_GLOBAL_LIGHTING_BLOCKLIGHT_GLSL
+     2	#define ASTRA_GLOBAL_LIGHTING_BLOCKLIGHT_GLSL
+     3	
+     4	// Astra v1 — global/lighting/blocklight.glsl
+     5	// Local (non-sky) illumination: torch/glowstone block light with daylight suppression,
+     6	// the handheld point light, and the lightning flash point light.
+     7	//
+     8	// Provenance (dual source — see THIRD-PARTY.md):
+     9	//   - held_light_strength(), block_lighting(): From Steadfast 0.8.0 (GPLv3 + Section 7
+    10	//     additional terms) by coderbot, source: _analysis/Steadfast-0.8.0/shaders/environment/
+    11	//     lighting/diffuse.glsl (HeldLightStrength, BlockLighting).
+    12	//     This file is a derivative of Steadfast and is licensed under the GNU General Public
+    13	//     License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+    14	//     _analysis/Steadfast-0.8.0/LICENSE.md. Redistribution is permitted only under that
+    15	//     license including Steadfast's Section 7 additional terms.
+    16	//   - lightning_point_light(): adapted from Refrax v1.3.1 (proprietary), source:
+    17	//     _analysis/Refrax_v1.3.1/shaders/lib/thunder.glsl (thunderLight). The distance-falloff
+    18	//     point-light-with-wrap idea also appears in Solas V2.2b (lightningFlashEffect, "Thanks
+    19	//     to Xonk!"); Refrax's normal-aware terrain form is the one ported here.
+    20	//     PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - REWRITE REQUIRED before distribution
+    21	//   Publish gate: design.md 9.3 + escalations.md SC-14 (⏸ pending user decision).
+    22	//
+
+$ sed -n '1,22p' Astra/shaders/lib/colors.glsl | cat -n
+     1	#ifndef ASTRA_LIB_COLORS_GLSL
+     2	#define ASTRA_LIB_COLORS_GLSL
+     3	
+     4	// Astra v1 — lib/colors.glsl
+     5	// Light-source palette (design.md 3.1: 调色板 / 光色常量). C1 owns the *lighting*
+     6	// section populated here; the atmosphere/sky palette (sunlight, moonlight, skyAmbient
+     7	// colour curves) is D2's and is NOT baked into constants — it arrives per-frame as the
+     8	// LightParams fields documented in global/lighting/diffuse.glsl.
+     9	//
+    10	// Provenance (dual source — see THIRD-PARTY.md):
+    11	//   - BLOCKLIGHT_COLOR, MIN_AMBIENT_TINT: From Steadfast 0.8.0 (GPLv3 + Section 7
+    12	//     additional terms) by coderbot, source: _analysis/Steadfast-0.8.0/shaders/
+    13	//     shaders.properties (blocklightColor ORANGER_BLOCKLIGHT default; minAmbientMinishita).
+    14	//     This file is a derivative of Steadfast and is licensed under the GNU General Public
+    15	//     License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+    16	//     _analysis/Steadfast-0.8.0/LICENSE.md. Redistribution is permitted only under that
+    17	//     license including Steadfast's Section 7 additional terms.
+    18	//   - LIGHTNING_TINT: adapted from Refrax v1.3.1 (proprietary), source:
+    19	//     _analysis/Refrax_v1.3.1/shaders/lib/thunder.glsl (THUNDER_TINT).
+    20	//     PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - REWRITE REQUIRED before distribution
+    21	//   Publish gate: design.md 9.3 + escalations.md SC-14 (⏸ pending user decision).
+    22	//
+
+### [3e] how does the project's gate decide 'ledger <-> header' consistency? (check 8)
+$ grep -n 'def check_8\|def check_ledger\|Check(8' qa/tools/check_pack.py
+604:def check_provenance():
+605:    c = Check(8, "THIRD-PARTY.md ledger <-> file provenance headers <-> license rules (design 9)")
+$ ls qa/tools/ | grep -i -e verify -e provenance
+provenance_steadfast.py
+verify_tonemap_chain.py
+
+$ sed -n '604,700p' qa/tools/check_pack.py | cat -n   # check_provenance (item 8)
+def check_provenance():
+    c = Check(8, "THIRD-PARTY.md ledger <-> file provenance headers <-> license rules (design 9)")
+    led = ROOT / "Astra" / "THIRD-PARTY.md"
+    if not led.exists():
+        c.fail("Astra/THIRD-PARTY.md missing (design 9.2 requires it from day one)")
+        return c
+    text = read(led)
+    rows = []
+    for line in text.splitlines():
+        if line.startswith("|") and "lib/" in line or line.startswith("|") and "shaders/" in line \
+           or line.startswith("|") and "program/" in line or line.startswith("|") and ".properties" in line:
+            cells = [x.strip() for x in line.strip().strip("|").split("|")]
+            rows.append(cells)
+    c.note(f"{len(rows)} ledger rows")
+
+    # every file with a provenance header must be in the ledger, and vice versa
+    header_paths = {}
+    for p in walk_shader_files():
+        head = read(p)[:4000]
+        m = re.search(r"(?://|/\*)\s*From\s+([^\n]+)", head)
+        if m:
+            header_paths[rel(p)] = m.group(1).strip()
+    ledger_norm = text.replace("`", "")
+    for path, src in header_paths.items():
+        key = Path(path).name
+        if key not in ledger_norm and path not in ledger_norm:
+            c.fail(f"{path}: has provenance header ('From {src[:40]}') but no ledger row")
+    for row in rows:
+        joined = " ".join(row)
+        # Self-written ledger rows (Astra组合/Astra自写/D2自写/...) record provenance of
+        # NON-borrowed files; the body-naming check below only applies to borrow rows.
+        if "自写" in joined or "self-written" in joined:
+            continue
+        m = re.search(r"([A-Za-z0-9_./-]+\.(?:glsl|fsh|vsh|properties|lang|png|json|md))", joined)
+        if m:
+            fname = m.group(1)
+            matches = [p for p in header_paths if p.endswith(fname)]
+            if not matches and (PACK / fname).exists():
+                body = read(PACK / fname)
+                named = re.search(r"(Mellow|Steadfast|Refrax|Solas)", body)
+                if not named:
+                    c.fail(f"ledger row for {fname} exists but the file names no source pack")
+
+    # GPL / proprietary rules
+    steadfast_files = [p for p in header_paths if "Steadfast" in header_paths[p]]
+    for p in steadfast_files:
+        if "GPL" not in read(p):
+            c.fail(f"{p}: header credits Steadfast (GPLv3) but carries no GPL notice "
+                   f"(design 9.1: 'GPL declaration kept in file header')")
+    props = read(PACK / "shaders.properties")
+    if "Steadfast" in props and "GPL" not in props:
+        c.fail("shaders.properties: credits Steadfast for the custom-uniform style but carries "
+               "no GPLv3 notice (design 9.1: 'GPL declaration kept in file header')")
+    # ledger numbers must match the expression-diff classifier (qa/tools/provenance_steadfast.py)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import provenance_steadfast
+    except Exception as e:
+        c.fail(f"cannot import provenance_steadfast to verify the Steadfast ledger: {e}")
+        return c
+    measured = provenance_steadfast.counts()
+
+    # every count stated for a borrow class in the ledger must equal the measured value
+    stated = {k: [] for k in measured}
+    for cls in measured:
+        for m in re.finditer(re.escape(cls) + r"\s*(?:=|＝|\(|（)\s*(\d+)", ledger_norm):
+            stated[cls].append(int(m.group(1)))
+    missing = [k for k, v in stated.items() if not v]
+    if missing:
+        c.fail("THIRD-PARTY.md states no count for " + ", ".join(missing)
+               + " (ledger must be machine-checkable; run provenance_steadfast.py --quiet and record it)")
+    for cls, values in stated.items():
+        bad = sorted(set(v for v in values if v != measured[cls]))
+        if bad:
+            c.fail(f"THIRD-PARTY.md '{cls}' counts {bad} disagree with the expression diff "
+                   f"({measured[cls]}); re-run: python qa/tools/provenance_steadfast.py --quiet")
+    if not missing and not any(
+            v != measured[k] for k, vals in stated.items() for v in vals):
+        c.note("Steadfast expression-diff matches every ledger count: "
+               + " ".join(f"{k}={v}" for k, v in measured.items())
+               + f" (stated {sum(len(v) for v in stated.values())}x)")
+    return c
+
+
+def check_bayer():
+    c = Check(9, "bayer.glsl ordered-dither matrix correctness")
+    p = PACK / "lib" / "bayer.glsl"
+    if not p.exists():
+        c.fail("lib/bayer.glsl missing")
+        return c
+    body = strip_comments(read(p))
+    m = re.search(r"bayer8x8\s*\[\s*64\s*\]\s*=\s*float\s*(?:\[\s*\])?\s*\((.*?)\)\s*;",
+                  body, flags=re.S)
+    if not m:
+        c.fail("no 'const float bayer8x8[64] = float(...)' array found")
+        return c
+    vals = [float(v) for v in re.findall(r"-?\d+\.?\d*", m.group(1))]
+
+### [3f] reproduce check 8's header regex verbatim: why blocklight.glsl / colors.glsl are invisible
+check 8 sees 12 header file(s)
+   global/atmosphere/fog.glsl                               <- 'From Steadfast 0.8.0 (GPLv3 + Section 7 addit'
+   global/lighting/diffuse.glsl                             <- 'From Steadfast 0.8.0 (GPLv3 + Section 7 addit'
+   global/lighting/shadowmap.glsl                           <- 'From Steadfast 0.8.0 (GPLv3 + Section 7 addit'
+   global/post/godrays.glsl                                 <- 'From Steadfast 0.8.0 (GPLv3 + Section 7 addit'
+   global/water/surface.glsl                                <- 'From Steadfast 0.8.0 (GPLv3 + Section 7 addit'
+   lib/distort.glsl                                         <- 'From Steadfast 0.8.0 lib/distort.glsl, copyri'
+   lib/dither.glsl                                          <- 'From Mellow v3.4 (MIT) by TheCMK - lib/noise.'
+   lib/encoding.glsl                                        <- 'From Mellow v3.4 (MIT) by TheCMK - lib/util.g'
+   lib/transforms.glsl                                      <- 'From Mellow v3.4 (MIT) by TheCMK - lib/transf'
+   program/shadow.fsh                                       <- 'From Steadfast 0.8.0 (GPLv3 + Section 7 addit'
+   program/shadow.vsh                                       <- 'From Steadfast 0.8.0 (GPLv3 + Section 7 addit'
+   program/water.glsl                                       <- 'From Steadfast 0.8.0 (GPLv3 + Section 7 addit'
+
+files that DO carry a 'From <upstream>' credit but on a line check 8 cannot match:
+   global/lighting/blocklight.glsl          seen by check 8? False
+   lib/colors.glsl                          seen by check 8? False
+
+### [3g] broadened header test (credit line anywhere in first 40 lines) vs ledger basename
+files crediting an upstream in their first 40 lines: 27
+
+file                                                 in ledger?     first credit line
+block.properties                                     YES            :3 # Base tables ported from Mellow Shader v3.4 (MIT, by TheCMK) - see THIRD-PARTY.md.
+global/atmosphere/fog.glsl                           YES            :5 // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+global/atmosphere/sky_gradient.glsl                  YES            :5 //  Astra v1 - overworld sky, ported from Complementary r5.9 (Reimagined).
+global/atmosphere/stars.glsl                         YES            :5 //  Astra v1 - star field, ported from Complementary r5.9 (Reimagined).
+global/dimension/nether_volume.glsl                  YES            :3 // Adapted from X0nk Bliss Stable lib/nether_fog.glsl, retrieved 2026-09-10.
+global/lighting/blocklight.glsl                      YES            :9 //   - held_light_strength(), block_lighting(): From Steadfast 0.8.0 (GPLv3 + Section 7
+                                                                    :16 //   - lightning_point_light(): adapted from Refrax v1.3.1 (proprietary), source:
+                                                                    :20 //     PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - REWRITE REQUIRED before distribut
+global/lighting/diffuse.glsl                         YES            :9 // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+global/lighting/shadowmap.glsl                       YES            :5 // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+global/lighting/sss.glsl                             YES            :8 //   LEAVES wrap — ported from Complementary r5.9 (Reimagined and Unbound are byte-identical
+                                                                    :18 //   GROUND-FOLIAGE wrap + the strength-mix design — from Steadfast 0.8.0 (GPLv3 + Section 7
+global/post/bloom.glsl                               YES            :11 // PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - structure borrowed from
+global/post/godrays.glsl                             YES            :5 // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+global/water/bloom_capture.glsl                      YES            :1 // Adapted from Solas V2.2b computeBloom.glsl by Septonious; see THIRD-PARTY.md.
+global/water/bloom_resolve.glsl                      YES            :1 // Adapted from Solas V2.2b getBloom.glsl by Septonious; see THIRD-PARTY.md.
+global/water/caustics.glsl                           YES            :3 // Adapted from Solas V2.2b lib/water/waterCaustics.glsl by Septonious.
+global/water/light_shafts.glsl                       YES            :3 // Adapted from Solas V2.2b volumetricLight.glsl and composite3/5 by Septonious.
+global/water/refraction.glsl                         YES            :3 // Adapted from Steadfast 0.8.0 environment/water/refraction.glsl, coderbot.
+global/water/surface.glsl                            YES            :5 // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+lib/colors.glsl                                      YES            :11 //   - BLOCKLIGHT_COLOR, MIN_AMBIENT_TINT: From Steadfast 0.8.0 (GPLv3 + Section 7
+                                                                    :18 //   - LIGHTNING_TINT: adapted from Refrax v1.3.1 (proprietary), source:
+                                                                    :20 //     PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - REWRITE REQUIRED before distribut
+lib/distort.glsl                                     YES            :4 // From Steadfast 0.8.0 lib/distort.glsl, copyright (C) 2026 coderbot.
+lib/dither.glsl                                      YES            :4 // From Mellow v3.4 (MIT) by TheCMK - lib/noise.glsl (ign / dither)
+lib/encoding.glsl                                    YES            :4 // From Mellow v3.4 (MIT) by TheCMK - lib/util.glsl (encodeUnitVector/decodeUnitVector,
+lib/solas_water.glsl                                 YES            :4 // Adapted from Solas V2.2b by Septonious: common.glsl, waterFog.glsl,
+lib/tonemap.glsl                                     YES            :4 // Immediate source: Mellow v3.4 by TheCMK (MIT) - lib/tonemap_operators.glsl + lib/tonemap.gls
+lib/transforms.glsl                                  YES            :4 // From Mellow v3.4 (MIT) by TheCMK - lib/transformations.glsl
+program/shadow.fsh                                   YES            :2 // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+program/shadow.vsh                                   YES            :2 // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+program/water.glsl                                   YES            :6 // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot:
+
+=> files whose basename is absent from THIRD-PARTY.md: none
+
+### [3h] rigorous: for each credited file, does THIRD-PARTY.md contain its FULL path? (basename collision check)
+path                                       full      basename  verdict
+block.properties                           2         5         registered by full path
+global/atmosphere/fog.glsl                 1         7         registered by full path
+global/atmosphere/sky_gradient.glsl        0         2         ONLY basename hits (=false-positive cover)
+global/atmosphere/stars.glsl               0         1         ONLY basename hits (=false-positive cover)
+global/atmosphere/clouds_planar.glsl       0         2         ONLY basename hits (=false-positive cover)
+global/dimension/nether_volume.glsl        1         2         registered by full path
+global/dimension/nether.glsl               2         9         registered by full path
+global/dimension/end.glsl                  1         7         registered by full path
+global/lighting/blocklight.glsl            0         1         ONLY basename hits (=false-positive cover)
+global/lighting/diffuse.glsl               2         8         registered by full path
+global/lighting/shadowmap.glsl             1         4         registered by full path
+global/lighting/sss.glsl                   1         4         registered by full path
+global/post/bloom.glsl                     2         4         registered by full path
+global/post/godrays.glsl                   1         3         registered by full path
+global/post/exposure.glsl                  1         1         registered by full path
+global/water/bloom_capture.glsl            1         1         registered by full path
+global/water/bloom_resolve.glsl            0         1         ONLY basename hits (=false-positive cover)
+global/water/caustics.glsl                 3         6         registered by full path
+global/water/light_shafts.glsl             4         5         registered by full path
+global/water/refraction.glsl               1         3         registered by full path
+global/water/surface.glsl                  2         5         registered by full path
+global/water/absorption.glsl               1         3         registered by full path
+global/water/particles.glsl                1         1         registered by full path
+global/water/raytrace.glsl                 1         2         registered by full path
+global/water/optics.glsl                   1         1         registered by full path
+lib/colors.glsl                            0         2         ONLY basename hits (=false-positive cover)
+lib/distort.glsl                           1         5         registered by full path
+lib/dither.glsl                            1         1         registered by full path
+lib/encoding.glsl                          1         1         registered by full path
+lib/solas_water.glsl                       1         3         registered by full path
+lib/tonemap.glsl                           1         12        registered by full path
+lib/transforms.glsl                        1         2         registered by full path
+lib/pow.glsl                               1         2         registered by full path
+lib/bayer.glsl                             1         3         registered by full path
+program/shadow.fsh                         1         6         registered by full path
+program/shadow.vsh                         3         6         registered by full path
+program/water.glsl                         1         10        registered by full path
+program/scene.glsl                         2         6         registered by full path
+program/composite.fsh                      1         4         registered by full path
+program/composite1.fsh                     1         1         registered by full path
+
+=== rows lacking a full-path mention ===
+   global/atmosphere/sky_gradient.glsl        full=0 base=2  ONLY basename hits (=false-positive cover)
+   global/atmosphere/stars.glsl               full=0 base=1  ONLY basename hits (=false-positive cover)
+   global/atmosphere/clouds_planar.glsl       full=0 base=2  ONLY basename hits (=false-positive cover)
+   global/lighting/blocklight.glsl            full=0 base=1  ONLY basename hits (=false-positive cover)
+   global/water/bloom_resolve.glsl            full=0 base=1  ONLY basename hits (=false-positive cover)
+   lib/colors.glsl                            full=0 base=2  ONLY basename hits (=false-positive cover)
+
+### [3i] the basename-collision lines that create the false-positive cover
+:50  [lib/colors.glsl]  | `shaders/global/dimension/nether.glsl` | Solas V2.2b（`lib/common.glsl` 的维度裁剪、其多云雾噪声塑形结构）+ Mellow v3.4（`lib/colors.glsl` 下界调色与 `global/lighting/lighting.glsl` 下界光照分支：思路与数值参考）+ **Complementa
+:51  [lib/colors.glsl]  | `shaders/global/dimension/end.glsl` | Mellow v3.4（`lib/colors.glsl:42,70,74,78,82` 调色数值；`global/atmosphere/sky.glsl:54-65,105-131` 星野与末地天空；`global/atmosphere/fog.glsl:37-50` 真空雾；`global/li
+:326  [lighting/blocklight.glsl]  | 6 原版光贴图当 LUT Miniature `common/getAmbientColor.glsl:2` | 该文件 18 行，`:2` `vec4 ambient = texture2D(lightmap, vec2(AMBIENT_UV.s, skyLight));` 引用准确；**整个 `shaders/` 目录内无任何许可证明文件** | Astra 不采 li
+
+### [3j] sample-entry verification (10 entries) — commands + outputs
+--- (1) tonemap.glsl: ledger claims per-function byte-equality; run the project's own verifier ---
+$ python qa/tools/verify_tonemap_chain.py
+1
+uchimura(vec3,float x7)  upstream= 317 astra= 317  identical | mellow==upstream: True
+uchimura(vec3)           upstream= 130 astra= 130  identical | mellow==upstream: True
+agxCdl(...)              upstream= 612 astra= 627  Astra + max( + ,vec3(0.0)) | mellow==upstream: True
+agxPunchy(vec3)          upstream=  57 astra=  57  identical | mellow==upstream: True
+agx(vec3)                upstream=  56 astra=  56  identical
+RRTAndODTFit(vec3)       upstream=  86 astra=  86  identical | mellow==upstream: True
+ACESFitted(vec3)         upstream= 114 astra= 114  identical | mellow: upstream + color=pow(color,vec3(1/2.2)); + to_linear( + )
+agx constants: 6 upstream values, all reproduced
+ACES matrices: 2 upstream matrices x 9 values, all reproduced in column-major order
+ACES matrices via Mellow: relay unchanged
+discriminators valid: bakinglab 2/2, acesHill 2/2
+ACES source: BakingLab-only comments 2/2 present in lib/tonemap.glsl, acesHill-only 0/2 present
+reinhard weights: upstream reinhardJodie=0.2126,0.7152,0.0722 astra get_luminance=0.299,0.587,0.114 differ (TheCMK variant)
+not ported: Narkowicz ACES fit       markers 0/2 in lib/tonemap.glsl, unique among 6 vendored originals: True
+not ported: Seguin Rec.709 reinhard  markers 0/2 in lib/tonemap.glsl, unique among 6 vendored originals: True
+
+PASS  lib/tonemap.glsl matches upstream glsl-tone-map and BakingLab as registered
+
+--- (2) encoding.glsl: header vs upstream Mellow sources exist? ---
+#ifndef ASTRA_LIB_ENCODING_GLSL
+#define ASTRA_LIB_ENCODING_GLSL
+
+// From Mellow v3.4 (MIT) by TheCMK - lib/util.glsl (encodeUnitVector/decodeUnitVector,
+// get_luminance) + lib/transformations.glsl (to_linear)
+// Renamed to snake_case per design.md 3.2; exact IEC sRGB encode/decode and the uint
+// octahedral quantizers are Astra additions composed around the Mellow cores
+// (see THIRD-PARTY.md). License: MIT - see THIRD-PARTY.md.
+-rw-r--r-- 1 杨铭 197121 1363 Jul 30 13:17 _analysis/Mellow Shader v3.4/shaders/lib/noise.glsl
+-rw-r--r-- 1 杨铭 197121 1257 Aug 25 12:11 _analysis/Mellow Shader v3.4/shaders/lib/transformations.glsl
+-rw-r--r-- 1 杨铭 197121 6437 Aug 28 16:24 _analysis/Mellow Shader v3.4/shaders/lib/util.glsl
+
+--- (3) bayer.glsl 'self-written, public domain' — does any upstream carry the same 64-value table? ---
+#ifndef ASTRA_LIB_BAYER_GLSL
+#define ASTRA_LIB_BAYER_GLSL
+
+// Astra v1 - lib/bayer.glsl
+// Classic recursive Bayer matrix construction (M2 = [[0,2],[3,1]], M_2n blocks scaled
+// by 4) - written for Astra from the textbook definition; public-domain pattern.
+// Used for godrays start jitter (design.md 2.2); output dithering uses IGN (lib/dither.glsl).
+// Uniforms: none
+
+--- (4) wind.glsl: ledger says 'no Steadfast expression survives'; upstream Complementary file present? ---
+18://   Historical provenance: the previous wave shape was an expression-level port of Steadfast
+20://   coderbot). No Steadfast expression survives in this file — the shape, the coefficient set
+21://   and the amplitude chain are all Complementary r5.9 now — so nothing here is Steadfast
+22://   derived; the row remains in Astra/THIRD-PARTY.md because this module was Steadfast
+41://     (WAVING_I_RAIN_MULT 100, common.glsl:230); Astra keeps its own Steadfast-era rain
+66:// defined in shaders.properties:222-233) drove the old Steadfast wind. The reference shape
+-rw-r--r-- 1 杨铭 197121 7514 Sep 10 16:37 _analysis/Complementary r5.9/Reimagined/shaders/lib/materials/materialMethods/wavingBlocks.glsl
+
+--- (5) reference_light.glsl: registered as deleted 2026-09-21 B3 ---
+ls: cannot access 'Astra/shaders/global/water/reference_light.glsl': No such file or directory
+Astra/shaders/\program\water.glsl:248:    // lobe. Nothing in global/water/reference_light.glsl is reachable from this pass.
+
+--- (6) exposure.glsl: ledger says 'IDEA ONLY, zero expressions transplanted' from Refrax ---
+#ifndef ASTRA_GLOBAL_POST_EXPOSURE_GLSL
+#define ASTRA_GLOBAL_POST_EXPOSURE_GLSL
+
+#include "/lib/encoding.glsl"
+
+// ============================================================
+//  Astra v1 - global/post/exposure.glsl
+//  Auto-exposure: a bounded scene gain measured from the assembled frame, with a
+//  one-texel history that adapts over time (design.md SC-41, survey 6 P0-3).
+//  Owner: C6.  Consumers: program/exposure.fsh (writes the history) and
+//  global/post/grading.glsl -> program/final.fsh (reads it).
+//
+Refrax discriminating strings from its exposure.fsh.glsl, searched inside exposure.glsl:
+  upstream file exists: True
+   fract(uv * 64.0)       upstream=1   astra=0
+   EXPOSURE_REGION        upstream=0   astra=0
+   sceneExposure          upstream=0   astra=0
+   0.22                   upstream=0   astra=0
+   0.70                   upstream=0   astra=0
+   2.60                   upstream=0   astra=0
+   2.20                   upstream=0   astra=1
+   0.90                   upstream=0   astra=0
+   log2                   upstream=1   astra=8
+
+--- (7) bloom.glsl: Refrax formula-level port, PROVENANCE header ---
+#ifndef ASTRA_GLOBAL_POST_BLOOM_GLSL
+#define ASTRA_GLOBAL_POST_BLOOM_GLSL
+
+// Astra v1 — global/post/bloom.glsl
+// Two-pass bloom (design.md 4.4): composite1 captures a reduced-resolution, soft-knee
+// prefiltered image into colortex2 — the fraction is BLOOM_CAPTURE_SCALE below — with
+// mipmaps on, and the final chain reads four of its mip levels (two under
+// DIMENSION_END). The mip chain replaces the 6-pass downsample pyramid that Mellow
+// ships, which is where the four saved passes come from.
+//
+// PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - structure borrowed from
+//   lib/bloom.glsl (bloomPrefilter soft knee) and program/bloom_downsample.fsh.glsl
+//   (13-tap dual-filter downsample). REWRITE REQUIRED before distribution.
+//   Registered in THIRD-PARTY.md per design.md 9.2. Refrax builds a 6-level atlas and
+//   blurs each level with two extra passes; Astra instead lets the driver build the
+//   levels (colortex2MipmapEnabled) and spends its two passes on capture + composite.
+
+--- (7b) ledger row :56 claims exposure.glsl's file header carries 'IDEA ONLY, no code and no formula transplanted' ---
+$ grep -n 'IDEA ONLY' Astra/shaders/global/post/exposure.glsl ; echo EXIT=$?
+144:// PROVENANCE: idea-level, Refrax v1.3.1 (proprietary) - IDEA ONLY, no code and no
+EXIT=0
+$ grep -rn 'IDEA ONLY' Astra/shaders/ | head -20
+Astra/shaders/\global\post\exposure.glsl:144:// PROVENANCE: idea-level, Refrax v1.3.1 (proprietary) - IDEA ONLY, no code and no
+Astra/shaders/\global\post\grading.glsl:234:// PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - IDEA ONLY, no code and
+Astra/shaders/\program\scene.glsl:241:            //   1.7) - IDEA ONLY, no code and no formula transplanted: project 2D cloud
+$ grep -n 'Refrax' Astra/shaders/global/post/exposure.glsl
+144:// PROVENANCE: idea-level, Refrax v1.3.1 (proprietary) - IDEA ONLY, no code and no
+
+--- (8) ledger :55 claims scene.glsl's consumption point carries 'IDEA ONLY, no code and no formula transplanted' ---
+$ grep -n -e 'IDEA ONLY' -e 'BSL' -e 'cloudShadows' Astra/shaders/program/scene.glsl
+239:            // PROVENANCE: BSL (lib/lighting/shadows.glsl:295-374, All Rights Reserved) +
+240:            //   Complementary Reimagined r5.9 (lib/lighting/cloudShadows.glsl:60, License
+241:            //   1.7) - IDEA ONLY, no code and no formula transplanted: project 2D cloud
+
+--- (7c) is the ledger's '文件头' (file header) wording accurate? line positions ---
+  161 Astra/shaders/global/post/exposure.glsl
+  244 Astra/shaders/global/post/grading.glsl
+  277 Astra/shaders/program/scene.glsl
+  682 total
+
+### [6] are the upstream reference packs themselves tracked in git (i.e. redistributed with the repo)?
+$ git ls-files _analysis | wc -l ; git ls-files _analysis | head -5
+0
+$ git check-ignore -v '_analysis/Steadfast-0.8.0/LICENSE.md' '_analysis/Complementary r5.9/Reimagined/License.txt' ; echo EXIT=$?
+.gitignore:2:/_analysis/	_analysis/Steadfast-0.8.0/LICENSE.md
+.gitignore:2:/_analysis/	_analysis/Complementary r5.9/Reimagined/License.txt
+EXIT=0
+$ git ls-files '*.zip' ; git status --porcelain | head -8
+--- .gitignore ---
+# Astra shaderpack repo — reference material stays out of version control
+/_analysis/
+/*.zip
+
+# Python bytecode (qa/tools/check_pack.py imports provenance_steadfast)
+__pycache__/
+
+# bloom_lod_probe.py dumps every frame as RGBA32F floats (283 MB per run); the tool
+# regenerates them, only results.json and the baselines are evidence worth keeping
+qa/bloom-lod-probe/*.f32
+
+# OS junk
+Thumbs.db
+.DS_Store
+
+### [6b] working-tree state (I only add the log; nothing else may change)
+$ git status --porcelain
+?? docs/2026-09-21-current-state-review.md
+?? qa/review-2026-09-21-checkpack.log
+?? qa/review-2026-09-21-compile-default.log
+?? qa/review-2026-09-21-license-a9.log
+EXIT=0
+$ git check-ignore -v qa/review-2026-09-21-license-a9.log ; echo EXIT=$?
+EXIT=1
+$ git ls-files -v qa/ | head -3 ; git ls-files qa/*.log | head -3
+qa/a4-blackhole-performance-2026-09-21.log
+qa/a6-cloud-double-layer-diagnosis-2026-09-21.log
+qa/audit-2026-09-11-glsl.log
+
+--- (9)(10) remaining sample entries: upstream sources for Bliss / IterationT rows exist? ---
+ls: cannot access '_analysis/latest-2026-09-10/bliss-shader/lib/nether_fog.glsl': No such file or directory
+#ifndef ASTRA_NETHER_VOLUME_GLSL
+#define ASTRA_NETHER_VOLUME_GLSL
+// Adapted from X0nk Bliss Stable lib/nether_fog.glsl, retrieved 2026-09-10.
+// Original noise layout; Astra exposure uses lower plume/ceiling density.
+//
+// This volume is composited over the plain nether fog in program/scene.glsl as
+_analysis/latest-2026-09-10/iterationT-3.2.0
+#ifndef ASTRA_END_BLACKHOLE_GLSL
+#define ASTRA_END_BLACKHOLE_GLSL
+// Astra's finite directional scene and null-ray integrator. No texture/model assets.
+// The retained blackbody helper below is the existing IterationT derivative;
+// its source/provenance remains registered in THIRD-PARTY.md.
+vec3 bh_Blackbody(float temperature) {
+    const mat2x4 splineX=mat2x4(-0.2661293e9,-0.2343589e6,0.8776956e3,0.179910,
+                               -3.0258469e9,2.1070479e6,0.2226347e3,0.240390);
+
+$ find _analysis -name 'nether_fog.glsl' 2>/dev/null ; echo EXIT=$?
+_analysis/latest-2026-09-10/bliss-shader/shaders/lib/nether_fog.glsl
+_analysis/latest-2026-09-10/bliss-Stable/Bliss-Shader-Stable/shaders/lib/nether_fog.glsl
+EXIT=0
+$ find _analysis -iname '*nether*fog*' 2>/dev/null | head
+_analysis/latest-2026-09-10/bliss-shader/shaders/lib/nether_fog.glsl
+_analysis/latest-2026-09-10/bliss-Stable/Bliss-Shader-Stable/shaders/lib/nether_fog.glsl
+$ find _analysis -maxdepth 3 -iname 'noises.png' | head
+$ grep -n 'nether_fog' Astra/THIRD-PARTY.md | cut -c1-200
+220:- `shaders/global/dimension/nether_volume.glsl`：适配 X0nk Bliss Stable `lib/nether_fog.glsl`（沿程 16 步积分、Plumes/floorPlumes/Erosion/Roof 与 Floor 高度衰减结构、haze/ceiling
+288:- nether_volume.glsl 继续为 Bliss nether_fog.glsl 派生。指数样点递推是同一表达式的代数改写；顶层烟雾色改为 Complementary 群系色。
+$ find _analysis -maxdepth 2 -type d | sort | head -30
+_analysis
+_analysis/Complementary r5.9
+_analysis/Complementary r5.9/Reimagined
+_analysis/Complementary r5.9/Unbound
+_analysis/Mellow Shader v3.4
+_analysis/Mellow Shader v3.4/shaders
+_analysis/Refrax_v1.3.1
+_analysis/Refrax_v1.3.1/shaders
+_analysis/Solas Shader V2.2b
+_analysis/Solas Shader V2.2b/shaders
+_analysis/Steadfast-0.8.0
+_analysis/Steadfast-0.8.0/shaders
+_analysis/astra-sc34
+_analysis/bakinglab
+_analysis/iris-runtime
+_analysis/latest-2026-09-10
+_analysis/latest-2026-09-10/bliss-Stable
+_analysis/latest-2026-09-10/bliss-Unstable
+_analysis/latest-2026-09-10/bliss-shader
+_analysis/latest-2026-09-10/complementary-reimagined
+_analysis/latest-2026-09-10/complementary-unbound
+_analysis/latest-2026-09-10/iterationT-3.2.0
+_analysis/latest-2026-09-10/solas-shader
+_analysis/npm
+_analysis/npm/package
+_analysis/performance-study-2026-09-16
+_analysis/performance-study-2026-09-16/bsl-shaders
+_analysis/performance-study-2026-09-16/complementary-reimagined
+_analysis/performance-study-2026-09-16/makeup-ultra-fast-shaders
+_analysis/performance-study-2026-09-16/photon-shader
+
+### [5b] bliss-nether-noise.png vs the *Stable* upstream at its real path (+ does the repo record Bliss's licence?)
+$ find _analysis -maxdepth 6 -iname 'noises.png' -o -maxdepth 6 -iname 'Bliss*Licen*' -o -maxdepth 6 -iname '*LICENSE*' -path '*bliss*' | head
+_analysis/latest-2026-09-10/bliss-Stable/Bliss-Shader-Stable/CREDITS.txt
+_analysis/latest-2026-09-10/bliss-Stable/Bliss-Shader-Stable/LICENSE.md
+_analysis/latest-2026-09-10/bliss-Stable/Bliss-Shader-Stable/shaders/texture/noises.png
+
+astra  bliss-nether-noise.png                           695035 77d1aa0c2195a4f6
+up     _analysis\latest-2026-09-10\bliss-Stable\Bliss-Shader-Stable\shaders\texture\noises.png   695035 77d1aa0c2195a4f6  IDENTICAL
+up     _analysis\latest-2026-09-10\bliss-shader\shaders\texture\noises.png   695035 77d1aa0c2195a4f6  IDENTICAL
+
+$ grep -n -i 'bliss' Astra/THIRD-PARTY.md | cut -c1-180 | head -20
+220:- `shaders/global/dimension/nether_volume.glsl`：适配 X0nk Bliss Stable `lib/nether_fog.glsl`（沿程 16 步积分、Plumes/floorPlumes/Erosion/Roof 与 Floor 高度衰减�
+221:- `shaders/textures/bliss-nether-noise.png`：Bliss Stable `shaders/texture/noises.png` 原文件复制，未修改（sha256 前缀 `77d1aa0c2195a4f6`，512×512 RGBA8 与源�
+288:- nether_volume.glsl 继续为 Bliss nether_fog.glsl 派生。指数样点递推是同一表达式的代数改写；顶层烟雾色改为 Complementary 群系色。
+344:- **美术资产与台账自订边界冲突**：`shaders/textures/bliss-nether-noise.png`（695035 字节，sha256 前缀 `77d1aa0c2195a4f6`，Bliss 原件逐字节复制）、
+345:- **`.mcmeta` 不能用作资产来源判据**：`shaders/textures/` 下实测只有两个 `.mcmeta`——`solas-water-noise.png.mcmeta` 与 `steadfast-water-noise.png.mcmeta`�
+
+### [5c] Bliss licence: recorded anywhere in the ledger? and what does it say?
+$ head -30 '_analysis/latest-2026-09-10/bliss-Stable/Bliss-Shader-Stable/LICENSE.md'
+     1	© 2020 Chocapic13. All rights reserved.
+$ grep -n -i -e 'license' Astra/THIRD-PARTY.md | grep -i -e bliss ; echo EXIT=$?  (1 = no Bliss licence line)
+EXIT=1 (1 = Bliss licence never stated)
+
+$ sed -n '10,17p' Astra/THIRD-PARTY.md | cut -c1-120   # the 'reference-pack licence facts' table rows
+| 包 | 版本 | 许可 | 借用政策（个人使用期） |
+|---|---|---|---|
+| Mellow | v3.4 | 根许可证 MIT（`Copyright (c) 2026 TheCMK`）**但包内逐文件中继第三方声明** | 自由，保留出处注释
+| Steadfast | 0.8.0 | GPLv3 + 两条 §7 附加条款（作者 coderbot） | 自由；文件头保留 GPL 声明。**7b**：任何传播 Ste
+| Complementary | r5.9（Reimagined / Unbound，2026-09-02） | **Complementary License Agreement 1.7**（专有，非 GPL；`License.txt` �
+| Refrax | v1.3.1 | 保留所有权利 | 允许借鉴；结构级照抄须逐处登记 |
+| Solas | V2.2b | 未声明（默认版权） | 同上 |
+
+
+### [5d] does the ledger ever state Bliss's licence (ARR / Chocapic13)?
+$ grep -n -e 'Chocapic13' -e 'ARR' -e 'All rights' -e '保留所有权利' Astra/THIRD-PARTY.md | cut -c1-160
+15:| Refrax | v1.3.1 | 保留所有权利 | 允许借鉴；结构级照抄须逐处登记 |
+39:| `shaders/global/post/bloom.glsl` + `shaders/program/composite1.fsh`（pass 体） | Refrax v1.3.1（`lib/bloom.glsl` 的 bloomPrefilter 软阈值、`program/bloom_do
+40:| `shaders/program/scattering.fsh` 的 `godrays_sun_visibility()` 与 `shaders/program/final.fsh` 的读回 | LIGHT Shaders 1.8.0（Chocapic13' 谱系）。思路出�
+54:| `shaders/global/water/light_shafts.glsl` | Solas V2.2b `lib/atmosphere/volumetricLight.glsl`：视线阴影积分思路；**2026-09-21 T13 追加 Solas V3.7b `lib/at
+56:| `shaders/global/post/exposure.glsl`（2026-09-21 T15 新增 `AUTO_EXPOSURE`） | Refrax v1.3.1：`program/exposure.fsh.glsl:27-55` 的屏幕空间自动曝光结构�
+
+$ grep -rn -i -e 'all rights reserved' -e 'ARR' Astra/shaders/ | head -20
+Astra/shaders/\block.properties:10:#   10007 end portal/gateway starry effect
+Astra/shaders/\block.properties:30:block.10004=minecraft:wither_rose minecraft:lily_of_the_valley minecraft:cornflower minecraft:sweet_berry_bush minecraft:oxeye_daisy minecraft:pink_tulip minecraft:white_tulip minecraft:orange_tulip minecraft:red_tulip minecraft:azure_bluet minecraft:allium minecraft:blue_orchid minecraft:poppy minecraft:dandelion minecraft:oak_sapling minecraft:spruce_sapling minecraft:birch_sapling minecraft:jungle_sapling minecraft:acacia_sapling minecraft:dark_oak_sapling minecraft:cherry_sapling minecraft:short_grass minecraft:grass minecraft:fern minecraft:closed_eyeblossom minecraft:open_eyeblossom minecraft:pale_oak_sapling minecraft:bush minecraft:firefly_bush minecraft:beetroots minecraft:potatoes minecraft:carrots minecraft:wheat minecraft:melon_stem minecraft:pumpkin_stem minecraft:cactus_flower minecraft:short_dry_grass minecraft:tall_dry_grass minecraft:torchflower minecraft:wildflowers minecraft:leaf_litter minecraft:mangrove_propagule minecraft:hanging_roots minecraft:spore_blossom minecraft:small_dripleaf minecraft:bamboo_sapling
+Astra/shaders/\block.properties:38:# Blocks that should have the end starry effect
+Astra/shaders/\entity.properties:15:entity.100=minecraft:experience_orb minecraft:experience_bottle minecraft:fireball minecraft:small_fireball minecraft:dragon_fireball minecraft:wither_skull minecraft:spectral_arrow minecraft:shulker_bullet minecraft:firework_rocket minecraft:tnt
+Astra/shaders/\shaders.properties:9:# with a distance-weighted 4-tap kernel, so half resolution carries it. The earlier
+Astra/shaders/\shaders.properties:61:# nether/end carry a fixed per-dimension multiplier in global/post/grading.glsl instead,
+Astra/shaders/\shaders.properties:352:# the name Iris compares carries the world folder - so the keys read
+Astra/shaders/\global\atmosphere\weather.glsl:44:// 或粗糙度" vs "真正积水：才出现明显天空和物体反射"), which is BSL's arrangement:
+Astra/shaders/\global\atmosphere\weather.glsl:48:// deliberately narrow (one third of ten-block cells, an edge fade inside each, plus a
+Astra/shaders/\global\atmosphere\weather.glsl:60:// what drives the reflection - that is astra_puddle(), which program/lit.fsh carries to
+Astra/shaders/\global\atmosphere\weather.glsl:98:// whole field, which is what carries the sparse mask to the reflection stage: the
+Astra/shaders/\global\atmosphere\fog.glsl:206:// atmosphere owner (D2) and is expected to already carry the sunrise intensity.
+Astra/shaders/\global\atmosphere\clouds_planar.glsl:10://        cloudNarrowness, GetRoundedCloudCoord, ModifyTracePos
+Astra/shaders/\global\atmosphere\clouds_planar.glsl:56:const float ASTRA_CLOUD_NARROWNESS = 0.07;
+Astra/shaders/\global\atmosphere\clouds_planar.glsl:85:	tracePos.xz *= ASTRA_CLOUD_NARROWNESS;
+Astra/shaders/\global\lighting\blocklight.glsl:30://     (held_light_strength), not carried in: held light has no lightmap, it is purely
+Astra/shaders/\global\lighting\blocklight.glsl:90:	float heldLightIntensity  = pow4(heldLight);   // heldLight already carries HANDHELD_LIGHT_STRENGTH
+Astra/shaders/\global\lighting\diffuse.glsl:34://     arrive as explicit parameters and the material categories as caller booleans (same
+Astra/shaders/\global\lighting\diffuse.glsl:41://     arrive via LightParams, exactly as B2's fog.glsl takes its D2-owned FogParams colours.
+Astra/shaders/\global\lighting\diffuse.glsl:112://     carried through an E1 varying.
+
+### [5e] Bliss rows in the ledger (exact lines, readable)
+:220 - `shaders/global/dimension/nether_volume.glsl`：适配 X0nk Bliss Stable `lib/nether_fog.glsl`（沿程 16 步积分、Plumes/floorPlumes/Erosion/Roof 与 Floor 高度衰减结构、haze/ceiling smoke 三段合成）。Astra 侧改动：加入 `ASTRA_NETHER_PLUME_SCALE`/`ASTRA_NETHER_HAZ
+:221 - `shaders/textures/bliss-nether-noise.png`：Bliss Stable `shaders/texture/noises.png` 原文件复制，未修改（sha256 前缀 `77d1aa0c2195a4f6`，512×512 RGBA8 与源一致）。Bliss 用 `texture.noise = texture/noises.png` 的自动绑定；Astra 因 `noisetex` 已占用为自有的 256×256
+:288 - nether_volume.glsl 继续为 Bliss nether_fog.glsl 派生。指数样点递推是同一表达式的代数改写；顶层烟雾色改为 Complementary 群系色。
+:344 - **美术资产与台账自订边界冲突**：`shaders/textures/bliss-nether-noise.png`（695035 字节，sha256 前缀 `77d1aa0c2195a4f6`，Bliss 原件逐字节复制）、`shaders/textures/complementary-cloud-water.png`（128888 字节，前缀 `49174f769c70f0d1`）、`shaders/textures/solas-water-no
+:345 - **`.mcmeta` 不能用作资产来源判据**：`shaders/textures/` 下实测只有两个 `.mcmeta`——`solas-water-noise.png.mcmeta` 与 `steadfast-water-noise.png.mcmeta`，均 67 字节、内容逐字节相同（`{"texture":{"blur":true,"clamp":false}}`，CRLF，sha256 前缀 `e9c800d49d941e58`），而 `
+
+### [1f] keyword census restricted to the shipped pack Astra/ (item 1 numbers)
+  MIT                          hits=70    files=12 ['README.md', 'THIRD-PARTY.md', 'shaders/block.properties', 'shaders/global/post/grading.glsl', 'shaders/lib/dither.glsl', 'shaders/lib/encoding.glsl', '...']
+  GPL                          hits=45    files=16 ['README.md', 'THIRD-PARTY.md', 'shaders/global/atmosphere/fog.glsl', 'shaders/global/lighting/blocklight.glsl', 'shaders/global/lighting/diffuse.glsl', 'shaders/global/lighting/shadowmap.glsl', '...']
+  Apache                       hits=6     files=2 ['THIRD-PARTY.md', 'shaders/lib/tonemap.glsl']
+  License/Licence              hits=104   files=28 ['README.md', 'THIRD-PARTY.md', 'shaders/global/atmosphere/fog.glsl', 'shaders/global/lighting/blocklight.glsl', 'shaders/global/lighting/diffuse.glsl', 'shaders/global/lighting/shadowmap.glsl', '...']
+  ARR / all-rights-reserved    hits=5     files=3 ['THIRD-PARTY.md', 'shaders/global/water/light_shafts.glsl', 'shaders/program/scene.glsl']
+  CC0                          hits=0     files=0 []
+  CC BY                        hits=0     files=0 []
+
+  files matching 'Apache': ['THIRD-PARTY.md', 'shaders/lib/tonemap.glsl']
+  files matching 'CC0'   : NONE
+  files matching 'CC BY' : NONE
+
+--- (9b) nether_volume.glsl (Bliss/ARR-derived) header: any rewrite-required/licence marker? ---
+     1	#ifndef ASTRA_NETHER_VOLUME_GLSL
+     2	#define ASTRA_NETHER_VOLUME_GLSL
+     3	// Adapted from X0nk Bliss Stable lib/nether_fog.glsl, retrieved 2026-09-10.
+     4	// Original noise layout; Astra exposure uses lower plume/ceiling density.
+     5	//
+     6	// This volume is composited over the plain nether fog in program/scene.glsl as
+     7	//   result = result * volume.a + volume.rgb
+     8	// which is the single-scattering form: the volume attenuates what is behind it and
+     9	// adds its own in-scattered light exactly once. Do not fold the plain-fog term in
+    10	// here as well, or the medium absorbs twice.
+    11	//
+    12	// Astra density scale. The reference runs this march over a longer distance with more
+    13	// samples; Astra keeps 16 samples and shortens the march, so the per-step densities
+    14	// are dialled down to keep the plumes readable instead of blanketing the view.
+
+### [2l] README.md:54 claims 'Mellow/MIT 逐行移植（6 个 lib 模块 + block 基础表）' — count Mellow-credited files
+$ grep -rl -e 'From Mellow' -e 'Immediate source: Mellow' Astra/shaders/ | sort
+Astra/shaders/\lib\dither.glsl
+Astra/shaders/\lib\encoding.glsl
+Astra/shaders/\lib\tonemap.glsl
+Astra/shaders/\lib\transforms.glsl
+count: $(grep -rl -e 'From Mellow' -e 'Immediate source: Mellow' Astra/shaders/ | wc -l)
+4
+
+$ grep -rn 'Mellow' Astra/shaders/lib/*.glsl Astra/shaders/global/*/*.glsl Astra/shaders/program/* 2>/dev/null | grep -v THIRD | cut -c1-120 | head -20
+Astra/shaders/global/\lighting\blocklight.glsl
+Astra/shaders/global/\lighting\wind.glsl
+Astra/shaders/global/\post\bloom.glsl
+Astra/shaders/global/\post\grading.glsl
+Astra/shaders/lib/\dither.glsl
+Astra/shaders/lib/\encoding.glsl
+Astra/shaders/lib/\tonemap.glsl
+Astra/shaders/lib/\transforms.glsl
+Astra/shaders/lib/\vendor\bakinglab\README.md
+Astra/shaders/program/\composite1.fsh
+
+### [3k] ledger :134 claim: 'grep -rl "^// From Steadfast" shaders/ hits 9 files'
+$ grep -rl '^// From Steadfast' Astra/shaders/ | wc -l ; grep -rl '^// From Steadfast' Astra/shaders/ | sort
+0
+
+$ grep -n -F 'From Steadfast 0.8.0 (GPLv3' Astra/shaders/global/atmosphere/fog.glsl
+5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+$ sed -n '5p' Astra/shaders/global/atmosphere/fog.glsl | od -c | head -3
+0000000   /   /       F   r   o   m       S   t   e   a   d   f   a   s
+0000020   t       0   .   8   .   0       (   G   P   L   v   3       +
+0000040       S   e   c   t   i   o   n       7       a   d   d   i   t
+$ grep -rn -F 'From Steadfast 0.8.0 (GPLv3' Astra/shaders/ | wc -l
+10
+$ grep -rn '^// From Steadfast' Astra/shaders/ | wc -l ; grep -rn 'From Steadfast 0.8.0 (GPLv3' Astra/shaders/ | head -12
+Astra/shaders/\global\atmosphere\fog.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/shaders/\global\lighting\diffuse.glsl:9:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/shaders/\global\lighting\blocklight.glsl:9://   - held_light_strength(), block_lighting(): From Steadfast 0.8.0 (GPLv3 + Section 7
+Astra/shaders/\global\post\godrays.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/shaders/\global\lighting\shadowmap.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/shaders/\global\water\surface.glsl:5:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/shaders/\lib\colors.glsl:11://   - BLOCKLIGHT_COLOR, MIN_AMBIENT_TINT: From Steadfast 0.8.0 (GPLv3 + Section 7
+Astra/shaders/\program\shadow.fsh:2:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/shaders/\program\shadow.vsh:2:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+Astra/shaders/\program\water.glsl:6:// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot:
+$ python -c "..." # exact byte prefix of fog.glsl line 5
+  first 3 bytes of file: b'#if'
+  line 5 raw repr: b'// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms)'
+
+$ # isolate the anchored-grep question
+rc1=1
+rc2=2
+rc3=1
+100
+rc4=0
+$ file/CRLF check:
+Astra/shaders/global/atmosphere/fog.glsl: C source, Unicode text, UTF-8 text
+line5 hex tail: 0000100   c   o   d   e   r   b   o   t  \n
+0000111
+
+NOTE: this environment's 'grep' is ugrep and mis-parses patterns starting with ^// - use -- or python.
+rc=1
+$ python authoritative count of files whose line begins exactly '// From Steadfast'
+  files: 9
+    global/atmosphere/fog.glsl
+    global/lighting/diffuse.glsl
+    global/lighting/shadowmap.glsl
+    global/post/godrays.glsl
+    global/water/surface.glsl
+    lib/distort.glsl
+    program/shadow.fsh
+    program/shadow.vsh
+    program/water.glsl
+
+  ledger :134 states this grep hits 9 files; measured: 9
+
+### [3l] named upstream source files exist locally (sampled entries)
+  OK      _analysis/Refrax_v1.3.1/shaders/lib/bloom.glsl
+  OK      _analysis/Refrax_v1.3.1/shaders/program/bloom_downsample.fsh.glsl
+  OK      _analysis/Refrax_v1.3.1/shaders/program/exposure.fsh.glsl
+  OK      _analysis/Refrax_v1.3.1/shaders/lib/thunder.glsl
+  OK      _analysis/Complementary r5.9/Reimagined/shaders/lib/lighting/mainLighting.glsl
+  OK      _analysis/Complementary r5.9/Reimagined/shaders/lib/lighting/cloudShadows.glsl
+  OK      _analysis/Steadfast-0.8.0/shaders/environment/lighting/diffuse.glsl
+  OK      _analysis/Steadfast-0.8.0/shaders/shaders.properties
+  OK      _analysis/Solas Shader V2.2b/shaders/lib/water/waterCaustics.glsl
+  OK      _analysis/Solas Shader V2.2b/shaders/lib/post/computeBloom.glsl
+  OK      _analysis/Solas Shader V2.2b/shaders/lib/post/getBloom.glsl
+  OK      _analysis/latest-2026-09-10/bliss-Stable/Bliss-Shader-Stable/shaders/lib/nether_fog.glsl
+  MISSING _analysis/performance-study-2026-09-16/bsl-shaders/shaders/lib/lighting/shadows.glsl
+
+### [3m] Refrax/Solas/Complementary licence texts available locally? (for the ARR packs the pack borrows)
+total 44
+-rw-r--r-- 1 杨铭 197121 939 Jul  7 21:19 LICENCE.txt
+drwxr-xr-x 1 杨铭 197121   0 Aug  9 00:37 shaders
+shaders
+block.properties
+composite.csh
+composite.fsh
+composite.vsh
+composite1.fsh
+composite1.vsh
+composite10.fsh
+composite10.vsh
+
+$ find _analysis -name 'shadows.glsl' -path '*bsl*' ; find _analysis/performance-study-2026-09-16/bsl-shaders -name 'shadows*'
+_analysis/performance-study-2026-09-16/bsl-shaders/source/shaders/lib/lighting/shadows.glsl
+_analysis/performance-study-2026-09-16/bsl-shaders/source/shaders/lib/lighting/shadows.glsl
+$ find _analysis -maxdepth 3 -iname '*bsl*' -o -path '*bsl*' -name 'LICENSE*' | head
+
+$ cat '_analysis/Refrax_v1.3.1/LICENCE.txt'
+Refrax License
+
+Copyright (c) coredex-source 2025-2026
+
+All Rights Reserved.
+
+No permission is granted to copy, redistribute, sublicense, sell, or publish
+Refrax, in whole or in part, without explicit written permission from
+coredex-source.
+
+You may use Refrax for personal gameplay and for screenshots or videos made
+from gameplay. Any other use, distribution, or derivative work requires explicit
+written permission from coredex-source unless a separate file or written notice
+says otherwise.
+
+REFRAX IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+
+$ ls -a '_analysis/Solas Shader V2.2b/' ; find '_analysis/Solas Shader V2.2b' -maxdepth 3 -iname '*licen*' -o -maxdepth 3 -iname '*.txt'
+.
+..
+shaders
+
+$ grep -n 'GetCloudShadow' '_analysis/performance-study-2026-09-16/bsl-shaders/source/shaders/lib/lighting/shadows.glsl' | head -3
+295:float GetCloudShadow(vec3 worldPos) {
+$ grep -n 'CLOUD_REVEAL' '_analysis/performance-study-2026-09-16/bsl-shaders/source/shaders/lib/lighting/shadows.glsl' | head -3
+325:	#ifdef CLOUD_REVEAL
+$ grep -n 'sqrt3(1.0 - abs(EdotL))' '_analysis/Complementary r5.9/Reimagined/shaders/lib/lighting/cloudShadows.glsl'
+21:            float EdotL = dot(eastVec, lightVec);
+22:            float EdotLM = tan(acos(EdotL));
+29:            vec3 cloudOffset1 = vec3(distToCloudLayer1 / EdotLM, 0.0, 0.0);
+44:                vec3 cloudOffset2 = vec3(distToCloudLayer2 / EdotLM, 0.0, 0.0);
+60:            cloudSample *= sqrt3(1.0 - abs(EdotL));
+
+### [2m] does any Astra/ file ship the Refrax ARR notice or Bliss ARR notice, as RD-required markers require?
+$ grep -rln -e 'All Rights Reserved' -e 'all rights reserved' Astra/shaders/
+Astra/shaders/\program\scene.glsl
+files carrying 'REWRITE REQUIRED':
+Astra/shaders/\global\lighting\blocklight.glsl
+Astra/shaders/\global\post\bloom.glsl
+Astra/shaders/\lib\colors.glsl
+
+### [2n] python scan (authoritative): 'REWRITE' markers and ARR wording inside the pack
+--- pattern 'REWRITE' ---
+   THIRD-PARTY.md:39  | `shaders/global/post/bloom.glsl` + `shaders/program/composite1.fsh`（pass 体） | Refrax v1.3.1（`lib/bloom.glsl` 的 bloomPr
+   THIRD-PARTY.md:50  | `shaders/global/dimension/nether.glsl` | Solas V2.2b（`lib/common.glsl` 的维度裁剪、其多云雾噪声塑形结构）+ Mellow v3.4（`lib/colors.glsl
+   THIRD-PARTY.md:51  | `shaders/global/dimension/end.glsl` | Mellow v3.4（`lib/colors.glsl:42,70,74,78,82` 调色数值；`global/atmosphere/sky.glsl:54
+   THIRD-PARTY.md:138  - REWRITE REQUIRED before distribution`，**发布前须重写**（思路保留、表达自写）；其余行仍为
+   THIRD-PARTY.md:139  结构借鉴/仅思路级别。Solas 侧现为**六行**：三行结构借鉴（`program/shadow.fsh` 的染色思路、`global/dimension/nether.glsl` 的 cloudy-fog 噪声塑形、`global/di
+   shaders/global/lighting/blocklight.glsl:20  //     PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - REWRITE REQUIRED before distribution
+   shaders/global/post/bloom.glsl:13  //   (13-tap dual-filter downsample). REWRITE REQUIRED before distribution.
+   shaders/global/water/particles.glsl:11  // Astra 自写——发布闸门（SC-14）不受影响，无需 REWRITE 标记。
+   shaders/lib/colors.glsl:20  //     PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - REWRITE REQUIRED before distribution
+   (9 hit lines)
+--- pattern 'All Rights Reserved' ---
+   THIRD-PARTY.md:55  | `shaders/program/scene.glsl`（2026-09-21 T14 新增 `CLOUD_SHADOWS` 地面云影臂） | BSL（`lib/lighting/shadows.glsl:295-374` 的 `Get
+   shaders/program/scene.glsl:239  // PROVENANCE: BSL (lib/lighting/shadows.glsl:295-374, All Rights Reserved) +
+   (2 hit lines)
+--- pattern 'all rights reserved' ---
+   (0 hit lines)
+--- pattern 'proprietary' ---
+   THIRD-PARTY.md:39  | `shaders/global/post/bloom.glsl` + `shaders/program/composite1.fsh`（pass 体） | Refrax v1.3.1（`lib/bloom.glsl` 的 bloomPr
+   THIRD-PARTY.md:137  （软阈值 + 13-tap 下采样），文件头已带 `// PROVENANCE: adapted from Refrax v1.3.1 (proprietary)
+   shaders/global/lighting/blocklight.glsl:16  //   - lightning_point_light(): adapted from Refrax v1.3.1 (proprietary), source:
+   shaders/global/lighting/blocklight.glsl:20  //     PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - REWRITE REQUIRED before distribution
+   shaders/global/lighting/sss.glsl:15  //     Reimagined/License.txt), proprietary — NOT the Steadfast GPL line below. Publish
+   shaders/global/lighting/wind.glsl:16  //   (_analysis/Complementary r5.9/Reimagined/License.txt) — proprietary, and NOT the
+   shaders/global/post/bloom.glsl:11  // PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - structure borrowed from
+   shaders/global/post/exposure.glsl:144  // PROVENANCE: idea-level, Refrax v1.3.1 (proprietary) - IDEA ONLY, no code and no
+   shaders/global/post/grading.glsl:234  // PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - IDEA ONLY, no code and
+   shaders/lib/colors.glsl:18  //   - LIGHTNING_TINT: adapted from Refrax v1.3.1 (proprietary), source:
+   shaders/lib/colors.glsl:20  //     PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - REWRITE REQUIRED before distribution
+   (11 hit lines)
+--- pattern 'ARR' ---
+   THIRD-PARTY.md:54  | `shaders/global/water/light_shafts.glsl` | Solas V2.2b `lib/atmosphere/volumetricLight.glsl`：视线阴影积分思路；**2026-09-21 T13
+   shaders/global/atmosphere/clouds_planar.glsl:56  const float ASTRA_CLOUD_NARROWNESS = 0.07;
+   shaders/global/atmosphere/clouds_planar.glsl:85  tracePos.xz *= ASTRA_CLOUD_NARROWNESS;
+   shaders/global/water/light_shafts.glsl:72  // Solas V3.7b intensity calibration (idea only; expression written for Astra, ARR).
+   shaders/lib/vendor/bakinglab/LICENSE.txt:15  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   shaders/lib/vendor/bakinglab/LICENSE.txt:16  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   shaders/lib/vendor/glsl-tone-map/LICENSE.md:13  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   shaders/lib/vendor/glsl-tone-map/LICENSE.md:14  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   (8 hit lines)
+
+### [2o] BSL / Complementary citation lines re-verified with python
+   BSL shadows.glsl:295  float GetCloudShadow(vec3 worldPos) {
+   BSL shadows.glsl:325  #ifdef CLOUD_REVEAL
+   Comp cloudShadows.glsl:21  float EdotL = dot(eastVec, lightVec);
+   Comp cloudShadows.glsl:22  float EdotLM = tan(acos(EdotL));
+   Comp cloudShadows.glsl:29  vec3 cloudOffset1 = vec3(distToCloudLayer1 / EdotLM, 0.0, 0.0);
+   Comp cloudShadows.glsl:36  float cloudSample = texture2D(gaux4, cloudPos1).b;
+   Comp cloudShadows.glsl:38  float cloudSample = texture2D(cloudWaterTex, cloudPos1).b;
+   Comp cloudShadows.glsl:40  cloudSample *= clamp(distToCloudLayer1 * 0.1, 0.0, 1.0);
+   Comp cloudShadows.glsl:44  vec3 cloudOffset2 = vec3(distToCloudLayer2 / EdotLM, 0.0, 0.0);
+   Comp cloudShadows.glsl:51  float cloudSample2 = texture2D(gaux4, cloudPos2).b;
+   Comp cloudShadows.glsl:53  float cloudSample2 = texture2D(cloudWaterTex, cloudPos2).b;
+   Comp cloudShadows.glsl:55  cloudSample2 *= clamp(distToCloudLayer2 * 0.1, 0.0, 1.0);
+   Comp cloudShadows.glsl:57  cloudSample = 1.0 - (1.0 - cloudSample) * (1.0 - cloudSample2);
+   Comp cloudShadows.glsl:60  cloudSample *= sqrt3(1.0 - abs(EdotL));
+   Comp cloudShadows.glsl:61  cloudShadow = 1.0 - 0.85 * cloudSample;
+   Comp cloudShadows.glsl:84  float cloudSample = 0.0;
+   Comp cloudShadows.glsl:86  cloudSample += texture2DLod(noisetex, csPos + 0.005 * shadowoffsets[i], 0.0).b;
+   Comp cloudShadows.glsl:89  cloudShadow = smoothstep1(pow2(min1(cloudSample * 0.2)));
+
+### [3n] ledger :50/:51 claim nether.glsl and end.glsl carry 'REWRITE REQUIRED' PROVENANCE headers
+$ python check: does the exact claimed marker exist in those two files?
+--- global\dimension\nether.glsl : 213 lines ---
+    PROVENANCE                         count=0
+    REWRITE                            count=0
+    PROVENANCE: rewritten for Astra    count=0
+--- global\dimension\end.glsl : 78 lines ---
+    PROVENANCE                         count=0
+    REWRITE                            count=0
+    PROVENANCE: rewritten for Astra    count=0
+
+$ sed -n '1,20p' Astra/shaders/global/dimension/nether.glsl | cat -n
+     1	// Astra Nether integration: Complementary r5.9 mainLighting/common biome palette.
+     2	// Homogeneous fog shares the biome palette with lighting; no endpoint noise.
+     3	// The two directionShade squares are intentional reference behavior.
+     4	#ifndef ASTRA_GLOBAL_DIMENSION_NETHER_GLSL
+     5	#define ASTRA_GLOBAL_DIMENSION_NETHER_GLSL
+     6	
+     7	#include "/lib/colors.glsl"
+     8	#include "/lib/encoding.glsl"
+     9	// Included from scene.glsl, which already guards on DIMENSION_NETHER; the option
+    10	// itself uses a plain #ifdef so Iris registers the boolean (SC-28).
+    11	#ifdef NETHER_VOXEL_LIGHT
+    12	    #include "/global/dimension/nether_colored_light.glsl"
+    13	#endif
+    14	
+    15	struct NetherParams {
+    16		vec3  biomeFogColor;   // vanilla fogColor (sRGB-ish 0..1), per nether biome — E1 supplies
+    17		float nightVision;     // built-in (not frozen): 0..1, lifts the ambient floor only
+    18		float heldLightBase;   // CPU pow(heldBlockLightValue / 15, 4), 0..1 — see C1 blocklight.glsl
+    19	};
+    20	
+
+$ sed -n '1,18p' Astra/shaders/global/dimension/end.glsl | cat -n
+     1	#ifndef ASTRA_GLOBAL_DIMENSION_END_GLSL
+     2	#define ASTRA_GLOBAL_DIMENSION_END_GLSL
+     3	#include "/global/dimension/end_blackhole.glsl"
+     4	// Solas V2.2b: common.glsl End palette, skyEffects.glsl stars/nebula,
+     5	// fog.glsl distance curve and gbuffersLighting.glsl shadow mix.
+     6	// Astra: linear HDR boundary, full-screen sky, emissive stellar disc instead
+     7	// of vortex, and no atmospheric cloud layers. See THIRD-PARTY.md.
+     8	#include "/lib/colors.glsl"
+     9	#include "/lib/encoding.glsl"
+    10	#include "/lib/solas_water.glsl"
+    11	struct EndParams { float nightVision; float heldLightBase; };
+    12	const vec3 END_SKY_LIGHT_COLOR = vec3(0.34,0.39,0.52);
+    13	const vec3 END_AMBIENT_COLOR = vec3(0.043,0.055,0.077);
+    14	const vec3 END_VOID_COLOR = vec3(0.000015,0.000025,0.00006);
+    15	vec3 end_void_tint(float y) { return END_VOID_COLOR; }
+    16	// The voidTint/time parameters were never consumed by the body and are gone
+    17	// (consolidated review E5 / Qoder F-52).
+    18	vec3 end_sky(vec3 dir) {
+
+================================================================================
+### [3-SUMMARY] sample-10 registry table -> measured (item 3)
+登记行 | 类型 | 实测命令 | 结论
+TP:22 tonemap.glsl | GLSL verbatim (Seguin/MJP via Mellow) | python qa/tools/verify_tonemap_chain.py | CONFIRMED (7 functions; 6 identical char-for-char, agx_cdl +15 chars Astra guard); PASS line printed
+TP:26 lib/distort.glsl | Steadfast expression port | diff upstream fn body vs Astra | CONFIRMED (same expr 'length(pos)+SHADOW_DISTORT_FACTOR'); header cites GPL but Astra/LICENSE has no GPL text
+TP:23 lib/encoding.glsl | Mellow port | head + ls Mellow lib/{util,transformations,noise}.glsl | CONFIRMED (header + all 3 upstream files present)
+TP:37 lighting/wind.glsl | Complementary port, 'no Steadfast expression survives' | grep -n Steadfast wind.glsl | CONFIRMED (6 hits, all historical-provenance prose); upstream wavingBlocks.glsl present
+TP:204 global/water/reference_light.glsl | registered as DELETED 2026-09-21 B3 | ls + grep -rn reference_light | CONFIRMED (file absent; only a comment mention at program/water.glsl:248)
+TP:56 global/post/exposure.glsl | Refrax IDEA ONLY | python probe 'fract(uv * 64.0)' upstream=1 astra=0 | CONSISTENT (discriminator absent); marker lives at :144 not in the file header
+TP:39 global/post/bloom.glsl | Refrax formula-level port | head -16 | CONFIRMED (PROVENANCE 'REWRITE REQUIRED' present); upstream lib/bloom.glsl + bloom_downsample.fsh.glsl present
+TP:209 textures/complementary-cloud-water.png | Complementary verbatim | sha256 prefix 49174f769c70f0d1 vs 3 upstream copies | CONFIRMED identical to all 3
+TP:312 vendor/bakinglab/ACES.hlsl.orig | vendor archive | sha256 0dab4dbfbd748dd4... full match; cmp vs _analysis/bakinglab/ACES.hlsl | CONFIRMED IDENTICAL
+TP:14/135 atmosphere/{sky_gradient,stars,clouds_planar} | Complementary ports | full path in ledger = 0; brace-glob at :135 | REGISTERED (glob form only)
+TP:50/51 dimension/nether.glsl + end.glsl | Solas ARR + Complementary + Refrax, header mark 'PROVENANCE ... REWRITE REQUIRED' | python count PROVENANCE/REWRITE in both files | MISMATCH: 0 occurrences in either file
+TP:> blocklight.glsl / lib/colors.glsl | GPL + Refrax derivation | full path in ledger = 0, table row = none | UNREGISTERED (see findings)
+TP:220 dimension/nether_volume.glsl | Bliss (ARR) port | upstream at bliss-Stable/Bliss-Shader-Stable/shaders/lib/nether_fog.glsl | UPSTREAM OK, LICENCE UNRECORDED
+
+================================================================================
+### [SUMM.] graded findings (a9)
+P0  GPL-3.0 text + Steadfast Section 7 terms are cited by in-pack files but shipped nowhere in the pack
+      files: lib/distort.glsl:5, global/atmosphere/fog.glsl:9, global/lighting/{blocklight:14,diffuse:14,shadowmap:10},
+             global/post/godrays.glsl:9, global/water/{refraction:4,surface:11}, program/{shadow.fsh:6,shadow.vsh:6,water.glsl:9}
+      evidence: grep -rl 'GNU GENERAL PUBLIC LICENSE' Astra/ -> none; ls Astra/_analysis -> No such file or directory
+P0  Complementary License 1.7 conditions unmet: no License.txt in pack (1.3b), own licence terms present (1.3e), no credit in README (1.3a)
+P0  Bliss = 'All rights reserved' (local LICENSE.md) yet a verbatim PNG + a derived GLSL ship; licence never stated in the ledger
+P1  global/lighting/blocklight.glsl + lib/colors.glsl: third-party derivation headers, zero ledger registration
+P1  ledger :50/:51 header marks ('PROVENANCE ... REWRITE REQUIRED') do not exist in nether.glsl / end.glsl
+P1  README.md:54 licence summary omits Complementary/Bliss/LIGHT/BSL and understates the Steadfast scope vs :134
+P2  vendor/README.md:41 declares an SPDX tag convention; 0 files carry SPDX
+P2  vendor/README.md:3 cites Astra/design.md (absent); Astra/LICENSE:2 cites .specs/astra-shader/design.md (outside pack)
+P2  check_pack item 15 licence-body list is case-sensitive: blind to the GPLv3 mixed-case notice, Section 7 wording, Apache, CC-BY
+P2  ledger 'file header' wording for exposure.glsl (:144/161) and grading.glsl (:234/244)
+P2  README.md:54 '6 Mellow lib modules' vs 4 files carrying a Mellow credit
+
+### [SUMM.] verified-clean (positive evidence)
+  - lib/vendor/ isolation: 11 files, every hash matches the ledger; both upstream LICENSE files byte-identical to upstream (cmp IDENTICAL)
+  - all 7 registry PNG hashes + 2 .mcmeta match the ledger exactly; solas/complementary/bliss PNGs byte-identical to their upstream copies
+  - steadfast-water-noise.png: no byte-identical twin anywhere in the repo (0 twins) -> matches the ledger's own 'not reproducible in-repo' note at :195/:344
+  - 9 '// From Steadfast' files = ledger :134 stated 9 (python count)
+  - qa/tools/verify_tonemap_chain.py PASS
+  - Complementary r5.9 §7-free content: no CC0/CC BY text anywhere in the pack (0 hits)
+
+### [SUMM.] could NOT be verified
+  - anything needing a running Iris instance (in-engine licence/conveyance behaviour, textures actually bound)
+  - upstream originals for Solas V2.2b and Refrax have no licence file in the local copies, so 'undeclared'/'ARR' rests on the local trees only
+  - whether the shipped pack is ever conveyed publicly (SC-14 publish gate) - the §7b/§1.3 conditions bind conveyance, and no conveyance artefact exists in-repo
+  - network fetches of upstream licence texts (no fetch used; all comparisons are against local copies)
+  - LIGHT Shaders 1.8.0 archive is not present locally (ledger :40 already says 'the original directory has been cleaned up') -> the Chocapic13 file:line citations cannot be checked
+================================================================================
+
+### [FINAL] precision checks for the report
+files citing '_analysis/Steadfast-0.8.0/LICENSE.md' : 10
+    shaders/global/atmosphere/fog.glsl
+    shaders/global/lighting/blocklight.glsl
+    shaders/global/lighting/diffuse.glsl
+    shaders/global/lighting/shadowmap.glsl
+    shaders/global/lighting/sss.glsl
+    shaders/global/post/godrays.glsl
+    shaders/global/water/surface.glsl
+    shaders/lib/colors.glsl
+    shaders/program/shadow.fsh
+    shaders/program/shadow.vsh
+
+files carrying Steadfast SS7(b) required notice sentence: 0 []
+files mentioning "(edit of coderbot's Steadfast)": 1 ['THIRD-PARTY.md']
+
+in-pack shader files mentioning Complementary: 19
+    shaders/global/atmosphere/clouds_planar.glsl
+    shaders/global/atmosphere/fog.glsl
+    shaders/global/atmosphere/sky_gradient.glsl
+    shaders/global/atmosphere/sky_minishita.glsl
+    shaders/global/atmosphere/stars.glsl
+    shaders/global/dimension/nether.glsl
+    shaders/global/dimension/nether_volume.glsl
+    shaders/global/dimension/overworld.glsl
+    shaders/global/lighting/diffuse.glsl
+    shaders/global/lighting/sss.glsl
+    shaders/global/lighting/wind.glsl
+    shaders/lib/pow.glsl
+    shaders/lib/twilight.glsl
+    shaders/program/lit.fsh
+    shaders/program/scene.glsl
+    shaders/program/water.glsl
+    shaders/shaders.properties
+    shaders/world-1/final.fsh
+    shaders/world1/final.fsh
+
+files mentioning 'REWRITE REQUIRED': ['THIRD-PARTY.md', 'shaders/global/lighting/blocklight.glsl', 'shaders/global/post/bloom.glsl', 'shaders/lib/colors.glsl']
+
+$ git status --porcelain   # final
+?? docs/2026-09-21-current-state-review.md
+?? qa/review-2026-09-21-checkpack.log
+?? qa/review-2026-09-21-compile-default.log
+?? qa/review-2026-09-21-design-drift-1-design-assertions.log
+?? qa/review-2026-09-21-design-drift-2-handoff-references.log
+?? qa/review-2026-09-21-license-a9.log
+$ wc -l qa/review-2026-09-21-license-a9.log
+2197 qa/review-2026-09-21-license-a9.log
+
+### [FINAL-2] which in-pack files point the reader at Astra/LICENSE (a licence text it does not contain)?
+   shaders/global/atmosphere/fog.glsl:8  // License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+   shaders/global/lighting/blocklight.glsl:13  //     License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+   shaders/global/lighting/diffuse.glsl:13  // License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+   shaders/global/lighting/shadowmap.glsl:9  // Public License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+   shaders/global/lighting/sss.glsl:23  //     General Public License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+   shaders/global/post/godrays.glsl:8  // License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+   shaders/global/water/refraction.glsl:4  // GPL-3.0-or-later with Section 7 terms; see Astra/LICENSE and THIRD-PARTY.md.
+   shaders/global/water/surface.glsl:10  // Public License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+   shaders/lib/colors.glsl:15  //     License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+   shaders/lib/distort.glsl:5  // GPL-3.0-or-later with its Section 7 additional terms; see Astra/LICENSE
+   shaders/program/shadow.fsh:5  // License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+   shaders/program/shadow.vsh:5  // License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+   shaders/program/water.glsl:10  // Astra/LICENSE and THIRD-PARTY.md. Dielectric and path reconstruction below
+   total 13 line(s)
+
+   does Astra/LICENSE contain 'GPL-3.0-or-later' anywhere? False
+   does Astra/LICENSE contain 'Section 7'?          False
+   Astra/LICENSE full text (445 bytes) follows:
+Astra Shader v1 — License (interim)
+
+Interim status: PERSONAL USE ONLY (per .specs/astra-shader/design.md §9).
+This pack borrows code from third-party shaderpacks under licenses that do not
+yet permit redistribution; see THIRD-PARTY.md for the per-module ledger.
+
+Before any public release, the publication gate (design.md §9.3) must be run:
+rewrite/replace GPL or all-rights-reserved derived modules, then re-decide the
+final license here.
+

@@ -1,0 +1,44 @@
+# 审查日志 3/3 — Astra/README.md ↔ design.md ↔ 源码 三方交叉核对
+# 审查日期：2026-09-21  分支：main  性质：只读取证（未修改任何仓库文件）
+# 依据：本文件全部结论只来自本次实读的 Astra/README.md（62 行）、
+#       .specs/astra-shader/design.md（549 行）、Astra/shaders/** 与
+#       一次只读实跑 `python qa/tools/check_pack.py`（该脚本无文件写入，仅 stdout）。
+#       未使用 docs/2026-09-20-*.md 等历史审查报告。
+
+## 0. 总体印象（先说结论）
+README 比 design.md **维护得更新**：三档 profile 取舍、出厂 SKY_MODE、出厂分级数值、
+check 工具自报数这些点上 README 与源码一致，而 design.md 正文仍是旧值。
+但 README 有 4 条自己的陈旧/错误陈述（含 1 条许可口径被低估），其中 2 条与 design 冲突。
+
+## 1. 一致性核对表（同一事实，三方并列）
+
+| 事实 | README | design.md | 源码（实测） | 判定 |
+|---|---|---|---|---|
+| compute 阶段 | `README:20`「下界体素彩色光为独立例外（9 个 compute 阶段 + 3 张自定义图像，NETHER_VOXEL_LIGHT 可关）」 | §2.1:48/50「零 compute」「无 compute shader」；§5:354「无 compute」；仅 SC-40:518 登记例外 | 9 条 `program.world-1/shadowcomp*.enabled`（`shaders.properties:357-365`）+ `program/nether_light.csh`；`check_pack` #11 自报 `10 compute shader(s)`、`3 custom image(s)`；`settings.glsl:177` 默认开 | **README 正确，design §2.1/§5 未同步**（不一致） |
+| 出厂天空 | `README:22`「出厂默认不是 Minishita——`lib/settings.glsl:85` 为 `SKY_MODE 1`…流畅/均衡两档都取这一档；Minishita 只挂在极致档（`shaders.properties:162` `SKY_MODE=0`）」 | §4.2:249「天空 **Minishita** 迷你物理大气…备选简单渐变模式」；SC-40:520「`SKY_MODE` 出厂=渐变…**不得改回默认**」 | `settings.glsl:85` = `#define SKY_MODE 1`；`shaders.properties:160/161/162` = 1/1/**0** | **README 正确**；design §4.2 表与 SC-40「不得改回默认」均未记录 ULTRA 例外（不一致） |
+| 出厂分级数值 | `README:24`「饱和 100/自然饱和 100/对比 102」 | §4.4:303「起始值：饱和 1.12 / 自然饱和 1.15 / 对比 1.04」；§12:484「FOG=65、SKY_FOG=25、UNDERWATER_FOG=55、SAT=105、VIB=108」 | `settings.glsl:192/194/196` = 100/100/102；`:153/157/165` = 50/15/40 | **README 正确**；design 两处都是旧值（不一致） |
+| 三档阴影参数 | `README:31`「1024/192 格（实体 48）」；`:33`「4096/256 格（实体 96）/8 texel 软化」 | §4.1:240「48/96、64/128、96/192，恒为 0.5」；§4.1:242「SHADOW_SOFTNESS 三档 2/4/16」 | `shaders.properties:160/162` = (1024,192,48) / (4096,256,96,softness 8)；`:161` = (2048,256,64,softness 2) | **README 正确**；design §4.1 旧值（不一致） |
+| 自动曝光 | `README:23`「日光压制（**替代自动曝光**、无闪变）」；但 `README:32` 又把「自动曝光」列为均衡档出厂关闭项 | SC-41:524/528「推翻 §4.1 与 §4.4 中『以日光抑制取代自动曝光』这一排他论断」；SC-41:528 明令 `settings.glsl:49` 措辞就地更正 | `settings.glsl:49-50` 已更正为「It was documented as a replacement for auto-exposure until SC-41 overturned that」；`settings.glsl:189` `//#define AUTO_EXPOSURE`；`global/post/grading.glsl:132` `apply_auto_exposure`；`program/composite5.fsh` → `program/exposure.fsh`（RENDERTARGETS:10） | **README:23 与 design SC-41 冲突，且与 README:32 自相矛盾**（不一致，见 P-4） |
+| Voxy 状态 | `README:14`「远景仅支持 Voxy（实验性）」；`:42`「`VOXY_SUPPORT` 选项默认关」；`:60`「空白 voxy.json 用于不注册 patch；打开 VOXY_SUPPORT 也不会启用 LOD 支持」 | §4.6:336（SC-17）「voxy.json 保持空文件，以明确不注册 Voxy patch」「默认 VOXY_SUPPORT 仍关」；§8.7:428「Voxy 可用（或明确标注实验性与已知问题）」 | `voxy.json` 0 字节；`voxy_opaque.glsl:4` / `voxy_translucent.glsl:4` = `void voxy_emitFragment() { /* TODO(C5) */ }`；`program/lit_voxy.fsh:8` = `void main() { }`；设置默认关 | **三方一致** ✓ |
+| 选项语言覆盖 | `README:12`「七分类，**zh_CN** 全覆盖」 | §3.3:218「语言：`zh_CN`（主）+ `en_US`」；§8.6:427「zh_CN 设置全覆盖」 | 7 个 `screen.*` 组；两 lang 键集合完全相同，71 个选项的 `option.X` + `.comment` 全覆盖（脚本核对 0 遗漏）；**文件名是 `zh_cn.lang`（小写 cn）** | 覆盖达标 ✓；**文件名大小写与 README/design 的写法不一致**（Iris 侧匹配哪一种是无法离线判定项，见 P-6） |
+| 水模块状态 | `README:40`「**两个水模块暂无生产者**：`global/water/surface.glsl`（水面）与 `global/water/raytrace.glsl`（SSR）在任务计划中无人认领实现」 | §4.3:278（SC-15）「将 surface/raytrace 的独立实现**下放 C7**，E2 只消费与集成」 | `global/water/surface.glsl` = 283 行非注释代码、`raytrace.glsl` = 101 行；均被 `program/water.glsl:12-13` include | **README 过期**（与 design 和源码都不符，见 P-5） |
+| 检查工具自报数 | `README:39`「原样自报 `186 compiled entries, **54 lib/global modules, 52 reachable**, …`」+「**16** checks: 0 FAIL, 1 WARN, 15 PASS」 | — | 2026-09-21 实跑：`186 compiled entries, **53 lib/global modules, 51 reachable**, 2 waiting on their owner task, 0 unwired-and-unregistered`；`**17** checks: 0 FAIL, 1 WARN, 16 PASS` | **README 引用的数字已过期**（186 仍对；模块数 54→53、可达 52→51；检查数 16→17） |
+| 参照包无先例的方块 ID 数 | — | §6.E.5:403「顺带核验 `check_pack.py` #7 提示的 **12 个**…方块 ID」 | 实跑 check#7 自报 `**23** minecraft: id(s) absent from all 4 reference packs` | design 数字过期（12→23） |
+| 第三方许可口径 | `README:54`「Refrax 与 Solas **仅分类思路级借鉴**」 | §9.2:447 要求逐行移植的 Refrax/Solas 加 `PROVENANCE: adapted from Refrax v1.3.1 (proprietary) — REWRITE REQUIRED before distribution`；§9.3:451 发布前全部重写 | 源码中确有该 REWRITE REQUIRED 标记：`lib/colors.glsl:20`、`global/lighting/blocklight.glsl:20`、`global/post/bloom.glsl:11-13`（`… REWRITE REQUIRED before distribution.`）；另有真正 idea-only 的 `global/post/grading.glsl:234`、`global/post/exposure.glsl` | **README 低估了 Refrax 的借用级别**，与 design §9.2/§9.3 和源码标记冲突（见 P-3） |
+| 26.x 守卫 / features | `README:16`「`MC_VERSION` 双版本守卫与 `iris.features.required` 尚未写入工程」 | §6:364「`iris.features.required` **在首个被 gate 的特性落地时才声明**…预计无 `CUSTOM_IMAGES` 需求」；SC-11:370 同 | `grep -rn "MC_VERSION\|IS_IRIS" Astra/shaders/` → 0 命中 ✓；但 **存在** `shaders.properties:372` = `iris.features.optional=CUSTOM_IMAGES COMPUTE_SHADERS`（+ `:373-375` 3 张自定义图像） | 字面不假（`required` 确实没有），但「无 features 声明 / 无 CUSTOM_IMAGES 需求」的工程事实已不成立（design §6:364 未同步） |
+| 三档目标帧率 | `README:29-33`「≥144 / ≥90 / ≥60 FPS」 | §1.2:37、§8.2:423 同值 | 无实测数据 | 一致 ✓（均未实测，属无法离线判定） |
+| 模组维度边界 | `README:44`「v1 仅有根层默认链与 world-1/world1 两套覆盖，未建模组维度专属壳」 | §2.2:74（SC-3）「v1 不引入 `world_modded/` 与 `dimension.properties`」 | 无 `world_modded/`、无 `dimension.properties` | 一致 ✓ |
+
+## 2. 命名/结构类不一致（机械可复现）
+1. **lang 文件名**：README:12、design §3.1:156、§3.3:218、ui-language.md:15/23/26 都写 `zh_CN`；
+   磁盘是 `Astra/shaders/lang/zh_cn.lang`。复现：`ls Astra/shaders/lang/`。
+2. **lib 目录清单**：design §3.1:138 列 `noise.glsl`、§3.1:157 列 `tex/ (noise.png)`；
+   实际既无 `lib/noise.glsl` 也无 `noise.png`，目录名是 `textures/`。
+   复现：`find Astra/shaders -name "noise*"` → 空；`ls Astra/shaders/` → `textures`。
+   旁证：`lib/uniforms.glsl:44` 注释仍在引用不存在的 `lib/noise.glsl`。
+
+## 3. 未判定项
+- `zh_cn.lang` 与 `zh_CN.lang` 哪个是 Iris 1.11.2 会去取的键名（需 Iris 源码或实例）。
+- `README:39` 引用的 `qa/glsl-audit-fixes.log`、`qa/checkpack-2026-09-21-b2.log`、
+  `qa/b9-current-state-review-verify-2026-09-21.log:146` 等日志本次未作为依据（属二手材料）。
+- README 的三档 FPS 目标、观感描述属设计目标，不在离线判定范围。

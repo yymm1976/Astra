@@ -55,15 +55,32 @@ vec3 astra_sky_reflection(vec3 worldDir, float roughness) {
     vec3 reflectedSky=astra_sky_radiance(safeDir);
     #if CLOUD_MODE == CLOUD_PLANAR
     // Complementary reflectionBackground reflects the same atmosphere and
-    // clouds. Here a two-fetch density plane replaces a second cloud march.
+    // clouds. The reflection plane reuses the real sheet's own density test
+    // and visible-alpha law (clouds_planar.glsl:219/222-225/315-317) instead
+    // of a private threshold: the old arm started 0.04 below the march's hard
+    // gate, and its travel-based fade erased clouds the sheet still shows --
+    // a shallow ray's slant travel crosses 2400..4000 while its horizontal
+    // distance is still well inside the sheet's own ASTRA_CLOUD_THRESHOLD_F.
     float morning=astra_twilight_strength();
     if (morning>0.0 && safeDir.y>0.025 && cameraPosition.y<ASTRA_CLOUD_ALTITUDE) {
         float travel=(ASTRA_CLOUD_ALTITUDE-cameraPosition.y)/safeDir.y;
         vec3 hit=cameraPosition+safeDir*travel;
-        float density=astra_cloud_noise(hit,ASTRA_CLOUD_ALTITUDE);
-        float bias=mix(0.20,-0.20,CLOUD_COVERAGE*0.01)-0.04-0.28*astraRainFactor;
-        float coverage=smoothstep(0.21+bias,0.43+bias,density)
-                       *(1.0-smoothstep(2400.0,4000.0,travel));
+        vec2 horizontalOffset=hit.xz-cameraPosition.xz;
+        float horizontalDistance2=dot(horizontalOffset,horizontalOffset);
+        float coverage=0.0;
+        if (horizontalDistance2<=ASTRA_CLOUD_THRESHOLD_F*ASTRA_CLOUD_THRESHOLD_F) {
+            float density=astra_cloud_noise(hit,ASTRA_CLOUD_ALTITUDE);
+            float coverageBias=mix(0.20,-0.20,CLOUD_COVERAGE*0.01)-0.04-0.28*astraRainFactor;
+            // The sheet's layer-edge fade term is abs(ALTITUDE-y)/STRETCH; this
+            // plane solve lands exactly on ALTITUDE, so it is the sheet's
+            // mid-layer test with that term at its clamp floor (~0).
+            if (density>0.25+coverageBias) {
+                float distanceRatio=(ASTRA_CLOUD_THRESHOLD_F-sqrt(horizontalDistance2))
+                                    /ASTRA_CLOUD_THRESHOLD_F;
+                float columnDensity=smoothstep(0.21+coverageBias,0.43+coverageBias,density);
+                coverage=sqrt(clamp(distanceRatio,0.0,0.75)*1.33333)*columnDensity;
+            }
+        }
         float toward=cube(max(dot(safeDir,worldSunVector),0.0));
         vec3 body=vec3(0.18,0.15,0.17)+astra_twilight_sunlight()*(0.08+0.13*toward);
         reflectedSky=mix(reflectedSky,body,coverage*morning*0.70);

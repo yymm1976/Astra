@@ -1,0 +1,97 @@
+# 审查日志 1/3 — design.md 可验证断言 → 当前源码 判定
+# 审查日期：2026-09-21  分支：main  性质：只读取证（未修改任何仓库文件）
+# 依据：本文件全部结论只来自本次实读的 .specs/astra-shader/design.md（549 行）与
+#       Astra/shaders/** 当前源码。未使用 docs/2026-09-20-*.md、docs/2026-09-13-*.md
+#       等历史审查报告作为依据。
+# 判定三态：符合 / 偏离 / 无法离线判定
+# 复现：每条给出可直接执行的 grep/sed 命令。
+
+## 0. 本次实读的范围
+- 规格：.specs/astra-shader/design.md（549 行；章节清单用 grep -n "^#\{1,4\} " 取得）
+- 源码：Astra/shaders/**（275 个文件）
+- 关键文件行数：shaders.properties 377、lib/settings.glsl 385、lang/en_US.lang 190、
+  lang/zh_cn.lang 190、program/final.fsh 115、program/scene.glsl（astra_light 在 217）、
+  global/water/light_shafts.glsl 215、global/dimension/nether.glsl 213、global/dimension/end.glsl 78
+
+---
+
+## 1. 断言 → 判定表（22 条 design 断言）
+
+| # | design.md 断言（行） | 判定 | 源码证据 / 反例（file:line + 该行内容） |
+|---|---|---|---|
+| D1 | §2.1:48 标题「零 compute」；:50「无 compute shader」 | **偏离（SC-40 已登记例外，§5:354 未同步）** | 存在 10 个 compute 源文件：`Astra/shaders/world-1/shadowcomp.csh` `shadowcompA..H.csh`（9 个）+ `Astra/shaders/program/nether_light.csh`。默认开启：`Astra/shaders/lib/settings.glsl:177` = `#define NETHER_VOXEL_LIGHT`（未注释）；`Astra/shaders/shaders.properties:161` profile.BALANCED 含 `NETHER_VOXEL_LIGHT`（PERFORMANCE:160 为 `!NETHER_VOXEL_LIGHT`）。门：`shaders.properties:357-365` 9 条 `program.world-1/shadowcompX.enabled=NETHER_VOXEL_LIGHT`。 |
+| D1b | §5:354「免掉的整条管线：…无 compute」 | **偏离（未被 SC-40 覆盖）** | 同 D1。SC-40:518 只写「覆盖 §0/§2.1」，§5:354 仍是无条件「无 compute」。`grep -n "无 compute" .specs/astra-shader/design.md` → :50 与 :354 两处。 |
+| D2 | §2.2:66 `composite` = 「半分辨率空气 godray 密度；水下沿视线累计阴影散射（SC-33）」 | **偏离（pass 名错位）** | `Astra/shaders/program/composite.fsh:1` = `#include "/program/water_state.fsh"`（仅水体状态，写 colortex6）。godray/水下散射实际在 composite2：`Astra/shaders/composite2.fsh:2` = `#include "/program/scattering.fsh"`，门在 `shaders.properties:52-56` 的 `GODRAYS \|\| (UNDERWATER_LIGHT_SHAFTS && SHADOWS && …)`。`program/scattering.fsh:87` = `gl_FragData[0] = vec4(density);` |
+| D3 | §2.2:68 / §4.4:301「composite1 半分辨率缓冲 + mipmap 多级采样」 | **偏离** | `Astra/shaders/shaders.properties:29` = `size.buffer.colortex2=0.25 0.25`（四分之一，非半分辨率）。§2.2:97 表中 colortex2 也写「0.5x」。 |
+| D4 | §2.2:54-69 pass 链只列 shadow / gbuffers_* / composite / deferred / composite1 / final；§2.3:94-101 缓冲表只列 colortex0-4 + 5/6 + shadowcolor0 | **偏离（4 个未登记 pass + 4 个未登记缓冲）** | 磁盘上另有 `Astra/shaders/composite2.fsh` `composite3.fsh` `composite4.fsh` `composite5.fsh`、`Astra/shaders/world1/prepare.fsh`（→`program/end_illumination.fsh`）、`Astra/shaders/world1/deferred1.fsh`。缓冲：`shaders.properties:35` `size.buffer.colortex7=0.25 0.25`、`:36` `colortex8=294 1`、`:38` `colortex9=0.75 0.75`、`:42` `colortex10=1 1` —— colortex7/8/9 在 design.md 全文零命中（`grep -n "colortex7\|colortex8\|colortex9" .specs/astra-shader/design.md` → 0 行）。 |
+| D5 | §2.3:97 colortex1「A 为 0–48 格视线距离」；SC-33:111「RGB=`sqrt(scatter/4)`、A=`min(rayLength,48)/48`」 | **偏离 + 设计内部自相矛盾** | 源码为 128 标度 + 四次方根：`Astra/shaders/global/water/light_shafts.glsl:172` = `return vec4(pow(clamp(integral / 128.0, 0.0, 1.0), vec3(0.25)), rayLength / 128.0);`；`light_shafts.glsl:7` = `const float WATER_SHAFT_MAX_DISTANCE = 128.0;`；解码 `light_shafts.glsl:194` = `return pow(encoded / max(weights, 1e-5), vec3(4.0)) * 128.0;`。第三个数来自 SC-34-F1:499「A 记录 0–96 格距离」——同一设计文档内 48/96/128 三个互斥值。 |
+| D6 | SC-33:111「final 以四邻域、距离权重重建，解码后加到 HDR」 | **偏离（执行者在 composite3，不是 final）** | 水下重建在 `Astra/shaders/program/water_composite.fsh:19` = `shafts = water_shafts_resolve(colortex1, texcoord, rayLength) * (UNDERWATER_SHAFT_STRENGTH * 0.01);`。`program/final.fsh:53` 的 godray 分支条件是 `if (isEyeInWater == 0 && godraysExposure > 0.0)`，final 无水下水路。另：final 的空气路径是 3×3 等权盒（`final.fsh:56-59` 双层 -1..1 循环，`:66` `* (density / 9.0)`），不是「四邻域、距离权重」。 |
+| D7 | SC-33:292 / SC-34-F1:499「水下光束三档为 16/24/32 段」 | **偏离** | 段数 = UNDERWATER_SHAFT_SAMPLES，阶梯 `settings.glsl:143` = `#define UNDERWATER_SHAFT_SAMPLES 7 // [4 5 6 7 8 9 10]`；三档 `shaders.properties:160/161/162` = `=4` / `=7` / `=10`；直接作段数使用 `global/water/light_shafts.glsl:98` = `float minDist = maxDist / float(UNDERWATER_SHAFT_SAMPLES);`，`:102` = `for (int i = 0; i < UNDERWATER_SHAFT_SAMPLES; ++i) {`。 |
+| D8 | SC-27:107「v1 全线使用 Iris 默认缓冲格式，格式 const 一律注释」+ SC-25:105「格式 const 必须声明在入口壳内，禁止放 lib/program 等任何 include 层」；SC-33:111 / SC-41:535 重申「不增加活跃格式 const」 | **偏离（设计文本过期，源码+项目自检工具是更新的一侧）** | 源码确有活跃格式 const：`Astra/shaders/lib/water_buffer_formats.glsl:12` = `const int colortex0Format = R11F_G11F_B10F;`；`:15` `colortex2Format = R11F_G11F_B10F;`；`:16` `colortex4Format = R11F_G11F_B10F;`；`:18` `colortex7Format = RGBA16;`；`Astra/shaders/program/end_illumination.fsh:10` = `const int colortex8Format = RGBA32F;`；`Astra/shaders/program/end_sky_buffer.fsh:9` = `const int colortex9Format = RGBA16F;`。该 lib 被 `program/final.fsh:12` = `#include "/lib/water_buffer_formats.glsl"` 无条件包含。**但**项目自检工具已在 2026-09-10 推翻 SC-27 的禁令并白纸黑字写进注释：`qa/tools/check_pack.py:825-830` = `# SC-27 (revised 2026-09-10): the blanket "no active *Format const" rule was a / # misdiagnosis. Bliss, Complementary Reimagined and Complementary Unbound all / # declare "const int colortex<N>Format = <token>;" and load on Iris 1.11.2`；本次实跑该工具 check#11 PASS、check#14 报告「60 live engine declaration(s) covering 10 buffer(s) … 0 declaration(s) hidden in comments」。故本条**不是构建错误**，而是 design.md 未同步一次已被实测修正的决议；同时入口壳注释自相矛盾：`world1/final.fsh:6` 写 `// SC-27: buffer formats intentionally left at Iris defaults.`，而 `final.fsh:7`（root 壳）写 `// Explicit main-world HDR formats are declared in program/final.fsh.`。 |
+| D9 | §4.1:243「`const bool shadowHardwareFiltering = true;` … 硬件 PCF 是本节采样的前提，不是可选项」 | **偏离（默认 false，且被选项化）** | `Astra/shaders/lib/settings.glsl:346-354`：`#if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE` → `true`，`#else` → `false`。默认 `settings.glsl:61` = `#define SHADOW_FILTER_MODE 0`；三档 `shaders.properties:160/161/162` 均为 `SHADOW_FILTER_MODE=0` → `shadowHardwareFiltering = false`。§4.1:228 直射光行「sampler2DShadow 硬件 PCF」同样只在 ULTRA 之外的默认档不成立。 |
+| D10 | §4.1:242「`SHADOW_SOFTNESS` …（三档 2/4/16）」 | **偏离** | 三档实际 2/2/8：`shaders.properties:160` `SHADOW_SOFTNESS=2`、`:161` `SHADOW_SOFTNESS=2`、`:162` `SHADOW_SOFTNESS=8`；阶梯 `settings.glsl:72` = `#define SHADOW_SOFTNESS 2 // [1 2 4 8 16]`（无 16 档位的三档值）。 |
+| D11 | §4.1:240「本包三档 profile 的实体影距/影距（48/96、64/128、96/192）换算后恒为 0.5」 | **偏离** | 三档实际 48/192、64/256、96/256：`shaders.properties:160` `SHADOW_DISTANCE=192 ENTITY_SHADOW_DISTANCE=48`、`:161` `=256` `=64`、`:162` `=256` `=96`。换算后的常量在 `settings.glsl:322/336/338`：`entityShadowDistanceMul = 0.1666666667` / `0.1666666667` / `0.2500000000`（分母是 shadowDistance×1.5，见 `settings.glsl:243` 注释）——「恒为 0.5」不成立。 |
+| D12 | §5:353「早退：…`shadowDistanceRenderMul=1.0` 盒式剔除」 | **偏离** | `Astra/shaders/lib/settings.glsl:233` = `const float shadowDistanceRenderMul = 1.5;`（与 §2.3:88、SC-13:245 的 1.5 一致，§5:353 自己是孤例）。 |
+| D13 | §4.5:320 下界「熔岩辉光雾：颜色/密度随高度与深度变化（贴近熔岩面更浓更亮）」 | **偏离（只有颜色变，密度不变）** | `Astra/shaders/global/dimension/nether.glsl:75` = `float fogDensity = fragDistance * NETHER_FOG_NEAR_COEFF;`，`:80` = `float fogFactor = 1.0 - exp(-fogDensity * densityScale);` —— fogFactor 只依赖 fragDistance（另有 blindness/水下/熔岩分支覆写），无 worldY / 熔岩面 proximity 项。`nether.glsl:76-79` 只有 BORDER_FOG 的距离项。 |
+| D14 | §4.5:321 下界「独立大气：红/橙渐变天空」 | **偏离（平铺 tint）** | `Astra/shaders/global/dimension/nether.glsl:105` = `vec3 nether_sky(vec3 worldViewDir, vec3 tint) { return tint; }` —— 整个函数体就是返回平铺色，无视向/天顶/地平线变化。 |
+| D15 | §4.5:322 下界「下界特有的暗区呼吸感（blocklight 曲线单独调）」 | **偏离（机制不存在）** | `grep -rn "NETHER_DARK_BREATHING\|NETHER_BREATHING_PERIOD" Astra/shaders/` → 0 命中。`nether.glsl` 全部 NETHER_* 符号清单（`grep -n "NETHER_[A-Z_]*" … | sort -u`）中无这两个。 |
+| D16 | §4.5:320 下界「光照路径重构：无天光/日光」 | **符合** | `grep -n "skylight\|sun\|SKY\|directLight" Astra/shaders/global/dimension/nether.glsl` → 0 命中；`Astra/shaders/program/scene.glsl:224` = `return nether_lighting(albedo, normal, playerPos, blocklight, emissive, portal,` —— 参数表无 skylight/日向；`nether.glsl:159-167` 的光照源只有 netherCol + lava + floor/nightVision。 |
+| D17 | §8.5:426「默认无暗角/颗粒/色差」 | **符合** | `Astra/shaders/lib/settings.glsl:213` = `//#define VIGNETTE // [false true]`（注释即关）；三档 `shaders.properties:160/161/162` 均含 `!VIGNETTE`。无颗粒/色差代码：`grep -rni "grain\|chromatic\|aberration" Astra/shaders/` 仅命中 `post/grading.glsl` 注释与 `program/lit.fsh` 的岩石颗粒噪声（材质细节，非屏幕颗粒）。暗角实现在 `grading.glsl:177-191`，整体包在 `#if defined VIGNETTE` 内。 |
+| D18 | §2.4:117「不设 TAA/FXAA/SMAA 任何 AA pass」 | **符合** | 无 AA pass 文件（`ls Astra/shaders/*.fsh` 无 taa/fxaa/smaa）；`grep -rni "taa\|fxaa\|smaa"` 全部命中注释（`lib/dither.glsl:5`、`global/post/bloom.glsl:29`、`global/water/caustics.glsl:78` 等），无实现。 |
+| D19 | §4.2:256 云影「已落地为 `CLOUD_SHADOWS` 选项…三档一律 `!`」 | **符合** | 默认关 `settings.glsl:95` = `//#define CLOUD_SHADOWS`；三档 `shaders.properties:160/161/162` 均 `!CLOUD_SHADOWS`。有真实消费者：`program/scene.glsl:238` = `#ifdef CLOUD_SHADOWS`，`:255` = `float cloudWeight = 0.75 * static_shadow(skylight)`，`:259` 调 `astra_cloud_transmission`。 |
+| D20 | §3.3:215「60–80 个用户选项」；:216「GUI 主屏 7 分类」；:217「Profile 三档，profile 为完整显式配置」 | **符合** | 选项 71 个（`lib/settings.glsl` 的 define 共 89 项 − 16 个枚举 token − 2 个内部谓词 `ASTRA_UNDERWATER_SHAFTS`/`ASTRA_SCENE_COPY`）。`shaders.properties:136` = `screen=<profile> <empty> [LIGHTING] [SHADOWS] [SKY] <empty> [WATER] [FOG] <empty> [POST] [PERFORMANCE]` → 7 组；每个选项都出现在某个 `screen.*`（脚本核对：0 遗漏）。三档 profile 各含全部 71 个 token（0 遗漏），且 raw 默认与 profile.BALANCED 逐 token 完全一致（脚本核对：NONE mismatches）。 |
+| D21 | SC-4/10/18:179「完整覆盖下面 20 对 gbuffers，禁止部分覆盖」 | **符合** | root/world-1/world1 各 20 个 `gbuffers_*.fsh`，且三者文件名集合用 `diff` 比对完全相同。 |
+| D22 | SC-40:520「`SKY_MODE` 出厂=渐变…在其获得天穹 LUT 之前不得改回默认」 | **偏离（极致档走 Minishita）** | `settings.glsl:85` = `#define SKY_MODE 1`（raw 默认=渐变 ✓）；`shaders.properties:160` `SKY_MODE=1`、`:161` `SKY_MODE=1`、`:162` `SKY_MODE=0`（ULTRA=Minishita）。枚举 `settings.glsl:23-24`：`SKY_MINISHITA 0` / `SKY_GRADIENT 1`。 |
+
+补充判定（同批实读，未列入上表但已核）：
+- D23 §6:364「预计无 CUSTOM_IMAGES 需求（v1 无彩光/无 3D 纹理）」→ **偏离**：`shaders.properties:372` = `iris.features.optional=CUSTOM_IMAGES COMPUTE_SHADERS`，`:373-375` 3 条 `image.*`。SC-40:518 只把彩光登记为「零彩光边界」例外，§6 表内文字未同步；且实际用的是 `optional` 而非 §6/SC-11:370 反复写的 `iris.features.required`。
+- D24 §3.1:138 目录树列 `noise.glsl`、§3.1:157 列 `tex/ (noise.png …)` → **偏离**：`Astra/shaders/lib/noise.glsl` 不存在（`find Astra/shaders -name "noise*.glsl"` → 空），`noise.png` 亦不存在；实际目录名是 `textures/`（`Astra/shaders/textures/`）。`settings.glsl:239` = `// noisetex/noise.png were removed: nothing sampled them`。
+- D25 §3.3:218「语言：`zh_CN`（主）+ `en_US`」→ **偏离（文件名大小写）**：磁盘为 `Astra/shaders/lang/zh_cn.lang`（小写 cn）与 `en_US.lang`。内容覆盖本身达标：两文件键集合完全相同，71 个选项的 `option.X` 与 `option.X.comment` 全部存在（脚本核对 0 遗漏）。
+- D26 §4.6:336（SC-17）「voxy.json 保持空文件，不注册 Voxy patch」→ **符合**：`Astra/shaders/voxy.json` 为 0 字节；`voxy_opaque.glsl:4-6` 与 `voxy_translucent.glsl:4-6` 是 `voxy_emitFragment(){ /* TODO(C5) */ }` 空桩；`program/lit_voxy.fsh:8` = `void main() { }`。
+- D27 §2.4:120「折射/SSR 命中用 `textureGather` min/max 深度拒绝」→ **符合（部分）**：`global/water/refraction.glsl:6` = `vec4 depths = textureGather(depthBuffer, clamp(uv, vec2(0.0), vec2(1.0)));`；`global/lighting/shadowmap.glsl:126` 亦用 textureGather。
+- D28 §3.1 / §9.2 THIRD-PARTY.md 台账 → **符合**：`Astra/THIRD-PARTY.md` 存在（75949 字节），`Astra/LICENSE` 存在。
+- D29 §8.2:423 三档 FPS 与「下界同标准」、§8.3:424 目视三达标、§8.7:428 Voxy 可用性 → **无法离线判定**（需要 Iris 实例与实机画面/帧率；本机无实例）。
+- D30 §6.E.5:403「顺带核验 `check_pack.py` #7 提示的 **12 个**在四个参照包均无先例的方块 ID」→ **偏离**：本次实跑 `python qa/tools/check_pack.py` 的 check#7 自报 `23 minecraft: id(s) absent from all 4 reference packs`（原 12 → 现 23）。设计里列举的 `minecraft:ice`、`blue_ice`、`conduit`、`glass` 仍在名单中。
+- D31 §4.2:251「星星…`v stars` 无银河贴图」→ **符合**：`grep -n "texture\|galaxy\|GALAXY" Astra/shaders/global/atmosphere/stars.glsl` → 0 命中（纯程序化星场，无贴图采样）。
+- D32 §4.3:276（SC-1）「`WATER_ABSORPTION` 为 0–100 滑条，0 = 关」+ 三档水性格 → **符合**：`settings.glsl:126` = `#define WATER_ABSORPTION 100 // [0 10 20 30 40 50 60 70 80 90 100]`；`WATER_CHARACTER` 三个枚举值均被消费（`global/water/absorption.glsl:33` `#if WATER_CHARACTER == WATER_COLD`、`:36` `#elif WATER_CHARACTER == WATER_TROPICAL`，第三值走默认分支）。
+
+---
+
+## 2. design.md 内部自相矛盾（同一事实多处表述不一致，均可 grep 复现）
+
+| 事实 | 位置 A | 位置 B | 位置 C |
+|---|---|---|---|
+| colortex1 距离编码 | §2.3:97「0–48 格」 | SC-33:111「`min(rayLength,48)/48`」 | SC-34-F1:499「0–96 格」；源码 128（见 D5） |
+| composite1 colortex2 分辨率 | §2.3:98「0.5x」 | §2.2:68 / §4.4:301「半分辨率」 | 源码 `shaders.properties:29` = 0.25（见 D3） |
+| godray 执行 pass | §2.2:66「composite」 | §2.3:81「composite2（可选散射）」 | 源码 composite2（见 D2） |
+| 出厂默认色调值 | §4.4:303「起始值：饱和 1.12 / 自然饱和 1.15 / 对比 1.04」 | §12:484「M4 三档当前 FOG=65、SKY_FOG=25、UNDERWATER_FOG=55、SAT=105、VIB=108」 | 源码 `settings.glsl:153/157/165/192/194/196` = 50 / 15 / 40 / 100 / 100 / 102 |
+| 三档影距与实体影距 | §4.1:240「48/96、64/128、96/192，恒为 0.5」 | — | 源码 48/192、64/256、96/256（见 D11） |
+| compute | §2.1:48/50「零 compute」+ §5:354「无 compute」 | SC-40:518「9 个 compute 阶段…一等公民例外（覆盖 §0/§2.1）」 | §5:354 未被覆盖（见 D1b） |
+
+---
+
+## 3. 审查方法备注（可复现清单）
+1. `grep -n "^#\{1,4\} " .specs/astra-shader/design.md` 取章节清单。
+2. `find Astra/shaders -type f | sort`（275 文件）建立被审对象全集；`find Astra -name "*.csh"` 定位 compute。
+3. 选项/档位/语言的机械核对脚本：解析 `lib/settings.glsl` 的 `#define`（含 `//#define` 注释形态）、
+   `shaders.properties` 的 `screen.*` / `profile.*` / `sliders=` / `size.buffer.*` / `program.*`，
+   与两个 lang 文件的 `option.*` 键集合做交叉核对（结果见 D20/D25）。
+4. 所有 file:line 均由 `grep -n` 或 `sed -n 'A,Bp'` 当场读出，未引用二手报告。
+
+## 3b. 源码注释中的同类引用腐烂（与 log 2 的 handoff 腐烂同族，2 条）
+| # | 位置 | 注释声称 | 当前实际 | 判定 |
+|---|---|---|---|---|
+| C1 | `Astra/shaders/shaders.properties:15` | 「Both consumers derive their tap offsets from `textureSize()`, so no source change is needed: `program/final.fsh:54` and `global/water/light_shafts.glsl:140`」 | `final.fsh:54` ✓ 对（`vec2 stepUV = 1.0 / vec2(textureSize(colortex1, 0));`）；但 `light_shafts.glsl:140` 是 `float shade = clamp((texture(shadowtex1, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);`（阴影比较），真正的 `textureSize` tap 起点在 `:177` = `vec2 pixel = 1.0 / vec2(textureSize(shaftMap, 0));` | 半腐烂（1/2 引用失效） |
+| C2 | `Astra/shaders/lib/uniforms.glsl:44` | `uniform float frameTimeCounter;        // lib/noise.glsl wind/water scroll` | `lib/noise.glsl` 不存在（`find Astra/shaders -name "noise*.glsl"` → 空） | 已腐烂，与 §3.1:138 的目录表同源 |
+
+## 4. 未覆盖 / 边界
+- 实机项（Iris 加载、C1503、帧率、观感三对标）本次全部未验，标「无法离线判定」。
+- 本轮未审：block.properties / entity.properties 的方块表完备性、性能预算、许可合规实质判断。
+- D8 的运行时后果（Iris 1.11.2 是否真的 C1503）不在离线可判定范围；**且项目自检工具自身已在
+  `qa/tools/check_pack.py:825-830` 记录该禁令是 misdiagnosis（2026-09-10 revised），并放行活跃
+  格式 const**——因此 D8 按「设计文本过期」定级，不按构建错误定级。这条也说明：design.md 的
+  SC-25/SC-27 字句已落后于工程实践，读到它们的人会得到反向结论。
+- 本报告未核 design.md 关于四个参照包的结构统计（§2.2:73「Refrax v1.3.1 根层 86 个程序、Solas 58/28」）。
+  实测 `_analysis/Refrax_v1.3.1/shaders` 为 84 个 .fsh+.vsh、21 个 gbuffers 对（=42 个文件），
+  计数口径不明（是否含 .csh/properties 未知），且 `_analysis/Solas Shader V2.2b/shaders` 路径不存在，
+  故不作为判定。

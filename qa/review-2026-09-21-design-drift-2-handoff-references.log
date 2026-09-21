@@ -1,0 +1,96 @@
+# 审查日志 2/3 — docs/handoffs/*.md 的 file:line 引用抽查（引用腐烂核验）
+# 审查日期：2026-09-21  分支：main  性质：只读取证（未修改任何仓库文件）
+# 依据：本文件全部结论只来自本次实读的 5 个 handoff 与 Astra/shaders/** 当前源码。
+#       未使用 docs/2026-09-20-*.md 等历史审查报告。
+# 方法：对 handoff 里"断言型句子"中出现的每个 `文件:行`，用
+#       grep -n / sed -n '<N>p' 打开当前源码该行，比对它是否仍是被声称的东西。
+#       判定：存活 / 已腐烂（行号偏移）/ 已腐烂（对象消失）/ 已腐烂（所述事实已变）
+# 被审文件（行数）：nether.md 376、sky-clouds.md 184、terrain-foliage.md 195、
+#                   end.md 103、ui-language.md 34
+
+## A. 结论一句话
+5 个 handoff 中，`sky-clouds.md` 的证据链基本存活（抽查 8 条全部命中，含被复核更新的
+`scene.glsl:238` / `weather.glsl:122-136` / `THIRD-PARTY.md` 行）；`nether.md`、`end.md`、
+`ui-language.md` 大面积腐烂——共 20 条可机械验证的引用已不指向所声称的内容。
+
+---
+
+## B. nether.md —— 14 条腐烂（占本次抽查的绝大多数）
+
+| # | handoff 位置 | 它声称的内容 | 当前该 file:line 的实际内容 | 判定 |
+|---|---|---|---|---|
+| N1 | `nether.md:102` | 「`astra_light()` 现为 `program/scene.glsl:218-250`，下界早返回在第 **225** 行」 | `grep -n "vec3 astra_light\|return nether_lighting" program/scene.glsl` → 声明在 **217** 行，`return nether_lighting(` 在 **224** 行 | 已腐烂（偏移 1 行；区间 218-250 也被拉长为 217-250+） |
+| N2 | `nether.md:106` | 「`shadow_water_depth()`（`global/lighting/shadowmap.glsl:225`）」 | 实际在 **228** 行：`float shadow_water_depth(vec3 playerPos, vec3 shadowPos) {` | 已腐烂（偏移 3 行）。同句「零调用者」的结论仍成立（全包仅 1 处=定义本身） |
+| N3 | `nether.md:111` | 「`water_reference_lighting()`（`global/water/reference_light.glsl:123`）」 | 文件已删除（`ls Astra/shaders/global/water/` 无 `reference_light.glsl`） | 同句已自我声明为历史状态，不计腐烂；但 `:123` 这一行号已无处可查 |
+| N4 | `nether.md:156` | 「`MIN_AMBIENT_COLOR = (MIN_AMBIENT * 0.001) * MIN_AMBIENT_TINT`（`lib/colors.glsl:49`）」 | 实际在 **50** 行；`lib/colors.glsl:49` 是 `const vec3 MIN_AMBIENT_TINT  = vec3(0.33, 0.8, 1.0);` | 已腐烂（偏移 1 行） |
+| N5 | `nether.md:209` | 「`MIN_AMBIENT_TINT = vec3(0.33, 0.8, 1.0)`（`lib/colors.glsl:48`）」 | 实际在 **49** 行 | 已腐烂（偏移 1 行） |
+| N6 | `nether.md:219` | 「`NETHER_CLOUD_SCALE = 0.192`、`NETHER_CLOUD_BAND_OFFSET = 38.4` 与 `lib/noise.glsl` 的 `/noiseTextureResolution * 0.75` 约定一致，已核对，**不得改动**」 | 三个符号/文件全部不存在：`grep -rn "NETHER_CLOUD_SCALE\|NETHER_CLOUD_BAND_OFFSET" Astra/shaders/` → 0 命中；`find Astra/shaders -name "noise*.glsl"` → 空 | 已腐烂（对象消失）。这条被写成"不得改动"的硬约束，指向已不存在的实现 |
+| N7 | `nether.md:230,233` | 「`program/lit.vsh:25-29` 的 `astra_material()`」，代码块引用 `if (id >= 10021 && id <= 10027) return 10u;` | `astra_material()` 现在 **25-32** 行；该判断现在是 **30** 行且范围已变为 `if (id >= 10021 && id <= 10030) return 10u;`；**29** 行是新增的 `if (id == 10012) return 11u;` | 已腐烂（行号 + 被引代码文本双双变化） |
+| N8 | `nether.md:234` | 「调用位置：`program/lit.vsh:29`（写入 `faceData` 的材质位）」 | `lit.vsh:29` = `    if (id == 10012) return 11u;` | 已腐烂（指向了另一条分支） |
+| N9 | `nether.md:236-238` | 「`block.properties:52` 的组 `10022`（Orange）**当前同时含** `minecraft:lava`、`minecraft:magma_block`、`minecraft:torch`、`minecraft:glowstone` 之外的一批方块（`wall_torch`、`jack_o_lantern`、`fire`、`cave_vines`、`campfire`、`lantern`、`shroomlight`）」 | `block.properties:55` = `block.10022=… wall_torch jack_o_lantern cave_vines cave_vines_plant campfire magma_block torch lantern shroomlight`（**不含 lava、不含 glowstone、不含 fire**）；`minecraft:lava` 现在是独立组 `block.properties:76` = `block.10030=minecraft:lava`；`glowstone` 在 `block.properties:57` 的 `10023` | 已腐烂（行号 52→55，且"10022 含 lava"这一事实已不成立） |
+| N10 | `nether.md:293` | 「`ambient_strength()` … 落在 `scene.glsl:16`（先于 nether.glsl 的 `:19`）」 | `program/scene.glsl:16` = `#include "/global/lighting/blocklight.glsl"`；`nether.glsl` 的 include 现在在 `scene.glsl:25` | 已腐烂 |
+| N11 | `nether.md:294` | 「`held_light_strength()` … 落在 `scene.glsl:9`」 | `program/scene.glsl:9` 是注释行（`// global/lighting/sss.glsl's transmission lobe, …`） | 已腐烂 |
+| N12 | `nether.md:296` | 「`noise()` / `noisetex` \| `lib/noise.glsl` \| 由本文件 include」 | `Astra/shaders/lib/noise.glsl` 不存在；`global/dimension/nether.glsl` 的 include 列表（`grep -n '#include'`）无 noise.glsl | 已腐烂（对象消失）。同类腐烂也在源码注释里：`lib/uniforms.glsl:44` 仍写 `// lib/noise.glsl wind/water scroll` |
+| N13 | `nether.md:297` | 「`nether_sky` 作为雾的天空项 → `astra_reflection_sky()` 在 `scene.glsl:44-46` 已按维度分派」 | `astra_reflection_sky()` 声明在 **52** 行；nether 分派在 **54** 行 `return nether_sky(worldDir, nether_atmosphere_tint(fogColor));`；`44-46` 现在是 `astra_overworld_sky` 的云混合段 | 已腐烂（偏移 8 行） |
+| N14 | `nether.md:323` | 「`nether_lighting` 的参数表由 `program/scene.glsl:178` 固定」 | 实参表在 **224** 行（`return nether_lighting(albedo, normal, playerPos, blocklight, emissive, portal,`） | 已腐烂（偏移 46 行） |
+
+### nether.md 中"声称保留但已消失"的常量（3 条，写法本身已腐烂）
+| # | handoff 位置 | 它声称的内容 | 实际 |
+|---|---|---|---|
+| N15 | `nether.md:314-316` | 「删除后这些常量变成未使用的死常量（`NETHER_AMBIENT_INTENSITY`、`NETHER_DARK_BREATHING`、`NETHER_BREATHING_PERIOD`、`NETHER_TAU`、`NETHER_NIGHT_VISION_TINT`）。**保留未删**，以便随时退回」 | 5 个名字在 `Astra/shaders/` 全库零命中（仅存在改名后的 `NETHER_NIGHT_VISION_TINT_REF`，`nether.glsl:26`） | 已腐烂（所述"保留"已不成立） |
+| N16 | `nether.md:358-361` | 「**5 个死常量加了 `⚠ DEAD (rollback only)` 标记**：… 保留是为了一句话回退」 | 同上，全库零命中；也没有任何 `DEAD (rollback only)` 字样 | 已腐烂 |
+| N17 | `nether.md:186-188, 198` | 「`NETHER_LAVA_GLOW_COLOR` 由 `vec3(1.60,0.42,0.08)` 改为 `vec3(1.60,0.64,0.107)`；`NETHER_LAVA_GLOW_INTENSITY` 由 `0.30` 降到 `0.08`；新增 `NETHER_LAVA_ADD_COLOR`」 | 三个常量全库零命中；现在的熔岩项是 `nether.glsl:21` `const vec3 NETHER_LAVA_LIGHT_COLOR = vec3(0.15, 0.06, 0.01);` 与 `:159-164` 的 `(netherCol + 0.5*NETHER_LAVA_LIGHT_COLOR*(0.9+0.45*vsBrightness))` —— 即已完成对 Complementary r5.9 的换源，N-001/N-002 的数值叙事全部过期 | 已腐烂 |
+
+---
+
+## C. end.md —— 4 条腐烂
+
+| # | handoff 位置 | 它声称的内容 | 当前实际 | 判定 |
+|---|---|---|---|---|
+| E1 | `end.md:7` | 「末地专用 `world1/prepare` 生成 **1×1** `colortex8` 的当前帧光照状态」 | `shaders.properties:36` = `size.buffer.colortex8=294 1`；`program/end_illumination.fsh:16-18` 写 `slot == 74` 与 `slot >= 75` 的 `(slot-75)/3` 共 73 个轨道体 → 需要 0..293 共 294 列 | 已腐烂（1×1 → 294×1） |
+| E2 | `end.md:7` | 「末地专属紧泛光、**8% 暗角**与**细颗粒**已接入」 | 源码没有任何末地专属暗角/颗粒：`grep -rni "vignette\|grain" Astra/shaders/global/dimension/` → 0 命中；全包唯一暗角是 `global/post/grading.glsl:177-191` 的通用 `apply_vignette`（`#ifdef VIGNETTE`，出厂关，`VIGNETTE_STRENGTH = 0.55`）；无胶片颗粒代码 | 已腐烂（对象消失；且该描述与 §8.5「默认无暗角/颗粒」冲突） |
+| E3 | `end.md:49` | 「调用位置：`program/scene.glsl:171-183`（`astra_light` 签名）」 | `astra_light` 签名在 **217-219** 行（`grep -n "vec3 astra_light"` → 217） | 已腐烂（偏移 46 行） |
+| E4 | `end.md:69` | 「Astra 只冻结了 `blindness`（`lib/uniforms.glsl:48`）」 | `lib/uniforms.glsl:54` = `uniform float blindness;               // global/atmosphere/fog.glsl (0..1, vanilla darkness effect)` | 已腐烂（偏移 6 行） |
+| E5 | `end.md:77,80,81` | D1 整节以「本 worktree 自有常量，`end.glsl:331`」为接口，并给出 `END_VOID_MIN_STRENGTH` 0.55、`END_VOID_REACH=32`、`END_VOID_SATURATION=3`、`END_VOID_RESIDUAL=0.05`、函数 `end_void_depth_gate()` | `Astra/shaders/global/dimension/end.glsl` 现在只有 **78 行**（`wc -l`）；`grep -rn "END_VOID_" Astra/shaders/` → 0 命中；该节所述"远景地形一半以上被雾色覆盖"的分析已无对应实现 | 已腐烂（对象消失 + 行号越界） |
+
+---
+
+## D. ui-language.md —— 4 条腐烂（且待办已被先行完成）
+
+| # | handoff 位置 | 它声称的内容 | 当前实际 | 判定 |
+|---|---|---|---|---|
+| U1 | `ui-language.md:23` | 「取值范围由 `Astra/shaders/lib/settings.glsl` **第 121 行**的滑块列表定义」 | `settings.glsl:121` 是注释（`// Finite interface perturbation with per-tap depth/side rejection`）；滑块在 **143** 行 = `#define UNDERWATER_SHAFT_SAMPLES 7 // [4 5 6 7 8 9 10]` | 已腐烂（偏移 22 行） |
+| U2 | `ui-language.md:24` | 「profile 中 **PERFORMANCE/BALANCED=7**，ULTRA=10」 | `shaders.properties:160` = `… UNDERWATER_SHAFT_SAMPLES=4 …`（PERFORMANCE 是 **4**）；`:161` = `=7`；`:162` = `=10` | 已腐烂（PERFORMANCE 值错误：4 而非 7） |
+| U3 | `ui-language.md:24,26` | 「两个 lang 中现存的 value 文案是 `16=流畅/Fast、24=均衡/Balanced、32=精细/Fine`…**16/24/32 三条 value 文案原样保留未删**」 | 磁盘上已无 16/24/32：`lang/zh_cn.lang:186-188` = `value.UNDERWATER_SHAFT_SAMPLES.4=流畅` / `.7=均衡` / `.10=精细`；`lang/en_US.lang:186-188` = `.4=Fast` / `.7=Balanced` / `.10=Fine` | 已腐烂（问题已解决，handoff 仍描述旧状态） |
+| U4 | `ui-language.md:15,23,26` | 「`Astra/shaders/lang/zh_CN.lang`」 | 磁盘文件名是 `zh_cn.lang`（小写 cn）。设计文档 §3.3:218、§3.1:156 与 README:12 同样写 `zh_CN` | 大小写不一致（Windows 上仍可解析；Iris 侧实际匹配哪一种是**无法离线判定**项，见 log 1 的 D25） |
+
+补充：`ui-language.md:24` 声称的"取值范围与 value 文案完全不相交、玩家只会看到数字"这一
+核心论据，在当前源码上已不成立（4/7/10 文案齐备），该工单可关闭。
+
+---
+
+## E. sky-clouds.md —— 抽查 8 条：3 条行号腐烂、5 条存活
+
+| # | handoff 位置 | 它声称的内容 | 当前实际 | 判定 |
+|---|---|---|---|---|
+| S1 | `sky-clouds.md:23` | 「`SKY_MODE`（**settings.glsl:75** 的枚举常量；`SKY_MINISHITA = 0` / `SKY_GRADIENT = 1`）」 | `settings.glsl:75` 是注释（`// Tinted shadows via shadowcolor0 (stained glass / water)`）；枚举在 **23-24** 行 = `#define SKY_MINISHITA 0` / `#define SKY_GRADIENT 1` | 已腐烂（偏移 52 行） |
+| S2 | `sky-clouds.md:24,42,52` | profile 位置「`shaders.properties:150-152`」，其 2026-09-21 复核改写为「现址 `:149-151`」 | 三档 profile 实际在 **160-162** 行（`grep -n "^profile\." shaders.properties`） | 已腐烂（原址与复核后的地址**都**不对） |
+| S3 | `sky-clouds.md:43` | 「分发点在 `Astra/shaders/program/scene.glsl:37-40`」（CLOUD_MODE 分支） | CLOUD_MODE 分支在 **45-48** 行：`program/scene.glsl:45` = `#if CLOUD_MODE == CLOUD_PLANAR` | 已腐烂（偏移 8 行） |
+| S4 | `sky-clouds.md:61` | 「`astra_planar_cloud` 的调用位置 `Astra/shaders/program/scene.glsl:38`，实参为 `astra_direct_light()`、`astra_sky_ambient()`」 | 实际调用在 **46** 行 = `vec4 cloud = astra_planar_cloud(worldDir);`（当前只传 1 个实参，与 H3 的"签名仍是 3 参"描述已不一致） | 已腐烂 |
+| S5 | `sky-clouds.md:72` | 「`SKYLIGHT_STRENGTH`、`SUNLIGHT_STRENGTH`（settings.glsl:**36 / :32**）」 | `settings.glsl:37` = `#define SUNLIGHT_STRENGTH 100`，`:41` = `#define SKYLIGHT_STRENGTH 100` | 已腐烂（偏移 5/9 行） |
+| S6 | `sky-clouds.md:52,56` | 「当前实测：PERFORMANCE=`CLOUD_MODE=0`、BALANCED=`CLOUD_MODE=1`、ULTRA=`CLOUD_MODE=1`」；H1 复核「PERFORMANCE=1、BALANCED=1、ULTRA=0」(SKY_MODE) | `shaders.properties:160` = `SKY_MODE=1 … CLOUD_MODE=0`；`:161` = `SKY_MODE=1 … CLOUD_MODE=1`；`:162` = `SKY_MODE=0 … CLOUD_MODE=1` | **存活**（两处实测值均与源码一致） |
+| S7 | `sky-clouds.md:55,95` | 「`astra_cloud_transmission` … 退化 `return 1.0`（`global/atmosphere/weather.glsl:123-125`）」/「`global/atmosphere/weather.glsl:122-136`」 | `weather.glsl:123-125` = `#if CLOUD_MODE != CLOUD_PLANAR` / 注释 / `return 1.0;`；函数体 122-136 行 | **存活**（精确命中） |
+| S8 | `sky-clouds.md:98,108` | 「在 `program/scene.glsl:238-262` 用 `#ifdef CLOUD_SHADOWS`…」；「出处登记见 `Astra/THIRD-PARTY.md` 的 `shaders/program/scene.glsl` 行」 | `program/scene.glsl:238` = `        #ifdef CLOUD_SHADOWS`；`Astra/THIRD-PARTY.md:55` 有该行（2026-09-21 T14 新增） | **存活** |
+
+`terrain-foliage.md`（195 行）本次未逐条核（时间预算）；如需补齐，方法同上。
+
+---
+
+## F. 腐烂的分布特征（对下一个接手者的提示）
+1. **行号腐烂集中在"跨文件引用"**：handoff 引用 `program/scene.glsl` 的行号全部失效
+   （N1/N10/N11/N13/N14/E3/S3/S4），因为 `scene.glsl` 被反复加长（`astra_light` 从 171→217）。
+   同一文件内引用的腐烂少得多。
+2. **"已被替代实现"最容易留下幽灵**：被换源/换实现删掉的常量（N15/N16/N17、E5、N6）
+   在 handoff 里仍以"保留未删/不得改动"的强语气存在，读起来最危险。
+3. **只有 sky-clouds.md 建立了"原址 → 现址 + 现测值"的复核行**（H1/H2/H5 的 `复核（2026-09-21…）`
+   段），其结论部分因此仍可用；但 `复核` 自身写的"现址"同样会再腐烂（S2）。

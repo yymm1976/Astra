@@ -1,0 +1,7 @@
+       . 71 option(s) with a value list; 41 appear in a preprocessor conditional and became matrix factors, 30 are value-only inputs to code already selected
+       . factor levels total 95 (boundary values only for sliders), over 820 factor pairs
+       . declared but read nowhere: none
+       . #ifdef/#ifndef names nothing declares: ['ASTRA_VOXY_PASS', 'EXTERNALLY_DEFINED_UNIFORMS', 'R11F_G11F_B10F', 'RGBA16', 'RGBA16F', 'RGBA32F']
+       . constant #defines nothing reads: ['SKY_MINISHITA', 'SUN_MOON_DISCS', 'WATER_BALANCED']
+       . unseeded greedy pairwise covering array = 89 row(s), 0 uncovered pair(s)
+       . verdict: python qa/tools/check_pack.py | compile: python qa/tools/compile_glsl.py --matrix
