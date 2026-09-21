@@ -1,0 +1,474 @@
+{
+ "methods": {
+  "uniform1f": "FLOAT",
+  "uniform1i": "INT",
+  "uniform2f": "VEC2",
+  "uniform2i": "VEC2I",
+  "uniform3f": "VEC3",
+  "uniform4f": "VEC4",
+  "uniform4fArray": "VEC4",
+  "uniform4i": "VEC4I",
+  "uniformMatrix": "MAT4",
+  "uniformMatrix3": "MAT3",
+  "uniform1b": "INT",
+  "uniform3i": "VEC3I",
+  "uniformTruncated3f": "VEC3",
+  "uniform3d": "VEC3",
+  "uniformMatrixFromArray": "MAT4"
+ },
+ "names": {
+  "BiomeTemp": [
+   "FLOAT"
+  ],
+  "Projection": [
+   "MAT4"
+  ],
+  "alphaTestRef": [
+   "FLOAT"
+  ],
+  "anisotropicFiltering": [
+   "INT"
+  ],
+  "aspectRatio": [
+   "FLOAT"
+  ],
+  "atlasSize": [
+   "VEC2I"
+  ],
+  "biome": [
+   "INT"
+  ],
+  "biome_category": [
+   "INT"
+  ],
+  "biome_precipitation": [
+   "INT"
+  ],
+  "blendFunc": [
+   "VEC4I"
+  ],
+  "blindFactor": [
+   "FLOAT"
+  ],
+  "blindness": [
+   "FLOAT"
+  ],
+  "blockEntityId": [
+   "INT"
+  ],
+  "burningSmooth": [
+   "FLOAT"
+  ],
+  "cameraPosition": [
+   "VEC3"
+  ],
+  "cameraPositionFract": [
+   "VEC3"
+  ],
+  "cameraPositionInt": [
+   "VEC3I"
+  ],
+  "chunkFadeTimeInv": [
+   "FLOAT"
+  ],
+  "cloudTime": [
+   "FLOAT"
+  ],
+  "constantMood": [
+   "FLOAT"
+  ],
+  "currentColorSpace": [
+   "INT"
+  ],
+  "currentDate": [
+   "VEC3I"
+  ],
+  "currentPlayerAir": [
+   "FLOAT"
+  ],
+  "currentPlayerArmor": [
+   "FLOAT"
+  ],
+  "currentPlayerHealth": [
+   "FLOAT"
+  ],
+  "currentPlayerHunger": [
+   "FLOAT"
+  ],
+  "currentRenderedItemId": [
+   "INT"
+  ],
+  "currentSelectedBlockId": [
+   "INT"
+  ],
+  "currentSelectedBlockPos": [
+   "VEC3"
+  ],
+  "currentTime": [
+   "VEC3I"
+  ],
+  "currentYearTime": [
+   "VEC2I"
+  ],
+  "darknessFactor": [
+   "FLOAT"
+  ],
+  "darknessLightFactor": [
+   "FLOAT"
+  ],
+  "dawnDusk": [
+   "FLOAT"
+  ],
+  "day": [
+   "FLOAT"
+  ],
+  "dhFarPlane": [
+   "FLOAT"
+  ],
+  "dhNearPlane": [
+   "FLOAT"
+  ],
+  "dhRenderDistance": [
+   "INT"
+  ],
+  "effectStrength": [
+   "FLOAT"
+  ],
+  "endFlashIntensity": [
+   "FLOAT"
+  ],
+  "endFlashPosition": [
+   "VEC3"
+  ],
+  "entityColor": [
+   "VEC4"
+  ],
+  "entityId": [
+   "INT"
+  ],
+  "eyeAltitude": [
+   "FLOAT"
+  ],
+  "eyeBrightness": [
+   "VEC2I"
+  ],
+  "eyeBrightnessM": [
+   "FLOAT"
+  ],
+  "eyeBrightnessSmooth": [
+   "VEC2I"
+  ],
+  "eyePosition": [
+   "VEC3"
+  ],
+  "far": [
+   "FLOAT"
+  ],
+  "feetInWater": [
+   "INT"
+  ],
+  "firstPersonCamera": [
+   "INT"
+  ],
+  "fogColor": [
+   "VEC3"
+  ],
+  "fogDensity": [
+   "FLOAT"
+  ],
+  "fogEnd": [
+   "FLOAT"
+  ],
+  "fogMode": [
+   "INT"
+  ],
+  "fogShape": [
+   "INT"
+  ],
+  "fogStart": [
+   "FLOAT"
+  ],
+  "frameCounter": [
+   "INT"
+  ],
+  "frameTime": [
+   "FLOAT"
+  ],
+  "frameTimeCounter": [
+   "FLOAT"
+  ],
+  "frameTimeSmooth": [
+   "FLOAT"
+  ],
+  "gtextureId": [
+   "INT"
+  ],
+  "gtextureSize": [
+   "VEC2I"
+  ],
+  "heavyFog": [
+   "INT"
+  ],
+  "heldBlockLightColor": [
+   "VEC3"
+  ],
+  "heldBlockLightColor2": [
+   "VEC3"
+  ],
+  "heldBlockLightValue": [
+   "INT"
+  ],
+  "heldBlockLightValue2": [
+   "INT"
+  ],
+  "heldItemId": [
+   "INT"
+  ],
+  "heldItemId2": [
+   "INT"
+  ],
+  "hideGUI": [
+   "INT"
+  ],
+  "inSwimmingAnimation": [
+   "INT"
+  ],
+  "iris_FogColor": [
+   "VEC4"
+  ],
+  "iris_FogDensity": [
+   "FLOAT"
+  ],
+  "iris_FogEnd": [
+   "FLOAT"
+  ],
+  "iris_FogStart": [
+   "FLOAT"
+  ],
+  "iris_LightmapTextureMatrix": [
+   "MAT4"
+  ],
+  "iris_ScreenSize": [
+   "VEC2"
+  ],
+  "iris_currentAlphaTest": [
+   "FLOAT"
+  ],
+  "isDry": [
+   "FLOAT"
+  ],
+  "isElytraFlying": [
+   "INT"
+  ],
+  "isEyeInCave": [
+   "FLOAT"
+  ],
+  "isEyeInWater": [
+   "INT"
+  ],
+  "isPrecipitationRain": [
+   "FLOAT"
+  ],
+  "isRainy": [
+   "FLOAT"
+  ],
+  "isRiding": [
+   "INT"
+  ],
+  "isRightHanded": [
+   "INT"
+  ],
+  "isSnowy": [
+   "FLOAT"
+  ],
+  "isSpectator": [
+   "INT"
+  ],
+  "is_burning": [
+   "INT"
+  ],
+  "is_hurt": [
+   "INT"
+  ],
+  "is_invisible": [
+   "INT"
+  ],
+  "is_on_ground": [
+   "INT"
+  ],
+  "is_sneaking": [
+   "INT"
+  ],
+  "is_sprinting": [
+   "INT"
+  ],
+  "lightningBoltPosition": [
+   "VEC4"
+  ],
+  "maxPlayerAir": [
+   "FLOAT"
+  ],
+  "maxPlayerArmor": [
+   "FLOAT"
+  ],
+  "maxPlayerHealth": [
+   "FLOAT"
+  ],
+  "maxPlayerHunger": [
+   "FLOAT"
+  ],
+  "moonBrightness": [
+   "FLOAT"
+  ],
+  "moonPhase": [
+   "INT"
+  ],
+  "moonPosition": [
+   "VEC3"
+  ],
+  "near": [
+   "FLOAT"
+  ],
+  "night": [
+   "FLOAT"
+  ],
+  "nightVision": [
+   "FLOAT"
+  ],
+  "pi": [
+   "FLOAT"
+  ],
+  "playerBodyVector": [
+   "VEC3"
+  ],
+  "playerLookVector": [
+   "VEC3"
+  ],
+  "playerMood": [
+   "FLOAT"
+  ],
+  "previousCameraPosition": [
+   "VEC3"
+  ],
+  "previousCameraPositionFract": [
+   "VEC3"
+  ],
+  "previousCameraPositionInt": [
+   "VEC3I"
+  ],
+  "previousEndFlashIntensity": [
+   "FLOAT"
+  ],
+  "rainFactor": [
+   "FLOAT"
+  ],
+  "rainStrength": [
+   "FLOAT"
+  ],
+  "rainStrengthS": [
+   "FLOAT"
+  ],
+  "rainStrengthS2": [
+   "FLOAT"
+  ],
+  "rainStrengthShiningStars": [
+   "FLOAT"
+  ],
+  "rainfall": [
+   "FLOAT"
+  ],
+  "relativeEyePosition": [
+   "VEC3"
+  ],
+  "relativeVehiclePosition": [
+   "VEC3"
+  ],
+  "renderStage": [
+   "INT"
+  ],
+  "screenBrightness": [
+   "FLOAT"
+  ],
+  "seaLevel": [
+   "INT"
+  ],
+  "shadowAngle": [
+   "FLOAT"
+  ],
+  "shadowFade": [
+   "FLOAT"
+  ],
+  "shadowLightPosition": [
+   "VEC3"
+  ],
+  "shdFade": [
+   "FLOAT"
+  ],
+  "skyColor": [
+   "VEC3"
+  ],
+  "sneakSmooth": [
+   "FLOAT"
+  ],
+  "starter": [
+   "FLOAT"
+  ],
+  "sunAngle": [
+   "FLOAT"
+  ],
+  "sunPosition": [
+   "VEC3"
+  ],
+  "temperature": [
+   "FLOAT"
+  ],
+  "textureFilteringMode": [
+   "INT"
+  ],
+  "textureReloadCount": [
+   "INT"
+  ],
+  "thunderStrength": [
+   "FLOAT"
+  ],
+  "timeAngle": [
+   "FLOAT"
+  ],
+  "timeBrightness": [
+   "FLOAT"
+  ],
+  "touchmybody": [
+   "FLOAT"
+  ],
+  "upPosition": [
+   "VEC3"
+  ],
+  "vehicleId": [
+   "INT"
+  ],
+  "vehicleInWater": [
+   "INT"
+  ],
+  "vehicleLookVector": [
+   "VEC3"
+  ],
+  "velocity": [
+   "FLOAT"
+  ],
+  "viewHeight": [
+   "FLOAT"
+  ],
+  "viewWidth": [
+   "FLOAT"
+  ],
+  "wetness": [
+   "FLOAT"
+  ],
+  "worldDay": [
+   "INT"
+  ],
+  "worldTime": [
+   "INT"
+  ]
+ }
+}

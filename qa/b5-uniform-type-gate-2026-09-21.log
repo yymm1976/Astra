@@ -1,0 +1,72 @@
+# B5 门检补洞：内置 uniform 类型面（2026-09-21）
+
+**目标**：把 T17 的一次性普查固化成常设门 —— "GLSL 声明的内置 uniform 类型与 Iris
+注册的类型面不符" 必须判 FAIL。T17 之前这类缺陷完全隐形：GLSL 照编译、包照加载，
+Iris 只在运行时打印一行 "Wrong uniform type ... Disabling that uniform" 并摘掉绑定
+（`moonPhase` 就是这样恒为 0 的）。
+
+## 1. 方法（与 T17 的普查同源，但这次落进了仓库）
+
+**类型表来源**：本机实例的 Iris jar
+`D:\zhenhebao\.minecraftersions\生电优化整合包 (Fabric)\mods\iris-fabric-1.11.2+mc26.2.jar`。
+用 `javap -p -c` 提取：
+
+1. `net/irisshaders/iris/uniforms/*.class`（35 个类）里每个 `ldc // String <name>`
+   之后**最近的** `uniformNNx` 注册调用 —— 单向配对（参数在调用前压栈，所以
+   "字符串在前、方法在后"是唯一正确方向；双向配对会把相邻调用错配，实测产生
+   44/151 个"多类型"名字，单向配对后为 **0**）。
+2. `*UniformHolder` 类的每个 `uniformNNx` 方法 push 的 `UniformType` 常量 —— 15 个方法。
+
+**结果**：**151 个名字 → 1 个类型面**，0 个多类型。
+抽样对照 T17 的实测值：`moonPhase`=INT、`worldTime`=INT、`frameTimeCounter`=FLOAT、
+`cameraPosition`=VEC3、`skyColor`=VEC3、`blindFactor`=FLOAT —— 与 T17 记录逐条相同。
+
+**原始数据**：`qa/iris-uniform-names-2026-09-21-b5.json`（methods 15 条 + names 151 条）。
+**复算配方**：上述两步 javap + 单向配对；jar 路径若变，表需重取（见 §4 边界）。
+
+## 2. 落地的检查（`qa/tools/check_pack.py` 第 17 项）
+
+- `BUILTIN_UNIFORM_TYPES`：151 条内置表（脚本内联，附来源与复算配方注释）
+- `GLSL_FACE_TO_UNIFORM_TYPE`：10 个 GLSL 关键字 → UniformType 的映射。
+  Iris 的 `UniformType` 枚举**恰好 10 个常量**（INT FLOAT MAT3 MAT4 VEC2 VEC2I VEC3 VEC3I
+  VEC4 VEC4I），**没有 DOUBLE 家族** —— 所以 `double` 声明永远无法匹配任何内置。
+- 扫描面：与 #6 相同的 shader 后缀集合（`.glsl/.vsh/.fsh/.csh`），正则同 #6 的
+  `^\s*uniform\s+(\w+)\s+(\w+)\s*(\[\d+\])?\s*;`
+- 判据：名字命中内置表 **且** 声明类型解析出的 UniformType ≠ 注册类型 → **FAIL**，
+  错误信息直接给出"应该是什么"与"实际是什么"
+- 附加：以 `astra` 前缀声明却与内置同名的 → 也 FAIL（那一类在 Iris 里是硬失败，
+  不是静默摘除）
+
+## 3. 实测
+
+**当前包（`qa/checkpack-2026-09-21-b5-final.log`）**：
+```
+[PASS] #17 built-in uniform type faces (Iris registration <-> GLSL declaration)
+       . 28 built-in declaration(s) checked against 151 registered names; 0 mismatches
+17 checks: 0 FAIL, 1 WARN, 16 PASS
+```
+
+**T17 用例自测（验收标准 4）**：向 `Astra/shaders/lib/uniforms.glsl` **临时**追加一行
+`uniform float moonPhase;`（T17 修复前的形态），跑门：
+```
+[FAIL] #17 built-in uniform type faces (Iris registration <-> GLSL declaration)
+       - Astra/shaders/lib/uniforms.glsl: `uniform float moonPhase;` - Iris registers this
+         built-in as INT, the declared face is FLOAT; Iris drops a mismatched binding at
+         runtime without failing the build
+17 checks: 1 FAIL, 1 WARN, 15 PASS     (exit code 1)
+```
+`qa/checkpack-2026-09-21-b5-selftest.log`。**还原后 `git diff --stat Astra/shaders/lib/uniforms.glsl`
+为空**（临时注入不留在工作区，`uniforms.glsl` 不属于本单白名单，仅作自测载体）。
+
+## 4. 边界（如实）
+
+1. **`externallyManagedUniform` 注册的 13 个名字没有类型面**（T17 记录），它们不在表里，
+   对这些名字的声明本检查不做判读。
+2. **表绑定 jar 版本**：151 条来自 `iris-fabric-1.11.2+mc26.2`。换 Iris 版本时表可能漂移
+   （新增/改名/改类型）—— 复算配方在 §1，重取后替换 `BUILTIN_UNIFORM_TYPES` 即可。
+   本检查**不会**因为表缺一个名字而误报（只检查"表里有的名字"）。
+3. **不检查 custom uniform 的类型是否被引擎接受**（那是 #6 的职责面）；本项只管内置名字的
+   类型面冲突。
+4. 表只覆盖 `net/irisshaders/iris/uniforms/` 下注册的名字。若有内建 uniform 由别的包
+   （如光影引擎的其它模块）注册，本表不覆盖 —— 目前的判据是"表里有的名字必须对"，
+   宁漏不误。

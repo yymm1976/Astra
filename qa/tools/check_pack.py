@@ -1565,6 +1565,120 @@ def check_dimension_gating():
     return c
 
 
+
+
+# ---------------------------------------------------------------------------
+# #17 built-in uniform type faces
+#
+# Iris registers each built-in uniform with a specific GL type (through
+# LocationalUniformHolder.uniformNNx). A GLSL declaration that re-declares the same
+# name with a different face is silently disabled at runtime ("Wrong uniform type ...
+# Disabling that uniform") - that is how `moonPhase` reached the shader pinned at 0
+# before T17, and no offline check could see it: a wrong face still compiles.
+# This check turns that class of defect into a hard FAIL.
+#
+# The table was harvested from the instance Iris jar (iris-fabric-1.11.2+mc26.2.jar,
+# net/irisshaders/iris/uniforms/*.class plus the *UniformHolder classes) with
+# javap -p -c: every `ldc // String <name>` followed by the next uniformNNx call,
+# mapped through the UniformType constant that method pushes. 151 names, 0 with more
+# than one face. Names registered through externallyManagedUniform carry no type face
+# and are absent here; a declaration for such a name is not checked.
+# Raw harvest: qa/iris-uniform-names-2026-09-21-b5.json;
+# log: qa/b5-uniform-type-gate-2026-09-21.log.
+BUILTIN_UNIFORM_TYPES = {
+    "BiomeTemp": "FLOAT", "Projection": "MAT4", "alphaTestRef": "FLOAT",
+    "anisotropicFiltering": "INT", "aspectRatio": "FLOAT", "atlasSize": "VEC2I", "biome": "INT",
+    "biome_category": "INT", "biome_precipitation": "INT", "blendFunc": "VEC4I",
+    "blindFactor": "FLOAT", "blindness": "FLOAT", "blockEntityId": "INT",
+    "burningSmooth": "FLOAT", "cameraPosition": "VEC3", "cameraPositionFract": "VEC3",
+    "cameraPositionInt": "VEC3I", "chunkFadeTimeInv": "FLOAT", "cloudTime": "FLOAT",
+    "constantMood": "FLOAT", "currentColorSpace": "INT", "currentDate": "VEC3I",
+    "currentPlayerAir": "FLOAT", "currentPlayerArmor": "FLOAT", "currentPlayerHealth": "FLOAT",
+    "currentPlayerHunger": "FLOAT", "currentRenderedItemId": "INT",
+    "currentSelectedBlockId": "INT", "currentSelectedBlockPos": "VEC3", "currentTime": "VEC3I",
+    "currentYearTime": "VEC2I", "darknessFactor": "FLOAT", "darknessLightFactor": "FLOAT",
+    "dawnDusk": "FLOAT", "day": "FLOAT", "dhFarPlane": "FLOAT", "dhNearPlane": "FLOAT",
+    "dhRenderDistance": "INT", "effectStrength": "FLOAT", "endFlashIntensity": "FLOAT",
+    "endFlashPosition": "VEC3", "entityColor": "VEC4", "entityId": "INT", "eyeAltitude": "FLOAT",
+    "eyeBrightness": "VEC2I", "eyeBrightnessM": "FLOAT", "eyeBrightnessSmooth": "VEC2I",
+    "eyePosition": "VEC3", "far": "FLOAT", "feetInWater": "INT", "firstPersonCamera": "INT",
+    "fogColor": "VEC3", "fogDensity": "FLOAT", "fogEnd": "FLOAT", "fogMode": "INT",
+    "fogShape": "INT", "fogStart": "FLOAT", "frameCounter": "INT", "frameTime": "FLOAT",
+    "frameTimeCounter": "FLOAT", "frameTimeSmooth": "FLOAT", "gtextureId": "INT",
+    "gtextureSize": "VEC2I", "heavyFog": "INT", "heldBlockLightColor": "VEC3",
+    "heldBlockLightColor2": "VEC3", "heldBlockLightValue": "INT", "heldBlockLightValue2": "INT",
+    "heldItemId": "INT", "heldItemId2": "INT", "hideGUI": "INT", "inSwimmingAnimation": "INT",
+    "iris_FogColor": "VEC4", "iris_FogDensity": "FLOAT", "iris_FogEnd": "FLOAT",
+    "iris_FogStart": "FLOAT", "iris_LightmapTextureMatrix": "MAT4", "iris_ScreenSize": "VEC2",
+    "iris_currentAlphaTest": "FLOAT", "isDry": "FLOAT", "isElytraFlying": "INT",
+    "isEyeInCave": "FLOAT", "isEyeInWater": "INT", "isPrecipitationRain": "FLOAT",
+    "isRainy": "FLOAT", "isRiding": "INT", "isRightHanded": "INT", "isSnowy": "FLOAT",
+    "isSpectator": "INT", "is_burning": "INT", "is_hurt": "INT", "is_invisible": "INT",
+    "is_on_ground": "INT", "is_sneaking": "INT", "is_sprinting": "INT",
+    "lightningBoltPosition": "VEC4", "maxPlayerAir": "FLOAT", "maxPlayerArmor": "FLOAT",
+    "maxPlayerHealth": "FLOAT", "maxPlayerHunger": "FLOAT", "moonBrightness": "FLOAT",
+    "moonPhase": "INT", "moonPosition": "VEC3", "near": "FLOAT", "night": "FLOAT",
+    "nightVision": "FLOAT", "pi": "FLOAT", "playerBodyVector": "VEC3",
+    "playerLookVector": "VEC3", "playerMood": "FLOAT", "previousCameraPosition": "VEC3",
+    "previousCameraPositionFract": "VEC3", "previousCameraPositionInt": "VEC3I",
+    "previousEndFlashIntensity": "FLOAT", "rainFactor": "FLOAT", "rainStrength": "FLOAT",
+    "rainStrengthS": "FLOAT", "rainStrengthS2": "FLOAT", "rainStrengthShiningStars": "FLOAT",
+    "rainfall": "FLOAT", "relativeEyePosition": "VEC3", "relativeVehiclePosition": "VEC3",
+    "renderStage": "INT", "screenBrightness": "FLOAT", "seaLevel": "INT", "shadowAngle": "FLOAT",
+    "shadowFade": "FLOAT", "shadowLightPosition": "VEC3", "shdFade": "FLOAT", "skyColor": "VEC3",
+    "sneakSmooth": "FLOAT", "starter": "FLOAT", "sunAngle": "FLOAT", "sunPosition": "VEC3",
+    "temperature": "FLOAT", "textureFilteringMode": "INT", "textureReloadCount": "INT",
+    "thunderStrength": "FLOAT", "timeAngle": "FLOAT", "timeBrightness": "FLOAT",
+    "touchmybody": "FLOAT", "upPosition": "VEC3", "vehicleId": "INT", "vehicleInWater": "INT",
+    "vehicleLookVector": "VEC3", "velocity": "FLOAT", "viewHeight": "FLOAT",
+    "viewWidth": "FLOAT", "wetness": "FLOAT", "worldDay": "INT", "worldTime": "INT",
+}
+
+# GLSL keyword -> the Iris UniformType it can satisfy. UniformType has exactly ten
+# constants (INT FLOAT MAT3 MAT4 VEC2 VEC2I VEC3 VEC3I VEC4 VEC4I); there is no DOUBLE
+# family, so a `double` declaration can never satisfy a built-in.
+GLSL_FACE_TO_UNIFORM_TYPE = {
+    "float": "FLOAT", "int": "INT",
+    "vec2": "VEC2", "ivec2": "VEC2I",
+    "vec3": "VEC3", "ivec3": "VEC3I",
+    "vec4": "VEC4", "ivec4": "VEC4I",
+    "mat3": "MAT3", "mat4": "MAT4",
+}
+
+
+def check_builtin_uniform_types():
+    c = Check(17, "built-in uniform type faces (Iris registration <-> GLSL declaration)")
+    seen = 0
+    astra_names = set()
+    for path in walk_shader_files():
+        if path.suffix not in (".glsl", ".vsh", ".fsh", ".csh"):
+            continue
+        text = read(path)
+        for m in re.finditer(
+                r"^\s*uniform\s+(\w+)\s+(\w+)\s*(?:\[\s*\d+\s*\])?\s*;", text, flags=re.M):
+            ty, name = m.group(1), m.group(2)
+            if name.startswith("astra"):
+                astra_names.add(name)
+            if name not in BUILTIN_UNIFORM_TYPES:
+                continue
+            seen += 1
+            want = BUILTIN_UNIFORM_TYPES[name]
+            got = GLSL_FACE_TO_UNIFORM_TYPE.get(ty)
+            if got != want:
+                c.fail("%s: `uniform %s %s;` - Iris registers this built-in as %s, "
+                       "the declared face is %s; Iris drops a mismatched binding at "
+                       "runtime without failing the build"
+                       % (rel(path), ty, name, want, got or ty))
+    if not c.fails:
+        c.note("%d built-in declaration(s) checked against %d registered names; "
+               "0 mismatches" % (seen, len(BUILTIN_UNIFORM_TYPES)))
+    # A custom uniform colliding with a built-in name IS a hard failure in Iris, so
+    # surface any astra-prefixed declaration that also names a built-in.
+    for name in sorted(astra_names & set(BUILTIN_UNIFORM_TYPES)):
+        c.fail("`%s` carries an astra prefix but is also an Iris built-in name" % name)
+    return c
+
+
 def main():
     print(f"Astra pack validator | pack={rel(PACK)} | python={sys.version.split()[0]}")
     print("=" * 72)
@@ -1584,6 +1698,7 @@ def main():
     check_buffer_declarations()
     check_vendor_isolation()
     check_dimension_gating()
+    check_builtin_uniform_types()
     for c in CHECKS:
         c.render()
     print("=" * 72)
