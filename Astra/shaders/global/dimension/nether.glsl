@@ -8,7 +8,7 @@
 #include "/lib/encoding.glsl"
 // Included from scene.glsl, which already guards on DIMENSION_NETHER; the option
 // itself uses a plain #ifdef so Iris registers the boolean (SC-28).
-#ifdef NETHER_VOXEL_LIGHT
+#if defined NETHER_VOXEL_LIGHT && defined SHADOWS
     #include "/global/dimension/nether_colored_light.glsl"
 #endif
 
@@ -138,7 +138,8 @@ vec3 nether_lighting(
 	float emissiveMask,
 	float portalMask,
 	float time,
-	NetherParams params
+	NetherParams params,
+	float vertexAO
 ) {
 
 	// Complementary uses the palette directly in lighting; the earlier sRGB
@@ -170,7 +171,7 @@ vec3 nether_lighting(
 
 	vec3 blockLighting = nether_block_lighting(blockLight, 0.0);
 	vec3 heatGlow = vec3(0.0);
-    #ifdef NETHER_VOXEL_LIGHT
+    #if defined NETHER_VOXEL_LIGHT && defined SHADOWS
         // Solas gbuffersLighting replaces the warm block-light term, rather than
         // adding a second copy after diffuse lighting. Astra only reaches eight
         // cells, so fade by available radiance as well as the volume boundary;
@@ -201,13 +202,35 @@ vec3 nether_lighting(
 
 	float emission = nether_emissive_boost(emissiveMask, portalMask, time);
 
-	float vanillaAO = 1.0;
+	// Vanilla per-vertex AO. Reference: mainLighting.glsl:559 (`vanillaAO = glColor.a`),
+	// Nether branch :574-578 (`pow(pow1_5(vanillaAO), 1.0 + NdotUmax0 * 0.5)`), :586
+	// (`* 0.9 + 0.1`). The `< 0.1` guard is the reference's own terrain-pass test for
+	// "this vertex carries no AO data" (program/gbuffers_terrain.glsl:450-451:
+	// `if (glColorRaw.a < 0.1) glColorRaw.a = 1.0;`). The channel arrives as a trailing
+	// argument rather than a NetherParams field because it is per-fragment data that only
+	// astra_light() has (lit.fsh passes tint.a); nether_fog()'s own NetherParams
+	// construction (scene.glsl:121) has no AO to supply, and a struct field would have
+	// forced it to invent one.
+    // separateAo supplies terrain AO in alpha; other geometry supplies 1.
+    // Keep zero occlusion valid rather than treating dark corners as missing data.
+    float vanillaAO = clamp(vertexAO,0.0,1.0);
+	vanillaAO = pow(pow(vanillaAO, 1.5), 1.0 + max(NdotU, 0.0) * 0.5);
+	vanillaAO = vanillaAO * 0.9 + 0.1;
+
 	vec3 finalDiffuse = directionShade * directionShade * vanillaAO * vanillaAO
 	                  * (blockLighting + sceneLighting * sceneLighting + minLighting)
 	                  + emission * emission;
-	finalDiffuse = sqrt(max(finalDiffuse, vec3(0.0))) + heatGlow;
+	finalDiffuse = sqrt(max(finalDiffuse, vec3(0.0)));
 
-	return surfaceColor * finalDiffuse;
+	// heatGlow is an EMISSIVE rim term (A3 above), not reflectance, so it must not ride
+	// the surface albedo. Inside the product below it is tinted by the rock texture:
+	// srgb_decode(0.383) = 0.122 red for netherrack (block_reflect_probe.py table [3]),
+	// 0.02 for the blackstone class - which cuts the term A3's own probe documents
+	// (peak red 0.045, qa/nether-heatglow-2026-09-21-a3.log) to ~0.005 on netherrack,
+	// an order below the "visible warm rim" its acceptance reading assumes. Added after
+	// the albedo it delivers the documented magnitude and drops the vanilla-AO weight
+	// the albedo carries, so the term reads as self-lit as the A3 note intends.
+	return surfaceColor * finalDiffuse + heatGlow;
 }
 
 #endif

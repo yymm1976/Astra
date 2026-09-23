@@ -30,7 +30,7 @@ out vec3 waterCasterWorld;
 // Nether voxel capture. Both guards are required: the option is global while the
 // uimage3D declaration and imageAtomicMax need GLSL 420+, so the overworld and
 // End shadow shells must not see them at all.
-#if defined DIMENSION_NETHER && defined NETHER_VOXEL_LIGHT
+#if defined DIMENSION_NETHER && defined NETHER_VOXEL_LIGHT && defined SHADOWS
 layout(r32ui) uniform uimage3D astraVoxelImage;
 // Occupancy encoding consumed by program/nether_light.csh and
 // global/dimension/nether_colored_light.glsl:
@@ -75,7 +75,7 @@ void astra_voxel_write() {
 }
 #endif
 void main() {
-#if defined DIMENSION_NETHER && defined NETHER_VOXEL_LIGHT
+#if defined DIMENSION_NETHER && defined NETHER_VOXEL_LIGHT && defined SHADOWS
     astra_voxel_write();
 #endif
 	vec4 viewPos = gl_ModelViewMatrix * gl_Vertex;
@@ -127,6 +127,17 @@ void main() {
 	// vec4(-1.0), which lands on the far-plane corner with w = -1 and is not reliably
 	// clipped; collapsing the triangle to z > w clips it on the far plane for sure.
 	if (noShadow) {
+		gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+	}
+
+	// Low ground foliage (10004 single-block plants, 10005/10006 double plants) casts
+	// nothing either: the user reported "too much shadow at night" and the screenshot
+	// shows one near-black shadow cell per grass block on the ground. Same far-plane
+	// collapse as the glass branch above. Deliberately NOT extended to leaves (10002):
+	// canopy shade is a wanted scene element and is being tuned on the receive side.
+	// Double plants are covered by isGroundFoliage, so sunflower / tall grass / large
+	// fern / peony / rose bush lose their cast shadow as well.
+	if (isGroundFoliage) {
 		gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
 	}
 }

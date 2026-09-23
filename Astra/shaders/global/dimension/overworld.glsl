@@ -69,15 +69,17 @@ vec3 astra_sky_reflection(vec3 worldDir, float roughness) {
         float horizontalDistance2=dot(horizontalOffset,horizontalOffset);
         float coverage=0.0;
         if (horizontalDistance2<=ASTRA_CLOUD_THRESHOLD_F*ASTRA_CLOUD_THRESHOLD_F) {
-            float density=astra_cloud_noise(hit,ASTRA_CLOUD_ALTITUDE);
-            float coverageBias=mix(0.20,-0.20,CLOUD_COVERAGE*0.01)-0.04-0.28*astraRainFactor;
+            float gate=astra_cloud_existence_gate(0.0);
+            float coarse=astra_cloud_coarse(hit,ASTRA_CLOUD_ALTITUDE);
             // The sheet's layer-edge fade term is abs(ALTITUDE-y)/STRETCH; this
             // plane solve lands exactly on ALTITUDE, so it is the sheet's
             // mid-layer test with that term at its clamp floor (~0).
-            if (density>0.25+coverageBias) {
+            if (coarse>gate) {
                 float distanceRatio=(ASTRA_CLOUD_THRESHOLD_F-sqrt(horizontalDistance2))
                                     /ASTRA_CLOUD_THRESHOLD_F;
-                float columnDensity=smoothstep(0.21+coverageBias,0.43+coverageBias,density);
+                // F1: same contract as the sheet -- gate on coarse, ramp starts at the gate.
+                float columnDensity=smoothstep(gate,astra_cloud_saturation(),
+                                               astra_cloud_noise(hit,ASTRA_CLOUD_ALTITUDE));
                 coverage=sqrt(clamp(distanceRatio,0.0,0.75)*1.33333)*columnDensity;
             }
         }
@@ -94,8 +96,17 @@ vec3 astra_direct_light() {
 	vec3 sun = mix(vec3(0.92, 0.81, 0.65), vec3(1.10, 0.99, 0.83), sunProgress)
 	         * (SUNLIGHT_STRENGTH * 0.01);
     sun = mix(sun,astra_twilight_sunlight()*(SUNLIGHT_STRENGTH*0.01),astra_twilight_strength());
-	vec3 moon = mix(vec3(0.30, 0.40, 0.62), vec3(0.48, 0.61, 0.88), moonProgress)
-	          * (MOONLIGHT_STRENGTH * 0.0068);
+	// 2026-09-23 night-visual round ("夜晚阴影太多显得奇怪"): the old palette was a
+	// saturated blue (R<G<B, 0.30/0.40/0.62 -> 0.48/0.61/0.88) at 0.68 absolute, i.e.
+	// about 4x astra_sky_ambient(), so direct light dominated the night and every cast
+	// shadow read as a black patch. The reference packs (Mellow f_MOON 0.133/0.133/0.214)
+	// carry the night as a near-neutral, faintly blue wash instead: R=G with B only
+	// ~1.6x R, and much dimmer. Same hue ratio here, factor 0.0068 -> 0.0046 so the
+	// direct term lands at 1.5..2.3x the sky ambient over the whole moonProgress and
+	// moon-phase range (mid-phase/mid-phase 3.8:1 -> 1.9:1). See diffuse.glsl night note.
+	// Phase (astraMoonLightScale, 0.82..1.06) and the horizon/rain gates below are unchanged.
+	vec3 moon = mix(vec3(0.30, 0.30, 0.48), vec3(0.42, 0.42, 0.67), moonProgress)
+	          * (MOONLIGHT_STRENGTH * 0.0046);
 	// Moon phase (design: the phase stays visible and is allowed a SMALL effect on
 	// direct moonlight - MakeUp does the same in its night palette). This multiplies
 	// the direct term only: the ambient term is astra_sky_ambient(), which has no phase

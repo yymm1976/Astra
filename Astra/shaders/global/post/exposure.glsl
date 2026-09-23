@@ -96,12 +96,15 @@ float astra_ae_meter(sampler2D scene) {
 // One frame of adaptation, returned ready to store. The caller is the only fragment of
 // a 1x1 pass, so "per frame" and "per invocation" are the same thing here.
 vec4 astra_ae_frame(sampler2D scene, float deltaTime) {
-	float target = astra_ae_meter(scene);
 
 	// .a is a validity flag, not a spare channel. Without it a never-written texel
 	// would decode as AE_MIN_GAIN and the first frame of every world load would start
 	// by darkening the picture.
 	vec4 history = texelFetch(colortex10, ivec2(0), 0);
+    // A valid frozen history needs no scene metering while submerged.
+    if(isEyeInWater != 0 && history.a > 0.5 && !isnan(history.r))
+        return vec4(history.r,0.0,0.0,1.0);
+    float target = astra_ae_meter(scene);
 	float current = history.a > 0.5 ? astra_ae_decode(history.r) : target;
 	if (isnan(current)) current = target;
 

@@ -101,7 +101,9 @@
 // Subtle fog/ambient tint by biome temperature/humidity
 #define BIOME_TINT_STRENGTH 50 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
 // Biome tint strength, %
-#define END_NEBULA // [false true]
+#define END_STONE_GLOW 100 // [0 25 50 75 100 125 150]
+#define NETHERRACK_GLOW 100 // [0 25 50 75 100]
+#define DEBUG_VERTEX_AO 0 // [0 1]
 // End dimension: faint nebula layer (low intensity)
 #define END_PRECESSION_MINUTES 36 // [20 24 28 32 36 40 44 48 52 56 60]
 // End ring axis precession; body orbital periods remain independent.
@@ -230,7 +232,7 @@
 // ------------------------------------------------------------
 const int   shadowMapResolution  = SHADOW_RESOLUTION;  // shadow map is square
 const float shadowDistance       = SHADOW_DISTANCE;    // blocks
-const float shadowDistanceRenderMul = 1.5;             // retain upstream casters beyond the receiver range
+const float shadowDistanceRenderMul = 1.5;             // shadow frustum extent, x shadowDistance
 // Smaller world-grid intervals reduce changes of the distortion origin at
 // cell boundaries; this does not change the shadow map's texel resolution.
 const float shadowIntervalSize   = 0.5;
@@ -245,104 +247,104 @@ const int   noiseTextureResolution = 256;              // engine default kept ex
 // evaluate arithmetic. Render multiplier is 1.5 above; keep it paired here.
 #if SHADOW_DISTANCE == 64
 #if ENTITY_SHADOW_DISTANCE == 32
-const float entityShadowDistanceMul = 0.3333333333;
+const float entityShadowDistanceMul = 0.333333333;
 #elif ENTITY_SHADOW_DISTANCE == 48
-const float entityShadowDistanceMul = 0.5000000000;
+const float entityShadowDistanceMul = 0.500000000;
 #elif ENTITY_SHADOW_DISTANCE == 64
-const float entityShadowDistanceMul = 0.6666666667;
+const float entityShadowDistanceMul = 0.666666667;
 #elif ENTITY_SHADOW_DISTANCE == 96
-const float entityShadowDistanceMul = 1.0000000000;
+const float entityShadowDistanceMul = 1.000000000;
 #else // ENTITY_SHADOW_DISTANCE == 128
-const float entityShadowDistanceMul = 1.3333333333;
+const float entityShadowDistanceMul = 1.333333333;
 #endif
 #elif SHADOW_DISTANCE == 80
 #if ENTITY_SHADOW_DISTANCE == 32
-const float entityShadowDistanceMul = 0.2666666667;
+const float entityShadowDistanceMul = 0.266666667;
 #elif ENTITY_SHADOW_DISTANCE == 48
-const float entityShadowDistanceMul = 0.4000000000;
+const float entityShadowDistanceMul = 0.400000000;
 #elif ENTITY_SHADOW_DISTANCE == 64
-const float entityShadowDistanceMul = 0.5333333333;
+const float entityShadowDistanceMul = 0.533333333;
 #elif ENTITY_SHADOW_DISTANCE == 96
-const float entityShadowDistanceMul = 0.8000000000;
+const float entityShadowDistanceMul = 0.800000000;
 #else // ENTITY_SHADOW_DISTANCE == 128
-const float entityShadowDistanceMul = 1.0666666667;
+const float entityShadowDistanceMul = 1.066666667;
 #endif
 #elif SHADOW_DISTANCE == 96
 #if ENTITY_SHADOW_DISTANCE == 32
-const float entityShadowDistanceMul = 0.2222222222;
+const float entityShadowDistanceMul = 0.222222222;
 #elif ENTITY_SHADOW_DISTANCE == 48
-const float entityShadowDistanceMul = 0.3333333333;
+const float entityShadowDistanceMul = 0.333333333;
 #elif ENTITY_SHADOW_DISTANCE == 64
-const float entityShadowDistanceMul = 0.4444444444;
+const float entityShadowDistanceMul = 0.444444444;
 #elif ENTITY_SHADOW_DISTANCE == 96
-const float entityShadowDistanceMul = 0.6666666667;
+const float entityShadowDistanceMul = 0.666666667;
 #else // ENTITY_SHADOW_DISTANCE == 128
-const float entityShadowDistanceMul = 0.8888888889;
+const float entityShadowDistanceMul = 0.888888889;
 #endif
 #elif SHADOW_DISTANCE == 112
 #if ENTITY_SHADOW_DISTANCE == 32
-const float entityShadowDistanceMul = 0.1904761905;
+const float entityShadowDistanceMul = 0.190476190;
 #elif ENTITY_SHADOW_DISTANCE == 48
-const float entityShadowDistanceMul = 0.2857142857;
+const float entityShadowDistanceMul = 0.285714286;
 #elif ENTITY_SHADOW_DISTANCE == 64
-const float entityShadowDistanceMul = 0.3809523810;
+const float entityShadowDistanceMul = 0.380952381;
 #elif ENTITY_SHADOW_DISTANCE == 96
-const float entityShadowDistanceMul = 0.5714285714;
+const float entityShadowDistanceMul = 0.571428571;
 #else // ENTITY_SHADOW_DISTANCE == 128
-const float entityShadowDistanceMul = 0.7619047619;
+const float entityShadowDistanceMul = 0.761904762;
 #endif
 #elif SHADOW_DISTANCE == 128
 #if ENTITY_SHADOW_DISTANCE == 32
-const float entityShadowDistanceMul = 0.1666666667;
+const float entityShadowDistanceMul = 0.166666667;
 #elif ENTITY_SHADOW_DISTANCE == 48
-const float entityShadowDistanceMul = 0.2500000000;
+const float entityShadowDistanceMul = 0.250000000;
 #elif ENTITY_SHADOW_DISTANCE == 64
-const float entityShadowDistanceMul = 0.3333333333;
+const float entityShadowDistanceMul = 0.333333333;
 #elif ENTITY_SHADOW_DISTANCE == 96
-const float entityShadowDistanceMul = 0.5000000000;
+const float entityShadowDistanceMul = 0.500000000;
 #else // ENTITY_SHADOW_DISTANCE == 128
-const float entityShadowDistanceMul = 0.6666666667;
+const float entityShadowDistanceMul = 0.666666667;
 #endif
 #elif SHADOW_DISTANCE == 160
 #if ENTITY_SHADOW_DISTANCE == 32
-const float entityShadowDistanceMul = 0.1333333333;
+const float entityShadowDistanceMul = 0.133333333;
 #elif ENTITY_SHADOW_DISTANCE == 48
-const float entityShadowDistanceMul = 0.2000000000;
+const float entityShadowDistanceMul = 0.200000000;
 #elif ENTITY_SHADOW_DISTANCE == 64
-const float entityShadowDistanceMul = 0.2666666667;
+const float entityShadowDistanceMul = 0.266666667;
 #elif ENTITY_SHADOW_DISTANCE == 96
-const float entityShadowDistanceMul = 0.4000000000;
+const float entityShadowDistanceMul = 0.400000000;
 #else // ENTITY_SHADOW_DISTANCE == 128
-const float entityShadowDistanceMul = 0.5333333333;
+const float entityShadowDistanceMul = 0.533333333;
 #endif
 #elif SHADOW_DISTANCE == 192
 #if ENTITY_SHADOW_DISTANCE == 32
-const float entityShadowDistanceMul = 0.1111111111;
+const float entityShadowDistanceMul = 0.111111111;
 #elif ENTITY_SHADOW_DISTANCE == 48
-const float entityShadowDistanceMul = 0.1666666667;
+const float entityShadowDistanceMul = 0.166666667;
 #elif ENTITY_SHADOW_DISTANCE == 64
-const float entityShadowDistanceMul = 0.2222222222;
+const float entityShadowDistanceMul = 0.222222222;
 #elif ENTITY_SHADOW_DISTANCE == 96
-const float entityShadowDistanceMul = 0.3333333333;
+const float entityShadowDistanceMul = 0.333333333;
 #else // ENTITY_SHADOW_DISTANCE == 128
-const float entityShadowDistanceMul = 0.4444444444;
+const float entityShadowDistanceMul = 0.444444444;
 #endif
 #else // SHADOW_DISTANCE == 256
 #if ENTITY_SHADOW_DISTANCE == 32
-const float entityShadowDistanceMul = 0.0833333333;
+const float entityShadowDistanceMul = 0.083333333;
 #elif ENTITY_SHADOW_DISTANCE == 48
-const float entityShadowDistanceMul = 0.1250000000;
+const float entityShadowDistanceMul = 0.125000000;
 #elif ENTITY_SHADOW_DISTANCE == 64
-const float entityShadowDistanceMul = 0.1666666667;
+const float entityShadowDistanceMul = 0.166666667;
 #elif ENTITY_SHADOW_DISTANCE == 96
-const float entityShadowDistanceMul = 0.2500000000;
+const float entityShadowDistanceMul = 0.250000000;
 #else // ENTITY_SHADOW_DISTANCE == 128
-const float entityShadowDistanceMul = 0.3333333333;
+const float entityShadowDistanceMul = 0.333333333;
 #endif
 #endif
 
-// Software retains exact depth/material pairing. Optional hardware comparison
-// filtering uses the surface consumer's explicitly approximate centre material.
+// Both modes pair surface depth comparisons with each texel's caster colour.
+// Hardware mode retains bilinear comparison filtering for opaque volume queries.
 #if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
 const bool shadowHardwareFiltering = true;
 const bool shadowHardwareFiltering0 = true;

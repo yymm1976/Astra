@@ -68,7 +68,7 @@ def distribution(values):
 
 
 def material_light(all_v, opaque_v, caster, coloured, underwater):
-    tint = caster[1:] if coloured else (0.0, 0.0, 0.0)
+    tint = caster[1:] if coloured else (1.0, 1.0, 1.0)
     if caster[0] < 0.999:
         tint = caster[1:] if underwater else (1.0, 1.0, 1.0)
     return tuple(all_v + c * max(opaque_v - all_v, 0) for c in tint)
@@ -125,7 +125,7 @@ def main():
     lines.append('Compare-before-filter and default lazy-material contracts: ' + ('FAIL' if failures else 'PASS'))
     lines.append(f'Tolerances: mean={args.mean_tolerance}, max_abs={args.max_tolerance}, std_slack={args.std_tolerance}')
     lines.append(f'Overall max_abs={worst:.3e}; FAIL={len(failures)}')
-    lines.append('Scope: visibility only. Hardware centre-tint approximation is not per-texel colour equivalence.')
+    lines.append('Scope: ideal visibility only. Use shadow_material_probe.py for actual GPU per-texel RGB equivalence.')
     if failures:
         lines.append('Failures: ' + ', '.join(failures))
     output = '\n'.join(lines) + '\n'

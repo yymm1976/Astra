@@ -50,10 +50,10 @@ def main():
             print(f"{path.relative_to(SHADERS)}:{line}: ({header})")
             print(f"  fetch sites: {len(FETCH.findall(body))}; calls: {', '.join(calls)}")
     print("\nManual workload context, not a runtime bound:")
-    print("End lens: 48 steps, at most 96 candidate-segment calls plus entry/escape.")
-    print("Each segment also traverses candidates/body geometry; 96 is NOT total work.")
+    print("End lens: precomputed paths, two disc layers; no runtime geodesic march.")
+    print("End plasma: four bounded samples shared by corona and disc wind.")
     print("Empty bounds and early exits reduce actual work; no branch probability assumed.")
-    print("End illumination: only slot 0 runs 256 disc samples, not all 294 slots.")
+    print("End illumination: only slot 0 runs 32 disc samples, not all 294 slots.")
     print("Puddle SSR: up to 96 steps on tagged puddle pixels.")
     print("End sky geometry: 0.75 x 0.75 buffer; stars at full size.")
     return 0

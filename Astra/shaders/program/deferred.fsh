@@ -96,9 +96,17 @@ vec3 rainy_air(vec3 endPoint) {
 }
 #endif
 void main() {
+    #if DEBUG_VERTEX_AO == 1
+    vec4 ao = texture(colortex0,texcoord);
+    gl_FragData[0]=ao;
+    gl_FragData[1]=ao;
+    return;
+    #endif
     #ifdef DIMENSION_END
     vec3 ray=normalize(view_player(screen_view(vec3(texcoord,1.0))));
     float cone=max(length(dFdx(ray)),length(dFdy(ray)));
+    vec3 endStarRay=end_lensed_background(ray);
+    vec3 endStarDx=dFdx(endStarRay), endStarDy=dFdy(endStarRay);
     #endif
     vec3 source = texture(colortex0, texcoord).rgb;
     float depth = texture(depthtex0, texcoord).r;
@@ -158,6 +166,33 @@ void main() {
         }
         #endif
         displayed = astra_apply_medium(source, playerPos, skylight);
+
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END && CLOUD_MODE == CLOUD_PLANAR
+        // F2 (2026-09-21): the sheet used to be composited ONLY on the far plane (the
+        // `depth >= 0.999999` branch below), so every terrain pixel - i.e. everything a
+        // player sees while standing above the layer and looking down - carried no cloud,
+        // while the sky past the render distance did. The cloud-free disc around the player
+        // is exactly the terrain footprint. Compose it here as well, but only when the sheet
+        // really lies between the eye and this fragment: the eye must be outside the layer,
+        // the travel direction must point at it, and the plane crossing must be nearer than
+        // the terrain distance. The gate is evaluated BEFORE the call because GLSL evaluates
+        // arguments unconditionally.
+        //
+        // Cost for normal ground play is one subtraction and one comparison per terrain
+        // pixel: below the layer a downward ray gives planeDistance < 0, so the block exits
+        // before any noise, march or texture fetch.
+        float cloudLower = ASTRA_CLOUD_ALTITUDE - ASTRA_CLOUD_STRETCH;
+        float cloudUpper = ASTRA_CLOUD_ALTITUDE + ASTRA_CLOUD_STRETCH;
+        float cloudTerrainDistance = length(playerPos);
+        vec3 cloudRay = normalize(view_player(screen_view(vec3(texcoord,1.0))));
+        float cloudEntryPlane = cameraPosition.y > cloudUpper ? cloudUpper : cloudLower;
+        float cloudPlaneDistance = (cloudEntryPlane - cameraPosition.y) / cloudRay.y;
+        if ((cameraPosition.y > cloudUpper || cameraPosition.y < cloudLower)
+            && cloudPlaneDistance > 0.0 && cloudPlaneDistance < cloudTerrainDistance) {
+            vec4 sheet = astra_planar_cloud(cloudRay);
+            if (sheet.a > 0.0) displayed = mix(displayed, sheet.rgb, sheet.a);
+        }
+        #endif
         #if !defined DIMENSION_NETHER && !defined DIMENSION_END
         displayed += rainy_air(playerPos);
         #endif
@@ -168,8 +203,10 @@ void main() {
         vec4 sky = texture(colortex9, texcoord);
         displayed = sky.rgb;
         float starVisibility = sky.a * (1.0-max(blindness,darknessFactor));
+        displayed += end_crisp_photon_ring(ray,cone)
+                   * (1.0-max(blindness,darknessFactor)) * (1.0-0.18*end_eclipse());
         if (starVisibility > 0.0)
-            displayed += end_starfield(ray, end_light_direction(), cone) * starVisibility
+            displayed += end_starfield_filtered(endStarRay, cone, endStarDx, endStarDy) * starVisibility
                        * (1.0-0.18*end_eclipse());
         #else
         displayed = astra_sky(normalize(view_player(screen_view(vec3(texcoord, 1.0)))));

@@ -94,6 +94,30 @@ float astra_2d_cloud_sample(vec2 pos) {
 }
 
 // lib/atmospherics/clouds/reimaginedClouds.glsl:7-20, without the colortex3 branch
+// ---------------------------------------------------------------------------
+// F1 (2026-09-21) single source of truth for the sheet density contract.
+// Before this, four readers each carried their own copy of the numbers: the march
+// existence test (:225), its column-density ramp (:316), the shadow arm (weather.glsl)
+// and the reflection board (overworld.glsl). Worse, the existence test judged the SUM of
+// both octaves, so the rotated detail octave could create cloud by itself: measured at
+// 30.66% of all cloud pixels at the default coverage, with a dominant pattern axis 33
+// degrees away from the body (qa/tools/cloud_ghost_probe.py). That is the off-axis,
+// washed-out second layer users reported. Existence is now decided by the COARSE octave
+// alone; the detail octave only changes how dense an existing cloud is.
+float astra_cloud_coverage_bias() {
+    return mix(0.20, -0.20, CLOUD_COVERAGE * 0.01) - 0.04 - 0.28 * astraRainFactor;
+}
+float astra_cloud_existence_gate(float layerThreshold) {
+    return 0.25 + layerThreshold * 0.5 + astra_cloud_coverage_bias();
+}
+float astra_cloud_saturation() {
+    return 0.43 + astra_cloud_coverage_bias();
+}
+float astra_cloud_coarse(vec3 tracePos, float cloudAltitude) {
+    vec3 tracePosM = astra_modify_trace_pos(tracePos, cloudAltitude);
+    return 0.78 * astra_2d_cloud_sample(tracePosM.xz);
+}
+
 float astra_cloud_noise(vec3 tracePos, float cloudAltitude) {
 	vec3 tracePosM = astra_modify_trace_pos(tracePos, cloudAltitude);
     // Broad density plus a smaller, rotated octave: soften Reimagined's
@@ -176,8 +200,10 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 	float VdotS = dot(nPlayerPos, normalize(worldSunVector));
 	float dither = astra_cloud_ign();
 
-	// ASTRA OWN: CLOUD_COVERAGE bias, zero at the default 50 so the default
-	// test is exactly the reference's `noise > threshold * 0.5 + 0.25`.
+	// ASTRA OWN: CLOUD_COVERAGE bias. F1 correction: the mix() term is zero at the
+	// default 50, but the -0.04 term is not, so the in-layer gate is 0.21 and the old
+	// ramp started at 0.17 -- a 0.04 band of near-invisible film below the gate. Both
+	// ends now come from the shared functions above.
 	float coverageBias = mix(0.20, -0.20, CLOUD_COVERAGE * 0.01) - 0.04 - 0.28 * astraRainFactor;
 
 	// lib/atmospherics/clouds/reimaginedClouds.glsl:33-41
@@ -194,20 +220,20 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 	if (maxPlaneDistance < 0.0) return vec4(0.0);
     if (minPlaneDistance * length(nPlayerPos.xz) > ASTRA_CLOUD_THRESHOLD_F)
         return vec4(0.0);
-	float planeDistanceDif = maxPlaneDistance - minPlaneDistance;
-
-	// skyFade has no Astra equivalent -> skyFadeM is the reference's 1.0 (see header)
-	const float skyFadeM = 1.0;
-
-	// lib/atmospherics/clouds/reimaginedClouds.glsl:47-48
-	int sampleCount = clamp(int(min(planeDistanceDif, ASTRA_CLOUD_THRESHOLD_F)) / 16, 6, 64);
-
-	// lib/atmospherics/clouds/reimaginedClouds.glsl:55-59
-	float stepMult = planeDistanceDif / float(sampleCount);
-	vec3 traceAdd = nPlayerPos * stepMult;
-	vec3 tracePos = cameraPosition + minPlaneDistance * nPlayerPos;
-	tracePos += traceAdd * dither;
-	tracePos.y -= traceAdd.y;
+    // Clip the slab against the horizontal visibility cylinder before marching.
+    // Previously horizontal rays distributed 64 samples over mostly invisible space.
+    float horizontalRay = length(nPlayerPos.xz);
+    if (horizontalRay > 1e-5)
+        maxPlaneDistance = min(maxPlaneDistance,ASTRA_CLOUD_THRESHOLD_F/horizontalRay);
+    float planeDistanceDif = maxPlaneDistance-minPlaneDistance;
+    if (planeDistanceDif <= 0.0) return vec4(0.0);
+    const float skyFadeM = 1.0;
+    int sampleCount = clamp(int(ceil(planeDistanceDif/16.0)),6,64);
+    float stepMult = planeDistanceDif/float(sampleCount);
+    vec3 traceAdd = nPlayerPos*stepMult;
+    // All axes start in the same sample interval. The old y-only subtraction
+    // shifted xz by an extra step and could sample outside the intended ray.
+    vec3 tracePos = cameraPosition+(minPlaneDistance+(dither-1.0)*stepMult)*nPlayerPos;
 
 	vec4 volumetricClouds = vec4(0.0);
 
@@ -221,8 +247,15 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 		// lib/atmospherics/clouds/reimaginedClouds.glsl:17-19
 		float threshold = clamp(abs(ASTRA_CLOUD_ALTITUDE - tracePos.y) / ASTRA_CLOUD_STRETCH, 0.001, 0.999);
 		      threshold = pow2(pow2(pow2(threshold)));
-		float noise = astra_cloud_noise(tracePos, ASTRA_CLOUD_ALTITUDE);
-		if (noise <= threshold * 0.5 + 0.25 + coverageBias) continue;
+		// F1: existence is the COARSE octave only. noise (both octaves) is still the
+		// column-density input below, so the detail octave keeps softening the edge
+		// without ever creating cloud on its own. The gate is the shared one.
+		vec3 tracePosM = astra_modify_trace_pos(tracePos, ASTRA_CLOUD_ALTITUDE);
+		float coarse = 0.78*astra_2d_cloud_sample(tracePosM.xz);
+		float existenceGate = astra_cloud_existence_gate(threshold);
+		if (coarse <= existenceGate) continue;
+		vec2 detailUv = mat2(0.8,-0.6,0.6,0.8)*tracePosM.xz*2.7+vec2(31.7,9.3);
+		float noise = coarse + 0.22*astra_2d_cloud_sample(detailUv);
 
         // Empty rays need density only, not the sky palette and cloud lighting.
         // This march shades its first hit and exits; evaluate the colours here.
@@ -313,7 +346,12 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 
 		// :134-137 - cloudMult is 1.0 (the lViewPosM branch has no Astra equivalent)
 		float cloudDistanceFactor = clamp(distanceRatio, 0.0, 0.75);
-        float columnDensity=smoothstep(0.21+coverageBias,0.43+coverageBias,noise);
+        // F1: the ramp starts exactly at the existence gate, so the visible alpha reaches 0
+        // on the boundary instead of jumping straight to a 0.087 film below it.
+        // Near the sheet's upper/lower boundary the existence threshold can
+        // exceed the nominal saturation. smoothstep requires ordered edges.
+        float saturation=max(astra_cloud_saturation(),existenceGate+0.02);
+		float columnDensity=smoothstep(existenceGate,saturation,noise);
 		volumetricClouds.a = sqrt(cloudDistanceFactor * 1.33333)*columnDensity;
 		volumetricClouds.rgb = colorSample;
 		break;

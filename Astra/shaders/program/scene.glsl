@@ -76,26 +76,6 @@ vec3 astra_underwater_color(vec3 viewDir) {
     return incident * water_scattering_coefficient()
          / max(water_extinction(), vec3(1e-6));
 }
-// Analytic atmosphere excludes the vanilla sun sprite. A ray that leaves the
-// water must explicitly include that emitter, otherwise Snell's window has no sun.
-vec3 astra_water_air_sky(vec3 direction) {
-    vec3 sky = astra_sky(direction);
-    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-        float angle = length(normalize(direction) - normalize(worldSunVector));
-        float disk = 1.0 - smoothstep(0.009, 0.014, angle);
-        float aureole = exp(-angle * angle / 0.0025);
-        float daylight = skyVisibilityDay * smoothstep(0.0, 0.10, worldSunVector.y);
-        // The solar image seen through the water surface, from below. It uses the same
-        // luminance shoulder as the disc in program/sky.fsh: an underwater sun seen
-        // through Snell's window was the brightest thing in the frame and clipped to a
-        // white patch, and a hard clip there also removed the colour the user wants
-        // kept. Amplitudes are lower than before (12.0 / 0.30 -> 8.0 / 0.26) because
-        // the disc itself is no longer under-reading; the shape is unchanged.
-        sky += astra_scene_highlights(astra_direct_light()
-             * (disk * 8.0 + aureole * 0.26) * daylight * (1.0 - rainStrength));
-    #endif
-    return sky;
-}
 // Integrate the OTHER leg of a water-surface path (interface to floor, or
 // interface to reflected terrain). The camera leg is handled separately.
 // start MUST be the actual water/air interface, in camera-relative world axes.
@@ -215,18 +195,19 @@ vec3 astra_apply_medium(vec3 color, vec3 playerPos, float skylight) {
     return result;
 }
 vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
-                 float skylight, float blocklight, uint material, out vec3 directRadiance) {
+                 float skylight, float blocklight, uint material, out vec3 directRadiance,
+                 float vertexAO) {
     directRadiance = vec3(0.0);
     float emissive = material == 10u ? 1.0 : 0.0;
     float portal = material == 7u ? 1.0 : 0.0;
     #if defined DIMENSION_NETHER
         NetherParams params = NetherParams(fogColor, nightVision, astraHeldLightBase);
         return nether_lighting(albedo, normal, playerPos, blocklight, emissive, portal,
-                               frameTimeCounter, params);
+                               frameTimeCounter, params, vertexAO);
     #elif defined DIMENSION_END
         EndParams params = EndParams(nightVision, astraHeldLightBase);
         return end_lighting(albedo, normal, playerPos, shadowPos, blocklight, emissive, portal,
-                            frameTimeCounter, params);
+                            frameTimeCounter, params, directRadiance);
     #else
         LightParams params = LightParams(astra_sky_ambient(), astra_direct_light(),
             nightVision, astraBlocklightSuppression, astraHeldLightBase,

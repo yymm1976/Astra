@@ -4,8 +4,7 @@
 // Astra v1 — global/post/bloom.glsl
 // Two-pass bloom (design.md 4.4): composite1 captures a reduced-resolution, soft-knee
 // prefiltered image into colortex2 — the fraction is BLOOM_CAPTURE_SCALE below — with
-// mipmaps on, and the final chain reads four of its mip levels (two under
-// DIMENSION_END). The mip chain replaces the 6-pass downsample pyramid that Mellow
+// mipmaps on, and the final chain reads four of its mip levels. The mip chain replaces the 6-pass downsample pyramid that Mellow
 // ships, which is where the four saved passes come from.
 //
 // PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - structure borrowed from
@@ -24,6 +23,9 @@
 // --- prefilter tuning (HDR, pre-tonemap; colortex0 is R11F_G11F_B10F) ---
 // Anything at or below white contributes nothing, which is what keeps bloom off the
 // midtones and stops it from turning into a grey haze over the whole frame.
+#if defined DIMENSION_END && defined ASTRA_BLOOM_CAPTURE
+uniform sampler2D colortex3;
+#endif
 const float BLOOM_THRESHOLD = 1.0;
 // Soft knee width, in the same units. Without it, pixels crossing the threshold pop
 // in and out as the sun or a light source moves, which is very visible without TAA.
@@ -105,8 +107,18 @@ vec3 bloom_capture(sampler2D src, vec2 texCoord) {
 	for (int i = 0; i < 13; i++) {
 		vec2 coord = clamp(texCoord + vec2(BLOOM_TAP[i]) * srcTexel * tapScale,
 		                   pad, 1.0 - pad);
-		acc += bloom_prefilter(max(textureLod(src, coord, 0.0).rgb, vec3(0.0)))
-			* BLOOM_TAP_WEIGHT[i];
+        vec3 source = bloom_prefilter(max(textureLod(src,coord,0.0).rgb,vec3(0.0)));
+        #if defined DIMENSION_END && defined ASTRA_BLOOM_CAPTURE
+        // Reject sky and opaque surfaces covered by translucent geometry. The mask
+        // is written only by identity-gated End-stone terrain, never pale sand.
+        float depth = textureLod(depthtex0,coord,0.0).r;
+        float opaqueDepth = textureLod(depthtex1,coord,0.0).r;
+        if (depth < 0.999999 && abs(depth-opaqueDepth) < 1e-7) {
+            float emission = textureLod(colortex3,coord,0.0).a;
+            source += vec3(0.16/0.19,1.0,0.08/0.19)*emission;
+        }
+        #endif
+        acc += source * BLOOM_TAP_WEIGHT[i];
 	}
 
 	return acc;
@@ -123,10 +135,13 @@ vec3 bloom_capture(sampler2D src, vec2 texCoord) {
 //   color += bloom_composite(colortex2, texcoord, BLOOM_STRENGTH * 0.01);
 vec3 bloom_composite(sampler2D bloomTex, vec2 texCoord, float strength) {
 	#ifdef DIMENSION_END
-		// Restrict the sky bloom to the two smallest levels; retain sharp stars and gaps.
-		vec3 bloom=textureLod(bloomTex,texCoord,0.0).rgb*0.65
-		          +textureLod(bloomTex,texCoord,1.0).rgb*0.35;
-		return max(bloom,vec3(0))*strength*0.45;
+		// A hot photosphere needs a small optical shoulder beyond its white core.
+		// Keep most energy local so the native-resolution photon ring stays legible.
+		vec3 bloom=textureLod(bloomTex,texCoord,0.0).rgb*0.50
+		          +textureLod(bloomTex,texCoord,1.0).rgb*0.25
+		          +textureLod(bloomTex,texCoord,2.0).rgb*0.15
+		          +textureLod(bloomTex,texCoord,3.0).rgb*0.10;
+		return max(bloom,vec3(0))*strength*0.35;
 	#else
 	// Mip levels compensate for the capture resolution, so these are not arbitrary.
 	// A level's texel covers (screen/bloomWidth) * 2^level pixels, so at the 0.5x capture

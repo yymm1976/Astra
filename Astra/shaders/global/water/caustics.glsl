@@ -8,20 +8,17 @@
 // 2026-09-11: Astra had scaled the height by 0.4 and halved the tap offset, which
 // shrank the measured caustic field to p90 = 0.06 (max 0.18) - a flat wash instead of
 // the reference's bright moving network, which is what the user saw as "no caustics".
+//
+// 2026-09-23 (underwater rewrite): this height field now drives the VISIBLE water
+// surface only (solas_water_normal above, and through it program/water.glsl). The
+// caustic field below is a separate analytic wave surface - see the block after it for
+// why the noise-derived field could not be turned into a focus network.
 float solas_water_height(vec3 p, vec2 offset) {
     vec2 wind = vec2(frameTimeCounter) * 0.5 * 1.5;
     p.xz -= p.y * 0.2;
     float a = textureLod(solasWaterNoise, (p.xz - wind) / 256.0 + offset / 256.0, 0.0).g;
     float b = textureLod(solasWaterNoise, (p.xz + wind) / 48.0 + offset / 256.0, 0.0).g;
     return mix(a, b, 0.40);
-}
-float solas_water_caustics(vec3 p) {
-    float h = solas_water_height(p, vec2(0.0));
-    float xa = (solas_water_height(p, vec2(1.0, 0.0)) - h);
-    float xb = (solas_water_height(p, vec2(-1.0, 0.0)) - h);
-    float ya = (solas_water_height(p, vec2(0.0, 1.0)) - h);
-    float yb = (solas_water_height(p, vec2(0.0, -1.0)) - h);
-    return max((xa * -xb + ya * -yb) * 96.0, 0.0);
 }
 // Solas waterNormals: four parallax steps, then the same height field used by caustics.
 vec3 solas_water_normal(vec3 worldPos, vec3 face, vec3 tangent, vec3 binormal,
@@ -38,79 +35,82 @@ vec3 solas_water_normal(vec3 worldPos, vec3 face, vec3 tangent, vec3 binormal,
 // unprotected - any second include of this file would have redefined them
 // (consolidated review E1 / Qoder F-19). The guard now closes at end of file.
 
-// ---------------------------------------------------------------------------
-// Geometric caustics, ported from IterationT 3.2.0
-// (Lib/BasicFounctions/Sunlight_Shadow.glsl::CalculateWaterCaustics and
-//  Lib/IndividualFounctions/UnderwaterVolumetricFog.glsl::CalculateWaterCaustics).
+// Analytic focusing proxy: the determinant of the small-slope landing map.
+// This is evaluated at the projected receiver, not an inverse ray-density solve.
+// Six nonuniform wave frequencies avoid the old arithmetic frequency ladder;
+// their spectrum alone cannot establish the perceived pattern in Minecraft.
+const float ASTRA_CAUSTIC_DROP = 6.0;        // effective air column over the receiver, blocks
+const float ASTRA_CAUSTIC_JFLOOR = 0.06;     // folded areas saturate here (1/J -> 16.7)
+const float ASTRA_CAUSTIC_SCALE = 0.21;      // field units per sqrt(1/|J| - 1)
+const float ASTRA_CAUSTIC_MEDIAN = 0.10;     // consumers' shared neutral point (see above)
+// The caster tint's own strength. Underwater the tint is the ONLY caustic path, and the
+// shadow map's bilinear caster filtering averages the sharpest spots down, so the caster
+// gets more headroom than the air-side 0.70; its own clamp is [0.80, 2.60] against
+// lit.fsh's [0.70, 1.80].
+const float ASTRA_CAUSTIC_CASTER_STRENGTH = 1.90;
+// How strongly the field bands the beam along the march (global/water/light_shafts.glsl).
+// 1.0 leaves the sample at its unmodulated weight at the neutral point (field 0.10) and
+// doubles it at the field's bright half.
+const float ASTRA_CAUSTIC_SHAFT_CONTRAST = 1.5;
+// Curvature weights are preserved when changing the wavelength spacing.
+const vec2 ASTRA_CAUSTIC_DIR[6] = vec2[6](vec2(0.9455, 0.3256),
+                                          vec2(0.4226, 0.9063),
+                                          vec2(-0.0523, 0.9986),
+                                          vec2(-0.4848, 0.8746),
+                                          vec2(-0.8387, 0.5446),
+                                          vec2(-0.9848, 0.1736));
+const float ASTRA_CAUSTIC_WAVENUMBER[6] = float[6](2.0 * 3.14159265359 / 1.500000,
+                                                   2.0 * 3.14159265359 / 1.060660,
+                                                   2.0 * 3.14159265359 / 0.866025,
+                                                   2.0 * 3.14159265359 / 0.670820,
+                                                   2.0 * 3.14159265359 / 0.566947,
+                                                   2.0 * 3.14159265359 / 0.452267);
+const float ASTRA_CAUSTIC_SLOPE[6] = float[6](0.0712000, 0.0430076, 0.0311448,
+                                              0.0218889, 0.0170553, 0.0127254);
+const float ASTRA_CAUSTIC_SPEED[6] = float[6](1.45, 2.05, 1.72, 2.72, 2.31, 3.28);
+const float ASTRA_CAUSTIC_PHASE[6] = float[6](0.0, 1.7, 3.1, 0.9, 4.3, 2.2);
+
+// grad h and the Hessian of the analytic wave surface, in one pass over the trains.
+// slope = (dh/dx, dh/dz); hessian = (d2h/dx2, d2h/dz2, d2h/dxdz).
+void astra_caustic_wave(vec2 p, float t, out vec2 slope, out vec3 hessian) {
+    slope = vec2(0.0);
+    hessian = vec3(0.0);
+    for (int i = 0; i < 6; ++i) {
+        vec2 dir = ASTRA_CAUSTIC_DIR[i];
+        float amp = ASTRA_CAUSTIC_SLOPE[i];
+        float phase = ASTRA_CAUSTIC_WAVENUMBER[i] * dot(dir, p)
+                    + ASTRA_CAUSTIC_SPEED[i] * t + ASTRA_CAUSTIC_PHASE[i];
+        float c = cos(phase);
+        float second = -amp * ASTRA_CAUSTIC_WAVENUMBER[i] * sin(phase);
+        slope += amp * c * dir;
+        hessian.xy += vec2(second * dir.x * dir.x, second * dir.y * dir.y);
+        hessian.z += second * dir.x * dir.y;
+    }
+}
+
+// The caustic field. Name kept because program/lit.fsh (read-only in this round) calls it
+// by this name; it is no longer the Solas expression.
 //
-// The reference does not tint a shadow map: it asks where the light actually lands.
-// Take the wave normal above the receiver, refract the vertical light ray through it,
-// and measure how close the refracted ray converges to the receiver. Light that focuses
-// there is bright, light that spreads is dark. That is a physical caustic, and it needs
-// no shadow-map cooperation - which is exactly why the previous shadow-map-tint attempt
-// could not be made to show.
-//
-// Astra adapter: the reference reads the wave normal from a buffer it stores a tiled
-// normal field in (its colortex7). Astra has no such buffer, so the normal is derived
-// from the same Solas height field this file already uses, by central differences. Same
-// physics, one fewer buffer dependency.
-vec3 astra_wave_normal_at(vec3 p) {
-    float x = solas_water_height(p, vec2(1.0, 0.0)) - solas_water_height(p, vec2(-1.0, 0.0));
-    float z = solas_water_height(p, vec2(0.0, 1.0)) - solas_water_height(p, vec2(0.0, -1.0));
-    // Slope scale, calibrated offline against the reference's own focus test.
-    // GLSL's refract(I, N, 1.0) degenerates to the mirror formula I - 2*dot(N,I)*N, so the
-    // refracted ray's horizontal displacement is about twice the wave slope. The focus
-    // test saturates once that displacement leaves roughly +/-0.14, and the raw central
-    // difference of this height field has a median magnitude of 0.088. Sweeping the scale
-    // against the real texture gives the widest caustic contrast at 0.75 (p10 0.21,
-    // p50 0.46, p90 0.72, peak 1.36, dynamic range 3.4x); 6.0 saturated almost every
-    // sample to the dark floor, which is what made the first attempt a flat wash.
-    return normalize(vec3(-x * 0.75, 1.0, -z * 0.75));
+// worldPos is a world-space point. The y term is the reference's own parallax
+// convention (Solas waterCaustics.glsl: p.xz -= p.y * 0.2), kept so the network still
+// slides with a receiver's depth instead of being one fixed vertical projection. Above
+// water that is what makes the pattern track the column; underwater the caster path
+// (program/shadow.fsh) samples the SURFACE, and the shadow projection places it on the
+// bed, so the slide is not applied twice.
+float solas_water_caustics(vec3 worldPos) {
+    vec2 p = worldPos.xz - worldPos.y * 0.2;
+    vec2 slope;
+    vec3 hessian;
+    astra_caustic_wave(p, frameTimeCounter, slope, hessian);
+    float a = 0.25 * ASTRA_CAUSTIC_DROP;
+    float jacobian = (1.0 + a * hessian.x) * (1.0 + a * hessian.y)
+                   - (a * hessian.z) * (a * hessian.z);
+    float convergence = 1.0 / max(abs(jacobian), ASTRA_CAUSTIC_JFLOOR) - 1.0;
+    return ASTRA_CAUSTIC_SCALE * sqrt(max(convergence, 0.0));
 }
 
 // How strongly the caustic network modulates the DIRECT sun term. 0 disables the
 // modulation, 1 applies the full field. Applied to direct radiance only - see the note in
 // program/lit.fsh for why multiplying the finished colour was wrong.
 const float ASTRA_CAUSTIC_STRENGTH = 0.70;
-
-float astra_water_caustics_focus(vec3 worldPos) {
-    // Static spatial dither. The reference uses a temporal blue-noise offset, which it can
-    // afford because it accumulates over frames; Astra has no TAA, so a per-frame offset
-    // would simply flicker. The 3x3 tap grid already supplies the spatial spread.
-    vec2 dither = vec2(0.5);
-
-    // Light direction refracted through the flat water interface, as the reference does.
-    vec3 sunWorld = normalize(view_player(lightVector));   // Astra: world-space sun
-    vec3 lightVector = refract(sunWorld, vec3(0.0, -1.0, 0.0), 1.0 / 1.2);
-
-    // R6 FIX: the surface point above the receiver must be found by walking UP along the
-    // refracted light, otherwise the pattern does not move with the sun at all (the
-    // previous version computed lightVector and then never used it). One block of lookup
-    // depth, so the offset is the reference's parallax term.
-    vec3 lookupCenter = worldPos + vec3(0.0, 1.0, 0.0);
-    if (abs(lightVector.y) > 1e-3) {
-        lookupCenter.xz -= lightVector.xz / lightVector.y;
-    }
-
-    float caustics = 0.0;
-    for (float i = -1.0; i <= 1.0; i++) {
-        for (float j = -1.0; j <= 1.0; j++) {
-            vec3 lookupPoint = lookupCenter;
-            lookupPoint.xz += (dither + vec2(i, j)) * 0.1;
-
-            vec3 wavesNormal = astra_wave_normal_at(lookupPoint);
-            vec3 refractVector = refract(vec3(0.0, 1.0, 0.0), wavesNormal, 1.0);
-            vec3 collisionPoint = lookupPoint - refractVector / refractVector.y;
-            collisionPoint -= worldPos;
-
-            float dist = dot(collisionPoint, collisionPoint) * 7.1;
-            caustics += 1.0 - clamp(dist * 7.0, 0.0, 1.0);
-        }
-    }
-    // Reference tail: partly disabled above water, raw underwater.
-    return mix(caustics * 0.16 + 0.2, 1.0, 0.3 - 0.3 * float(isEyeInWater));
-}
-
-// The former astra_water_caustics_shaft_at (focus cubed) is gone: the shaft march
-// now uses the cheap solas_water_caustics field directly (consolidated review B3).
 #endif

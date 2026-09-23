@@ -105,13 +105,15 @@ vec2 astra_ripple_layer(sampler2D sheet, vec2 localUV, float frame) {
 vec2 astra_rain_ripple(vec3 worldPos, float strength, float footprint, float graze,
                        float puddleFraction) {
     strength *= smoothstep(0.01, 0.8, astraRainFactor) * clamp(puddleFraction, 0.0, 1.0);
+    if (strength <= 0.0 || footprint >= 0.08) return vec2(0.0);
     vec2 p = worldPos.xz / ASTRA_RIPPLE_TILE;
     float phase = fract(sin(dot(floor(p), vec2(127.1, 311.7))) * 43758.5453);
     float frame = mod(frameTimeCounter * 0.65, 1.0) * 60.0 + phase * 60.0;
     vec2 uv = fract(p);
     vec2 n = astra_ripple_layer(astraRipple1, uv, frame);
-    n += astra_ripple_layer(astraRipple2, uv, frame + 23.0)
-       * smoothstep(0.75, 1.0, strength) * 0.15;
+    float secondLayer = smoothstep(0.75, 1.0, strength) * 0.15;
+    if (secondLayer > 0.0)
+        n += astra_ripple_layer(astraRipple2, uv, frame + 23.0) * secondLayer;
     // Fade unresolved rings and tile boundaries rather than aliasing across frames.
     vec2 edge = smoothstep(vec2(0.0), vec2(0.06), min(uv, 1.0 - uv));
     float resolved = 1.0 - smoothstep(0.015, 0.08, footprint);
@@ -128,9 +130,13 @@ float astra_cloud_transmission(vec3 worldPos, vec3 lightDir) {
     float t = (ASTRA_CLOUD_ALTITUDE-worldPos.y)/lightDir.y;
     if(t <= 0.0) return 1.0;
     vec3 hit = worldPos + lightDir*t;
-    float n = astra_cloud_noise(hit, ASTRA_CLOUD_ALTITUDE);
-    float threshold = 0.21 + mix(0.20,-0.20,CLOUD_COVERAGE*0.01) - 0.28*astraRainFactor;
-    float cloud = smoothstep(threshold-0.025,threshold+0.025,n);
+    // F1 (2026-09-21): the shadow arm reads the SAME contract as the sheet: the shared
+    // gate and the COARSE octave for existence. The old local expression was numerically
+    // identical to the shared gate at layer level, so this is an ownership change, not a
+    // retune; what does change is that the rotated detail octave no longer casts shadow.
+    float gate = astra_cloud_existence_gate(0.0);
+    float n = astra_cloud_coarse(hit, ASTRA_CLOUD_ALTITUDE);
+    float cloud = smoothstep(gate-0.025,gate+0.025,n);
     return mix(1.0, 0.07, cloud);
     #endif
 }

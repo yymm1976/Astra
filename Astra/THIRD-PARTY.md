@@ -225,9 +225,25 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 
 ### 2026-09-11 末地空间交会接续：当前实现说明
 
-当前 `end_blackhole.glsl` 的 `bh_Blackbody` 继续保留下述 IterationT 来源和授权口径。旧文件里的 WarpSpace、旋转矩阵、纹理噪声、FBM、pcurve、IGN 等未被当前渲染路径使用的移植函数已移除；不能再用下方历史记录的“四处适配”概括现有实现。
+当前 `end_blackhole.glsl` 的 `bh_Blackbody` **已替换为自写实现**（2026-09-23 更新）：现为
+`astra_blackbody_rgb`，直接在 610/545/465 nm 三个波长采样普朗克定律并按峰值归一。
+为降低星点与盘面的逐像素开销，先前每个响应带的三点积分改为单点采样，每次调用共三个指数运算；
+唯一物理常数为 `c2 = hc/k`，不含任何 CIE 拟合样条、色度矩阵或
+参考常量表，职责仍是黑体温度→RGB。本包因此不再持有 IterationT 的 `Blackbody` 表达式。旧文件里的
+WarpSpace、旋转矩阵、纹理噪声、FBM、pcurve、IGN 等未被当前渲染路径使用的移植函数此前已移除；
+不能再用下方历史记录的“四处适配”概括现有实现。
 
-本次 `end_geometry.glsl`、`end_ring.glsl`、`end_system.glsl`、`program/end_illumination.fsh` 的虚拟轨道、实体距离场、消光、求交和每帧可见性计算，以及 `end_blackhole.glsl` 当前光路与盘积分，为 Astra 在本任务中的代码实现。没有新增第三方贴图、模型或音频。现有后处理文件的原始来源不因增加末地专属分支而改变。
+本次 `end_geometry.glsl`、`end_system.glsl`、`program/end_illumination.fsh` 的虚拟轨道、实体距离场、消光、求交和每帧可见性计算，以及 `end_blackhole.glsl` / `end_kerr.glsl` 当前解析透镜映射、盘面采样与光子环，为 Astra 在本任务中的代码实现。没有新增第三方贴图、模型或音频。现有后处理文件的原始来源不因增加末地专属分支而改变。
+
+### 2026-09-23 末地巨型黑洞：连续光路与流体纹理
+
+`textures/astra-end-transfer.png`、`textures/astra-end-transfer-meta.png` 与
+`textures/astra-end-flow.png` 均由 Astra 自写的 `qa/tools/build_end_transfer.py` 生成：
+依次存储中心引力近似下光线与有限厚度盘面的两次进入坐标、局部出射方向与上下表面标记、
+周期多尺度随机场。共享盘面形状位于 `end_disc_profile.glsl`；`end_plasma.glsl` 的热冕/盘风
+与喷流结构、`end_kerr.glsl` 的频移/热点/通量实现均为本任务自写。参考截图仅用于外观方向，
+没有复制其中图像像素，也没有引入第三方
+贴图或预计算数据库。运行时保留明确的 Kerr 视觉近似，不将中心引力积分宣称为完整 Kerr 解。
 
 ### 2026-09-11 末地黑洞与星空：移植 IterationT 3.2.0（历史实现）
 
@@ -238,7 +254,9 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
   `MiePhaseFunction`、`InterleavedGradientNoise`、`curve`/`saturate`/`remapSaturate`）。
   来源见 `_analysis/latest-2026-09-10/iterationT-3.2.0`（`sources.json` 同目录登记）。
   口径：**表达式级移植**——步进循环、密度场、Blackbody 色温、环面光子环均为参考原式；
-  Astra 侧改编只有四处，均已在文件内逐条标注：
+  Astra 侧改编只有四处，均已在文件内逐条标注：（**2026-09-22 就地更正**：其中 `Blackbody` 色温
+  一项已**替换为自写实现** `astra_blackbody_rgb`，其余三项与“步进循环/密度场”经 2026-09-11 接续
+  重写后也已不是参考原式；本条只作历史记录）
   1. `noisetex` 采样改用 Astra 的 `noiseTextureResolution`（Astra 为 256，参考为 64）；
   2. `BlueNoiseTemproal()`（TAA 查询）改为参考同样提供的 `InterleavedGradientNoise`；
   3. `worldShadowVector` 改由 `end.glsl` 传入末地恒星方向；
@@ -248,20 +266,32 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 - 历史说明：本文件此前登记的 `end.glsl` 手写解析式黑洞已**整段移除**，改为调用上述移植模块；
   被移除的实现连同两次失败记录保留在 `docs/2026-09-10-next-agent-dimensions-weather.md`
   与 `qa/session-log.md` 中，供追溯。
-- `shaders/program/lit.fsh` 的水下直算焦散项为 Astra 自写（见该处注释），用于在阴影贴图投射
-  路径无法实机验证时保证焦散可见；Solas 的写入端口径仍保留在 `program/shadow.fsh`。
+- `shaders/program/lit.fsh` 的像素端焦散增量为 Astra 自写（见该处注释），用于在水面之上
+  接收、阴影贴图投射路径无法实机验证时保证焦散仍然可见；Solas 的写入端口径仍保留在
+  `program/shadow.fsh`。**2026-09-22 更正**：该增量现在只服务**水面之上**的接收点——
+  水下由 `program/shadow.fsh` 烘进水面 caster 染色（Solas 口径）的那一份单独承担，避免在
+  水下把相位相差一个水柱深度的两张图案相乘（见该处头注与 261 节）。
 
 ### 2026-09-11 水下焦散与光束：移植 IterationT 3.2.0
 
-- `shaders/global/water/caustics.glsl` 的 `astra_water_caustics_focus` 与
-  `astra_water_caustics_shaft_at`：**表达式级移植** IterationT 3.2.0
+- **2026-09-22 就地更正：本条原登记的表达式已全部删除，不再是"在包"实现。**
+  `shaders/global/water/caustics.glsl` 的 `astra_water_caustics_focus` 与
+  `astra_water_caustics_shaft_at`（原登记为 IterationT 3.2.0
   `Lib/BasicFounctions/Sunlight_Shadow.glsl::CalculateWaterCaustics` 与
   `Lib/IndividualFounctions/UnderwaterVolumetricFog.glsl::CalculateWaterCaustics`
-  （三点法求波面法线、折射竖直光线、以落点与接收点的距离作为聚焦量，九抽头求和）。
-  Astra 适配三处并已在文件内标注：① 参考从自维护的波法线缓冲读取，Astra 改由同一份
-  Solas 高度场中心差分求法线；② 太阳方向改用 Astra 的 `lightVector`；
-  ③ 空间抖动替代参考的时间蓝噪声（Astra 无 TAA，逐帧抖动会闪）。
-  坡度尺度 0.75 为对真实噪声纹理的离线标定值，不是参考常数。
+  的表达式级移植）已随 2026-09-22 四症轮**整段删除**，其唯一消费者
+  `program/lit.fsh` 的水下焦散项改为直接求 Solas 派生的 `solas_water_caustics()`。
+  因此 `global/water/caustics.glsl` 当前**只保留 Solas V2.2b 的双层漂移噪声高度场**
+  （见上方第 46/192 行与本文件 2026-09-10 节），文件头
+  `Adapted from Solas V2.2b lib/water/waterCaustics.glsl by Septonious`
+  与该登记自洽：IterationT 相关表达式在本包内的在包计数**归零**。删除原因与实测
+  （focus 场 92.3% 落在自身 0.2 clamp 地板上、退化为平底 0.44 乘子、无亮斑）
+  见 `global/water/caustics.glsl` 头注与 `qa/underwater-light-*.log`。
+- （以下为历史记录，已不适用）原登记的实现：三点法求波面法线、折射竖直光线、
+  以落点与接收点的距离作为聚焦量，九抽头求和；Astra 适配三处并已在文件内标注——
+  ① 参考从自维护的波法线缓冲读取，Astra 改由同一份 Solas 高度场中心差分求法线；
+  ② 太阳方向改用 Astra 的 `lightVector`；③ 空间抖动替代参考的时间蓝噪声（Astra 无
+  TAA，逐帧抖动会闪）。坡度尺度 0.75 为对真实噪声纹理的离线标定值，不是参考常数。
 - **资产边界（2026-09-11 修正）**：首次引入涟漪贴图时曾直接复制参考的
   `RippleAnimation1/2/3.png`。用户明确指出**不得挪用参考的图像资产**，已全部删除。
   现在 `shaders/textures/astra-ripple-1..3.png` 由
@@ -346,3 +376,12 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 - **交接文档已过期（注释腐烂）**：`docs/handoffs/nether.md:24,252-272,320`、`docs/handoffs/end.md:55-62`、`docs/handoffs/sky-clouds.md:180` 仍写「Astra 无 `screenBrightness`／本侧只能用常量 0.5／1.0」，而 `lib/uniforms.glsl:67` 已声明且被两个宏消费（见 16.2 第 9 行）。P-002 与 H2 实为已落地，登记状态未更新。
 - **§7「MIT ⇒ 可自由复用」的前提只在该包自己就是持有人时成立**：本轮实测四个参照包里 Mellow 的 `tonemap_operators.glsl`（中继 Seguin＋BakingLab）、`global/post/smaa.glsl`（无署名）、RenderPearl 的 `compat.glsl:1`（中继 gist）、Miniature（根本没有 LICENSE）四种失效形态各不相同；今后任何复用须逐文件跑一遍 16.3 的配方。
 - **校验缺口（2026-09-21 B7 登记，未修）：本文件已为每张 PNG 记下字节数与 sha256 前缀，但没有任何机器校验它们。** `qa/tools/check_pack.py` 第 8 项只按**文件名**比对：`:613-616` 行把以 `|` 开头且含 `lib/`／`shaders/`／`program/`／`.properties` 的表行收进待检清单，`:637-645` 行再从每行的拼接文本里取出**第一个** `.png`/`.glsl`/`.fsh`/… 文件名，去 `PACK = Astra/shaders` 下找同名文件——**从不读取它的字节**；随后的 `:657-684` 行比对的是 Steadfast 表达式计数。全脚本不含 `hashlib`／`sha256`，`qa/tools/` 里也没有第二个门校验贴图字节（`gen_rain_ripple.py` 只写不读，`sync_to_instance.py` 的 sha256 只用于决定往实例同步时拷哪几个文件）。**因此替换或损坏任何一张 PNG 都能静默通过第 8 项**：本节登记的哈希目前只能靠人工按 B7 的方法复算（`qa/b7-png-provenance-2026-09-21.log` 第 1 节给出全部字节数与完整 sha256）。同一盲区的另一半：canonical `## 登记表`（`:18` 起）至今**零 PNG 行**，PNG 登记只散在上述散文与本节，第 8 项的表格扫描根本看不到这些文件（即 B7 报告里的 G1）。要闭环就须给第 8 项加一条读字节比哈希的检查——本条不擅自改门。
+
+### 2026-09-22 部分方块的光泽与"发光体泛光"（E3）
+
+- `shaders/block.properties` 新增 `block.10013..10016` 四类**发光体驱动的光泽岩**（下界岩／黑石-玄武岩族／深板岩族／石头-圆石族），`shaders/program/lit.vsh` 的 `astra_material()` 把它们映射到 4-bit 材质域的 **12..15**（该域此前只用到 0..11，这四个是全部剩余取值，因此**没有扩位**：`faceData` 的 bits 22..31 仍空，法线的 18 位打包布局未动），`shaders/program/lit.fsh` 新增 `material >= 12u && material <= 15u` 分支。ID 命名空间与类目理由写在 `block.properties` 该段注释里；全部 39 个方块名已对本机客户端 jar 的 `assets/minecraft/lang/en_us.json`（1884 个 vanilla block 名）逐个复核。
+- 来源口径：**思路借鉴（idea only）**。对象是 Complementary r5.9 的 `lib/materials/specificMaterials/terrain/netherrack.glsl`、`blackstone.glsl`、`deepslate.glsl`、`stone.glsl` 以及 `lib/materials/materialHandling/terrainIPBR.glsl` 里这四类方块的派发处——即"每种地形材质自带一个 per-texel 光泽度，供该包的 SSR 映出附近的发光体"。**没有使用其中任何表达式**：参考那一串 `pow2(color.r) * 1.5`／`color.r`／`pow(color.g, 1.5) * 0.55`／`pow2(pow2(color.g)) * 2.0`／`dot(color.rgb, color.rgb) * 0.17` 在 Astra 侧命中 0。Astra 的实现是自写的三件：① 光泽 = 类别增益 ×（0.55 底线 + 纹理线性亮度对比），底线的作用是让近黑的黑石与接近白的方解石都落在可用区间；② 世界固定栅格的哈希颗粒 + 按视距收敛（不是参考的纹理直接读法）；③ 邻近门用**原版本方块光等级**（岩浆与火焰同为 15 级，每方块衰减一级），视角权重用与冰面同一形状的 Fresnel。
+- 不引入体素泛洪、不新增 pass／缓冲／uniform、不新增任何用户可见选项：近邻信号取自片元自身的 `lightLevel.x`，因此本改动完全不含 `shadowcomp` 类通路，也没有新的 ray march。
+- 授权：Complementary 为 **Complementary License Agreement 1.7（专有）**，按本文件开头表与 design.md §9.3／SC-14 的发布闸门处理，仅限当前个人使用定位；发布前须重做发布门决定。本条不含任何参考图像／音频资产。
+- 量化留痕：`qa/tools/block_reflect_probe.py`（常量与分支守卫全部从**发货源文件解析**，不是转写；方块反照率取自本机客户端 jar 的 16×16 平均）与 `qa/block-reflect-2026-09-22.log`。
+

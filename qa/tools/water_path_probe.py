@@ -90,7 +90,7 @@ void main() {
         vec3 pos = vec3(0.0, -1.0, -distance);
         vec3 transmittedWorld = normalize(refract(normalize(pos), vec3(0,1,0), 1.0 / WATER_IOR));
         vec3 background = probe == 16 ? astra_reflection_sky(transmittedWorld, 0.045)
-                                      : astra_water_air_sky(transmittedWorld);
+                                      : astra_sky(transmittedWorld);
         float farField = clamp(-pos.z * (1.0 / 24.0), 0.0, 1.0);
         gl_FragColor = vec4(water_surface_medium(background, mix(0.25, 23.0, farField),
                                                 astra_water_incident(1.0)), 1.0);

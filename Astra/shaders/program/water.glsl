@@ -54,6 +54,8 @@ float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
     float side = reflected ? 1.0 : -1.0;
     float anchorSide = water_side_acceptance(side, anchor, origin, faceNormal);
     if (anchorSide <= 0.0) return 0.0;
+    vec3 mediumIncident=vec3(0.0);
+    if(inWater) mediumIncident=astra_water_incident(skylight);
     vec3 endpoint = vec3(0.0);
     float weights = 0.0;
     float sideSum = 0.0;
@@ -93,8 +95,8 @@ float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
                 if (inWater) color = isEyeInWater == 0
                     ? water_surface_medium(color,
                         water_surface_absorption_depth(origin, point, faceNormal),
-                        astra_water_incident(skylight))
-                    : water_medium(color, length(point - origin), astra_water_incident(skylight));
+                        mediumIncident)
+                    : water_medium(color, length(point - origin), mediumIncident);
                 radiance += color * weight;
                 endpoint += point * weight;
                 weights += weight;
@@ -110,8 +112,8 @@ float water_sample_path(vec2 uv, vec3 origin, vec3 faceNormal, bool reflected,
         if (inWater) color = isEyeInWater == 0
             ? water_surface_medium(color,
                 water_surface_absorption_depth(origin, anchor, faceNormal),
-                astra_water_incident(skylight))
-            : water_medium(color, length(anchor - origin), astra_water_incident(skylight));
+                mediumIncident)
+            : water_medium(color, length(anchor - origin), mediumIncident);
         radiance = color;
         endpoint = anchor;
         validity = anchorSide;
@@ -281,6 +283,20 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
             reflection += glintColor * glint * skylight * mix(0.72,0.52,astra_twilight_strength());
         }
     #endif
+    // 2026-09-22 (four-symptom round): the sky mirror above is bounded by the sky it
+    // reflects, but its sum with the narrow solar lobe is not. BLOOM_THRESHOLD = 1.0
+    // (global/post/bloom.glsl:27) is this pack's own definition of over-exposure - at or
+    // below it a pixel contributes nothing to the bloom prefilter, above it the excess
+    // becomes a bloom source - and the far water is where the sum crosses it: the grazing
+    // lobe is nearly a mirror (0.64 at 5 degrees, 0.84 at 2) and the glint adds up to
+    // another 0.72 (water.glsl:281), so a distant band can arrive as white plus bloom.
+    // astra_scene_highlights is the pack's shoulder for exactly this class of emitter -
+    // lib/twilight.glsl:131-134 names "the sun's image on water" as its consumer - and it
+    // is the identity below 1.0, so the bed, the mid-range water and the twilight river
+    // are untouched and only the excess above white is compressed. Before this call
+    // program/water.glsl never used it (airside probe section 3), so the water surface was
+    // the one emitter outside the shoulder.
+    reflection = astra_scene_highlights(reflection);
     vec2 uv = gl_FragCoord.xy / vec2(viewWidth, viewHeight);
     vec3 transmitted = vec3(0.0);
     if (!totalReflection) {
@@ -338,14 +354,14 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
                 // depth was that 96-block ray's vertical extent, a function of the
                 // refraction angle only, never of how far the miss is: one constant
                 // colour at every distance.
-                vec3 deepFallback;
-                if (belowWater) {
-                    deepFallback = astra_water_air_sky(transmittedWorld);
-                } else {
-                    float farField = clamp(-viewPos.z * (1.0 / 24.0), 0.0, 1.0);
-                    deepFallback = water_surface_medium(texture(colortex4, uv).rgb,
-                        mix(0.25, 23.0, farField), astra_water_incident(skylight));
-                }
+                float farField = clamp(-viewPos.z * (1.0 / 24.0), 0.0, 1.0);
+                vec3 deepFallback = water_surface_medium(texture(colortex4, uv).rgb,
+                    mix(0.25, 23.0, farField), astra_water_incident(skylight));
+                // Other dimensions can contain player-placed water. Their underside
+                // has no Overworld solar sprite and uses the dimension's own sky.
+                #if defined DIMENSION_NETHER || defined DIMENSION_END
+                if (belowWater) deepFallback = astra_sky(transmittedWorld);
+                #endif
                 geometricFallback=mix(deepFallback,straight,straightValid);
             }
             transmitted=mix(geometricFallback,transmitted,valid);

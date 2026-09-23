@@ -19,6 +19,15 @@ and Steadfast 0.8.0's reference spectra for comparison:
 Everything here is read-only: no shader or config file is touched.
 
 Pinned measurement, not a gate. Re-run: python qa/tools/water_spectrum_probe.py
+
+STALE SINCE 2026-09-21/22, kept unrewritten (its constants are a pinned snapshot, not a
+live read, and two of them no longer match the shader): the CHARACTERS table below
+predates the 2026-09-21 absorption re-order (the shipped default branch is
+(1.000, 0.0500, 0.0900) / (1.000, 0.3000, 0.0500)), and WATER_BODY_COLOR is the deep
+end only - water_body_color() now blends a cyan shallow end into that navy by
+appearanceDepth. The live measurements, read from the sources at run time, are in
+qa/tools/airside_water_probe.py section 1 and qa/tools/underwater_light_probe.py
+section [3] (the gate).
 """
 
 import math

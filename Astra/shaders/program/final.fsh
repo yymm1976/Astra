@@ -7,7 +7,6 @@
 #include "/lib/encoding.glsl"
 #include "/lib/tonemap.glsl"
 #include "/global/post/grading.glsl"
-#include "/global/water/light_shafts.glsl"
 #include "/lib/solas_water.glsl"
 #include "/lib/water_buffer_formats.glsl"
 #ifdef UNDERWATER_PARTICLES
@@ -33,6 +32,10 @@
 uniform sampler2D colortex0;
 in vec2 texcoord;
 void main() {
+    #if DEBUG_VERTEX_AO == 1
+    gl_FragColor = vec4(texture(colortex0,texcoord).rgb,1.0);
+    return;
+    #endif
     vec3 hdr = max(texture(colortex0, texcoord).rgb, vec3(0.0));
     #ifdef BLOOM
         #if !defined DIMENSION_NETHER && !defined DIMENSION_END

@@ -1,6 +1,7 @@
 #ifndef ASTRA_END_GEOMETRY_GLSL
 #define ASTRA_END_GEOMETRY_GLSL
 #include "/lib/end_light.glsl"
+#include "/global/dimension/end_disc_profile.glsl"
 // Original Astra geometry. All lengths are virtual sky units, never world blocks.
 // The observer is always (0,0,0), including on the outer islands and in reflections.
 const float END_PI = 3.14159265359;
@@ -40,6 +41,18 @@ float end_noise3(vec3 p) {
 mat3 end_basis(vec3 n) {
     vec3 x=normalize(cross(abs(n.y)<0.98 ? vec3(0,1,0) : vec3(0,0,1),n));
     return mat3(x,cross(n,x),n);
+}
+// Shared sky frame and physical disc plane for rendering and illumination.
+mat3 end_view_basis() {
+    mat3 b=end_basis(end_light_direction());
+    vec3 x=b[0]*0.951057-b[1]*0.309017;
+    return mat3(x,cross(b[2],x),b[2]);
+}
+mat3 end_disc_basis() {
+    mat3 b=end_view_basis();
+    float inclination=END_DISC_INCLINATION;
+    vec3 n=b[1]*sqrt(1.0-inclination*inclination)+b[2]*inclination;
+    return mat3(b[0],normalize(cross(n,b[0])),n);
 }
 vec3 end_rotate_y(vec3 p,float a) {
     return vec3(cos(a)*p.x+sin(a)*p.z,p.y,-sin(a)*p.x+cos(a)*p.z);
@@ -105,7 +118,7 @@ vec4 end_body(int id) {
         float phase=f*2.39996323+end_orbit_phase(1440.0+f*263.0,0.0)*(id<68 ? -1.0 : 1.0);
         float radius=mix(0.90,1.55,end_hash(f+173.0));
         center=(b[0]*cos(phase)+b[1]*sin(phase))*radius-n*0.07;
-        diameter=id==66 ? 9.0 : mix(3.0,7.2,end_hash(f+211.0));
+        diameter=id==66 ? 4.2 : mix(1.5,3.5,end_hash(f+211.0));
     }
     return vec4(center,length(center)*tan(radians(diameter*0.5)));
     #endif

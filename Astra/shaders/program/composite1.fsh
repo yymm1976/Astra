@@ -14,6 +14,7 @@
 // design.md 3.2 layer 2: program/* is the only lib entry
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
+#define ASTRA_BLOOM_CAPTURE
 #include "/global/post/bloom.glsl"
 in vec2 texcoord;
 

@@ -2,6 +2,7 @@
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
 #include "/program/scene.glsl"
+#include "/lib/surface_emission.glsl"
 #if defined ASTRA_TERRAIN && !defined ASTRA_WATER_PASS     && !defined DIMENSION_NETHER && !defined DIMENSION_END
     // Terrain only: the direct caustic term below needs the Solas height field. It is a
     // program-level include, so no global/* -> global/* layering rule is broken.
@@ -18,6 +19,7 @@
 in vec2 texcoord;
 in vec2 lightcoord;
 in vec4 tint;
+in float vertexAO;
 flat in uint faceData;
 #ifdef ASTRA_WATER_PASS
     /* RENDERTARGETS: 0,5 */
@@ -51,9 +53,14 @@ void main() {
     // material branch: derivatives inside `if (material == 11u)` would be non-uniform
     // across quads that straddle materials (consolidated review A4).
     float endStoneFootprint = max(length(dFdx(texcoord)), length(dFdy(texcoord))) * 256.0;
+    float endWorldFootprint=max(length(dFdx(playerPos)),length(dFdy(playerPos)));
     #endif
     vec3 viewPos = camera_relative_view(playerPos);
-    vec3 normal = unpack_octahedral(faceData, 9);
+    // faceData is flat and never rewritten, so this two-axis decode is evaluated once
+    // and the water branches below reuse it. They previously decoded the identical
+    // face normal twice more (lit.fsh:75 and lit.fsh:86).
+    vec3 faceNormal = unpack_octahedral(faceData, 9);
+    vec3 normal = faceNormal;
     uint material = (faceData >> 18) & 15u;
     bool water = material == 1u;
     bool ice = material == 9u;
@@ -71,7 +78,7 @@ void main() {
             #ifdef WATER_WAVES
             #if !defined DIMENSION_NETHER && !defined DIMENSION_END
             if (isEyeInWater == 1) {
-                vec3 face = unpack_octahedral(faceData, 9);
+                vec3 face = faceNormal;
                 float fresnel = clamp(1.0 + dot(face, normalize(playerPos)), 0.0, 1.0);
                 normal = solas_water_normal(playerPos + cameraPosition, face, waterTangent,
                                             waterBinormal, waterViewVector, waterViewDistance, fresnel);
@@ -82,7 +89,7 @@ void main() {
     #endif
     // Sodium/fluid underside vertices can retain an upward attribute normal.
     // Orient the geometric side from the actual ray, independent of winding.
-    vec3 geometricNormal = unpack_octahedral(faceData, 9);
+    vec3 geometricNormal = faceNormal;
     #ifdef ASTRA_WATER_PASS
         if (water) {
             if (dot(geometricNormal, playerPos) > 0.0) geometricNormal = -geometricNormal;
@@ -166,7 +173,21 @@ void main() {
     float surfaceWet = 0.0;
     vec3 puddleNormal = geometricNormal;
     #if defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT && !defined DIMENSION_NETHER && !defined DIMENSION_END
-    if (material == 0u && isEyeInWater == 0 && astraRainFactor > 0.001) {
+    // E3 2026-09-22 regression fix. The rock groups the emitter-gloss branch below pulls
+    // out of the default class (materials 12..15) used to arrive here as material 0, so
+    // reclassifying them had silently switched their rain-wet path OFF: no damp darkening,
+    // no rain gloss, no ripple normal and - through the colortex3.a standing-water mask
+    // written at the tail of this file - no puddle reflection either. The predicate below
+    // keeps the original set (the default class) and adds back exactly those four groups,
+    // so their wet behaviour is again what it was before the reclassification. It cannot
+    // reach any other surface: 12..15 is disjoint from every other live value (1..11), and
+    // no block.properties id outside 10013..10016 maps into it (program/lit.vsh
+    // astra_material), so the new rock classes are not "extra" wet surfaces - they are the
+    // ones the branch already served. The emitter-gloss term stays independent (it is an
+    // additive return on the fragment's own block light, above), so a dry rock far from
+    // any emitter is still bit-for-bit the baseline colour.
+    if ((material == 0u || (material >= 12u && material <= 15u))
+            && isEyeInWater == 0 && astraRainFactor > 0.001) {
         surfaceWet = astra_wet_ground(geometricNormal, lightLevel.y);
         vec3 wetWorldPos = playerPos + cameraPosition;
         // Standing water: unchanged coverage. The sky-exposure gate is applied inside
@@ -190,73 +211,37 @@ void main() {
     #endif
     vec3 directRadiance;
     vec3 color = astra_light(albedo.rgb, normal, playerPos, surfaceShadowPosition,
-                             lightLevel.y, lightLevel.x, material, directRadiance);
+                             lightLevel.y, lightLevel.x, material, directRadiance,
+                             vertexAO);
     #ifdef DIMENSION_END
-    if (material == 11u) {
-        vec3 L = end_light_direction();
-        vec3 V = -normalize(playerPos);
-        vec3 H = normalize(L + V + vec3(1e-6));
-        // ------------------------------------------------------------------
-        // End stone: the narrow and broad lobes already existed and are kept.
-        // What they lacked is texture - every texel of a wall returned the same
-        // plastic gloss, because the term was a pure function of (normal, light,
-        // view). Complementary gives its end stone a per-texel roughness from the
-        // texture's red channel high powers (lib/materials/specificMaterials/
-        // terrain/endStone.glsl). The first attempt here derived that from the
-        // albedo alone and that is not enough: the end stone atlas cells are close
-        // to uniform, so pow(luma, 6) came out nearly constant across the block and
-        // the surface stayed plastic. What the block actually looks like is a few
-        // brighter mineral grains among matte rock, so the grain is reconstructed
-        // from two inputs:
-        //   - the albedo (already sampled for the diffuse pass - no extra texture
-        //     read), which biases the whole cell by how bright it is,
-        //   - a world-space hash on a four-per-block grid, which is the grain
-        //     itself. Fixed world coordinates, not a screen or frame hash, so the
-        //     pattern is static on the block, identical every frame and stable
-        //     under camera motion - it cannot read as noise or as flicker.
-        // ------------------------------------------------------------------
-        vec3 worldPos = playerPos + cameraPosition;
-        // Two per block: the end-stone atlas cell is 16 texels across, so its own
-        // grain is ~1/16 block, and a grid finer than the texture would only add
-        // shimmer. Two per block is also right at the resolvable edge at the shadow
-        // range, which is where the footprint fade below takes over.
-        float grainCell = fract(sin(dot(floor(worldPos * 2.0),
-                                         vec3(12.9898, 78.233, 37.719))) * 43758.5453);
-        float grainMask = smoothstep(0.52, 0.90, grainCell);
-        float grainTone = clamp(dot(albedo.rgb, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
-        // Wide dynamic range on purpose: most of the block stays matte at 0.20 and
-        // the grains reach full gloss. That is what keeps this stone rather than
-        // plastic - the complaint was uniform sheen, and a narrow range would
-        // reproduce it.
-        float gloss = 0.20 + 0.80 * grainMask * mix(0.55, 1.0, grainTone);
-        // Micro-detail has to converge with the screen footprint or a distant wall
-        // turns into a field of flickering pixels. The texture footprint in atlas
-        // space, in texels per pixel, is the honest measure of what is resolvable;
-        // the same derivative-based idea Complementary uses for its generated
-        // normals. No noise, no per-frame randomisation.
-        // The texture footprint in atlas space, in texels per pixel, is the honest measure
-        // of what is resolvable; hoisted above because derivatives inside a flat-varying
-        // branch are non-uniform (consolidated review A4).
-        float footprint = endStoneFootprint;
-        gloss = mix(gloss, 0.48, smoothstep(0.6, 2.4, footprint));
-        float visibility = 1.0;
+    bool endObsidian=(faceData&(1u<<22))!=0u;
+    if((material==11u || endObsidian) && dot(normal,end_light_direction())>-0.01) {
+        float tone=clamp(dot(albedo.rgb,vec3(0.2126,0.7152,0.0722)),0.0,1.0);
+        float roughness=endObsidian ? mix(0.39,0.23,clamp(tone*22.0,0.0,1.0))
+                                    : mix(0.86,0.62,tone);
+        roughness=mix(roughness,endObsidian ? 0.34 : 0.75,
+                      smoothstep(0.6,2.4,endStoneFootprint));
+        vec3 specNormal=end_surface_bevel(normal,playerPos+cameraPosition,endWorldFootprint);
+        float surfaceVisibility=end_surface_visibility;
         #ifdef SHADOWS
-        // Unchanged: the shadow the diffuse pass already respects. No second
-        // lighting evaluation, no black-hole reflection trace.
-        visibility = mix(1.0, shadow_opaque_visibility(surfaceShadowPosition),
-                         shadow_coverage(playerPos, surfaceShadowPosition));
+        // Diffuse already fetched the shadow on lit faces. Only the side-facing
+        // bevel needs a query of its own, and only on these reflective materials.
+        if(dot(normal,end_light_direction())<=0.0) {
+            float coverage=shadow_coverage(playerPos,surfaceShadowPosition);
+            if(coverage>0.0)
+                surfaceVisibility=mix(1.0,shadow_opaque_visibility(surfaceShadowPosition),coverage);
+        }
         #endif
-        float h = max(dot(normal, H), 0.0);
-        float h2 = h * h;
-        float h4 = h2 * h2;
-        float h8 = h4 * h4;
-        float sheen = h8 * h8 * h8
-                    * max(dot(normal, L), 0.0) * visibility;
-        float broad = pow5(h)
-                    * max(dot(normal, L), 0.0) * visibility;
-        color += vec3(0.055, 0.057, 0.049) * (sheen * mix(0.30, 1.70, gloss))
-               + vec3(0.010, 0.011, 0.009) * (broad * mix(0.75, 1.20, gloss));
+        color+=end_surface_specular(specNormal,-normalize(playerPos),roughness,
+                                   surfaceVisibility,end_surface_eclipse);
     }
+    #endif
+    #if defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT
+    color += astra_rock_emission(material,albedo.rgb,playerPos+cameraPosition,
+                                 normal,playerPos,lightLevel.x);
+    #ifdef DIMENSION_END
+    color += astra_end_stone_emission(material,albedo.rgb);
+    #endif
     #endif
     #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
         // Camera-facing precipitation has no stable surface normal. Use diffuse
@@ -310,30 +295,80 @@ void main() {
     #if defined ASTRA_TRANSLUCENT && defined FANCY_TRANSLUCENTS
         color *= albedo.a;
     #endif
-    // Direct caustics on submerged terrain.
-    // The reference projects its water-surface focus pattern down through the shadow map,
-    // and Astra still writes that pattern into the coloured shadow. The user reported the
-    // seabed as having no caustics at all, and that path depends on the water caster being
-    // present and correctly tinted in shadowcolor0, which cannot be verified offline. This
-    // evaluates the SAME Solas height field directly at the submerged fragment, so the
-    // network is guaranteed to appear and still animates and respects the sun through the
-    // surface wave phase. It is a multiplier centred near 1, so it modulates rather than
-    // dims: caustic peaks lift a little, the dark lattice crushes.
-    // R6 FIX. IterationT multiplies its caustic into the SUNLIGHT term
-    // (composite.fsh: shadow *= CalculateWaterCaustics(...)), not into the finished pixel.
-    // The previous version scaled the whole colour, which also dimmed ambient light, block
-    // light and emissive surfaces, and it ran regardless of the WATER_CAUSTICS option.
-    // Here the delta is applied to the direct radiance only, so a caustic peak brightens
-    // sunlight and a dark lattice removes sunlight while every other light path is left
-    // alone. astra_light reports the direct part through its out parameter.
+    // Direct caustics on submerged terrain. One field drives it: solas_water_caustics()
+    // is the same Solas height field program/shadow.fsh:59 bakes into the water caster's
+    // coloured shadow and global/water/light_shafts.glsl integrates per march sample.
+    //
+    // The pixel-side delta below serves AIR-SIDE receivers only, and the reason is
+    // measurable. Underwater the water caster's own coloured shadow already carries the
+    // network - global/lighting resolves caster.gba through diffuse.glsl:282 /
+    // shadowmap.glsl:153 when isEyeInWater == 1 - and it bakes the field at the WATER
+    // SURFACE (shadow.fsh's waterCasterWorld). The pixel-side gain would instead sample
+    // it at the RECEIVER (this fragment, on the seabed), and caustics.glsl:13 shifts the
+    // phase by p.y * 0.2, so a 5-block column moves the two sample points 1.0 block apart
+    // in xz. Measured against the shipped texture over a 16-block patch they are
+    // essentially uncorrelated: Pearson +0.07 at a 5-block column (and still only +0.26
+    // even at a 1-block column). Applying both multiply two different lattices, yielding
+    // a pattern that is neither; only then does the pair "disagree about where the light
+    // lands". So underwater is left to the caster path alone, and this delta exists to put
+    // the network on the bed from ABOVE the surface, where the caster tint resolves to
+    // white (diffuse.glsl:282, shadowmap.glsl:153).
+    //
+    // Mapping the field as a gain around ITS OWN median (measured on the shipped texture
+    // by qa/tools/underwater_light_probe.py section [2]: p50 0.094, p95 0.662, mean 0.181
+    // over a 16-block patch) is what makes it read as LIGHT: 1.35 * 0.094 - 0.135 ~= 0 at
+    // the median, so the typical receiver pixel is unchanged, peaks brighten toward the
+    // 1.80 cap and troughs darken to 0.70. The consumer this replaces,
+    // astra_water_caustics_focus(), collapsed onto its own 0.2 clamp floor over 92.3% of
+    // the seabed and was then applied as mix(1, field, 0.70) - a flat 0.44 multiplier that
+    // only dimmed the sun by 56% and could never produce a bright spot (measured, same
+    // probe).
+    // R6 note kept: IterationT multiplies its caustic into the SUNLIGHT term
+    // (composite.fsh: shadow *= CalculateWaterCaustics(...)), never into the finished
+    // pixel, so the delta below goes into the direct radiance only (reported through
+    // astra_light's out parameter) and ambient, block light and emissive surfaces are
+    // untouched.
     #if defined ASTRA_TERRAIN && !defined ASTRA_WATER_PASS && defined WATER_CAUSTICS
         #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-        if (isEyeInWater == 1 && !iceTop) {
-            float causticGain = mix(1.0, astra_water_caustics_focus(playerPos + cameraPosition),
-                                    ASTRA_CAUSTIC_STRENGTH);
-            color += directRadiance * (causticGain - 1.0);
+        if (!iceTop) {
+            // Air-side receivers: this fragment carries caustics when the nearest
+            // translucent caster on the light path is a water surface and the fragment
+            // sits below it. That is the same question Steadfast 0.8.0
+            // environment/lighting/shadowmap.glsl:135-154 answers from its own water
+            // height (idea only). global/lighting/ still resolves a water caster's tint
+            // to white for air-side receivers (diffuse.glsl:282, shadowmap.glsl:153), so
+            // from above water this term is the only place the pattern can appear; the
+            // distance and thin-column fades are the reference's own limits.
+            float causticFade = 1.0;
+            // false underwater, so the delta cannot stack on the caster path's own
+            // network there (see the header comment above).
+            bool receivesCaustics = false;
+            #ifdef SHADOWS
+            if (isEyeInWater == 0) {
+                vec4 caster = shadow_caster_data(surfaceShadowPosition.xy);
+                if (caster.r < 0.999) {
+                    float waterY = decode_water_height(caster.r);
+                    float column = waterY - (playerPos.y + cameraPosition.y);
+                    // 1/16 block under the surface is too thin a column to focus
+                    // anything (Steadfast's own lower clamp), and the map's 48-block
+                    // reach is where its caustics stop being worth rendering.
+                    causticFade = (1.0 - smoothstep(48.0, 52.0, length(playerPos)))
+                                * smoothstep(0.0, 0.0625, column);
+                    receivesCaustics = column > 0.0;
+                }
+            }
+            #endif
+            if (receivesCaustics) {
+                float field = clamp(solas_water_caustics(playerPos + cameraPosition), 0.0, 1.5);
+                float causticGain = clamp(1.0 + ASTRA_CAUSTIC_STRENGTH * (1.35 * field - 0.135),
+                                          0.70, 1.80);
+                color += directRadiance * ((causticGain - 1.0) * causticFade);
+            }
         }
         #endif
+    #endif
+    #if DEBUG_VERTEX_AO == 1 && defined ASTRA_TERRAIN
+        color = vec3(vertexAO);
     #endif
     ASTRA_LIT_COLOR = vec4(max(color, vec3(0.0)), albedo.a);
     // SC-39 (2026-09-17, corrected by the 2026-09-20 consolidated review F-01): the
@@ -376,8 +411,16 @@ void main() {
             lightData |= 128u;
         #endif
         gl_FragData[1] = vec4(float(lightData) / 255.0, encode_unit_vector(puddleNormal) * 0.5 + 0.5, 0.0);
-        // Opaque ground only. `material == 0u` excludes water, glass, ice, leaves and the
+        // Opaque ground only. The default class (`material == 0u`) plus the four
+        // reclassified rock groups (12..15) excludes water, glass, ice, leaves and the
         // emissive groups, so the mask cannot appear on a surface that cannot hold water.
-        gl_FragData[1].a = material == 0u ? clamp(puddle, 0.0, 1.0) : 0.0;
+        // The widened set mirrors the rain-wet gate above - same predicate, same reason
+        // (E3 2026-09-22), so the mask the deferred pass reads agrees with whether the
+        // fragment got any puddle at all.
+        gl_FragData[1].a = (material == 0u || (material >= 12u && material <= 15u))
+            ? clamp(puddle, 0.0, 1.0) : 0.0;
+        #if defined DIMENSION_END && defined ASTRA_TERRAIN
+        gl_FragData[1].a = astra_end_stone_emission(material,albedo.rgb).g;
+        #endif
     #endif
 }

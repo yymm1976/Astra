@@ -80,17 +80,29 @@ vec3 water_medium(vec3 radiance, float distanceInWater, vec3 incidentLight) {
 // own equilibrium colour).
 // The +1 block offset keeps knee-deep water visibly tinted; the cap at 24 blocks lets
 // the deep end keep darkening instead of freezing at 16.
-vec3 water_body_color() {
+vec3 water_body_color(float appearanceDepth) {
     // The water's own colour as seen from air, scaled by daylight at the call site.
-    // Blue-dominant so the (1 - transmission) fill turns deep water blue, not black.
-    return vec3(0.020, 0.160, 0.300);
+    // 2026-09-22 (four-symptom round): this used to be one constant navy, (0.020, 0.160,
+    // 0.300), at EVERY depth - a hue the transmission curve it accompanies never has. At
+    // the shallow end it turned even knee-deep water to blue/green 3.31 while the bed it
+    // covered was being transmitted at 1.04, and the mismatch is what read as "grey-blue
+    // and opaque" from the bank (qa/tools/airside_water_probe.py sections 1-2 measured
+    // both ends). The two ends now follow the SAME (appearanceDepth - 1)/15 blend the
+    // spectrum uses: the shallow end carries the shallow transmission's own hue (T at 0
+    // blocks, (0.368, 0.951, 0.914), normalised to this luma - cyan-green), and the deep
+    // end keeps the old navy, so deep water still converges on blue.
+    float blend = clamp((appearanceDepth - 1.0) / 15.0, 0.0, 1.0);
+    return mix(vec3(0.056, 0.148, 0.142), vec3(0.020, 0.160, 0.300), blend);
 }
 vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight) {
     float depth = max(verticalDepth, 0.0);
     float appearanceDepth = clamp(depth + 1.0, 0.0, 24.0);
     vec3 transmission = exp(-appearanceDepth * water_surface_absorption(appearanceDepth));
-    // Single-scattering fill: as the bed fades, the water's own colour takes over.
+    // Single-scattering fill: as the bed fades, the water's own colour takes over. Both
+    // ends see the same appearance depth, so fill and transmission cannot disagree about
+    // how deep this column is.
     return radiance * transmission
-         + water_body_color() * clamp(incidentLight, 0.0, 2.0) * (1.0 - transmission);
+         + water_body_color(appearanceDepth) * clamp(incidentLight, 0.0, 2.0)
+           * (1.0 - transmission);
 }
 #endif

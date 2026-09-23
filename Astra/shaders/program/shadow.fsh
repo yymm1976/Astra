@@ -54,21 +54,37 @@ void main() {
 
     // Solas writes the water focusing pattern into the light map itself.
     // Both the floor and volume samples consume this same projected pattern.
+    //
+    // 2026-09-23 (underwater rewrite). The reference mapping reached the water's tint
+    // only at the peaks but multiplied the WHOLE surface by (0.30 + focus * 1.5): at the
+    // shipped field's median (0.094) that is a flat 0.441x on every submerged receiver,
+    // i.e. the bed was dimmed 2.4x with a faint texture on top - measured in
+    // qa/underwater-caustics-2026-09-22.log [3] (tint G p50 0.413) and reported by the
+    // user as "a blue mist, no light spots". The gain below is neutral at the field's own
+    // median instead - the same `1.35 * field - 0.135` idiom program/lit.fsh uses above
+    // water, so both sides of the surface read one calibration - and the tint colour only
+    // appears as the spots brighten. This is also the ONLY caustic path underwater:
+    // lit.fsh's pixel-side delta is air-side only (lit.fsh:442-478, isEyeInWater == 0).
     #ifdef WATER_CAUSTICS
     if (waterHeight < WATER_HEIGHT_NONE) {
-        float focus = solas_water_caustics(waterCasterWorld);
+        float field = solas_water_caustics(waterCasterWorld);
+        float gain = clamp(1.0 + ASTRA_CAUSTIC_CASTER_STRENGTH * (1.35 * field - 0.135),
+                           0.80, 2.60);
         vec3 waterTint = vec3(115.0, 200.0, 250.0) / 255.0 * 0.80;
-        // Reference mapping: the water's own tint is only reached at the caustic peaks,
-        // the rest of the surface stays close to neutral. The floor term is the dark
-        // water base the reference keeps at 0.3; without it the whole seabed went dim.
-        shadowTint = mix(vec3(1.0), pow(waterTint, vec3(0.75)), 0.20 + 0.80 * min(focus, 1.0));
-        // x^32 as an explicit squaring chain: pow() with a literal integer exponent is
-        // a transcendental expansion, and this runs on every shadow-caster pixel
-        // (consolidated review E7 / Qoder F-36). No pow.glsl here - this TU does not
-        // include scene.glsl, so the helpers are not in scope.
+        // x^0.75 as a squaring chain: pow() with a literal exponent expands to
+        // transcendentals and this runs on every shadow-caster pixel (consolidated
+        // review E7 / Qoder F-36). No pow.glsl here - this TU does not include
+        // scene.glsl, so the helpers are not in scope.
+        vec3 waterTintPow = sqrt(sqrt(waterTint * waterTint * waterTint));
+        shadowTint = mix(vec3(1.0), waterTintPow, clamp(gain - 1.0, 0.0, 1.0)) * gain;
+        // x^32 as an explicit squaring chain, as before. The old `1.0 - a32` deleted the
+        // whole transmission for a near-opaque water sprite (albedo.a >= 0.99, e.g. a
+        // resource pack's water_still.png): the water caster then blocked all direct light
+        // and the seabed went black. Vanilla's 180/255 is safe, so this is a floor rather
+        // than a redesign - an opaque water surface still transmits the network.
         float a2 = albedo.a * albedo.a;
         float a32 = a2 * a2; a32 = a32 * a32; a32 = a32 * a32; a32 = a32 * a32;
-        shadowTint *= (0.30 + focus * 1.5) * (1.0 - a32);
+        shadowTint *= 1.0 - 0.45 * a32;
     }
     #endif
     shadowData = vec4(waterHeight, shadowTint);

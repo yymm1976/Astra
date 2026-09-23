@@ -21,9 +21,12 @@
 //     reads it back with texelFetch; the other texels of alpha are written but read by
 //     nobody, air or water.
 // Water output: RGB = fourth-root(gamma-domain VL / 128), A = ray length / 128.
-// Final reconstructs the RGB with the Solas four-tap pattern before linear conversion;
-// the stored ray length is not part of that read - water_shafts_resolve takes its
-// rayLength as a parameter and re-derives it from depthtex0 (light_shafts.glsl:151).
+// Final reconstructs the RGB with the Solas four-tap pattern before linear conversion.
+// Both channels are consumed: water_shafts_resolve takes ITS ray length from depthtex0
+// (light_shafts.glsl's water_shafts_view) and reads each of the four taps' own distance
+// from the stored alpha, so the two numbers come from the same capped quantity. It does
+// NOT rebuild the tap distance from depthtex0 any more - that path could not reject a sky
+// texel without also rejecting every real one (see the note in the resolve).
 // design.md 3.2 layer 2: program files provide the lib entry.
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"

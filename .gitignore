@@ -12,3 +12,11 @@ qa/bloom-lod-probe/*.f32
 # OS junk
 Thumbs.db
 .DS_Store
+
+# Local Java extraction and reproducible shader-render outputs.
+/.lwjgl/
+/qa/end-design/
+/qa/underwater-caustics-*/
+/qa/underwater-light-*/
+/qa/**/*.f32
+/qa/**/*.npy

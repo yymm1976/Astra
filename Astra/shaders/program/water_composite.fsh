@@ -11,7 +11,9 @@ in vec2 texcoord;
 /* RENDERTARGETS: 0 */
 void main() {
     vec3 color = texture(colortex0, texcoord).rgb;
-    if (isEyeInWater == 1) {
+    // Composite writes the alternate target, then Iris flips it. A discarded air
+    // pixel would expose stale alternate contents instead of preserving colortex0.
+    if (isEyeInWater == 1 && DEBUG_VERTEX_AO == 0) {
         float rayLength;
         vec3 viewPos = water_shafts_view(texcoord, rayLength);
         vec3 shafts = vec3(0.0);
