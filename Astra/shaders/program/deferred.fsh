@@ -189,7 +189,7 @@ void main() {
         float cloudPlaneDistance = (cloudEntryPlane - cameraPosition.y) / cloudRay.y;
         if ((cameraPosition.y > cloudUpper || cameraPosition.y < cloudLower)
             && cloudPlaneDistance > 0.0 && cloudPlaneDistance < cloudTerrainDistance) {
-            vec4 sheet = astra_planar_cloud(cloudRay);
+            vec4 sheet = astra_planar_cloud(cloudRay, cloudTerrainDistance);
             if (sheet.a > 0.0) displayed = mix(displayed, sheet.rgb, sheet.a);
         }
         #endif

@@ -1,0 +1,30 @@
+{
+  "scope": "live GLSL sample count, synthetic empty density; no frame-time claim",
+  "camera_y": 64,
+  "direction_y": 0.1,
+  "slab_entry": 1190,
+  "slab_exit": 1370,
+  "read_ranges_before_inside_after_sky": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      2.0,
+      2.0
+    ],
+    [
+      12.0,
+      12.0
+    ],
+    [
+      12.0,
+      12.0
+    ]
+  ]
+}
+PASS: terrain before cloud entry performs no density read
+PASS: terrain at 1220 keeps only two front samples
+PASS: terrain beyond layer preserves all twelve samples
+PASS: sky retains the original twelve-sample schedule
+PASS: empty field remains transparent

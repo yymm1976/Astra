@@ -194,7 +194,7 @@ void astra_cloud_colors(AstraSkyFactors f, AstraSkyPalette p,
 
 // ------------------------------------------------------------
 // Cloud colors come from the reference sky palette.
-vec4 astra_planar_cloud(vec3 worldDir) {
+vec4 astra_planar_cloud(vec3 worldDir, float maxRayDistance) {
 	vec3 nPlayerPos = normalize(worldDir);
 	float VdotU = nPlayerPos.y;
 	float VdotS = dot(nPlayerPos, normalize(worldSunVector));
@@ -227,6 +227,7 @@ vec4 astra_planar_cloud(vec3 worldDir) {
         maxPlaneDistance = min(maxPlaneDistance,ASTRA_CLOUD_THRESHOLD_F/horizontalRay);
     float planeDistanceDif = maxPlaneDistance-minPlaneDistance;
     if (planeDistanceDif <= 0.0) return vec4(0.0);
+    if (minPlaneDistance >= maxRayDistance) return vec4(0.0);
     const float skyFadeM = 1.0;
     int sampleCount = clamp(int(ceil(planeDistanceDif/16.0)),6,64);
     float stepMult = planeDistanceDif/float(sampleCount);
@@ -238,6 +239,11 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 	vec4 volumetricClouds = vec4(0.0);
 
 	for (int i = 0; i < sampleCount; i++) {
+		// Terrain is an opaque endpoint, not merely an entry-plane gate. Keep
+		// the sky's sample spacing so a nearer endpoint cannot move an existing
+		// visible cloud hit; omit only samples at/behind the terrain surface.
+		float sampleDistance = minPlaneDistance + (float(i) + dither) * stepMult;
+		if (sampleDistance >= maxRayDistance) break;
 		tracePos += traceAdd;
 
 		vec2 horizontalOffset=tracePos.xz-cameraPosition.xz;
@@ -361,6 +367,10 @@ vec4 astra_planar_cloud(vec3 worldDir) {
 	volumetricClouds.a *= 0.5 + 0.5 * skyFadeM;
 
 	return volumetricClouds;
+}
+
+vec4 astra_planar_cloud(vec3 worldDir) {
+    return astra_planar_cloud(worldDir, 1e20);
 }
 
 #endif
