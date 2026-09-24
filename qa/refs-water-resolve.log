@@ -1,0 +1,59 @@
+{
+  "resolve_scope": "synthetic texture; gamma-domain additive intensity, not scene radiance",
+  "equal_weight_mix": [
+    0.10000000149011612,
+    0.30000001192092896,
+    0.4999999403953552
+  ],
+  "near_edge_leak": 3.775137494277381e-11,
+  "far_colour": [
+    0.20000000298023224,
+    0.6000000238418579,
+    0.9999998211860657
+  ],
+  "sky_edge": [
+    0.19999998807907104,
+    0.6000000238418579,
+    0.9999998211860657
+  ]
+}
+{
+  "scope": "GPU helpers on synthetic inputs; no in-game appearance verdict",
+  "caustic_percentiles": [
+    0.0,
+    0.07136602327227592,
+    0.4431283980607985,
+    0.7872930657863619,
+    0.8312038779258728
+  ],
+  "x_correlation_1_to_8_blocks": [
+    -0.20824669008995847,
+    0.01868285667308837,
+    0.1211836147651124,
+    -0.1763988574157753,
+    0.1539765731497128,
+    -0.04788168357531909,
+    -0.3144990968313126,
+    0.10109848828645022
+  ],
+  "phase_range": [
+    0.125,
+    0.874975860118866
+  ],
+  "surface_transmission_8_blocks": [
+    0.00033546265331096947,
+    0.23069317638874054,
+    0.5773345828056335
+  ]
+}
+PASS: all sampled values finite and nonnegative
+PASS: phase preserves backscatter and directional contrast
+PASS: white caster acquires water chroma at every distance
+PASS: black caster adds no beam
+PASS: limiter bounds HDR without bleaching hue
+PASS: live march calls measured phase tint and limiter
+PASS: resolve averages decoded additive intensity
+PASS: resolve rejects far shafts at a near silhouette
+PASS: resolve preserves far shaft colour
+PASS: resolve sky and clamped bright edge stay finite
+PASS: resolve clamped black edge stays black

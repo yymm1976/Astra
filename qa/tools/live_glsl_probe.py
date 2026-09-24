@@ -16,6 +16,7 @@ SIZE = 256
 JAVA = r'''
 import java.nio.file.*;
 import java.io.*;
+import java.nio.*;
 import static org.lwjgl.glfw.GLFW.*;
 import org.lwjgl.opengl.GL;
 import static org.lwjgl.opengl.GL11.*;
@@ -74,6 +75,19 @@ public class LiveField {
    }
    glUniform1i(location,channel+1);
   }
+  if(args.length > 4) {
+   byte[] bytes=Files.readAllBytes(Path.of(args[4]));
+   ByteBuffer pixels=org.lwjgl.BufferUtils.createByteBuffer(bytes.length);
+   pixels.put(bytes).flip();
+   glActiveTexture(GL_TEXTURE4);
+   int input=glGenTextures(); glBindTexture(GL_TEXTURE_2D,input);
+   glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,Integer.parseInt(args[5]),Integer.parseInt(args[6]),0,GL_RGBA,GL_FLOAT,pixels);
+   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+   glUniform1i(glGetUniformLocation(program,"probeTexture"),4);
+  }
   glViewport(0,0,256,256);
   int count=Integer.parseInt(args[2]);
   try(DataOutputStream out=new DataOutputStream(new BufferedOutputStream(new FileOutputStream(args[1])))) {
@@ -91,7 +105,7 @@ public class LiveField {
 }
 '''
 
-def render(fragment, count, options=None):
+def render(fragment, count, options=None, texture_data=None):
     with tempfile.TemporaryDirectory(prefix='astra-live-field-') as tmp:
         folder=Path(tmp)
         entry=folder/'entry.fsh'
@@ -104,7 +118,13 @@ def render(fragment, count, options=None):
         try:
             subprocess.run(['javac','-cp',cp,str(folder/'LiveField.java')],check=True,capture_output=True)
             hardware=str((options or {}).get('SHADOW_FILTER_MODE','0'))
-            subprocess.run(['java','-cp',cp+';'+str(folder),'LiveField',str(source),str(folder/'readback.bin'),str(count),hardware],
+            fixture_args=[]
+            if texture_data is not None:
+                texture_data=np.asarray(texture_data,dtype=np.float32)
+                assert texture_data.ndim==3 and texture_data.shape[2]==4
+                texture_data.tofile(folder/'texture.bin')
+                fixture_args=[str(folder/'texture.bin'),str(texture_data.shape[1]),str(texture_data.shape[0])]
+            subprocess.run(['java','-cp',cp+';'+str(folder),'LiveField',str(source),str(folder/'readback.bin'),str(count),hardware]+fixture_args,
                            cwd=folder,check=True,capture_output=True)
         except subprocess.CalledProcessError as exc:
             raise RuntimeError(exc.stderr.decode('utf-8','replace')) from exc

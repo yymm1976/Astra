@@ -88,19 +88,30 @@ vec4 water_shafts_march(vec2 uv) {
 }
 #else
 vec3 water_shafts_resolve(sampler2D shaftMap, vec2 uv, float rayLength) {
-    vec2 pixel = 1.0 / vec2(textureSize(shaftMap, 0));
-    vec3 encoded = vec3(0.0);
+    ivec2 size = textureSize(shaftMap, 0);
+    vec2 position = clamp(uv, 0.0, 1.0) * vec2(size) - 0.5;
+    ivec2 base = ivec2(floor(position));
+    vec2 fraction = fract(position);
+    vec3 intensity = vec3(0.0);
     float weights = 0.0;
-    const vec2 offsets[4] = vec2[4](vec2(1.5, 0.5), vec2(-0.5, 1.5), vec2(-1.5, -0.5), vec2(0.5, -1.5));
+    // Fetch individual texels: filtering alpha first invents a distance between
+    // foreground and background. Decode storage before averaging the additive
+    // Solas intensity (gamma domain, as consumed by solas_water_composite).
+    // Four point fetches, no history or extra depth fetches.
     for (int i = 0; i < 4; ++i) {
-        vec2 tapUV = clamp(uv + offsets[i] * pixel, pixel * 0.5, 1.0 - pixel * 0.5);
-        vec4 tap = textureLod(shaftMap, tapUV, 0.0);
-        float tapDist = tap.a * WATER_SHAFT_MAX_DISTANCE;
-        float weight = exp(-min(abs(tapDist - rayLength), 24.0) * 0.25);
-        encoded += tap.rgb * weight;
+        ivec2 corner = ivec2(i & 1, i >> 1);
+        vec4 tap = texelFetch(shaftMap, clamp(base + corner, ivec2(0), size - 1), 0);
+        vec2 spatial = mix(1.0 - fraction, fraction, vec2(corner));
+        float delta = abs(clamp(tap.a, 0.0, 1.0) * WATER_SHAFT_MAX_DISTANCE
+                          - clamp(rayLength, 0.0, WATER_SHAFT_MAX_DISTANCE));
+        float weight = spatial.x * spatial.y * exp(-delta * 0.25);
+        vec3 squared = tap.rgb * tap.rgb;
+        intensity += (squared * squared * 128.0) * weight;
         weights += weight;
     }
-    return pow(encoded / max(weights, 1e-5), vec3(4.0)) * 128.0;
+    // Both distances are capped at 128: weights sum >= exp(-32). A 1e-5
+    // denominator floor would incorrectly darken valid all-distant neighbours.
+    return intensity / max(weights, 1e-30);
 }
 #endif
 #endif
