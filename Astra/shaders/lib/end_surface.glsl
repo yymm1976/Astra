@@ -15,19 +15,8 @@ vec3 end_surface_diffuse(vec3 albedo,vec3 normal,float visibility,float eclipse)
     vec3 direct=end_surface_direct(normal,visibility,eclipse);
     return albedo*(END_DISC_AMBIENT*hemisphere+direct);
 }
-// Tangent displacement on ordinary cube faces. A narrow footprint fade stops
-// subpixel block edges from producing a distant grid. This is a shading bevel,
-// not a topology-aware exposed-edge detector.
-vec3 end_surface_bevel(vec3 normal,vec3 worldPos,float footprint) {
-    vec3 cell=fract(worldPos);
-    vec3 ridge=smoothstep(vec3(0.96),vec3(1.0),cell)
-              -(1.0-smoothstep(vec3(0.0),vec3(0.04),cell));
-    vec3 tangent=1.0-normal*normal;
-    float near=1.0-smoothstep(0.015,0.04,footprint);
-    vec3 tilt=ridge*tangent*0.12*near;
-    tilt-=normal*dot(tilt,normal);
-    return normalize(normal+tilt);
-}
+// Use the material normal directly. A fract(worldPos) bevel highlights internal
+// coplanar block seams too; exposed-edge bevels require actual neighbour geometry.
 vec3 end_surface_specular(vec3 normal,vec3 view,float roughness,
                           float visibility,float eclipse) {
     vec3 light=end_light_direction();

@@ -147,12 +147,11 @@ struct AstraSkyPalette {
 
 AstraSkyPalette astra_sky_palette(AstraSkyFactors f) {
 	// :5-9
-	// ASTRA: max(skyColor, 0.0) guards sqrt()/pow() against a negative Iris value; the
-	// reference relies on skyColor being non-negative.
+	// View-independent roots/powers are evaluated in shaders.properties. All callers
+	// use the current astra_sky_factors(); the CPU night terms use its astraRainFactor.
 	vec3 skyColorNN = max(skyColor, vec3(0.0));
-	vec3 skyColorSqrt = sqrt(skyColorNN);
 	float invRainStrength2 = (1.0 - rainStrength) * (1.0 - rainStrength);
-	vec3 skyColorM  = mix(max(skyColorSqrt, vec3(0.63, 0.67, 0.73)), skyColorSqrt, invRainStrength2);
+	vec3 skyColorM  = astraSkyColorM;
 	vec3 skyColorM2 = mix(max(skyColorNN, f.sunFactor * vec3(0.265, 0.295, 0.35)), skyColorNN, invRainStrength2);
 
 	// :29-34 - SPECIAL_BIOME_WEATHER off and RAIN_STYLE = 1 resolve every *SnowM / *DryM /
@@ -162,9 +161,7 @@ AstraSkyPalette astra_sky_palette(AstraSkyFactors f) {
 	vec3 ndscWeatherM = vec3(-0.15, -0.3, -0.42) + vec3(0.0, 0.02, 0.08) * f.noonFactor;
 
 	// :36-40
-	// pow() is kept here: 2.9 is not an exact integer, so there is no multiply chain to
-	// fold it to and lib/pow.glsl's generic loop would be slower than the intrinsic.
-	vec3 noonUpSkyColor     = pow(skyColorM, vec3(2.9)) * (vec3(0.85, 0.92, 0.81) + f.rainFactor * nuscWeatherM);
+	vec3 noonUpSkyColor     = astraSkyNoonBase * (vec3(0.85, 0.92, 0.81) + f.rainFactor * nuscWeatherM);
 	vec3 noonMiddleSkyColor = skyColorM * (vec3(1.4, 1.3, 1.3) + f.rainFactor * nmscWeatherM)
 	                        + noonUpSkyColor * 0.25;
 	vec3 noonDownSkyColor   = skyColorM * (vec3(0.9) + f.rainFactor * ndscWeatherM)
@@ -184,10 +181,8 @@ AstraSkyPalette astra_sky_palette(AstraSkyFactors f) {
 	p.sunsetDownP = sunsetDownSkyColorP;
 
 	// :51-54
-	// Same reasoning as noonUpSkyColor: 0.90 is not an exact integer exponent.
-	vec3 nightColFactor = 0.9 * vec3(0.07, 0.14, 0.24) * (1.0 - 0.5 * f.rainFactor) + skyColorNN;
-	p.nightUp     = pow(nightColFactor, vec3(0.90)) * 0.45;
-	p.nightMiddle = sqrt(p.nightUp) * 0.65;
+	p.nightUp     = astraSkyNightUp;
+	p.nightMiddle = astraSkyNightMiddle;
 	p.nightDown   = p.nightMiddle * vec3(0.82, 0.82, 0.88);
 	return p;
 }

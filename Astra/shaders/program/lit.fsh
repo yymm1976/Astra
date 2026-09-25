@@ -53,7 +53,6 @@ void main() {
     // material branch: derivatives inside `if (material == 11u)` would be non-uniform
     // across quads that straddle materials (consolidated review A4).
     float endStoneFootprint = max(length(dFdx(texcoord)), length(dFdy(texcoord))) * 256.0;
-    float endWorldFootprint=max(length(dFdx(playerPos)),length(dFdy(playerPos)));
     #endif
     vec3 viewPos = camera_relative_view(playerPos);
     // faceData is flat and never rewritten, so this two-axis decode is evaluated once
@@ -215,24 +214,14 @@ void main() {
                              vertexAO);
     #ifdef DIMENSION_END
     bool endObsidian=(faceData&(1u<<22))!=0u;
-    if((material==11u || endObsidian) && dot(normal,end_light_direction())>-0.01) {
+    if((material==11u || endObsidian) && dot(normal,end_light_direction())>0.0) {
         float tone=clamp(dot(albedo.rgb,vec3(0.2126,0.7152,0.0722)),0.0,1.0);
         float roughness=endObsidian ? mix(0.39,0.23,clamp(tone*22.0,0.0,1.0))
                                     : mix(0.86,0.62,tone);
         roughness=mix(roughness,endObsidian ? 0.34 : 0.75,
                       smoothstep(0.6,2.4,endStoneFootprint));
-        vec3 specNormal=end_surface_bevel(normal,playerPos+cameraPosition,endWorldFootprint);
         float surfaceVisibility=end_surface_visibility;
-        #ifdef SHADOWS
-        // Diffuse already fetched the shadow on lit faces. Only the side-facing
-        // bevel needs a query of its own, and only on these reflective materials.
-        if(dot(normal,end_light_direction())<=0.0) {
-            float coverage=shadow_coverage(playerPos,surfaceShadowPosition);
-            if(coverage>0.0)
-                surfaceVisibility=mix(1.0,shadow_opaque_visibility(surfaceShadowPosition),coverage);
-        }
-        #endif
-        color+=end_surface_specular(specNormal,-normalize(playerPos),roughness,
+        color+=end_surface_specular(normal,-normalize(playerPos),roughness,
                                    surfaceVisibility,end_surface_eclipse);
     }
     #endif

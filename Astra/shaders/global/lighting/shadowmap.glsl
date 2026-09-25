@@ -12,8 +12,8 @@
 // Publish gate: design.md 9.3 + escalations.md SC-14 (⏸ pending user decision).
 //
 // Producer writes native triangle depth. Surface coordinates are projected at
-// vertices, then interpolated. Software pairs caster texels with their depths;
-// optional hardware PCF compares depth first and resolves centre material separately.
+// vertices, then interpolated. Both modes pair each corner's visibility with its
+// caster texel; only the depth comparison runs in GLSL or in the texture unit.
 #include "/lib/distort.glsl"
 #include "/lib/transforms.glsl"
 
@@ -38,11 +38,9 @@ float decode_water_height(float encoded) {
 #if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
 uniform sampler2DShadow shadowtex0;
 uniform sampler2DShadow shadowtex1;
-const int SHADOW_FILTER_TAPS = 4;
 #else
 uniform sampler2D shadowtex0;
 uniform sampler2D shadowtex1;
-const int SHADOW_FILTER_TAPS = 16;
 #endif
 #endif
 #if defined SHADOWS || defined WATER_CAUSTICS
@@ -82,38 +80,6 @@ float shadow_coverage(vec3 playerPos, vec3 shadowPos) {
 }
 
 #ifdef SHADOWS
-struct ShadowTap {
-    float allVisibility;
-    float opaqueVisibility;
-    vec4 caster;
-};
-ShadowTap shadow_read_tap(vec2 uv, float referenceDepth) {
-    ivec2 size = textureSize(shadowtex0, 0);
-    ShadowTap tap;
-    tap.caster = vec4(1.0,0.0,0.0,0.0);
-    #if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
-    vec2 edge = 0.5 / vec2(size);
-    vec2 coord = clamp(uv, edge, 1.0-edge);
-    tap.allVisibility = texture(shadowtex0, vec3(coord, referenceDepth));
-    // Opaque casters are a subset of all casters. A fully visible footprint
-    // cannot acquire an opaque shadow in the second map.
-    tap.opaqueVisibility = 1.0;
-    if (tap.allVisibility < 1.0)
-        tap.opaqueVisibility = texture(shadowtex1, vec3(coord, referenceDepth));
-    // Material data is resolved once by the surface consumer, after all four lobes.
-    #else
-    ivec2 pixel = clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1);
-    tap.allVisibility = step(referenceDepth, texelFetch(shadowtex0, pixel, 0).r);
-    tap.opaqueVisibility = 1.0;
-    if (tap.allVisibility < 1.0)
-        tap.opaqueVisibility = step(referenceDepth, texelFetch(shadowtex1, pixel, 0).r);
-    // No tint/height can contribute when both visibility results agree. Air-side
-    // water still needs R even with coloured shadows off, to preserve transmission.
-    if (tap.opaqueVisibility > tap.allVisibility)
-        tap.caster = texelFetch(shadowcolor0, pixel, 0);
-    #endif
-    return tap;
-}
 // Gather returns (01,11,10,00); reorder to (00,10,01,11), matching the
 // original software corners. Compare every depth BEFORE weighting it.
 vec4 shadow_corner_weights(vec2 f) {
@@ -122,17 +88,10 @@ vec4 shadow_corner_weights(vec2 f) {
 }
 #if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
 vec4 shadow_gather_visibility(sampler2DShadow depths, vec2 uv, float referenceDepth) {
-    ivec2 size=textureSize(depths,0);
-    vec2 edge=0.5/vec2(size);
-    ivec2 base=ivec2(floor(clamp(uv,edge,1.0-edge)*vec2(size)-0.5));
-    vec4 result;
-    // Sample exact texel centres: pair each comparison with that texel's caster.
-    // Bilinear hardware PCF plus a single centre material is not colour equivalent.
-    for(int i=0;i<4;++i) {
-        ivec2 pixel=clamp(base+ivec2(i&1,(i>>1)&1),ivec2(0),size-1);
-        result[i]=texture(depths,vec3((vec2(pixel)+0.5)/vec2(size),referenceDepth));
-    }
-    return result;
+    vec2 edge=0.5/vec2(textureSize(depths,0));
+    // Shadow gather returns four separate comparison results in one lookup.
+    // Keep them separate until each corner's tint/water identity is resolved.
+    return textureGather(depths,clamp(uv,edge,1.0-edge),referenceDepth).wzxy;
 }
 #else
 vec4 shadow_gather_visibility(sampler2D depths, vec2 uv, float referenceDepth) {
@@ -152,8 +111,7 @@ vec3 shadow_lobe_light(vec2 uv, float referenceDepth) {
 
     vec4 opaqueVisibility = shadow_gather_visibility(shadowtex1, uv, referenceDepth);
     vec4 transparentWeight = max(opaqueVisibility-allVisibility, vec4(0.0)) * weights;
-    // Preserve each corner's discrete caster, including mixed water/glass
-    // edges. The hardware mode's centre-material approximation is not used.
+    // Preserve each corner's discrete caster, including mixed water/glass edges.
     if (any(greaterThan(transparentWeight, vec4(0.0)))) {
         ivec2 corner = ivec2(floor(location));
         for (int i=0; i<4; ++i) {
@@ -185,27 +143,6 @@ float shadow_opaque_visibility(vec3 shadowPos) {
     vec2 f = fract(location);
     return dot(shadow_gather_visibility(shadowtex1, shadowPos.xy, shadowPos.z),
                shadow_corner_weights(f));
-    #endif
-}
-// Same four lobe positions in both modes: four hardware comparison coordinates,
-// or sixteen software corners. Material IDs and height codes are never interpolated.
-vec2 shadow_filter_uv(vec3 shadowPos, int index, out float weight) {
-    #if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
-    vec2 offset = vec2((index & 1) == 0 ? -1.0 : 1.0,
-                       (index & 2) == 0 ? -1.0 : 1.0) * (float(SHADOW_SOFTNESS) * 0.5);
-    weight = 0.25;
-    return shadowPos.xy + offset / float(shadowMapResolution);
-    #else
-    int lobe = index / 4;
-    int corner = index - lobe * 4;
-    vec2 offset = vec2((lobe & 1) == 0 ? -1.0 : 1.0,
-                       (lobe & 2) == 0 ? -1.0 : 1.0) * (float(SHADOW_SOFTNESS) * 0.5);
-    vec2 location = shadowPos.xy * float(shadowMapResolution) - 0.5 + offset;
-    vec2 f = fract(location);
-    vec2 c = vec2(corner & 1, (corner >> 1) & 1);
-    vec2 w = mix(1.0 - f, f, c);
-    weight = w.x * w.y * 0.25;
-    return (floor(location) + c + 0.5) / float(shadowMapResolution);
     #endif
 }
 #endif

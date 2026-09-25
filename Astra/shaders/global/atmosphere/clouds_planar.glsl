@@ -138,11 +138,9 @@ float astra_cloud_ign() {
 // DEFERRED1 branch of nightClearLightColor (line 76), which is the cloud pass.
 void astra_cloud_colors(AstraSkyFactors f, AstraSkyPalette p,
                         out vec3 cloudAmbientColor, out vec3 cloudLightColor) {
-	vec3 skyColorNN = max(skyColor, vec3(0.0));
-
 	// :9-27
 	vec3 noonClearLightColor   = vec3(0.65, 0.55, 0.375) * 2.05;
-	vec3 noonClearAmbientColor = pow(skyColorNN, vec3(0.75)) * 0.85;
+	vec3 noonClearAmbientColor = astraCloudNoonAmbient;
 
 	vec3 sunsetClearLightColor   = pow(vec3(0.64, 0.45, 0.3), vec3(1.5 + f.invNoonFactor)) * 5.0;
 	vec3 sunsetClearAmbientColor = noonClearAmbientColor * vec3(1.21, 0.92, 0.76) * 0.95;

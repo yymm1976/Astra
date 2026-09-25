@@ -191,10 +191,10 @@ vec4 preview_island(vec3 ray,float cone) {
                      : vec3(0.51,0.48,0.35)*mix(0.72,1.16,grain);
  float visibility=preview_shadow(p+normal*0.002);
  vec3 color=end_surface_diffuse(albedo,normal,visibility,0.0);
- if(dot(normal,end_light_direction())>-0.01) {
+ if(dot(normal,end_light_direction())>0.0) {
   float tone=dot(albedo,vec3(0.2126,0.7152,0.0722));
   float roughness=obsidian ? mix(0.39,0.23,clamp(tone*22.0,0.0,1.0)) : mix(0.86,0.62,tone);
-  color+=end_surface_specular(end_surface_bevel(normal,p,nearest*cone),-ray,roughness,visibility,0.0);
+  color+=end_surface_specular(normal,-ray,roughness,visibility,0.0);
  }
  return vec4(color,1.0);
 }

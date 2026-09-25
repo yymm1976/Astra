@@ -19,6 +19,11 @@ uniform float sunProgress;             // 0 at sun horizon, 1 at zenith
 uniform float moonProgress;            // same, for the moon
 uniform float skyVisibilityDay;        // skylight collapse around dusk/dawn
 uniform float astraTwilightFactor;      // shared, rain-aware twilight envelope (also underwater)
+uniform vec3  astraSkyColorM;           // rain-adjusted sqrt(skyColor), CPU palette terms
+uniform vec3  astraSkyNoonBase;         // pow(astraSkyColorM, 2.9)
+uniform vec3  astraSkyNightUp;          // weather-adjusted night palette
+uniform vec3  astraSkyNightMiddle;
+uniform vec3  astraCloudNoonAmbient;    // pow(max(skyColor,0), 0.75) * 0.85
 uniform float borderFogDistance;       // == far
 uniform float atmosphereFogCoefficient;// pow(d,3) fog coefficient (distance-normalized)
 uniform float dayUnderwaterFogFade;    // underwater fog day/night ramp
