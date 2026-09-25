@@ -1,0 +1,157 @@
+A6-v2 | 白天正午“云双层/重影”重诊断（只读，零代码改动）
+基线 commit: 58669e9ec8a18d30262d109976b62245c84931de
+产出：本文件（唯一写入）。范围：Astra/shaders/**、shaders.properties、qa/regression-checklist.md、
+qa/a6-cloud-double-layer-diagnosis-2026-09-21.log。既有前提 P1–P5 不作待验证项重开。
+==============================================================================
+
+【S1 基线】git rev-parse HEAD = 58669e9（与派发卡一致）。
+
+【V2 消费者枚举】全包扫 astra_planar_cloud / astra_cloud_ign / volumetricClouds /
+cloudLightColor / cloudAmbientColor 的定义与写入点，随后逐条读上下文。硬结论：
+
+  astra_planar_cloud() 定义 1 处 + 消费者 2 处 ⇒ **消费者数 = 2**。
+
+  定义    Astra/shaders/global/atmosphere/clouds_planar.glsl:173
+          vec4 astra_planar_cloud(vec3 worldDir) {
+  消费者1 Astra/shaders/program/scene.glsl:46
+          vec4 cloud = astra_planar_cloud(worldDir);
+          （在 astra_sky() 的 overworld 分支内；:47  sky = mix(sky, cloud.rgb, cloud.a);）
+  消费者2 Astra/shaders/program/sky.fsh:119
+          gl_FragData[0].a *= 1.0-astra_planar_cloud(astra_sky_world_direction()).a;
+          （在 SUN_MOON_MODE != SUN_MOON_VANILLA 的日月盘分支内，:116 的 CLOUD_MODE == CLOUD_PLANAR 门）
+
+  另外三个标识符只在 clouds_planar.glsl 内部出现，无外部消费者：
+    astra_cloud_ign()  : 定义 :107，使用 :177（列采样起点抖动）、:247（云体渐变噪声）
+    volumetricClouds   : 局部变量，定义 :212，写 :317/:318/:323，返回 :325
+    cloudLightColor / cloudAmbientColor : astra_cloud_colors() 的 out 参数（:116 形参，:231 实参）
+
+【V3 逐消费者：worldDir 构造 / 分辨率 / dither】
+
+(a) worldDir 如何构造 —— 两处原文逐字
+
+  消费者2  Astra/shaders/program/sky.fsh:15-19
+        vec3 astra_sky_world_direction() {
+            vec2 screenUv = gl_FragCoord.xy / vec2(viewWidth, viewHeight);
+            vec3 viewDir = screen_view(vec3(screenUv, 1.0));
+            return normalize(mat3(gbufferModelViewInverse) * viewDir);
+        }
+  消费者1  Astra/shaders/program/deferred.fsh:182
+        vec3 skyRay = normalize(view_player(screen_view(vec3(texcoord,1.0))));
+
+  view_player 的实现（Astra/shaders/lib/transforms.glsl:24-31，原文）
+        vec3 view_player(vec3 x) {
+        #ifdef ASTRA_VOXY_PASS
+            mat4 mat = vxModelViewInv;
+        #else
+            mat4 mat = gbufferModelViewInverse;
+        #endif
+            return mat3(mat) * x;
+        }
+
+  ⇒ view_player(v) ≡ mat3(gbufferModelViewInverse) * v，与消费者2 的写作形 **代数完全相同**。
+    两者之差只剩 uv 的来源：消费者2 用 gl_FragCoord.xy / vec2(viewWidth, viewHeight)，
+    消费者1 用 texcoord。
+
+  texcoord 的来源（Astra/shaders/program/deferred.vsh:9，原文）
+        texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
+
+    Iris 的 composite/deferred 全屏四边形的 gl_MultiTexCoord0 在角点为 (0,0)-(1,1)，插值到像素中心
+    即 ((x+0.5)/w,(y+0.5)/h)，与 gl_FragCoord.xy/vec2(viewWidth,viewHeight) 同式。
+
+  数值复算（fp32；1920x1080 / 854x480 / 2560x1440，每档取角点、中心、末列末行等约 12 个像素）：
+        bit-level mismatches = 0，max |diff| = 0
+
+  ⇒ **在 gl_TextureMatrix[0] == I 且全屏四边形恰好覆盖帧缓冲的前提下，两者逐位相同。**
+    这两条是引擎侧 GL 状态，**包内无法证明**（本卡白名单不含引擎反编译件），故据实标注为
+    「代数相同、前提未证」。若该前提被证伪，它会同时影响整片天空而不只是云，与用户
+    「只有云看起来两层」的描述不相容。
+
+(b) 两个 pass 的渲染目标分辨率
+  消费者2  Astra/shaders/program/sky.fsh:13     /* RENDERTARGETS: 0 */      → colortex0
+  消费者1  Astra/shaders/program/deferred.fsh:11 /* RENDERTARGETS: 0,4 */    → colortex0 + colortex4
+  shaders.properties 的 size.buffer.* 只声明了 colortex1(:21,:23) / colortex2(:29) / colortex6(:31) /
+  colortex7(:35) / colortex8(:36) / colortex9(:38) / colortex10(:42)，**没有 colortex0 也没有 colortex4**
+  ⇒ 两者都是全分辨率、共用同一 viewWidth/viewHeight ⇒ 同一像素在两个 pass 里的 gl_FragCoord 相同。
+
+(c) astra_cloud_ign() 是否在两 pass 给出不同值
+  定义 Astra/shaders/global/atmosphere/clouds_planar.glsl:107-109（原文）
+        float astra_cloud_ign() {
+            return fract(52.9829189 * fract(0.06711056 * gl_FragCoord.x + 0.00583715 * gl_FragCoord.y));
+        }
+  参数表**只有 gl_FragCoord** ⇒ 它是「像素的纯函数」：同一 (x,y) 给同一值。
+  由 (b)，两 pass 对同一像素的 gl_FragCoord 相同 ⇒ dither 相同 ⇒ :225 的硬门
+        if (noise <= threshold * 0.5 + 0.25 + coverageBias) continue;
+  对同一片云**判出同一结果**。
+  （它确实是逐像素抖动图案，邻像素实测 x=100..107 @ y=540 = 0.509 0.065 0.621 0.176 0.732 0.288
+    0.843 0.399 —— 但这对两个消费者是同一个序列。）
+  ⇒ **V3(c) 的答案是「不会」。**
+
+【V4 三条单独判定】
+
+(i) 云体内部门槛族差 —— 判定：**通过（机制存在，强度存疑）**
+  存在门  clouds_planar.glsl:225   noise > 0.5*threshold + 0.25 + coverageBias
+  浓度门  clouds_planar.glsl:316   columnDensity = smoothstep(0.21+coverageBias, 0.43+coverageBias, noise)
+  在云层中部（tracePos.y = ASTRA_CLOUD_ALTITUDE ⇒ :222-223 的 threshold = clamp(|192-y|/9,0.001,0.999)^8
+  ≈ 1e-24）存在门退化为 noise > 0.25 + coverageBias，而浓度门的窗口固定为 [0.21+bias, 0.43+bias]。
+  取 bias = 0：
+        noise = 0.25  →  columnDensity = smoothstep(0.21, 0.43, 0.25) = 0.0873
+        noise = 0.43  →  columnDensity = 1.0
+  ⇒ 通过存在门、但 noise 落在 [0.25, 0.43] 的那一圈云，其列密度从 **0.087 连续升到 1**：云缘自带一条
+    比内部更淡的带。:317 再乘 sqrt(cloudDistanceFactor*1.33333)（≤1），外缘 alpha 可从约 0.087 起步。
+  **强度存疑的理由**：这条带最淡处 alpha ≈ 0.09，是否会被读成「一层」而非云缘抗锯齿，离线不可判；
+  且 :319 是 break;（只取第一个通过存在门的样本），云缘像素看到的正是那条最淡的样本。
+
+(ii) 双八度噪声 —— 判定：**通过（机制成立，且可给出不依赖分布假设的硬界）**
+  原文 clouds_planar.glsl:102-103
+        vec2 detail=mat2(0.8,-0.6,0.6,0.8)*tracePosM.xz*2.7+vec2(31.7,9.3);
+        return 0.78*astra_2d_cloud_sample(tracePosM.xz)+0.22*astra_2d_cloud_sample(detail);
+  两个八度是**独立图案**：细节项既缩放 2.7× 又旋转（mat2(0.8,-0.6,0.6,0.8) ≈ 36.87°）又平移 (31.7,9.3)，
+  与主八度在空间上错开。
+  硬界（不依赖任何分布假设）：细节项的抬升幅度上界 = **0.22**，而从「刚过存在门」到「列密度饱和」的
+  全跨度 = 0.43 − 0.25 = **0.18 < 0.22**。⇒ **细节八度单独一项就足以把一片「主八度很低」的区域整体
+  推过存在门**，并决定其浓度；由于它的图案与主云错开，被它推过门的那部分在屏幕上呈现为**贴着主云、
+  图案不同**的一层 —— 这正是「看起来两层 / 对不齐」的量化机制。
+  （若把两个八度粗判为均匀分布，「主八度过不了门而合计过门」的比例约 14%，但该比例只作示意；
+   关键论证是上面那条 0.18 < 0.22 的硬界。）
+
+(iii) 日月盘云衰减（sky.fsh:119）与天空云合成（scene.glsl:46）对同一天区是否不一致 —— 判定：**不通过**
+  两者调用同一个函数、同一实参形态（(a) 已证 worldDir 逐位相同），运行在同一分辨率（(b)），
+  dither 又是同一像素的同一值（(c)）⇒ 对同一天区给出的 cloud.a 相同，**不会产生肉眼可辨的不一致**。
+  推论：若用户看到的「错位」发生在日月盘周围，它不来自这两个消费者的分歧，而更可能来自 (i)/(ii)
+  在**同一消费者内部**的图案错位。
+
+【V5 候选修法（本轮不实现任何一条）】
+
+修法 1（推荐）：让浓度门与存在门对齐
+  改哪：clouds_planar.glsl:316 的窗口起点 0.21+coverageBias → 与 :225 的存在门同源
+        （例如 smoothstep(0.25+coverageBias, 0.43+coverageBias, noise)，或把两个门的常量抽成一对具名常量）
+  出厂像素：**会变**（云缘由「极淡起步」改为「从 0 起步」，云看起来更利落、更薄）
+  必须实机判定：是（云缘观感是画面临界项）
+  风险：低（只动一个表达式的两个常量）
+  回退：单提交回退
+
+修法 2：检视细节八度是否要独立成形
+  改哪：clouds_planar.glsl:102-103（把 2.7 倍频/旋转的细节项改为与主八度同向，或降低 0.22 权重）
+  出厂像素：**会变**（云缘纹理的尺度与方向改变）
+  必须实机判定：是（「细节是否自成一云」只能肉眼看）
+  风险：中（该细节项原本是「软化方格」的手段，见 :99-101 头注，改动会同时改变云缘柔度）
+  回退：单提交回退
+
+修法 3（不推荐，仅登记）：降低或规整 :177 的逐像素 dither
+  理由：dither 正是用来打散该 march 条带的，改成块状会换来新的 banding；且它与 (iii) 无关
+  （两个消费者用的是同一个值）。
+
+【V6 诚实结论】
+  包内**存在**可量化的「看起来像两层」的机制（V4(ii) 的 0.18 < 0.22 硬界；V4(i) 的云缘淡带），
+  因此**不适用**「无根因」的写法。但离线只能证明「这两条机制存在」，**不能证明它就是用户截图里的那一层**：
+  两条机制都随视角（俯仰角决定 march 采样跨度）与云密度分布变化，而这两者只能实机取得。
+  需要的实机材料（F3）：
+    1) 截图原图（能标出「两层」分别在哪里、间距大约多少度）；
+    2) 当时的太阳高度角（y 值或游戏时间）；
+    3) 档位（决定 CLOUD_MODE、CLOUD_COVERAGE 与采样数档）；
+    4) 是否开了其它选项（尤其云的细化类选项、雨/雷雨、以及是否有其它模组改过云）。
+  另据 P2/P3：反射板那条臂在正午 astraTwilightFactor == 0（shaders.properties:210-213 的包络在
+  worldSunVector.y ≥ 0.242 时精确为 0），与用户「白天正午」不相容；且它已在 58669e9 按裁定重写。
+  故本卡不把反射板列为解释。
+
+【S6 门自证】check_pack 本轮复跑：17 项 / 0 FAIL / 1 WARN / 16 PASS（见同轮 shell 输出）。

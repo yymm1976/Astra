@@ -1,0 +1,253 @@
+# 2026-09-22 End "universe" pass - implementation log
+# task: make the End read as a universe, borrowing IterationT 3.2 End design ideas
+# without its expressions/constants, and remove the last expression-level IterationT
+# port in the pack (bh_Blackbody).
+
+## 1. Baseline and scope
+Baseline = the WORKING TREE content captured before this pass (not HEAD), per the task
+rule for files that already carried another workflow uncommitted changes:
+  end_blackhole.glsl was dirty (F2 iteration-cap fix); deferred.fsh was dirty (cloud F2).
+deferred.fsh was NOT touched by this pass.
+
+Files written (all inside the whitelist):
+  Astra/shaders/global/dimension/end_blackhole.glsl
+  Astra/shaders/global/dimension/end_system.glsl
+  Astra/shaders/global/dimension/end_ring.glsl
+  Astra/THIRD-PARTY.md            (bh_Blackbody registration row only)
+  qa/tools/end_universe_probe.py  (new offline probe, acceptance 4)
+  qa/end-design/universe-before.{png,npy}, universe-after.{png,npy}
+NOT touched: end_geometry.glsl, lib/end_light.glsl, program/end_sky_buffer.fsh,
+program/end_illumination.fsh, program/deferred.fsh, settings.glsl, shaders.properties.
+
+byte count / md5 (before -> after):
+  end_blackhole.glsl                  12486 ->  14348  md5 77555ad6ece55a86808ae3e9efeeda40 -> 79f12b44033b8b48e67efc06f8e687ca
+  end_system.glsl                      5651 ->   9066  md5 61e14200a7a3bca5b2fdd3d2ff350724 -> d12a8fa24aab7a3908d7006fe738ed70
+  end_ring.glsl                        4415 ->   4743  md5 7c593274b938f5838917f17bc1d9c340 -> aed115bf0065b3a4d5c73b995bf4d5d8
+  THIRD-PARTY.md                          -     78318  (prose only)
+
+## 2. Design decisions (what, and where it departs from IterationT 3.2.0)
+ITT reference read: Lib/IndividualFounctions/EndSky.glsl (CalculateStars, PlanetEnd2,
+BlackHole_AccretionDisc_Stars, EndFog) plus world1/composite.fsh lines 246-248. Only the
+ideas/structure were taken; none of its expressions or constant tables are used.
+
+(a) Star field - layered magnitudes + a real colour-temperature spread
+  ITT: one 3D cell hash at scale 384, coverage 0.007, luminance <= 0.04, blackbody
+  4000-8000 K, one population only. Astra keeps its pre-existing per-cube-face
+  projection (256x256x6 cells: no volumetric swirl, no corner pinch) and adds a dense
+  faint field (cell threshold 0.32) plus a separate sparse bright layer (0.012, i.e.
+  27x rarer) with a fixed halo fraction, a rank^5 power law inside each population, and
+  a Planckian hue spanning 3000-12000 K with the warm minority fixed at one star in
+  six. Net effect vs ITT: a ~7x denser field whose brightness distribution is a power
+  law rather than one band, and whose colour is a temperature continuum rather than a
+  narrow 4000-8000 K window.
+
+(b) Interstellar medium - a great-circle band with dust lanes
+  ITT has no interstellar medium at all (point stars, a planet, a disc). The old Astra
+  END_NEBULA term was a single smoothstep blip. It is now one band with its own normal
+  (deliberately NOT the ring axis, so band and ring interleave instead of forming one
+  tilted plane), three cloud octaves, a separate lower-frequency field subtracted as
+  dark dust lanes, and a cold/warm mix driven by the view direction. It returns exactly
+  zero away from its great circle, so no full-sky haze is introduced (design section 6).
+
+(c) Accretion disc - a temperature run and a concentrated emissivity law
+  ITT: Blackbody(2700 + glowStrength*50) inside a 1/(gr^4*400) glow, plus a separate
+  hard-coded Blackbody(12000) torus bloom. Astra now runs the hue from 9000 K (inner)
+  to 3200 K (outer) through its own Planckian helper and steepens the radial emission
+  law (3.0 -> 0.45 across u^0.7) relative to the density profile, so the brightest
+  annulus is the inner edge instead of the disc being uniformly lit. The Doppler blue
+  shift stays a separate, weaker term so it cannot be mistaken for the ramp.
+
+(d) Photon ring - width tied to the pixel footprint
+  The half-width was max(radians(0.055)=0.055 deg, cone*0.5): the footprint term was
+  smaller than the fixed term on a coarse target and larger on a fine one, so the same
+  line was ~2 px at one output resolution and sub-pixel at the next. It is now
+  max(radians(0.014)=0.014 deg, cone*1.2), i.e. ~1.2 pixels at every resolution. Peak
+  amplitude 1.8 -> 2.2, halo radius 0.65 -> 0.42 deg (a converging glow). Measured
+  FWHM 0.39 deg at the 2048x1536 probe footprint against a 7.02 deg silhouette radius.
+
+(e) Ring texture - a standing two-armed spiral density wave
+  ITT ring = one octave-noise band inside PlanetEnd2. Astra already had ring gaps and
+  differential shear; this adds a single spiral term wound with radius and fixed in the
+  disc frame (structure without added motion), at 24% amplitude.
+
+(f) bh_Blackbody replaced (acceptance 5)
+  The IterationT CIE-spline + xyzToSrgb port is gone. Replaced by astra_planck_band /
+  astra_blackbody_rgb: Planck law at three wavelengths per channel (610/545/465 nm),
+  three-point Gauss-Legendre over a 52 nm Gaussian band, normalised to unit peak. The
+  only physical constant is c2 = hc/k; no spline coefficients, no colour matrix and no
+  reference constant table. It is live code: it supplies the star hues and the disc
+  temperature run. THIRD-PARTY.md rows 226-250 were corrected in place.
+
+## 3. Gate 1 - python qa/tools/compile_glsl.py
+
+exit=0
+OPENGL_VENDOR	NVIDIA Corporation
+OPENGL_RENDERER	NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2
+OPENGL_VERSION	4.6.0 NVIDIA 572.83
+RESULT	linked=270	failed=0	compute=27	compute_capable=true
+BATCH 1/1 rows=PERFORMANCE..ULTRA rc=0
+
+## 4. Gate 2 - python qa/tools/check_pack.py
+
+exit=0
+Astra pack validator | pack=Astra/shaders | python=3.10.11
+========================================================================
+[PASS] #1 settings.glsl option registry (design 3.3: 60-80 options)
+       . 71 options: 71 with value list, 31 bool, 40 slider/enum
+[PASS] #2 shaders.properties screen/sliders/profile <-> settings.glsl bijection
+       . 1 main screen + 7 categories: FOG, LIGHTING, PERFORMANCE, POST, SHADOWS, SKY, WATER
+       . 6 enum/dropdown option(s) (not sliders): CLOUD_MODE, SHADOW_FILTER_MODE, SKY_MODE, SUN_MOON_MODE, TONEMAP_OPERATOR, WATER_CHARACTER
+       . sliders=34 vs 34 slider-typed options
+       . profile.PERFORMANCE: 71 tokens, complete=True
+       . profile.BALANCED: 71 tokens, complete=True
+       . profile.ULTRA: 71 tokens, complete=True
+[PASS] #3 lang files cover every option with title + comment
+       . zh_CN.lang: 71 titles, 71 comments
+       . en_US.lang: 71 titles, 71 comments
+[WARN] #4 include graph (design 3.2 layering): no dangling include, every entry reaches lib/settings.glsl, no unwired module, no layer violation
+       ~ pending wiring: voxy_opaque.glsl <- owner C5 (voxy.json patch data, not an #include entry)
+       ~ pending wiring: voxy_translucent.glsl <- owner C5 (voxy.json patch data, not an #include entry)
+       . 186 compiled entries, 53 lib/global modules, 51 reachable, 2 waiting on their owner task, 0 unwired-and-unregistered
+[PASS] #5 engine/vanilla symbols referenced by lib|global must be declared in the declaration layer (settings/uniforms)
+[PASS] #6 custom uniforms: shaders.properties <-> GLSL uniform declarations
+       . 27 uniform.* + 22 variable.* in properties; 88 uniform decl(s) across the include tree
+[PASS] #7 block.properties / entity.properties syntax + ID sanity
+       . block.properties: 20 id groups
+       . entity.properties: 5 id groups
+       . 23 minecraft: id(s) absent from all 4 reference packs (new/renamed, verify at smoke): minecraft:bamboo_sapling, minecraft:blue_ice, minecraft:conduit, minecraft:crying_obsidian, minecraft:end_stone, minecraft:end_stone_bricks, minecraft:frosted_ice, minecraft:glass, minecraft:glass_pane, minecraft:hanging_roots, minecraft:ice, minecraft:leaf_litter
+[PASS] #8 THIRD-PARTY.md ledger <-> file provenance headers <-> license rules (design 9)
+       . 69 ledger rows
+       . Steadfast expression-diff matches every ledger count: verbatim=14 literal-suffix=2 rewritten=6 astra-only=27 (stated 12x)
+[PASS] #9 bayer.glsl ordered-dither matrix correctness
+       . matches canonical recursive Bayer8 (row-major, [y*8+x] indexing)
+[PASS] #10 M1 'minimal final chain' (design 7: tonemap + sRGB) actually present
+       . final.fsh: 114 lines of code, tonemap/sRGB present=True
+[PASS] #11 Iris 1.11.2 parser contracts (SC-21..SC-27)
+       . 0 staged texture directive(s); 3 custom image(s); 10 compute shader(s); 53 engine const(s); 2 Voxy uniform declaration(s); Iris default buffer formats; 99/31 boolean option(s) wired
+[PASS] #12 profile tier differential (survey 6 P0-1: cost-monotone ladder)
+       . PERFORMANCE vs BALANCED: 15 value diff(s), density 15/71 = 21%
+       . BALANCED vs ULTRA: 7 value diff(s), density 7/71 = 10%
+       . PERFORMANCE vs ULTRA: 19 value diff(s), density 19/71 = 27%
+       . 19 of 71 listed tokens vary across tiers; non-cost by design: END_PRECESSION_MINUTES
+       . resolved per-tier pass and buffer sets: qa/tools/inspect_iris_properties.py
+[PASS] #13 option consumers and branch symbols (survey 6 P2-12 option matrix)
+       . 71 option(s), 41 of which can flip a preprocessor branch; pairwise matrix = 89 row(s), python qa/tools/compile_glsl.py --matrix
+[PASS] #14 buffer declarations live, unique and consumed (survey 6 P2-11)
+       . 60 live engine declaration(s) covering 10 buffer(s): colortex0=7, colortex2=1, colortex3=2, colortex4=1, colortex5=1, colortex6=1, colortex7=2, colortex8=2, colortex9=1, shadowcolor0=2; 0 declaration(s) hidden in comments
+[PASS] #15 lib/vendor/ isolation and no multiplied licence text (survey 6 P2-10)
+       . lib/vendor/ exists: 2 upstream directory(ies) (lib/vendor/bakinglab, lib/vendor/glsl-tone-map), 11 file(s), 0 file(s) carrying licence text outside it
+[PASS] #16 per-dimension pipeline trimming uses keys Iris parses (survey P2-18)
+       . dimension folders world-1, world1; 35 program gate(s) (27 folder-qualified), 0 inert namespaced directive(s)
+       . 8 folder gate(s) whose pass file exists only at the pack root (world-1/composite2, world-1/composite3, world-1/composite4, world-1/composite5, world1/composite2, world1/composite3, world1/composite4, world1/composite5): redundant if a dimension folder drops a pass it does not ship, load-bearing if Iris inherits the root source instead - 8 of them read a literal false, which switches the pass off either way
+       . per-dimension buffer sizing is not expressible on Iris 1.11.2 - size.buffer.* is keyed by the bare buffer name - so P2-18's allocation clause is closed by check_dimension_gating's namespaced-key rule instead
+[PASS] #17 built-in uniform type faces (Iris registration <-> GLSL declaration)
+       . 28 built-in declaration(s) checked against 151 registered names; 0 mismatches
+========================================================================
+17 checks: 0 FAIL, 1 WARN, 16 PASS
+
+## 5. Gate 3 - panorama renders and before/after comparison
+
+command: python qa/tools/render_end_design.py --panorama --output qa/end-design/universe-<x>.png
+before: qa/end-design/universe-before.png (405900 B) / universe-before.npy (9437312 B): max=1.8680 median=0.000058
+after : qa/end-design/universe-after.png  (1079341 B) / universe-after.npy  (9437312 B): max=2.2859 median=0.000296
+max  abs difference  : 1.298538
+mean abs difference  : 0.00429763
+pixels changing >1e-5: 77.28%
+pixels changing >1e-3: 37.59%
+
+## 6. Gate 4 - python qa/tools/end_universe_probe.py
+
+exit=0
+End universe probe (2048x1536 equirectangular, worldTime=0, worldDay=0)
+star density, any star (per deg^2)               2.28
+star density, lum > 3e-2 (per deg^2)             0.62
+brightest star luminance                         0.37132
+ISM peak luminance                               1.676e-04
+End void floor luminance (end_background literal) 2.540e-05
+ISM peak / void floor                            6.6
+sky above 3x void floor inside the ISM band      1.8%
+black-hole silhouette diameter (deg)             14.03
+black-hole silhouette radius (deg)               7.02
+photon-ring FWHM (deg)                           0.390
+
+all probe bounds hold
+
+## 7. Gate 5 - bh_Blackbody replacement
+
+bh_Blackbody identifier still in end_blackhole.glsl : False
+astra_blackbody_rgb defined                         : True
+splineX / xyzToSrgb residue                        : False
+git grep -n bh_Blackbody Astra (exit=0): Astra/THIRD-PARTY.md:228:当前 `end_blackhole.glsl` 的 `bh_Blackbody` **已替换为自写实现**（2026-09-22 就地更正）：现为
+
+THIRD-PARTY.md diff:
+diff --git a/Astra/THIRD-PARTY.md b/Astra/THIRD-PARTY.md
+index dea5d0d..04fdd97 100644
+--- a/Astra/THIRD-PARTY.md
++++ b/Astra/THIRD-PARTY.md
+@@ -225,7 +225,12 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载
+ 
+ ### 2026-09-11 末地空间交会接续：当前实现说明
+ 
+-当前 `end_blackhole.glsl` 的 `bh_Blackbody` 继续保留下述 IterationT 来源和授权口径。旧文件里的 WarpSpace、旋转矩阵、纹理噪声、FBM、pcurve、IGN 等未被当前渲染路径使用的移植函数已移除；不能再用下方历史记录的“四处适配”概括现有实现。
++当前 `end_blackhole.glsl` 的 `bh_Blackbody` **已替换为自写实现**（2026-09-22 就地更正）：现为
++`astra_planck_band` / `astra_blackbody_rgb`——对普朗克定律在 610/545/465 nm 三个响应带上做三点
++Gauss-Legendre 积分后按峰值归一，唯一物理常数为 `c2 = hc/k`；不含任何 CIE 拟合样条、色度矩阵或
++参考常量表，职责仍是黑体温度→RGB。本包因此不再持有 IterationT 的 `Blackbody` 表达式。旧文件里的
++WarpSpace、旋转矩阵、纹理噪声、FBM、pcurve、IGN 等未被当前渲染路径使用的移植函数此前已移除；
++不能再用下方历史记录的“四处适配”概括现有实现。
+ 
+ 本次 `end_geometry.glsl`、`end_ring.glsl`、`end_system.glsl`、`program/end_illumination.fsh` 的虚拟轨道、实体距离场、消光、求交和每帧可见性计算，以及 `end_blackhole.glsl` 当前光路与盘积分，为 Astra 在本任务中的代码实现。没有新增第三方贴图、模型或音频。现有后处理文件的原始来源不因增加末地专属分支而改变。
+ 
+@@ -238,7 +243,9 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载
+   `MiePhaseFunction`、`InterleavedGradientNoise`、`curve`/`saturate`/`remapSaturate`）。
+   来源见 `_analysis/latest-2026-09-10/iterationT-3.2.0`（`sources.json` 同目录登记）。
+   口径：**表达式级移植**——步进循环、密度场、Blackbody 色温、环面光子环均为参考原式；
+-  Astra 侧改编只有四处，均已在文件内逐条标注：
++  Astra 侧改编只有四处，均已在文件内逐条标注：（**2026-09-22 就地更正**：其中 `Blackbody` 色温
++  一项已**替换为自写实现** `astra_blackbody_rgb`，其余三项与“步进循环/密度场”经 2026-09-11 接续
++  重写后也已不是参考原式；本条只作历史记录）
+   1. `noisetex` 采样改用 Astra 的 `noiseTextureResolution`（Astra 为 256，参考为 64）；
+   2. `BlueNoiseTemproal()`（TAA 查询）改为参考同样提供的 `InterleavedGradientNoise`；
+   3. `worldShadowVector` 改由 `end.glsl` 传入末地恒星方向；
+
+## 8. Gate 6 - no new user-visible options
+
+settings.glsl diff       : EMPTY
+(empty)
+shaders.properties diff  : EMPTY
+(empty)
+
+## 9. DIMENSION_END gating
+
+Every edit lives in a file reachable only through program/scene.glsl lines 27-28
+(#elif defined DIMENSION_END -> global/dimension/end.glsl -> end_blackhole.glsl ->
+end_system.glsl -> end_ring.glsl -> end_geometry.glsl). No shared/overworld/nether file,
+no buffer declaration, no pass and no option was changed; program/deferred.fsh untouched
+(its End branch at lines 192-206 still calls end_starfield/end_light_direction unchanged).
+
+## 10. Not verified / remaining risks (judge calls)
+
+- In-game look: nothing here was seen in Minecraft. The evidence is the offline panorama
+  (1024x768, 0.35 deg/px) and the 2048x1536 probe; star widths are floored at
+  footprint*0.55 = 0.0002 cells*128, so on a 1080p screen the field is ~10x better
+  sampled than the panorama and may read differently (denser, sharper).
+- The end-fog/void path (end_fog) and the body/ring geometry were left alone, so the
+  "universe" gain is all in the sky: star field, ISM band, disc hue and ring texture.
+- Star density: measured 2.28 stars/deg^2 total and 0.62/deg^2 in the bright layer
+  (local-maxima count at 2048x1536; the analytic cell count is 3.16/deg^2, the gap is
+  coincident stars merging into one peak). docs/2026-09-11-end-final-design.md section 3
+  asks for 6-10 stars/deg^2 above threshold, which sits in tension with its own
+  "large empty areas / sparse" requirement (section 1-2); the sparse reading was kept.
+- The photon ring FWHM is 0.39 deg at the probe footprint and ~0.10 deg in game, not the
+  1.5%-of-shadow-diameter (0.21 deg) the design doc asks for at its own 12-13 deg shadow
+  scale; a 0.21 deg line is sub-pixel at game resolution and would alias. Documented
+  deviation, not a silent downgrade.
+- Local maxima under-count stars whose Gaussian peaks land on the same pixel; the probe
+  density is therefore a lower bound, not an exact count.
+
+## 11. Blocked / not done
+
+- Nothing was blocked. Untouched by contract: the other IterationT expression ports that
+  still exist in the pack (global/water/caustics.glsl "ported from IterationT 3.2.0" and
+  the light_shafts.glsl structure port) are in water files that this contract forbids, so
+  they remain registered in THIRD-PARTY.md and were not modified.

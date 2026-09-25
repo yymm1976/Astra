@@ -1,6 +1,6 @@
 # Astra Shader 设计方案（兼 Goal 计划）
 
-> 当前实现更新至 **SC-34-F1（2026-09-07）**。本文旧 SC-24/33 的接口、光束增益和副本条件以文末新决议为准；详细光路及新截图裁决见 `docs/2026-09-07-water-path-followup.md`。
+> 当前入口说明更新于 2026-09-25。运行参数以 `Astra/shaders/lib/settings.glsl` 与 `shaders.properties` 为准；带日期的 SC 决议保留历史语境，不能当作当前参数表。文档状态见 [docs/README.md](../../docs/README.md)，本地参考包配置见 [qa/tools/README.md](../../qa/tools/README.md)。
 
 **版本：** v1.1（设计稿，2026-09-05）
 **状态：** 待用户复查
@@ -214,7 +214,7 @@ Astra/
 
 - 规模目标：**60–80 个用户选项**（清爽哲学：少而精；对比 Mellow 205 / Refrax 542）
 - GUI 主屏 7 分类：`光照 / 阴影 / 天空 / 水 / 雾 / 后处理 / 性能+高级`；每个选项配一句 `.comment` 说明（Refrax 的用户引导文化）
-- **Profile 四档**：画质阶梯为 `流畅 / 均衡（默认）/ 极致`；另设 `NO_SHADOWS（无实时阴影）` 关闭 shadow 阶段。四档均为完整显式配置，具体值以 `shaders.properties` 为准。
+- **Profile 四档**：`PERFORMANCE（流畅）/ BALANCED（均衡，默认）/ ULTRA（极致）/ NO_SHADOWS（无实时阴影）`。前三档为画质阶梯，NO_SHADOWS 另行关闭 shadow 阶段。四档均为完整显式配置，具体值以 `shaders.properties` 为准。
 - 语言：`zh_CN`（主）+ `en_US`；zh_CN 保留性能影响标注习惯（Mellow 风格）
 
 ---
@@ -237,10 +237,9 @@ Astra/
 
 **决议（SC-13，E 系，2026-09-05）：阴影引擎旋钮语义定死三条，执行归 B1。**
 
-- `const float entityShadowDistanceMul = ENTITY_SHADOW_DISTANCE / SHADOW_DISTANCE;`——它是**比例**不是格数（Mellow `lib/settings.glsl:268` 即此形式 `= 0.125`）。本包三档 profile 的实体影距/影距（48/96、64/128、96/192）换算后恒为 **0.5**，即该选项在本包是"影距的一半"这一稳定语义，无需撤下。
-  注意：`const = 选项 / 选项` 是否被 Iris 的 const 解析器接受未经实机验证，B1 须与 SC-6 冒烟一并确认，不接受则退化为字面量 `0.5`。
-- `SHADOW_SOFTNESS` = 4-tap PCF 核的 **texel 半径**（三档 2/4/16），tap 数固定 4、上限 16 texel，与本节"sampler2DShadow 硬件 PCF + 4-tap 软化 ≤16 texel"同一条约束——softness 不改变采样数，只改变核宽。
-- `const bool shadowHardwareFiltering = true;` 与其余引擎旋钮同块声明（Mellow `global/configurations.glsl:17` 写法）。硬件 PCF 是本节采样的前提，不是可选项。
+- 实体影锥的距离乘链为 `shadowDistance * shadowDistanceRenderMul * entityShadowDistanceMul`。当前 render multiplier 为 1.5，设置文件的字面量表预先除去该因子；PERFORMANCE、BALANCED、ULTRA 的名义实体影距分别为 48、64、96 格。NO_SHADOWS 使用流畅档参数但关闭阴影阶段。Iris 1.11.2 的调用关系见 `qa/open-premises.md` P-2。
+- `SHADOW_SOFTNESS` 控制核宽；三个画质档的值为 2/2/8，NO_SHADOWS 为 2。采样数不随该选项改变。
+- `SHADOW_FILTER_MODE` 默认软件比较；硬件模式使用逐纹素比较 gather，保留颜色与深度的对应。`shadowHardwareFiltering` 随选项取字面量，不固定为 true。
 
 ### 4.2 天空与大气（global/atmosphere/）
 
@@ -411,7 +410,7 @@ SC-33 覆盖上述水下部分：空气 godrays 只在 isEyeInWater=0 合成；�
 | **M1** | 骨架 | git init（`.gitignore` 排除 `_analysis/`）、§3.1 目录、空 program、缓冲声明、最小 final 链（tonemap+sRGB，否则看不到正确画面）、THIRD-PARTY.md 台账 | Iris 在 1.21.x 与 26.1 加载零报错，三维度显示原版画面 |
 | **M2** | 主世界 | 阴影→光照→天空→雾→水（水面/SSR/折射/吸收/焦散）依序接入，对照"参考截图三连"（Steadfast 水面 / Solas 水下 / Refrax 色调）校准 | 水/天空/雾目视达标（§8.3 对应项） |
 | **M3** | 维度与 Voxy | 下界/末地特调（§4.5）、Voxy 接入实测 | 两维度达到 §4.5 专属设计目标且帧率同主世界标准；Voxy 可用 |
-| **M4** | 收尾 | bloom/godrays、风格层校准、三档 profile、zh_CN/en_US 文案、README | §8 全项通过 = v1 完成 |
+| **M4** | 收尾 | bloom/godrays、风格层校准、四档 profile、zh_CN/en_US 文案、README | §8 全项通过 = v1 完成 |
 
 > **决议（SC-9，E 系，2026-09-05）：M1 的"最小 final 链"含两端，实现归 E1。** 验收项"三维度显示原版画面"要求 `gbuffers_* → colortex0 → final → 屏幕`整条链透传：骨架期 16 个占位程序把 `program/lit.fsh` 写成 `gl_FragData[0] = vec4(0.0)`，几何阶段就把画面涂黑了，`final` 无论怎么补 tonemap+sRGB 都不可能显示原版画面（这是原上报证据里漏掉的一半）。据同一决议，占位期的判据从"能编译"改述为"**能编译且不涂黑**"：`lit`/`unlit`/`sky`/`clouds` 输出顶点色透传，`final` 采 `colortex0` 走 tonemap+sRGB。接线与 varying 预算随 SC-10 分层协议一次交付。
 
@@ -424,7 +423,7 @@ SC-33 覆盖上述水下部分：空气 godrays 只在 isEyeInWater=0 合成；�
 3. 目视三达标：**水面 ≈ Steadfast、水下 ≈ Solas**、整体色调 ≈ Refrax（参考截图集；SC-24 对调后口径）
 4. 下界/末地特调达到可独立展示水准（对照 §4.5，而非主世界参数自动回退）
 5. 主世界清爽不抢戏：默认无暗角/颗粒/色差，昼间通透、夜晚方块光不糊屏
-6. zh_CN 设置全覆盖；三档 profile 一键切换
+6. zh_CN 设置全覆盖；四档 profile 一键切换（名称见 §3.3）
 7. Voxy 可用（或明确标注实验性与已知问题）
 
 ---
@@ -481,7 +480,7 @@ SC-33 覆盖上述水下部分：空气 godrays 只在 isEyeInWater=0 合成；�
 | M1 | 🔶 E1统一入口已交付；MC26.2/Iris1.11.2 主世界已由用户确认加载与出图。SC-32 修正 VOXY 可用宏误选原生矩阵。1.21.x 与其他维度运行证据仍待补。 |
 | M2 | 🔶 五模块与 SC-24 换源已接入；第二轮截图暴露的差距经 SC-31/32 源码处置，SC-33 接入水下阴影分束；水面、水下与动态稳定性尚未获得修改后的画面裁决。 |
 | M3 | 🔶 C3/C4几何入口可达；SC-17交还C5/D1继续Voxy适配。两维度视觉/FPS待实机；原有专属模块不重写。 |
-| M4 | 🔶 三档当前 FOG=65、SKY_FOG=25、UNDERWATER_FOG=55、SAT=105、VIB=108；第二轮截图瞬时 FPS=143–170，不能代替三档及下界硬指标数据。E4 三对标维持退回，详见 visual-verdicts.md。 |
+| M4 | 四档配置已落地：FOG=50、SKY_FOG=15、UNDERWATER_FOG=40、SAT=100、VIB=100、CONTRAST=102。历史游戏截图与瞬时帧率不代表当前画面或持续帧率；视觉结论仍待当前游戏材料。 |
 
 SC-6 的环境阻断已经解除，第一、二轮运行材料见 qa/screenshots/2026-09-06。尚缺的是本次修改后的画面，不是实例路径。SC-14 继续仅约束未来发布；C5 Voxy 完整映射仍属 M3，当前宏修复不代表 Voxy 已完成。
 

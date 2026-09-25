@@ -1,5 +1,7 @@
 # Astra 任务计划 — 标准模型
 
+> 状态说明（2026-09-25）：本文包含早期任务分工及带日期的交付记录，不是当前源码清单。现有四个预设（PERFORMANCE / NO_SHADOWS / BALANCED / ULTRA），各覆盖 73 个选项；旧记录中的三档及编译数量只描述当时状态，不追改历史数字。当前功能见 [Astra README](../../Astra/README.md)。
+
 > 上位规格：[design.md](design.md)（总目标/架构/验收的唯一依据）。
 > 角色定位：工程搭建、机械移植、外围资产、测试记录。任务特点：规格明确、照章执行、低风险、可并行。
 > 遇到超出"照章执行"范围的问题（架构抉择、数学算法、跨 pass 纠缠）→ 停下，在任务行登记疑问并上报，由更高档位（B→C→D→E）接手，不自行发挥。
@@ -9,7 +11,7 @@
 | # | 里程碑 | 任务 | 内容 | 验收标准 | 依赖 | 状态 |
 |---|---|---|---|---|---|---|
 | Z1 | M1 | 工程骨架 | git init（`.gitignore` 排除 `_analysis/`）、按 design.md §3.1 建全部目录、可编译占位 program 文件（SC-2 决议）、缓冲格式声明（§2.3） | 目录与设计文档一一对应；Iris 能加载（允许画面不对） | — | ✅ 结论已执行（"Iris 能加载"仅静态判据，实机判据归 Z7/SC-6） |
-| Z2 | M1 | 设置系统底座 | `lib/settings.glsl` 按 §4 功能清单建全部选项宏 + `shaders.properties` 的 GUI screen/`sliders` 注册 + 三档 profile 骨架（§3.3） | 选项数 60–80；GUI 七分类可浏览；profile 可切换 | Z1 | ✅ 已追认（SC-1/12/13 结论已下放 E1/D2/B1） |
+| Z2 | M1 | 设置系统底座 | `lib/settings.glsl` 按 §4 功能清单建全部选项宏 + `shaders.properties` 的 GUI screen/`sliders` 注册 + 四档 profile 配置（§3.3，含 NO_SHADOWS） | 选项数 60–80；GUI 七分类可浏览；profile 可切换 | Z1 | ✅ 已追认（SC-1/12/13 结论已下放 E1/D2/B1） |
 | Z3 | M1 | custom uniforms 底座 | `shaders.properties` 中 CPU 预计算参数表（天空/雾/风/godrays 曝光的平滑参数），参照 Steadfast 写法 | 着色器内不再出现可预计算的逐帧三角/幂运算 | Z1 | 🔶 上报中(SC-14 待用户拍板) |
 | Z4 | M1 | 数据表 | `block.properties`（自 Mellow 移植 + 1.21.4/1.21.5 + 26.x 方块补全）、`entity.properties` | 发光/植被/透光方块 ID 表完整覆盖原版 + Mellow 已收录模组方块 | Z1 | ✅ 已追认（SC-8）；26.x 补全待 D1 冒烟 |
 | Z5 | M1–M2 | MIT 代码移植包 | 自 Mellow 逐文件移植（带出处头）：`tonemap.glsl`（4 算子）、bayer/dither、`encoding.glsl`（八面体/逐面打包）、`noise.glsl`、`transforms.glsl`、`distort.glsl` | 每文件头有 `// From Mellow v3.4 (MIT) by TheCMK`；编译通过；函数签名与 design.md §3.2 命名规范一致 | Z1 | ✅ 已追认（SC-5/7）；"编译通过"仅静态判据，实机待 SC-6 |

@@ -1,0 +1,116 @@
+A4-v2 | 末地黑洞“换思路”方案卡（只读，零代码改动）
+基线 commit: 58669e9ec8a18d30262d109976b62245c84931de
+产出：本文件（唯一写入）。用户原话（验收逐字对齐）：「黑洞也许需要换种思路，而不是一直在现在基础上缝缝补补」
+==============================================================================
+
+【S1 基线】git rev-parse HEAD = 58669e9。
+
+【行号说明】本卡所有行号均在 58669e9 的当前树上重读得到。端地文件当前 **192 行**
+（派发卡的 F1–F7 与旧记录写 185/191，属锚点漂移，以下一律以本次实读为准）。
+
+【S2 全部 return / break 出口（通读 192 行后的清单）】
+  X0  :89-94   透镜外早退（discriminant<=0 或 projection<=0）
+              :91  color=(radiance+transmission*end_background(originalRay,cone))*(1.0-0.18*end_eclipse());
+              :93  return;
+  X1  :96-98   入口段命中实体
+              :97  color=radiance*(1.0-0.18*end_eclipse()); return;
+  X2  :155     march 前半段查询命中 → terminated=true; break;
+  X3  :162     march 后半段（中点）查询命中 → terminated=true; break;
+  X4  :165-174 视界捕获
+              :171  radiance+=transmission*end_starfield(secondary,light,cone*8.0)*0.035;
+              :173  transmission=vec3(0); terminated=true; break;
+  X5  :175     透射率耗尽 → terminated=true; break;
+  X6  :176     离开透镜球且向外 → escapedLens=true; break;
+  X7  :177     循环跑满 48 步（无 break，自然落到 :178）
+  尾部 :178-186 仅当 (!terminated && escapedLens)：:183 又一次 end_scene_segment(…,END_FAR,…)，
+              :184 radiance+=transmission*end_background(escaped,cone); :185 end_star_visibility=…
+  :189        color=radiance*(1.0-0.18*end_eclipse());   ← 所有非 X0/X1 路径的公共终点
+
+【V1 穷尽表：每条退出路径 × 五列】（依据列给出文件:行）
+
+| 出口 | 行 | terminated | escapedLens | 加过 end_background | 退出时 transmission 可否 > 0 | 是否即 F6 型（有累积 radiance、零背景） |
+|---|---|---|---|---|---|---|
+| X0 透镜外早退 | :89-94（:91,:93） | 不适用（直接 return） | 不适用 | **是** :91 | 可以 | 否（它就是"正常天空"的路径） |
+| X1 入口段命中 | :96-98（:97） | 不适用（直接 return） | 不适用 | 否 | **否**——end_scene_segment 命中实体时于 end_system.glsl 内 `transmission=vec3(0)` | 否（被实体挡住，无背景是正确的） |
+| X2 前半段命中 | :155 | **true** | false | 否 | **否**（同上，实体命中置 0） | 否（:189 输出的是被遮挡结果，正确） |
+| X3 中点命中 | :162 | **true** | false | 否 | **否**（同上） | 否（同上） |
+| X4 视界捕获 | :165-174（:171,:173） | **true** | false | 否（:171 有 0.035 权重的次级星像） | **否**——:173 显式置 0 | 否（全黑 + 压缩星像，物理正确） |
+| X5 透射率耗尽 | :175 | **true** | false | 否 | **否**——判据即 max(transmission)<1e-5 | 否（透射已为 0，加背景也无贡献） |
+| X6 逃逸 | :176 | **false** | **true** | **是** :184（且 :183 先做一次 far-field 实体查询） | 可以 | 否（走 :178-186 的逃逸延续，有背景） |
+| X7 **步数跑满** | :177（落到 :178） | **false** | **false** | **否** | **可以**（48 步内既未撞实体、未捕获、未耗尽，也未逃出球） | **是** ← 靶点 |
+
+**表结论（本卡的地基）**：八个出口里**只有 X7** 同时满足「未 terminated」「未 escapedLens」「transmission
+可以 > 0」「从未调用 end_background」。:178 的门 `if(!terminated && escapedLens)` 把它排除在逃逸延续之外，
+于是它直接落到 :189，输出"累积 radiance + 零背景"。这就是黑色块/黑边的结构产地。
+其余七个出口的"无背景"都由 transmission 归零或实体遮挡解释，**是正确的**，不在靶点内。
+
+【V2 候选方案（≥2 条互斥，按推荐度排序；均为方案，本轮零实现）】
+
+—— 方案 A（推荐 1）：让 X7 复用逃逸延续的 far-field 求值 ——
+(a) 机理：X7 的光线在当前 48 步内**未决出**去向，但它的瞬时状态（位置 p、速度 velocity、剩余 transmission）
+    是已知的。把它们按"以当前速度方向继续走"处理，即补上 `end_background(normalize(velocity), cone)`
+    —— 与 X6 在 :179-184 做的事**同构**，区别仅在于是否已离开透镜球。消掉的是"零背景"这一项，
+    而不改动任何物理量。
+(b) 改动面：`:186` 与 `:187-189` 之间插入一个与 :178-186 并列的分支，条件形如
+    `if(!terminated && !escapedLens && max(transmission.r,max(transmission.g,transmission.b))>0.00001)`，
+    内部做 `end_background(normalize(velocity),cone)` 加权；:189 整体保留（end_eclipse 的作用域不变）。
+    估计 4–8 行，全部位于该文件尾部。
+(c) 出厂观感：正对黑洞中心那片（X7 集中的区域）从"纯黑"变为"有星空的暗"；斜看吸积盘、掠射盘缘基本不变
+    （A4 实测 F7 的步数 mean=1.64/p95=14 说明这些视角的光线普遍在早期就命中/逃逸）；日食期
+    `end_eclipse()` 只作用在 :189 的整体乘子上，行为不变。
+(d) 离线取证能力：本包离线只能给**编译健康度**（check_pack 与 compile_glsl）与**像素差分**；
+    **帧率与"黑块是否真的消失/是否变成假星"必须实机**。本卡不下"收益"结论。
+(e) 回退：单提交回退（改动集中在文件尾部，不牵扯常数与数据结构）。
+
+—— 方案 B（推荐 2）：提高收敛率本身，缩小 X7 的集合（换积分器，而不是加步数）——
+(a) 机理：X7 的成因是"48 步内既没走到逃逸、也没走到捕获"。若同一段积分用**更高阶**的格式完成，
+    同样 48 步能把更多光线判出归属，X7 的集合自然缩小；这不是给 X7 打补丁，而是让"未收敛"更少发生。
+(b) 改动面：`:137-139` 的积分格式（当前是 kick-drift-kick 形式的 leapfrog：
+    `next=p+velocity*ds+acceleration*(0.5*ds*ds)` / `nextAcceleration=end_ray_acceleration(next,…)` /
+    `nextVelocity=velocity+(acceleration+nextAcceleration)*(0.5*ds)`）。换成 RK4 等价于每步 4 次
+    `end_ray_acceleration()`，或在同阶格式下调整 `:133` 的步长律。
+(c) 出厂观感：**应有变化**（黑洞剪影边缘与环的形态更准）；也可能"看起来没变"——若 X7 占比小则收益不可见。
+    正对/斜看/掠射三种视角都受影响，因为积分器对所有光线生效。
+(d) 离线取证能力：同样只能给编译健康度与像素差分；**帧率（每步 4 次加速度的代价）与观感必须实机**。
+(e) 回退：单提交回退，但风险高于 A（它会改变**所有**光线的数值）。
+
+—— 方案 C（登记并**否决**）：把 X7 显式归入"捕获"（与 X4 对齐，全黑 + 次级星像）——
+  理由：它只把"无归属的黑"变成"有归属的黑"，用户抱怨的**正是黑块本身**，不解决症状；且它会把一批
+  本可能逃逸的光线永久涂黑，属于用语义掩盖未收敛。**否决，不推荐**。
+
+  三条的关系：**A 与 B 互斥**（一个改"未收敛之后怎么办"，一个改"未收敛的集合有多大"），
+  A 与 C 直接对立（给背景 vs 给全黑）。**不做"每条都要一点"的混合**。
+
+【V3 为什么 48→24 是错的方向】
+  依据 A4 的实测三数（F7）：步数 mean = 1.6389、p95 = 14、max = 48；段查询 mean = 1.0514。
+  1) 与结构耦合：把上限从 48 压到 24，只影响**步数超过 24 的那一小撮像素**；而由 V1 表，**跑满步数的
+     光线恰好就是 X7**——即那些"没有 background、只有累积 radiance"的光线。减少上限 = 把更多光线
+     推进 X7 的 shape，**黑块只会更多、不会更少**。
+  2) 与观感不成比例：mean 1.64 说明绝大多数像素在 2 步内就退出（多半落在 X0/X1/X2），它们**根本不受
+     上限变化影响**；能看到的差异只出现在黑洞剪影附近，而那正是用户已经在抱怨的区域。
+  3) 与成本无关：A4 的两项恒等优化已实测"四个计数通道逐像素相同"，即**步数没有被省掉**（省下的只是
+     每步的算力）。在此前提下再谈"减步数换性能"，是把一个已经被证明不是瓶颈的量当作杠杆。
+  ⇒ 结论：先修 X7 的**语义**（方案 A）或提高**收敛率**（方案 B），再谈任何上限调整。
+
+【V4 各方案需要的实机判定（可直接粘进 qa/regression-checklist.md 的行格式）】
+
+| 行 | 触发条件 | 判据 | 回填位置 |
+|---|---|---|---|
+| A4v2-A | 末地，正对黑洞中心（剪影内），白天与日食期各一次；斜看吸积盘、掠射盘缘各一次 | 通过=正对剪影内的黑块消失、变成可辨认的暗星空且**剪影轮廓不糊**，斜看/掠射不变，日食期压暗行为不变；失败=剪影边缘出现"假星环"或暗部整体发灰、失去黑洞的"实心黑"读感 | 本行末格 |
+| A4v2-B | 同上四视角；另在限帧与不限帧下各测一次 | 通过=剪影边缘与环的形态更准（与改动前截图对照可辨），且帧率不低于改动前；失败=形态变化不可辨（说明 X7 占比小、收益为零）或帧率下降 | 本行末格 |
+| A4v2-C | （仅登记）同上 | 通过=黑块变为"有归属的黑"且剪影更实；失败=黑块仍在（预期如此，故本条已否决） | 本行末格 |
+
+  说明：三条都**只能在游戏内定论**——离线只能证明"能编译"与"像素变了多少"，证明不了"观感变好了"。
+
+【V5 零改动自证】
+  git status --short 只显示 `?? qa/a4v2-end-blackhole-2026-09-21.log` 与 `?? .lwjgl/`；
+  `python qa/tools/check_pack.py` → 17 项 / 0 FAIL / 1 WARN / 16 PASS；
+  `python qa/tools/compile_glsl.py` → linked=270 failed=0 compute=27。
+  本轮**未修改任何文件**（含 END_MARCH_STEPS 与任何常数），未新增选项/缓冲/pass，未做任何"顺带优化"。
+
+【V5 零改动自证（实测值）】
+  python qa/tools/check_pack.py    →  17 checks: 0 FAIL, 1 WARN, 16 PASS
+  python qa/tools/compile_glsl.py  →  RESULT linked=270 failed=0 compute=27 compute_capable=true
+  （Renderer: NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2, GL 4.6.0 NVIDIA 572.83）
+  git rev-parse HEAD               →  58669e9（未变）
+  git status --short               →  ?? .lwjgl/  +  ?? qa/a4v2-end-blackhole-2026-09-21.log（仅此两项）

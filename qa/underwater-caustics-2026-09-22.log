@@ -1,0 +1,162 @@
+Astra underwater caustics probe (read-only)
+noise texture : Astra/shaders/textures/solas-water-noise.png
+water albedo.a: 0.7059  (client jar assets/minecraft/textures/block/water_still.png, alpha 180/255)
+shaders       : Astra/shaders (real source, expanded with the BALANCED profile)
+
+renderer      : Renderer: NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2
+
+shaft gate    : backscatter: dot(view, the in-water beam axis), clamped at 0, no floor
+  visibility==0 at noon, sun in front / behind: 44.2% / 43.1% of the (sun x view) grid
+  sun-ahead view -20 deg: shipped VoL 0.0000 -> integral 0.000   (reference V2.2b VoL 0.3311)
+  full measurement: qa/underwater-shaft-2026-09-22.log
+
+==============================================================================
+[1] solas_water_caustics() - the field program/shadow.fsh:59 bakes into shadowcolor0
+    field over a 16x16 block seabed patch, 16384 samples
+    min   0.0000  p05   0.0000  p50   0.1001  p95   0.6712  max   1.5976  mean   0.1869
+    share > 1.0 (saturates the tint's min(focus,1)) : 0.8%
+    share < 0.02 (the dark floor)                  : 34.4%
+
+==============================================================================
+[2] astra_water_caustics_focus() - the field program/lit.fsh:332 uses as the overlay
+    min   0.2000  p05   0.2000  p50   0.2000  p95   0.2676  max   0.9095  mean   0.2105
+    share at the 0.2 clamp floor (<=0.2001)         : 92.3%
+    share of the 9-tap maximum (>=1.0)             : 0.0%
+
+==============================================================================
+[2b] fix-direction experiments: same consumer expression, other wave normal source
+    shipped: Solas height field, 2-block difference, 0.1-block taps
+      field : min   0.2000  p05   0.2000  p50   0.2000  p95   0.2676  max   0.9095  mean   0.2105
+      gain  : min   0.4400  p05   0.4400  p50   0.4400  p95   0.4873  max   0.9367  mean   0.4474
+      blobs(4-conn, >p75): 39, largest 330 px (2.0% of patch), cover 7.7%
+    Solas height field, 1.0-block taps
+      field : min   0.2000  p05   0.2000  p50   0.2000  p95   0.2000  max   0.2264  mean   0.2000
+      gain  : min   0.4400  p05   0.4400  p50   0.4400  p95   0.4400  max   0.4585  mean   0.4400
+      blobs(4-conn, >p75): 1, largest 1 px (0.0% of patch), cover 0.0%
+    surface wave field (surface.glsl), 0.1-block taps
+      field : min   0.2000  p05   0.2000  p50   0.2000  p95   0.2000  max   0.2000  mean   0.2000
+      gain  : min   0.4400  p05   0.4400  p50   0.4400  p95   0.4400  max   0.4400  mean   0.4400
+      blobs(4-conn, >p75): 0, largest 0 px (0.0% of patch), cover 0.0%
+    surface wave field (surface.glsl), 1.0-block taps
+      field : min   0.2000  p05   0.2000  p50   0.2000  p95   0.2000  max   0.3169  mean   0.2000
+      gain  : min   0.4400  p05   0.4400  p50   0.4400  p95   0.4400  max   0.5218  mean   0.4400
+      blobs(4-conn, >p75): 6, largest 4 px (0.0% of patch), cover 0.1%
+
+==============================================================================
+[3] program/shadow.fsh:58-72 tint = the seabed's `visibility` (diffuse.glsl:281-283)
+    (1 - a^32) at shadow.fsh:69-71 is the only place water albedo.a enters.
+    a=0.706 is the measured vanilla water sprite; the rest are a sensitivity sweep.
+    albedo.a=0.71  (1-a^32)= 0.999986   tint G: min   0.2823  p05   0.2823  p50   0.4129  p95   1.0227  max   1.9009  mean   0.5019
+    albedo.a=1.00  (1-a^32)= 0.000000   tint G: min   0.0000  p05   0.0000  p50   0.0000  p95   0.0000  max   0.0000  mean   0.0000
+    albedo.a=0.98  (1-a^32)= 0.476117   tint G: min   0.1344  p05   0.1344  p50   0.1966  p95   0.4869  max   0.9051  mean   0.2390
+    albedo.a=0.90  (1-a^32)= 0.965663   tint G: min   0.2726  p05   0.2726  p50   0.3987  p95   0.9876  max   1.8356  mean   0.4847
+    albedo.a=0.60  (1-a^32)= 1.000000   tint G: min   0.2823  p05   0.2823  p50   0.4129  p95   1.0227  max   1.9009  mean   0.5019
+
+==============================================================================
+[4] the two gains the seabed direct term is multiplied by (alpha = 0.71)
+    shadow-map tint G    a=0.71  min   0.2823  p05   0.2823  p50   0.4129  p95   1.0227  max   1.9009  mean   0.5019
+    shadow-map tint G    a=1.00  min   0.0000  p05   0.0000  p50   0.0000  p95   0.0000  max   0.0000  mean   0.0000
+    shadow-map tint G    a=0.98  min   0.1344  p05   0.1344  p50   0.1966  p95   0.4869  max   0.9051  mean   0.2390
+    shadow-map tint G    a=0.90  min   0.2726  p05   0.2726  p50   0.3987  p95   0.9876  max   1.8356  mean   0.4847
+    shadow-map tint G    a=0.60  min   0.2823  p05   0.2823  p50   0.4129  p95   1.0227  max   1.9009  mean   0.5019
+
+    lit.fsh causticGain  a=0.71  min   0.4400  p05   0.4400  p50   0.4400  p95   0.4873  max   0.9367  mean   0.4474
+    lit.fsh causticGain  a=1.00  min   0.4400  p05   0.4400  p50   0.4400  p95   0.4873  max   0.9367  mean   0.4474
+    lit.fsh causticGain  a=0.98  min   0.4400  p05   0.4400  p50   0.4400  p95   0.4873  max   0.9367  mean   0.4474
+    lit.fsh causticGain  a=0.90  min   0.4400  p05   0.4400  p50   0.4400  p95   0.4873  max   0.9367  mean   0.4474
+    lit.fsh causticGain  a=0.60  min   0.4400  p05   0.4400  p50   0.4400  p95   0.4873  max   0.9367  mean   0.4474
+
+    product              a=0.71  min   0.1242  p05   0.1242  p50   0.1834  p95   0.4669  max   1.0237  mean   0.2257
+    product              a=1.00  min   0.0000  p05   0.0000  p50   0.0000  p95   0.0000  max   0.0000  mean   0.0000
+    product              a=0.98  min   0.0591  p05   0.0591  p50   0.0873  p95   0.2223  max   0.4874  mean   0.1075
+    product              a=0.90  min   0.1199  p05   0.1199  p50   0.1771  p95   0.4509  max   0.9886  mean   0.2180
+    product              a=0.60  min   0.1242  p05   0.1242  p50   0.1834  p95   0.4669  max   1.0237  mean   0.2257
+
+==============================================================================
+[5] end-to-end displayed seabed pixel (water_composite.fsh:23 + final.fsh:105)
+    sand albedo (linear) 0.712/0.673/0.522, noon, clear, skyLight = 1
+       4 blocks a=0.71  luma min   0.6499  p05   0.6499  p50   0.6993  p95   0.8109  max   0.8944  mean   0.7105
+       4 blocks a=1.00  luma min   0.4567  p05   0.4567  p50   0.4567  p95   0.4567  max   0.4567  mean   0.4567
+       4 blocks a=0.98  luma min   0.5714  p05   0.5714  p50   0.6092  p95   0.7197  max   0.8286  mean   0.6225
+       4 blocks a=0.90  luma min   0.6457  p05   0.6457  p50   0.6947  p95   0.8098  max   0.8910  mean   0.7062
+       4 blocks a=0.60  luma min   0.6499  p05   0.6499  p50   0.6993  p95   0.8109  max   0.8944  mean   0.7105
+
+      12 blocks a=0.71  luma min   0.5679  p05   0.5679  p50   0.6127  p95   0.7237  max   0.8196  mean   0.6250
+      12 blocks a=1.00  luma min   0.4091  p05   0.4091  p50   0.4091  p95   0.4091  max   0.4091  mean   0.4091
+      12 blocks a=0.98  luma min   0.5006  p05   0.5006  p50   0.5324  p95   0.6315  max   0.7420  mean   0.5449
+      12 blocks a=0.90  luma min   0.5642  p05   0.5642  p50   0.6084  p95   0.7224  max   0.8153  mean   0.6209
+      12 blocks a=0.60  luma min   0.5679  p05   0.5679  p50   0.6127  p95   0.7237  max   0.8196  mean   0.6250
+
+      24 blocks a=0.71  luma min   0.4683  p05   0.4683  p50   0.5019  p95   0.5936  max   0.6868  mean   0.5129
+      24 blocks a=1.00  luma min   0.3588  p05   0.3588  p50   0.3588  p95   0.3588  max   0.3588  mean   0.3588
+      24 blocks a=0.98  luma min   0.4204  p05   0.4204  p50   0.4428  p95   0.5168  max   0.6101  mean   0.4524
+      24 blocks a=0.90  luma min   0.4656  p05   0.4656  p50   0.4986  p95   0.5924  max   0.6822  mean   0.5097
+      24 blocks a=0.60  luma min   0.4683  p05   0.4683  p50   0.5019  p95   0.5936  max   0.6868  mean   0.5129
+
+    a=0.71  12 blocks  caustics ON  p95-p05 = 0.1558   (p50 0.6127)
+          12 blocks  caustics OFF p95-p05 = 0.0000   (p50 0.8406)  [whole pattern off]
+    a=1.00  12 blocks  caustics ON  p95-p05 = 0.0000   (p50 0.4091)
+          12 blocks  caustics OFF p95-p05 = 0.0000   (p50 0.8406)  [whole pattern off]
+    a=0.98  12 blocks  caustics ON  p95-p05 = 0.1309   (p50 0.5324)
+          12 blocks  caustics OFF p95-p05 = 0.0000   (p50 0.8406)  [whole pattern off]
+    a=0.90  12 blocks  caustics ON  p95-p05 = 0.1582   (p50 0.6084)
+          12 blocks  caustics OFF p95-p05 = 0.0000   (p50 0.8406)  [whole pattern off]
+    a=0.60  12 blocks  caustics ON  p95-p05 = 0.1558   (p50 0.6127)
+          12 blocks  caustics OFF p95-p05 = 0.0000   (p50 0.8406)  [whole pattern off]
+
+==============================================================================
+[5b] the candidate in the fix plan (mode 13/14): same direct-only application,
+     driven by the solas_water_caustics field the tint and the shaft march already use
+    a=0.71  12 blocks candidate  luma min   0.6674  p05   0.6674  p50   0.7330  p95   0.8453  max   0.8453  mean   0.7431
+            linear G min   0.3009  p05   0.3009  p50   0.4469  p95   1.5167  max   1.7730  mean   0.6073
+            displayed p95-p05 = 0.1779  (p50 0.7330)
+    a=1.00  12 blocks candidate  luma min   0.4091  p05   0.4091  p50   0.4091  p95   0.4091  max   0.4091  mean   0.4091
+            linear G min   0.0685  p05   0.0685  p50   0.0685  p95   0.0685  max   0.0685  mean   0.0685
+            displayed p95-p05 = 0.0000  (p50 0.4091)
+    a=0.98  12 blocks candidate  luma min   0.5753  p05   0.5753  p50   0.6331  p95   0.8095  max   0.8453  mean   0.6545
+            linear G min   0.1792  p05   0.1792  p50   0.2487  p95   0.7736  max   1.6112  mean   0.3318
+            displayed p95-p05 = 0.2342  (p50 0.6331)
+    a=0.90  12 blocks candidate  luma min   0.6627  p05   0.6627  p50   0.7283  p95   0.8453  max   0.8453  mean   0.7392
+            linear G min   0.2930  p05   0.2930  p50   0.4340  p95   1.4987  max   1.7730  mean   0.5916
+            displayed p95-p05 = 0.1826  (p50 0.7283)
+    a=0.60  12 blocks candidate  luma min   0.6674  p05   0.6674  p50   0.7330  p95   0.8453  max   0.8453  mean   0.7431
+            linear G min   0.3010  p05   0.3010  p50   0.4470  p95   1.5167  max   1.7730  mean   0.6073
+            displayed p95-p05 = 0.1779  (p50 0.7330)
+
+==============================================================================
+[6] contrast before the display chain: linear seabed colour (lit.fsh output, 12 blocks)
+    a=0.71 R  min   0.1882  p05   0.1882  p50   0.2477  p95   0.4625  max   0.8694  mean   0.2784
+    a=0.71 G  min   0.1715  p05   0.1715  p50   0.2210  p95   0.4334  max   0.8229  mean   0.2531
+    a=0.71 B  min   0.1507  p05   0.1507  p50   0.1788  p95   0.2877  max   0.5962  mean   0.1975
+    (water_composite.fsh:23 clamps this to 1.0 before sigma/gamma work)
+
+    a=1.00 R  min   0.0542  p05   0.0542  p50   0.0542  p95   0.0542  max   0.0542  mean   0.0542
+    a=1.00 G  min   0.0685  p05   0.0685  p50   0.0685  p95   0.0685  max   0.0685  mean   0.0685
+    a=1.00 B  min   0.0948  p05   0.0948  p50   0.0948  p95   0.0948  max   0.0948  mean   0.0948
+    (water_composite.fsh:23 clamps this to 1.0 before sigma/gamma work)
+
+    a=0.98 R  min   0.1180  p05   0.1180  p50   0.1463  p95   0.2486  max   0.4423  mean   0.1610
+    a=0.98 G  min   0.1175  p05   0.1175  p50   0.1411  p95   0.2539  max   0.5059  mean   0.1580
+    a=0.98 B  min   0.1214  p05   0.1214  p50   0.1348  p95   0.2057  max   0.4017  mean   0.1457
+    (water_composite.fsh:23 clamps this to 1.0 before sigma/gamma work)
+
+    a=0.90 R  min   0.1836  p05   0.1836  p50   0.2411  p95   0.4485  max   0.8414  mean   0.2707
+    a=0.90 G  min   0.1680  p05   0.1680  p50   0.2158  p95   0.4334  max   0.7970  mean   0.2474
+    a=0.90 B  min   0.1488  p05   0.1488  p50   0.1759  p95   0.2877  max   0.5789  mean   0.1945
+    (water_composite.fsh:23 clamps this to 1.0 before sigma/gamma work)
+
+    a=0.60 R  min   0.1882  p05   0.1882  p50   0.2477  p95   0.4626  max   0.8694  mean   0.2784
+    a=0.60 G  min   0.1715  p05   0.1715  p50   0.2210  p95   0.4334  max   0.8229  mean   0.2531
+    a=0.60 B  min   0.1507  p05   0.1507  p50   0.1788  p95   0.2877  max   0.5962  mean   0.1975
+    (water_composite.fsh:23 clamps this to 1.0 before sigma/gamma work)
+
+==============================================================================
+[7] solas_water_lighting(terrain=1) at noon - the size of the term that both the
+    water tint and the ASTRA_CAUSTIC_STRENGTH overlay scale
+    direct R   min 1.7693  p50 1.7693  max 1.7693
+    direct G   min 1.4636  p50 1.4636  max 1.4636
+    direct B   min 1.2526  p50 1.2526  max 1.2526
+    ambient R  min 0.0761  p50 0.0761  max 0.0761
+
+==============================================================================
+Written evidence maps: qa/underwater-caustics-2026-09-22

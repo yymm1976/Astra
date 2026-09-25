@@ -1,5 +1,7 @@
 # Astra 当前状态审查（2026-09-21）
 
+> 状态：历史审查，仅适用于文中审查时的源码；当前入口及已纠正结论见 [文档索引](README.md)。条目未逐项标为当前缺陷，也不表示全部已经解决。
+
 **基准 commit**：`b20abd0`（2026-09-21 01:09，"Anchor the shadow distortion core to the shadow distance"）
 **审查方式**：只读。跑地面真值工具（`check_pack.py` + `compile_glsl.py`）+ 对账 git 历史与 backlog 文档。
 **性质**：不修改任何代码。目的是给出"此刻项目到底健康与否、re-audit 轮做到哪、还剩什么"的一张干净快照。

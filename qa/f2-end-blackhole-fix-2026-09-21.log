@@ -1,0 +1,124 @@
+F2 | 末地黑洞 X7 出口修复（实现轮）
+基线 commit: 58669e9（改动为工作区改动，未提交；主控统一落地）
+==============================================================================
+
+【0 结论】
+八出口里唯一"有累积 radiance、零背景"的 X7（步数跑满，:177）**不再是死角**：本轮为它补了一次
+与逃逸臂同构的 far-field 求值。**先量化再改**——X7 不是稀有角落：它占进入 march 的像元的 **15.70%**
+（全帧 0.98%），平均用掉 26.17 步。修复后段查询 +0.0098/像素（= X7 占比，每个 X7 像元多一次查询），
+**步数与采样数逐位不变**，无性能倒退。
+
+【1 改前量化（qa/tools/end_march_count.py，已扩 X7 计数通道）】
+探针插桩（在被调用函数体内，不改编函数签名）：在 :178 之前插
+`if(!terminated && !escapedLens) probeX7+=1.0;`，第四通道由 emptyDistance 改为 X7。
+离线口径：`python qa/tools/end_march_count.py --panorama --output qa/end-design/f2-before.npy`
+（1024×768 全景，NVIDIA RTX 4050 / 572.83）。
+
+| 口径 | 值 |
+|---|---|
+| 全帧像元 | 786,432 |
+| 进入 march 的像元 | 49,248（6.262%） |
+| **X7 像元** | **7,734 = 全帧 0.9834%，占 march 像元 15.704%** |
+| X7 平均步数 | 26.17（全局 mean 1.6389） |
+| X7 命中上限步数 | 48 |
+
+**candidateCount==0 的代表性论证（卡要求）**：离线的 `candidateCount == 0` 来自 `colortex8`
+未绑定 ⇒ `end_body(i)` 全 0 ⇒ :110-111 的筛选（`length(bodies[i].xyz-source) <= END_LENS_RADIUS+radius`）
+全不成立。**但 X7 的判据本身不依赖天体**：`end_ray_acceleration`（:26-34）只读 `p`、
+`angularMomentumSquared` 与 `END_HORIZON`，`END_HORIZON` 属于黑洞而非天体；X7 的定义是
+"48 步内既未命中、未捕获、未耗尽、也未离开透镜球"，即**纯粹由引力积分是否收敛决定**。
+天体在真机上只通过 :155/:162 的**提前命中**把光线从 X7 移走（只会让 X7 更少），
+所以离线测得的 15.70% 是**保守上界**，不是高估。
+
+【2 实现（唯一行为改动，6 行 + 注释）】
+`Astra/shaders/global/dimension/end_blackhole.glsl`，在既有逃逸臂之后并列一条：
+
+    }                                        ← :186 逃逸臂结束
+    else if(!terminated) {                   ← :187 新增
+        ...（注释说明 X7 的量化与"不动步数"）
+        vec3 capped=normalize(velocity);
+        end_scene_segment(source+p,capped,END_FAR,cone,bodies,bodyIndices,END_BODY_COUNT,radiance,transmission);
+        radiance+=transmission*end_background(capped,cone);
+        end_star_visibility=dot(transmission,vec3(0.333333));
+    }
+
+因为 `:178` 的门是 `if(!terminated && escapedLens)`，`else if(!terminated)` 精确等价于
+`!terminated && !escapedLens`，也就是**只覆盖 X7**（其余出口都在 break 前设了 terminated=true）。
+
+**同时改写旧理由注释**（原 :187-188）：原文写"跑满步数的路径不得被误认为逃逸光线、以免透过阴影
+露出无关的直线背景"——那正是当年让 cap 臂不带背景的理由。实测改变了裁决，注释已就地改写为
+"cap 臂现在与逃逸臂跑同一段 far-field 延续"，并保留 :189 的 eclipse 缩放语义。
+
+**为什么不是"缝补"**：没有引入任何新的阈值/魔数/选项；用的是**逃逸臂已有的同一套调用**
+（`end_scene_segment(...,END_FAR,...)` + `end_background` + `end_star_visibility`），
+只是把它从"仅逃逸时"推广到"未收敛时"。X7 的存在本身是"48 步不足以定命"，给它一个归属
+才是"换思路"；继续调上限或调步长属于缝补。
+
+【3 为什么 48→24 是错的方向（独立复核上一卡 V3 的论证）】
+复核成立，且本轮直接量到了它的依据：
+1. X7 的平均步数是 **26.17**，即它们**全部**是步数 >24 的那一撮；把上限压到 24 会把它们**全部**
+   变成 X7（本来已在上限，只是更早触发），并且把一批原本 25–47 步能收敛的光线也推进 X7。
+   ⇒ 黑块**更多**，不是更少。
+2. 全局步数 mean 仍为 1.64、p95 = 14：**绝大多数像元在 14 步内就退出**，压上限对它们零影响，
+   唯一可见差异出现在黑洞剪影附近——正是用户抱怨的区域。
+3. 段查询 mean 1.05：上限不是成本来源。（A4 已证"四个计数通道逐像素相同"，即步数从未被省掉。）
+
+【4 改后复测（同一探针、同一场景）】
+| 通道 | 改前 mean | 改后 mean | 逐位相同 |
+|---|---|---|---|
+| end_scene_segment | 1.0514 | **1.0612** | 否（+0.0098 = X7 占比） |
+| march steps | 1.6389 | 1.6389 | **是** |
+| disc samples | 0.0610 | 0.0610 | **是** |
+| X7 cap exits | 0.0098 | 0.0098 | **是** |
+
+**性能没有倒退**：新增成本 = 每个 X7 像元一次 far-field 段查询 + 一次 end_background，
+即 0.98% 的像元 × 1 次，段查询全局均值 +0.98%；**步数与采样数一个没变**，
+没有任何新增的循环、纹理或 march。X7 占比本身就是这次成本的上界。
+
+【5 离线渲染对拍（qa/tools/render_end_design.py --panorama，1024×768×3 fp32）】
+基线用 `git show HEAD:…end_blackhole.glsl` 临时还原渲染（渲染后立即恢复修复版，字节数 12,486 复核）。
+
+| 指标 | 值 |
+|---|---|
+| max abs diff | **0.0246465** |
+| mean abs diff | 1.55998e-06 |
+| 差异像元 | 23,202 / 2,359,296 = **0.983%**（= X7 占比，自洽） |
+| diff > 1e-3 | 663（0.0281%） |
+| 变化区域 bbox | y 237..340, x 711..828（局部，黑洞附近） |
+| 变化方向 | **变亮**（该区域 lum 均值 +0.0038） |
+| 全帧亮度均值 | 0.004004 → 0.004006（+0.039%） |
+
+**判读**：变化**只落在 X7 覆盖的那 0.98% 像元上**，且方向是"暗部被抬起"，与"黑块变成有背景的暗"
+一致；帧级均值几乎不动（+0.039%），说明没有把整片天空提亮。
+
+【6 门（原始输出）】
+```
+python qa/tools/compile_glsl.py
+RESULT	linked=270	failed=0	compute=27	compute_capable=true
+
+python qa/tools/check_pack.py
+17 checks: 0 FAIL, 1 WARN, 16 PASS
+
+python qa/tools/sync_to_instance.py
+Copied 5 / Missing after copy: 0 / Content differences after copy: 0 / Extras in dest (not deleted): 0
+
+python qa/tools/compile_glsl.py --matrix --jobs 2
+（qa/f2-matrix.log）：
+python qa/tools/compile_glsl.py --matrix --jobs 2
+BATCH 1/11 .. BATCH 11/11  rc=0（11 行全部）
+RESULT_ALL	batches=11	rows=83	entries_per_row=90	linked=7470	failed=0
+matrix rc=0
+```
+
+【7 未触及维度】
+本卡只改 `global/dimension/end_blackhole.glsl` 一个文件，它经 `program/scene.glsl` 的
+`#elif defined DIMENSION_END` 分支（含 `end.glsl`）进入末地 TU，**下界与主世界不编译该文件**。
+即"未触及维度逐字节中性"在源码级由 include 门保证；本轮未做编译产物字节级对比（工具不导出
+逐入口产物哈希），据实标注为源码级证据而非字节级证据。
+
+【8 需实机判定的项（离线不可测）】
+1. 剪影内的黑块是否消失、变成可辨认的暗星空；
+2. 剪影边缘是否出现"假星环"（若有，说明部分 X7 光线本该被捕获——那就是方案 B 的适用面）；
+3. **帧率**：离线只能给指令级计数，帧率必须实机。
+   界面路径（中文）：设置 → 光影包设置 → 分组「天空与云」（本项在末地，与云分组无关，
+   按默认档位观察即可）；对照开关：分组「天空与云」的「云」（原版云/平面云/关闭）不影响本项。

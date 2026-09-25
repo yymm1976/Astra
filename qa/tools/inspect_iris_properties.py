@@ -20,13 +20,16 @@ import re
 import subprocess
 import tempfile
 import zipfile
+import argparse
+import os
+import shutil
+import sys
+from minecraft_paths import minecraft_root, minecraft_instance, iris_jar
 
 ROOT = Path(__file__).resolve().parents[2]
 PACK = ROOT / "Astra" / "shaders"
-MC = Path('D:/zhenhebao/.minecraft')
-IRIS = MC / 'versions/生电优化整合包 (Fabric)/mods/iris-fabric-1.11.2+mc26.2.jar'
-JDK = Path.home() / 'AppData/Roaming/.minecraft/runtime/java-runtime-epsilon/bin'
 TIER_ORDER = ("PERFORMANCE", "BALANCED", "ULTRA")
+ALL_PROFILES = ("PERFORMANCE", "NO_SHADOWS", "BALANCED", "ULTRA")
 JAVA = '''
 import java.nio.file.*;
 import java.util.*;
@@ -47,12 +50,12 @@ public class IrisPropertyInspection {
   return properties;
  }
  static boolean truthy(String value){return value.equals("true")||value.equals("1");}
- // A gate value is either a literal or, as with program.composite1.enabled=BLOOM, the name
- // of an option. Iris's own program loader resolves the second form; so does this.
+ // Use Iris's expression parser: compound gates are not individual option names.
  static String gate(ShaderPackOptions options,String value){
   if(value.equals("true")||value.equals("false")||value.equals("1")||value.equals("0"))
    return String.valueOf(truthy(value));
-  return String.valueOf(options.getOptionValues().getBooleanValueOrDefault(value));
+  return String.valueOf(net.irisshaders.iris.shaderpack.parsing.BooleanParser.parse(
+   value,options.getOptionValues()));
  }
  static void dump(String label,ShaderPackOptions options,String output,Map<String,String> wanted)throws Exception {
   System.out.println("===TIER "+label);
@@ -60,9 +63,8 @@ public class IrisPropertyInspection {
   for(String key:new TreeSet<>(properties.stringPropertyNames())) {
    String value=properties.getProperty(key);
    if(key.endsWith(".enabled")) {
-    // Iris has a parser for the "program." family and for nothing else that ends in
-    // ".enabled"; any other spelling is never read at load time.
-    if(key.startsWith("program."))
+    // shadow.enabled is a separate engine directive, not a program.* gate.
+    if(key.startsWith("program.")||key.equals("shadow.enabled"))
      System.out.println("GATE "+key+"="+value+" EFFECTIVE="+gate(options,value));
     else System.out.println("DEADGATE "+key+"="+value);
    }
@@ -120,7 +122,7 @@ def profiles():
     """profile name -> {option: 'true' | 'false' | value}, as Iris stores overrides"""
     out = {}
     for line in (PACK / "shaders.properties").read_text(encoding="utf-8").splitlines():
-        m = re.match(r"^profile\.([A-Z]+)=(.*)$", line)
+        m = re.match(r"^profile\.([A-Za-z0-9_]+)=(.*)$", line)
         if not m:
             continue
         tokens = {}
@@ -178,16 +180,31 @@ def declared_options():
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--minecraft-root", type=Path, help="libraries root; or ASTRA_MC_ROOT")
+    parser.add_argument("--instance", type=Path, help="game directory; or ASTRA_MC_INSTANCE")
+    parser.add_argument("--iris-jar", type=Path, help="explicit installed Iris jar")
+    parser.add_argument("--java-home", type=Path, help="compatible JDK root; or JAVA_HOME / PATH")
+    parser.add_argument("--output", type=Path, default=ROOT / 'qa/iris-properties-resolved.txt')
+    args = parser.parse_args()
+    mc = minecraft_root(args.minecraft_root)
+    iris = args.iris_jar or iris_jar(minecraft_instance(mc, args.instance))
+    jdk = args.java_home or os.environ.get("JAVA_HOME")
+    suffix = '.exe' if os.name == 'nt' else ''
+    java_exe = str(Path(jdk) / 'bin' / ('java' + suffix)) if jdk else shutil.which('java')
+    javac_exe = str(Path(jdk) / 'bin' / ('javac' + suffix)) if jdk else shutil.which('javac')
+    if not java_exe or not javac_exe or not Path(java_exe).is_file() or not Path(javac_exe).is_file():
+        raise FileNotFoundError("A compatible JDK is required; use --java-home, JAVA_HOME or PATH.")
     prof = profiles()
-    absent = [t for t in TIER_ORDER if t not in prof]
+    absent = [t for t in ALL_PROFILES if t not in prof]
     if absent:
         print(f"FAIL profile(s) absent from shaders.properties: {absent}")
         return 1
     failures = []
     with tempfile.TemporaryDirectory(prefix='astra-iris-properties-') as directory:
         temp = Path(directory)
-        jars = [IRIS]
-        with zipfile.ZipFile(IRIS) as archive:
+        jars = [iris]
+        with zipfile.ZipFile(iris) as archive:
             for name in archive.namelist():
                 if name.endswith('.jar') and 'jcpp-' in name:
                     path = temp / Path(name).name
@@ -195,10 +212,12 @@ def main():
                     jars.append(path)
         for name in ('guava', 'failureaccess', 'slf4j-api', 'fastutil', 'gson', 'joml',
                      'lwjgl', 'lwjgl-opengl'):
-            found = sorted(p for p in (MC / 'libraries').rglob(name + '-*.jar')
+            found = sorted(p for p in (mc / 'libraries').rglob(name + '-*.jar')
                            if re.match(re.escape(name) + r'-\d', p.name))
             if found:
                 jars.append(found[-1])
+            else:
+                raise FileNotFoundError(f"Missing {name} jar under {mc / 'libraries'}")
         # Only replace the game singleton/logging entry point. The parser, option
         # scanner and include graph are the installed Iris classes, unchanged.
         stub = temp / 'net/irisshaders/iris/Iris.java'
@@ -217,27 +236,27 @@ public class Iris {
         for name, tokens in prof.items():
             (tiers_dir / f"{name}.options").write_text(
                 "\n".join(f"{k}={v}" for k, v in tokens.items()), encoding="utf-8")
-        cp = ';'.join(str(p) for p in [temp, *jars])
-        subprocess.run([str(JDK/'javac.exe'), '-cp', cp, str(stub), str(java)],
+        cp = os.pathsep.join(str(p) for p in [temp, *jars])
+        subprocess.run([javac_exe, '-cp', cp, str(stub), str(java)],
                        check=True)
         result = subprocess.run(
-            [str(JDK/'java.exe'), '-cp', cp, 'IrisPropertyInspection', str(PACK),
-             str(ROOT / 'qa/iris-properties-resolved.txt'), str(tiers_dir)],
-            capture_output=True, text=True)
+            [java_exe, '-cp', cp, 'IrisPropertyInspection', str(PACK),
+             str(args.output), str(tiers_dir)],
+            capture_output=True, text=True, encoding='utf-8', errors='replace')
         print(result.stdout + result.stderr)
         if result.returncode:
             return result.returncode
         tiers, known = parse_output(result.stdout)
 
-    parsed = {t: tiers.get(t, ({}, {}, {}, set())) for t in TIER_ORDER}
-    gates = {t: parsed[t][0] for t in TIER_ORDER}
-    buffers = {t: parsed[t][1] for t in TIER_ORDER}
-    on = {t: {k for k, v in gates[t].items() if v == "true"} for t in TIER_ORDER}
-    if not all(gates[t] for t in TIER_ORDER):
+    parsed = {t: tiers.get(t, ({}, {}, {}, set())) for t in ALL_PROFILES}
+    gates = {t: parsed[t][0] for t in ALL_PROFILES}
+    buffers = {t: parsed[t][1] for t in ALL_PROFILES}
+    on = {t: {k for k, v in gates[t].items() if v == "true"} for t in ALL_PROFILES}
+    if not all(gates[t] for t in ALL_PROFILES):
         failures.append("the parser returned no pass gates for at least one tier")
     # A gate spelled outside the program.* family is not a gate: the loader never sees it,
     # so the pass runs in every tier while the properties file says otherwise.
-    dead = sorted({k for t in TIER_ORDER for k in parsed[t][3]})
+    dead = sorted({k for t in ALL_PROFILES for k in parsed[t][3]})
     if dead:
         failures.append("gate-shaped key(s) Iris never reads, so the pass dispatches in every "
                         "tier: " + ", ".join(dead))
@@ -254,7 +273,9 @@ public class Iris {
 
     # 1. Every profile token must survive into the option store the loader reads.
     unknown, mismatched = set(), []
-    for tier in TIER_ORDER:
+    for tier in ALL_PROFILES:
+        if set(parsed[tier][2]) != set(prof[tier]):
+            failures.append(f"{tier}: incomplete option echo from Iris")
         for name, (wanted, kind, value) in sorted(parsed[tier][2].items()):
             if kind == "unknown":
                 unknown.add(name)
@@ -265,8 +286,20 @@ public class Iris {
                         "take effect at load time: " + ", ".join(sorted(unknown)))
     for message in mismatched:
         failures.append(message + " - the profile token does not take effect at load time")
-    accepted = sum(len(parsed[t][2]) for t in TIER_ORDER)
+    accepted = sum(len(parsed[t][2]) for t in ALL_PROFILES)
     print(f"checked {accepted} profile option assignment(s) against the Iris option store")
+
+    for key in ("shadow.enabled", "program.shadow.enabled", "program.world-1/shadow.enabled", "program.world1/shadow.enabled"):
+        if gates["NO_SHADOWS"].get(key) != "false":
+            failures.append(f"NO_SHADOWS must disable {key}")
+    voxel_gates = ["program.world-1/shadowcomp" + suffix + ".enabled"
+                   for suffix in ("", "A", "B", "C", "D", "E", "F", "G", "H")]
+    for tier in ALL_PROFILES:
+        wanted = str(prof[tier].get("SHADOWS") == "true"
+                     and prof[tier].get("NETHER_VOXEL_LIGHT") == "true").lower()
+        for key in voxel_gates:
+            if gates[tier].get(key) != wanted:
+                failures.append(f"{tier}: {key} should resolve to {wanted}")
 
     # 2. The ladder must only add work, never swap features between tiers.
     for cheap, rich in zip(TIER_ORDER, TIER_ORDER[1:]):
@@ -313,4 +346,8 @@ public class Iris {
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
+        print(f"inspect_iris_properties.py: {error}", file=sys.stderr)
+        raise SystemExit(2)

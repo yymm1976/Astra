@@ -17,9 +17,10 @@ import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from minecraft_paths import default_minecraft_root
 
 
-DEFAULT_MC_ROOT = Path(r"D:\zhenhebao\.minecraft")
+DEFAULT_MC_ROOT = default_minecraft_root()
 PROFILE_RE = re.compile(r"^profile\.([A-Za-z0-9_]+)=(.*)$")
 INCLUDE_RE = re.compile(r'^\s*#include\s+["<]([^">]+)[">]\s*(?://.*)?$')
 DEFINE_RE = re.compile(r"^(\s*)(//\s*)?#define\s+([A-Z][A-Z0-9_]*)(?:\s+(.*?))?\s*$")
@@ -313,7 +314,9 @@ def lwjgl_classpath(mc_root: Path) -> str:
     ]
     missing = [str(path) for path in jars if not path.is_file()]
     if missing:
-        raise FileNotFoundError("missing LWJGL files:\n" + "\n".join(missing))
+        raise FileNotFoundError("missing LWJGL files; use --minecraft-root or set "
+                                "ASTRA_MC_ROOT to a Minecraft root with LWJGL 3.3.3:\n"
+                                + "\n".join(missing))
     return ";".join(map(str, jars))
 
 

@@ -4,7 +4,7 @@
 Usage:
     python qa/tools/sync_to_instance.py [--dry-run]
 
-Default destination is the 26.2 Fabric instance used for in-game rounds.
+Select the destination with --dest, or an Iris instance with --instance / ASTRA_MC_INSTANCE.
 No Minecraft process is started or edited; this only copies files.
 """
 
@@ -15,10 +15,10 @@ import hashlib
 import shutil
 import sys
 from pathlib import Path
+from minecraft_paths import default_minecraft_root, minecraft_instance
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SRC = REPO_ROOT / "Astra"
-DEFAULT_DST = Path(r"D:\zhenhebao\.minecraft\versions\生电优化整合包 (Fabric)\shaderpacks\Astra")
 
 
 def digest(path: Path) -> str:
@@ -40,14 +40,32 @@ def relative_files(root: Path) -> dict[str, Path]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=DEFAULT_SRC)
-    parser.add_argument("--dest", type=Path, default=DEFAULT_DST)
+    parser.add_argument("--dest", type=Path, help="explicit destination pack directory")
+    parser.add_argument("--minecraft-root", type=Path, help="libraries root; or ASTRA_MC_ROOT")
+    parser.add_argument("--instance", type=Path, help="game directory; or ASTRA_MC_INSTANCE")
     parser.add_argument("--dry-run", action="store_true", help="report only, copy nothing")
     args = parser.parse_args()
+
+    try:
+        if args.dest is None:
+            root = (args.minecraft_root or default_minecraft_root()).expanduser().resolve()
+            instance = minecraft_instance(root, args.instance)
+            if not (instance / "shaderpacks").is_dir():
+                raise FileNotFoundError(f"No shaderpacks directory in {instance}; use --dest.")
+            args.dest = instance / "shaderpacks/Astra"
+        args.source = args.source.expanduser().resolve()
+        args.dest = args.dest.expanduser().resolve()
+        if args.source == args.dest or args.source in args.dest.parents or args.dest in args.source.parents:
+            raise ValueError("source and destination must be separate directory trees")
+    except (OSError, ValueError) as error:
+        print(f"sync_to_instance.py: {error}", file=sys.stderr)
+        return 2
 
     if not args.source.is_dir():
         print(f"source missing: {args.source}", file=sys.stderr)
         return 2
-    args.dest.mkdir(parents=True, exist_ok=True)
+    if not args.dry_run:
+        args.dest.mkdir(parents=True, exist_ok=True)
 
     source_files = relative_files(args.source)
     dest_files = relative_files(args.dest)

@@ -1,0 +1,223 @@
+{
+  "probe": "underwater_shaft_gate_probe",
+  "date": "2026-09-22",
+  "scope": "shipped GLSL expressions re-evaluated in double precision; no Iris, no GPU, no game world",
+  "shipped_phase_axis": "backscatter: dot(view, the in-water beam axis), clamped at 0, no floor",
+  "gate_sweep": {
+    "noon_time1": {
+      "sun_in_front_zero_fraction": 0.4417,
+      "sun_in_front_mean_visibility": 0.08803,
+      "sun_behind_zero_fraction": 0.4306,
+      "sun_behind_mean_visibility": 0.08803
+    },
+    "morning_time05": {
+      "sun_in_front_zero_fraction": 0.0,
+      "sun_in_front_mean_visibility": 0.17472,
+      "sun_behind_zero_fraction": 0.0,
+      "sun_behind_mean_visibility": 0.17472
+    }
+  },
+  "gate_sweep_candidate_forward_phase": {
+    "sun_in_front_zero_fraction": 0.0,
+    "sun_in_front_mean_visibility": 0.09231,
+    "sun_behind_zero_fraction": 0.0,
+    "sun_behind_mean_visibility": 0.09231
+  },
+  "zero_gate_count_by_sun_azimuth": {
+    "0": 192,
+    "45": 192,
+    "90": 192,
+    "135": 186,
+    "180": 186,
+    "-45": 192,
+    "-90": 186,
+    "-135": 186
+  },
+  "poses_45deg_sun": [
+    {
+      "sun": "sun_in_front",
+      "view_elev_deg": -45,
+      "VoL_shipped": 0.0608,
+      "visibility_shipped": 0.02326,
+      "VoL_reference_v22b": 0.125
+    },
+    {
+      "sun": "sun_in_front",
+      "view_elev_deg": -20,
+      "VoL_shipped": 0.0,
+      "visibility_shipped": 0.0,
+      "VoL_reference_v22b": 0.3311
+    },
+    {
+      "sun": "sun_in_front",
+      "view_elev_deg": 0,
+      "VoL_shipped": 0.0,
+      "visibility_shipped": 0.0,
+      "VoL_reference_v22b": 0.571
+    },
+    {
+      "sun": "sun_in_front",
+      "view_elev_deg": 30,
+      "VoL_shipped": 0.0,
+      "visibility_shipped": 0.0,
+      "VoL_reference_v22b": 0.837
+    },
+    {
+      "sun": "sun_behind",
+      "view_elev_deg": -45,
+      "VoL_shipped": 0.982,
+      "visibility_shipped": 0.37562,
+      "VoL_reference_v22b": 0.125
+    },
+    {
+      "sun": "sun_behind",
+      "view_elev_deg": -20,
+      "VoL_shipped": 0.7562,
+      "visibility_shipped": 0.28926,
+      "VoL_reference_v22b": 0.125
+    },
+    {
+      "sun": "sun_behind",
+      "view_elev_deg": 0,
+      "VoL_shipped": 0.4523,
+      "visibility_shipped": 0.17302,
+      "VoL_reference_v22b": 0.125
+    },
+    {
+      "sun": "sun_behind",
+      "view_elev_deg": 30,
+      "VoL_shipped": 0.0347,
+      "visibility_shipped": 0.01326,
+      "VoL_reference_v22b": 0.125
+    }
+  ],
+  "chain": {
+    "sun_behind_20deg_down": {
+      "ray_length": 35.09,
+      "VoL": 0.7562,
+      "gate": 0.28926,
+      "sum_weights": 1.407,
+      "sum_shade_weight": 1.875,
+      "integral": 1.0194,
+      "encoded_rgba8": 0.2987,
+      "encoded_code_of_255": 76.2,
+      "decoded": 1.0194,
+      "gamma_domain_gain": 81.013
+    },
+    "sun_behind_45deg_down": {
+      "ray_length": 16.97,
+      "VoL": 0.982,
+      "gate": 0.37562,
+      "sum_weights": 0.502,
+      "sum_shade_weight": 0.938,
+      "integral": 1.015,
+      "encoded_rgba8": 0.2984,
+      "encoded_code_of_255": 76.1,
+      "decoded": 1.015,
+      "gamma_domain_gain": 80.351
+    },
+    "sun_in_front_20deg_down": {
+      "ray_length": 35.09,
+      "VoL": 0.0,
+      "gate": 0.0,
+      "sum_weights": 1.407,
+      "sum_shade_weight": 1.875,
+      "integral": 0.0,
+      "encoded_rgba8": 0.0,
+      "encoded_code_of_255": 0.0,
+      "decoded": 0.0,
+      "gamma_domain_gain": 1.0
+    },
+    "sun_in_front_45deg_down": {
+      "ray_length": 16.97,
+      "VoL": 0.0608,
+      "gate": 0.02326,
+      "sum_weights": 0.502,
+      "sum_shade_weight": 0.938,
+      "integral": 0.3106,
+      "encoded_rgba8": 0.2219,
+      "encoded_code_of_255": 56.6,
+      "decoded": 0.3106,
+      "gamma_domain_gain": 10.734
+    },
+    "sun_in_front_horizontal": {
+      "ray_length": 128.0,
+      "VoL": 0.0,
+      "gate": 0.0,
+      "sum_weights": 1.771,
+      "sum_shade_weight": 2.155,
+      "integral": 0.0,
+      "encoded_rgba8": 0.0,
+      "encoded_code_of_255": 0.0,
+      "decoded": 0.0,
+      "gamma_domain_gain": 1.0
+    },
+    "sun_behind_20deg_down_offnoon_time05": {
+      "ray_length": 35.09,
+      "VoL": 0.7562,
+      "gate": 0.33123,
+      "sum_weights": 0.712,
+      "sum_shade_weight": 1.875,
+      "integral": 1.0207,
+      "encoded_rgba8": 0.2988,
+      "encoded_code_of_255": 76.2,
+      "decoded": 1.0207,
+      "gamma_domain_gain": 81.222
+    },
+    "sun_behind_20deg_down_measured_caustic_mean": {
+      "ray_length": 35.09,
+      "VoL": 0.7562,
+      "gate": 0.28926,
+      "sum_weights": 1.407,
+      "sum_shade_weight": 1.171,
+      "integral": 1.0146,
+      "encoded_rgba8": 0.2984,
+      "encoded_code_of_255": 76.1,
+      "decoded": 1.0146,
+      "gamma_domain_gain": 80.291
+    }
+  },
+  "chain_candidate_forward_phase": {
+    "sun_in_front_20deg_down": {
+      "ray_length": 35.09,
+      "VoL": 0.2346,
+      "gate": 0.08972,
+      "sum_weights": 1.407,
+      "sum_shade_weight": 1.875,
+      "integral": 1.0075,
+      "encoded_rgba8": 0.2979,
+      "encoded_code_of_255": 76.0,
+      "decoded": 1.0075,
+      "gamma_domain_gain": 79.231
+    },
+    "sun_in_front_horizontal": {
+      "ray_length": 128.0,
+      "VoL": 0.4642,
+      "gate": 0.17757,
+      "sum_weights": 1.771,
+      "sum_shade_weight": 2.155,
+      "integral": 1.0158,
+      "encoded_rgba8": 0.2985,
+      "encoded_code_of_255": 76.1,
+      "decoded": 1.0158,
+      "gamma_domain_gain": 80.478
+    },
+    "sun_behind_20deg_down": {
+      "ray_length": 35.09,
+      "VoL": 0.125,
+      "gate": 0.04781,
+      "sum_weights": 1.407,
+      "sum_shade_weight": 1.875,
+      "integral": 1.051,
+      "encoded_rgba8": 0.301,
+      "encoded_code_of_255": 76.8,
+      "decoded": 1.051,
+      "gamma_domain_gain": 85.873
+    }
+  },
+  "notes": [
+    "light_shafts.glsl:84 is the only exact zero in the chain; when it fires, colortex1 is written as 0.0 and the resolve (light_shafts.glsl:194) and the composite (lib/solas_water.glsl:110) can only propagate a zero.",
+    "march weights/shade/tint/20x were checked separately: with the gate open the accumulation is order 1, i.e. plainly visible, so the gate - not the budget - decides visibility.",
+    "reference V2.2b floors the underwater VoL at 0.125 and peaks it when the view points at the sun; the shipped form peaks on the opposite side and floors at 0."
+  ]
+}

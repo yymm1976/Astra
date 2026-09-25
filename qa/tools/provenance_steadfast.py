@@ -22,11 +22,13 @@ import io
 import os
 import re
 import sys
+import argparse
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ASTRA = os.path.join(ROOT, "Astra", "shaders", "shaders.properties")
 # reference library is read-only and excluded from git (see .gitignore)
-STEADFAST = os.path.join(ROOT, "_analysis", "Steadfast-0.8.0", "shaders", "shaders.properties")
+STEADFAST = os.environ.get("ASTRA_STEADFAST_PROPERTIES", os.path.join(
+    ROOT, "_analysis", "Steadfast-0.8.0", "shaders", "shaders.properties"))
 
 KEY = re.compile(r"^(uniform|variable)\.(\w+)\.(\w+)\s*=\s*(.*)$")
 CLASSES = ("verbatim", "literal-suffix", "rewritten", "astra-only")
@@ -62,8 +64,8 @@ def strip_literal_suffix(s):
     return re.sub(r",\s*(\d+)\.0\s*\)", r",\1)", squash(s))
 
 
-def classify():
-    astra, stead = parse(ASTRA), parse(STEADFAST)
+def classify(reference=None):
+    astra, stead = parse(ASTRA), parse(STEADFAST if reference is None else reference)
     out = {k: [] for k in CLASSES}
     for name, adefs in astra.items():
         aexprs = [e for _, _, e in adefs]
@@ -87,10 +89,22 @@ def counts():
 
 
 def main():
-    quiet = "--quiet" in sys.argv
-    out, astra, _ = classify()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--quiet", action="store_true", help="print counts only")
+    parser.add_argument("--reference", default=STEADFAST,
+                        help="Steadfast 0.8.0 shaders.properties (or ASTRA_STEADFAST_PROPERTIES)")
+    args = parser.parse_args()
+    if not os.path.isfile(args.reference):
+        print(f"WARN: reference unavailable: {args.reference}. Counts were not calculated; "
+              "use --reference or ASTRA_STEADFAST_PROPERTIES.", file=sys.stderr)
+        return 2
+    try:
+        out, astra, _ = classify(args.reference)
+    except OSError as error:
+        print(f"provenance_steadfast.py: {error}", file=sys.stderr)
+        return 2
     total = sum(len(v) for v in out.values())
-    if quiet:
+    if args.quiet:
         print(" ".join(f"{k}={len(v)}" for k, v in out.items()), f"total={total}")
         return 0
     print(f"Astra CUSTOM UNIFORMS entries: {len(astra)} (classified: {total})")

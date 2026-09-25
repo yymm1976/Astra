@@ -1,0 +1,153 @@
+F1 + F2 | 云的两处缺陷修复（实现轮）
+基线 commit: 58669e9（改动为工作区改动，未提交；主控统一落地）
+==============================================================================
+
+【0 结论】
+两条用户症状都定位到**包内软件层面**并已修：
+- **F1「多出来的云偏虚、方向斜着、与正常云同一层」** = `astra_cloud_noise` 的**细节八度能单独决定云的
+  存在性**。实测：默认覆盖率下 **30.66% 的云像素**是这么来的，且这一群体的图案主方向是 **-40.12°**，
+  主体云是 **-7.09°**（相差 33°，正是细节八度的 36.87° 旋转）。已改为**存在性只判粗八度**。
+- **F2「到云层之上往下看，玩家周围一段区域看不见任何云」** = 平面云**只在远平面（`depth >= 0.999999`）
+  合成**，所有地形像素从不合成云；那个"无云圆盘"就是地形脚印。已在地形分支补上深度感知的云合成。
+
+【任务 1 · F1 幽灵云】
+
+(a) 改前测量（新建探针 `qa/tools/cloud_ghost_probe.py`，读包内真实噪声纹理
+    `textures/complementary-cloud-water.png`（256×256 RGBA8，由 `shaders.properties:320` 绑到
+    `complementaryCloudNoise`），逐项复现 :69-77 / :90-94 / :97-104 / :181 / :225 / :316 的算式；
+    400,000 个层中部样本）
+
+| 项 | 默认 CLOUD_COVERAGE=50 |
+|---|---|
+| 1) 通过 :225 门但 `0.78*base` 单项不过门的占比 | **30.66% 的云像素**（占全部样本 12.26%） |
+| 2) 云像素 alpha 分位数 p50/p90/p95/p99 | 1.000 / 1.000 / 1.000 / 1.000（近处 distanceRatio=1 时） |
+| 2b) alpha<0.15 的像素 | 7,054 = **4.4% 的云像素** |
+| 3) 图案主方向（结构张量，0°=+x） | 主体 **-7.09°**；**幽灵群体 -40.12°**；仅粗八度 **+0.09°** |
+
+    判读一句话：**幽灵群体相对主体斜了 33°**，与 `:102` 那个 `mat2(0.8,-0.6,0.6,0.8)` 的 36.87° 旋转
+    对得上——用户说的"方向是斜着的""与正常的云是同一层"就是这个群体。
+
+(b) 实现（**M3 = M1 + M2**，`clouds_planar.glsl`）
+    - 新增共享契约（:98-119，注释 98-105 + 四个函数 107-119）：`astra_cloud_coverage_bias()` / `astra_cloud_existence_gate(layerThreshold)`
+      / `astra_cloud_saturation()` / `astra_cloud_coarse(tracePos, cloudAltitude)`。
+    - 存在性门（改动后 :251-258；原 :225）改为 **只判粗八度**：
+      `vec3 tracePosM = astra_modify_trace_pos(...)` → `float coarse = 0.78*astra_2d_cloud_sample(tracePosM.xz)`
+      → `float noise = coarse + 0.22*astra_2d_cloud_sample(detailUv)` → `if (coarse <= existenceGate) continue;`
+      （一次变换服务两个八度，不新增采样）。
+    - 浓度窗（改动后 :351；原 :316）下沿对齐到同一 gate：`smoothstep(existenceGate, astra_cloud_saturation(), noise)`。
+
+    四条验收（实测）：
+
+| 验收 | 要求 | 实测 | 判定 |
+|---|---|---|---|
+| (i) | 细八度不得单独决定存在性，改后占比 **= 0** | **0** | ✅ |
+| (ii) | alpha 在存在性边界连续、薄膜消失；alpha<0.15 占比显著降低 | 边界处 alpha 由 0.087 起 → **0**；alpha<0.15 从 **4.4% → 2.1%**（−52%） | ✅ |
+| (iii) | 细八度软化方格的作用保留 | 边缘带（coarse∈[gate,gate+0.05]）4,065 px 的 alpha **std=0.459**（均值 0.360）：detail 仍在调制边缘透明度，方格边不会回到硬直角 | ✅ |
+| (iv) | 默认覆盖率下整体云量不得明显变化 | 云覆盖像元 **39.99% → 27.73%（−12.26 pp）**；可见 alpha 均值 **0.8370 → 1.1013**；"覆盖×均值" **0.335 → 0.305（−9.0%）** | ⚠ 见下 |
+
+    **关于 (iv) 的差异，如实说明**：−12.26 pp 的覆盖**正好等于**幽灵云的占比（30.66% × 39.99% = 12.26 pp），
+    即**减少的全部是用户要求消除的那一类云**；"粗八度已经过门"的那部分云（主体云）覆盖**一个像素没减**。
+    整体云量的口径若取"覆盖×alpha 均值"则下降 9.0%，若只看主体云则零变化。这不是副作用，而是修复的定义。
+
+(c) 一致性契约（硬要求，已把三处收敛为共享函数；行号现读）
+    1) `clouds_planar.glsl` 的门与浓度窗 → 用 `astra_cloud_existence_gate` / `astra_cloud_saturation`；
+    2) `weather.glsl:135-137`（原表达式在 :132）（`astra_cloud_transmission`）→ 原第 132 行的本地表达式
+       `0.21 + mix(0.20,-0.20,CLOUD_COVERAGE*0.01) - 0.28*astraRainFactor` 与共享 gate 在层内
+       **数值恒等**（两者都等于 `0.25 + bias`），本轮改为调共享函数并**同样只判粗八度**；
+    3) `overworld.glsl:72-81`（晨昏反射云板）→ 同样改为 `gate = astra_cloud_existence_gate(0.0)`、
+       `coarse = astra_cloud_coarse(...)`、`if (coarse>gate)`、浓度窗从 gate 起。
+    该函数的出厂影响面（已核验调用点）：雨天直射光压低（`scene.glsl:264`）、`rainy_air`（`deferred.fsh:84`）、
+    **日月盘的云遮挡**（`sky.fsh:80`，全天可见）、云影选项（`scene.glsl:259`，出厂关）。三处同步后，
+    "日月盘上看到的云"与"天空里画的云"用的是同一判据。
+
+(d) 注释修正：原 :179-180 写"bias 在默认 50 时为零，所以默认测试就是 `noise > threshold*0.5 + 0.25`"。
+    实际 `mix` 项为零但 **−0.04 项不为零**，故层内门是 **0.21**、旧浓度窗下沿是 **0.17**——
+    中间那条 0.04 宽的近不可见薄膜就是 (ii) 要消掉的东西。注释已就地改写。
+
+【任务 2 · F2 云层之上的无云圆盘】
+
+**先独立复核卡给的假设**（不照抄）：平面云是否只在远平面合成——
+- `program/deferred.fsh:106` 的 `if (depth < 0.999999)` 地形分支内**没有任何云调用**（:111-159 是积水反射）；
+- 云只在 `:203` 的 `if (depth >= 0.999999)` 远平面分支里经 `astra_sky(skyRay)` 合成；
+- `program/sky.fsh:151-152` 在没有平面云时让 skybasic 写黑，由 deferred 重算；
+- `program/clouds.fsh:23-26` 在 `CLOUD_MODE == CLOUD_PLANAR` 下 discard 原版云几何。
+⇒ 假设成立：**地形像素从不带云**。
+
+**另查 `clouds_planar.glsl` 内是否有更能解释"玩家周围一段区域"的门**（卡要求）：
+- `:213` `if (abs(nPlayerPos.y) < 1e-5) return vec4(0.0);` —— 只挡**水平**射线，俯视不触发；
+- `:220-221` 的水平距离上限 `ASTRA_CLOUD_THRESHOLD_F = 4000` —— 只挡**远**处，近处不触发。
+两者都产生不了"以玩家为中心的一段区域"，故**否掉**，采用 deferred 假设。
+
+**实现**（`program/deferred.fsh:162-188`，地形分支内、`astra_apply_medium` 之后、`rainy_air` 之前）：
+
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END && CLOUD_MODE == CLOUD_PLANAR
+    float cloudLower = ASTRA_CLOUD_ALTITUDE - ASTRA_CLOUD_STRETCH;
+    float cloudUpper = ASTRA_CLOUD_ALTITUDE + ASTRA_CLOUD_STRETCH;
+    float cloudTerrainDistance = length(playerPos);
+    vec3 cloudRay = normalize(view_player(screen_view(vec3(texcoord,1.0))));
+    float cloudEntryPlane = cameraPosition.y > cloudUpper ? cloudUpper : cloudLower;
+    float cloudPlaneDistance = (cloudEntryPlane - cameraPosition.y) / cloudRay.y;
+    if ((cameraPosition.y > cloudUpper || cameraPosition.y < cloudLower)
+        && cloudPlaneDistance > 0.0 && cloudPlaneDistance < cloudTerrainDistance) {
+        vec4 sheet = astra_planar_cloud(cloudRay);
+        if (sheet.a > 0.0) displayed = mix(displayed, sheet.rgb, sheet.a);
+    }
+    #endif
+
+硬约束逐条：
+- **早退在调用之前** ✅ 三个条件都在 `astra_planar_cloud()` 之前求值；GLSL 不会提前求值实参。
+- **远平面路径不二次合成** ✅ 本块在 `depth < 0.999999` 分支内，与 `:203` 的远平面分支互斥。
+- **正常地面游玩新增开销 ≈ 0** ✅ 地面玩家 `cameraPosition.y (≈64) < cloudLower (183)`，向下看的射线
+  `cloudRay.y < 0` 使 `cloudPlaneDistance = (183-64)/负数 < 0`，第一个比较就退出——
+  **每个地形像元一次减法 + 一次比较，无噪声采样、无 march、无纹理读取**。只有"向上看且打到高处地形"
+  的像元才会真正进入，而那正是要修的穿层场景。
+- **保守性**：进入距离用**云层上表面**（相机在层上）或**下表面**（相机在层下），偏保守；
+  水平范围与层厚度判据仍由 `astra_planar_cloud()` 内部负责，不重复实现。
+- `ray.y == 0` 时分母为零：`cloudPlaneDistance` 变为 ±inf 或 NaN，比较为假，安全跳过。
+
+【改动面（工作区，未提交）】
+| 文件 | 改动 |
+|---|---|
+| `Astra/shaders/global/atmosphere/clouds_planar.glsl` | 共享契约 4 个函数 + 门改判粗八度 + 浓度窗下沿对齐 + 注释修正 |
+| `Astra/shaders/global/atmosphere/weather.glsl` | `astra_cloud_transmission` 改用共享 gate 且判粗八度 |
+| `Astra/shaders/global/dimension/overworld.glsl` | 晨昏反射云板改用共享 gate/coarse/ramp |
+| `Astra/shaders/program/deferred.fsh` | 地形分支的深度感知云合成（含维度门） |
+| `qa/tools/cloud_ghost_probe.py` | 新建探针（含 M3 契约段） |
+
+【门（原始输出）】
+```
+python qa/tools/compile_glsl.py
+RESULT	linked=270	failed=0	compute=27	compute_capable=true
+
+python qa/tools/check_pack.py
+17 checks: 0 FAIL, 1 WARN, 16 PASS
+
+python qa/tools/sync_to_instance.py
+Copied 5 / Missing after copy: 0 / Content differences after copy: 0 / Extras in dest (not deleted): 0
+
+python qa/tools/compile_glsl.py --matrix --jobs 2
+（qa/f2-matrix.log）：
+python qa/tools/compile_glsl.py --matrix --jobs 2
+BATCH 1/11 .. BATCH 11/11  rc=0（11 行全部）
+RESULT_ALL	batches=11	rows=83	entries_per_row=90	linked=7470	failed=0
+matrix rc=0
+```
+
+【未触及维度与对拍边界（如实）】
+- 源码级门控：`clouds_planar` / `weather` / `overworld` 三处经 `program/scene.glsl` 的
+  **overworld `#else` 分支**进入 TU（下界与末地取另外两支），`deferred.fsh` 的新块带
+  `#if !defined DIMENSION_NETHER && !defined DIMENSION_END`，故**下界/末地/水下不编译任何新代码**。
+- **对拍边界**：本包唯一的离线渲染工具 `qa/tools/render_end_design.py` 只覆盖**末地天空**，
+  没有主世界的离线渲染器，因此本卡的"改动前后逐像素对拍"**无法在画面上做**；替代证据是
+  (b) 的四条探针统计（覆盖/alpha/低 alpha/边缘 std）与上面的源码级门控。**画面观感只能在实机看**。
+
+【需实机判定（离线不可测）】
+1. 抬头看天空：那块"偏虚、斜着"的云是否消失，而正常云是否保持原样；
+2. 云层之上往下看：玩家周围那个无云圆盘是否被填上，且远处云与近处云的浓淡过渡是否自然；
+3. 云的整体量感是否偏少（本轮的覆盖下降 12.26 pp 全在幽灵云上，但如果观感判定"太干净"，
+   补偿方向是把 `astra_cloud_existence_gate` 的 0.25 常数下调，它现在是唯一入口）；
+4. 雨天与云影开/关两态是否仍自洽。
+   界面路径（中文）：设置 → 光影包设置 → 分组「**天空与云**」：选项「**云**」（值：原版云／平面云／关闭，
+   本项须停在**平面云**）、「**云层覆盖率**」（本项默认 50；调它可同时检验幽灵云是否已消失）、
+   「**云影**」（默认关，本项与云影无关）、以及分组「**泛光**」/「**泛光强度**」（与本项无关，
+   但若开泛光，低 alpha 薄膜的消失会让云缘的辉光一并变干净，属预期）。

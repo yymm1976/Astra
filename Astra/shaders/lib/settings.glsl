@@ -243,6 +243,8 @@ const int   noiseTextureResolution = 256;              // engine default kept ex
 
 // --- SC-13 (design.md 4.1): the three shadow engine knobs, semantics frozen there ---
 // Iris multiplies shadowDistance * shadowDistanceRenderMul * this ratio.
+// Confirmed in Iris 1.11.2 ShadowRenderer: renderShadows multiplies the two
+// multipliers before createShadowFrustum applies the pack distance (qa/open-premises.md P-2).
 // Literal table for all advertised options: Iris's directive reader cannot
 // evaluate arithmetic. Render multiplier is 1.5 above; keep it paired here.
 #if SHADOW_DISTANCE == 64

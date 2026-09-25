@@ -1,5 +1,7 @@
 # Astra — 第三方出处台账（THIRD-PARTY.md）
 
+> 本地参考副本不随仓库提供。Steadfast 0.8.0 的获取位置、目录布局及替代路径参数见 [工具配置](../qa/tools/README.md#参考副本)。
+
 依据 design.md §9.2 建立，**每新增一个来自参考包的文件/片段即登记**，保持台账与实际代码零偏差。
 抽查方法：对表中每一行，打开对应文件核对文件头出处注释与内容来源。
 Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_steadfast.py --quiet` 实算，

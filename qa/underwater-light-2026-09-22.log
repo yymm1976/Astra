@@ -1,0 +1,87 @@
+Astra underwater-light gate  (read-only on Astra/, no GL; exit != 0 on any FAIL)
+date          : 2026-09-22
+shipped source: Astra/shaders  (expressions evaluated from their own source text)
+
+==============================================================================
+[1] underwater beams: global/water/light_shafts.glsl visibility gate
+  eta 1/1.2, VoL / visibility / sunGate evaluated from source
+  VoL        : mix(pow(clamp(dot(ray, -refractSun), 0.0, 1.0), 1.5), 0.5, 0.25)
+  visibility : mix(0.25 + VoL * 0.25, VoL * 0.45, time)
+  beam tint  : shadow.fsh water caster G = 0.9187 at the field median 0.0943
+  grid of 3456 poses (sun elevation x azimuth x view elevation x azimuth)
+    visibility == 0 : 0.00%   min 0.0478   max 0.3331
+    [ok] no sun-up pose may zero the gate (0.00% are zero over 3456 poses)
+    [ok] the dimmest pose stays above the floor: 0.0478 >= 0.03
+  reference pose (sun 45 deg, view -20 deg, floor 12 blocks away, beam tint above)
+    sun ahead : VoL 0.2346  visibility 0.0897  shaft 1.055  composite gain 86.5x
+    sun behind: VoL 0.1250  visibility 0.0478
+    [ok] the look-toward-the-sun pose is not gated out: visibility 0.0897 >= 0.04
+    [ok] and it reaches the screen: composite gain 86.5x >= 3x (1.0 = no shaft at all)
+    [ok] the phase peaks on the SUN side: VoL 0.2346 (ahead) > 0.1250 (behind)
+    [ok] sun-ahead / sun-behind visibility 1.88x >= 1.5x
+
+==============================================================================
+[2] seabed light spots: the caustic field and the gain program/lit.fsh applies
+  field  solas_water_caustics() over 16x16 blocks x 4 times, 65536 samples
+    min 0.0000  p05 0.0000  p50 0.0943  p95 0.6621  max 1.9876  mean 0.1806  share<0.02 34.2%
+  gain   clamp(1.0 + ASTRA_CAUSTIC_STRENGTH * (1.35 * field - 0.135),
+                                          0.70, 1.80);
+    min 0.9055  p05 0.9055  p50 0.9946  p95 1.5312  max 1.8000  mean 1.0744
+    [ok] the field is a network, not a wash: p95 - p05 0.662 >= 0.5
+    [ok] the shipped gain brightens the bright half of the bed: p95 1.531 >= 1.25
+    [ok] and has a peak that can read as a spot: max 1.800 >= 1.50
+    [ok] the median is neutral, so the field modulates instead of dimming: p50 0.995 in [0.90, 1.12]
+    [ok] one gain expression serves both sides of the surface
+    [ok] air-side arm reads the water caster's height from shadowcolor0
+    [ok] and decodes it with the shipped half-block code
+    [ok] 48-block reach (the reference's own limit)
+    [ok] thin-column fade at the surface
+    [ok] the delta goes into the direct sun term only, scaled by the fade
+
+==============================================================================
+[3] clear water from above: spectra, fill hue, and the bed behind them
+  WATER_CHARACTER=1 -> absorption.glsl branch 2, WATER_ABSORPTION=100 (scale 1)
+  shallow (1.0, 0.05, 0.09)   deep (1.0, 0.3, 0.05)
+  fill incident light = astra_sky_ambient day (0.36, 0.43, 0.57) x SKYLIGHT_STRENGTH 100 = (0.36, 0.43, 0.57)
+      0 blocks  T 0.368 0.951 0.914   T_r/T_g 0.38674   fill b/g 2.24   comp (0.325, 0.727, 0.522)  sat 0.55  luma 0.626
+      1 blocks  T 0.135 0.875 0.840   T_r/T_g 0.15464   fill b/g 1.74   comp (0.132, 0.674, 0.488)  sat 0.80  luma 0.545
+      2 blocks  T 0.050 0.779 0.776   T_r/T_g 0.06393   fill b/g 1.47   comp (0.06, 0.607, 0.458)  sat 0.90  luma 0.480
+      4 blocks  T 0.007 0.558 0.673   T_r/T_g 0.01207   fill b/g 1.20   comp (0.022, 0.453, 0.414)  sat 0.95  luma 0.359
+      6 blocks  T 0.001 0.350 0.596   T_r/T_g 0.00261   fill b/g 1.11   comp (0.016, 0.309, 0.383)  sat 0.96  luma 0.252
+      8 blocks  T 0.000 0.192 0.539   T_r/T_g 0.00064   fill b/g 1.11   comp (0.013, 0.2, 0.363)  sat 0.96  luma 0.172
+     12 blocks  T 0.000 0.039 0.470   T_r/T_g 0.00006   fill b/g 1.24   comp (0.01, 0.095, 0.346)  sat 0.97  luma 0.095
+     16 blocks  T 0.000 0.006 0.427   T_r/T_g 0.00001   fill b/g 1.43   comp (0.007, 0.073, 0.339)  sat 0.98  luma 0.078
+     24 blocks  T 0.000 0.001 0.301   T_r/T_g 0.00000   fill b/g 1.74   comp (0.007, 0.069, 0.289)  sat 0.98  luma 0.072
+    [ok] at 8 blocks red is gone while green survives: T_r/T_g 6.43e-04 <= 0.01
+    [ok] the bed still arrives: T_g 0.192 >= 0.12, T_b 0.539 >= 0.30
+    [ok] the shallow fill carries the transmission's own hue: b/g body 0.959 vs T 0.961 (|diff| 0.001 <= 0.35)
+    [ok] the 1-block composite stays coloured, not grey: saturation 0.80 >= 0.40
+    [ok] the 2-block composite stays coloured, not grey: saturation 0.90 >= 0.40
+    [ok] deep water is still a body rather than black: fill luma 0.059 >= 0.030
+
+==============================================================================
+[4] distant water surface: is the sky mirror still inside the pack's white point?
+  BLOOM_THRESHOLD 1.0, shoulder knee 1.00 softness 0.60, glint peak 0.720
+  noon middle sky (sky_gradient palette at vanilla skyColor (0.47, 0.65, 1.0)): (1.031, 1.171, 1.502)
+      1.0 deg  fresnel 0.918  mirror 1.379  +glint 2.013  shipped 1.630  excess +1.013 -> +0.630
+      2.0 deg  fresnel 0.841  mirror 1.264  +glint 1.898  shipped 1.583  excess +0.898 -> +0.583
+      4.0 deg  fresnel 0.704  mirror 1.058  +glint 1.692  shipped 1.489  excess +0.692 -> +0.489
+      5.0 deg  fresnel 0.643  mirror 0.966  +glint 1.600  shipped 1.441  excess +0.600 -> +0.441
+    [ok] at 5 deg the mirror stays inside the white point: 0.966 <= 1.0
+      6.0 deg  fresnel 0.586  mirror 0.881  +glint 1.515  shipped 1.393  excess +0.515 -> +0.393
+    [ok] at 6 deg the mirror stays inside the white point: 0.881 <= 1.0
+      8.0 deg  fresnel 0.486  mirror 0.730  +glint 1.364  shipped 1.299  excess +0.364 -> +0.299
+    [ok] at 8 deg the mirror stays inside the white point: 0.730 <= 1.0
+     10.0 deg  fresnel 0.401  mirror 0.602  +glint 1.236  shipped 1.206  excess +0.236 -> +0.206
+    [ok] at 10 deg the mirror stays inside the white point: 0.602 <= 1.0
+     12.0 deg  fresnel 0.329  mirror 0.494  +glint 1.128  shipped 1.119  excess +0.128 -> +0.119
+     30.0 deg  fresnel 0.055  mirror 0.083  +glint 0.777  shipped 0.777  excess +0.000 -> +0.000
+     60.0 deg  fresnel 0.025  mirror 0.038  +glint 0.746  shipped 0.746  excess +0.000 -> +0.000
+    [ok] the shoulder compresses the worst excess to 82% of the unshouldered one (1.364 -> 1.299 at 8 deg) <= 85%
+
+==============================================================================
+RESULT: PASS - all four gates hold on the shipped sources
+
+not judged here (needs frames): the beams' look and absolute brightness, whether a
+water caster lands in shadowcolor0 at all, and which of sky mirror / sun glint /
+cloud reflection produces the white band the user reported.

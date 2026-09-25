@@ -951,3 +951,26 @@ P1-5（`composite2` 的 GODRAYS 门控）、P2-4（静态阴影兜底）也都�
 **E 轮门与同步**：矩阵门（改后重跑，覆盖 A5/A7 与反射板重写）`RESULT_ALL batches=11 rows=83 entries_per_row=90 linked=7470 failed=0`（`qa/review-2026-09-21-e-gate.log`）；结构门 `17 checks: 0 FAIL, 1 WARN, 16 PASS`（`qa/review-2026-09-21-e-checkpack.log`）。反射板**本轮内二次更正后**重跑两门：三档默认 `linked=270 failed=0 compute=27`（`-e2-default.log`）、8 个默认关选项全开 `270/0/27`（`-e2-allon.log`）。该二次更正只在 `#if CLOUD_MODE == CLOUD_PLANAR` 内（删两行死算术 + 注释措辞），而块内无其他选项门，故默认档（BALANCED/ULTRA 均 CLOUD_MODE=1）与全开扫描已覆盖其全部编译上下文，未重跑 7470 矩阵。实例同步 `sync_to_instance.py`：`Missing=0 / 内容差异=0 / 多余=0`。11 份 `qa/review-2026-09-21-*.log` 逐份扫描注入文本：0 命中。
 
 **本轮未决**：① A5/A7 三个数字与重写后的反射板**全部待实机**；② A6-v2 重诊断卡、A4 换思路卡已写好待派发（本轮零代码改动）；③ 仓库**无 remote**，用户裁定「暂不 push」，本地已领先提交 21+ 个；④ 编译门本轮新产生未跟踪目录 `.lwjgl/`（LWJGL 原生库缓存 1.3 MB，`.gitignore` 未收），已排除在提交外，是否加忽略规则单独待裁定。
+
+## 2026-09-22 末地宇宙感重做（用户三项需求之二；本卡由统帅派 worker，改动未提交、由主控统一落地）
+
+- **参照与许可**：ITT 3.2 本地在 `_analysis/latest-2026-09-10/iterationT-3.2.0/shaders/`（**归档内无许可文件**，`sources.json:45` 记 "no license file shipped；treated as proprietary"），故只借鉴思路与结构、不抄表达式与常量。
+- **清残留**：`global/dimension/end_blackhole.glsl` 的 `bh_Blackbody`（CIE 样条 + 色度矩阵，ITT 表达式级移植）删除，换为自写 `astra_blackbody_rgb`（普朗克定律在 610/545/465 nm 三点 Gauss-Legendre 积分后按峰值归一，只依赖物理常数 c2）；`THIRD-PARTY.md` 登记行就地更正。
+- **新增宇宙感元素**：星野双族（密暗场阈值 0.32 + 稀疏亮层 0.012，各层 rank^5 幂律、黑体 3000–12000 K）；自有大圆带 ISM 星云（法线刻意不等于环轴，三层云噪声 + 独立尘埃暗裂，离开大圆严格归零）；环带双臂螺旋密度波（24%，只加结构不加运动）；吸积盘真温度序列 9000→3200 K、径向发射律陡化到 `mix(3.0,0.45,u^0.7)`、多普勒降为弱项；光子环半宽 `max(radians(0.014), cone*1.2)`。
+- **证据**：`compile_glsl` 三档 `linked=270 failed=0 compute=27`；`check_pack` 17 项 0 FAIL / 1 WARN（既有 Voxy）；`render_end_design.py --panorama` 出图 max=2.2859/median=0.000296，对拍（基线取改动前工作区内容）max abs **1.2985**、mean abs **0.00430**、差异像元 **77.28%**（>1e-5）；新探针 `qa/tools/end_universe_probe.py` exit 0（星野 2.28/deg²、ISM 峰值 1.676e-4、黑洞剪影直径 14.03°、光子环 FWHM 0.390°）；`settings.glsl` 与 `shaders.properties` **零 diff**（新增用户选项 = 0）。
+- **待实机三项**进 `qa/regression-checklist.md` 新行 **15b**（星野密度、ISM 是否像紫雾、光子环线宽与爬行感），三条都带离线实测值与回退旋钮。
+- **worker 上报的前提更正（已入存疑清单）**："包内唯一 ITT 移植残留"对水模块不成立——`global/water/caustics.glsl` 的注释仍写 "ported from IterationT 3.2.0"、`light_shafts.glsl` 属结构移植；二者在本轮 worker 的禁改白名单内，需另开任务处理（且此刻水路径正被另一条工作流占着，见下条）。
+
+## 2026-09-22 用户三项需求（水下/水上光影 · 末地宇宙感 · 方块反射泛光）：派工 + 一次独立审查 + 修复收口
+
+- **执行方式**：按 `AGENTS.md` 统帅模式——我（主模型）不写实现，派 `worker` 落地、`Explore` 只读定位、终点派一次 `code-reviewer`。用户点名"用 workflow"，故需求 1 走 `CreateWorkflow`（run `dwfrun-1dcba76e`，1 轮修复，其内部复核员产出 15 条 finding、全部标 unconfirmed）。
+- **需求 1（水下/水上光影）→ 部分达成**：三条链并行诊断后落地——① 光束：相位翻到视向太阳并加 0.125 地板（离线 3456 姿态从 44% 恒零变 0% 恒零，参考位姿合成增益 86.5×、前后比 1.88×）；② 海床焦散：`lit.fsh` 新增增益项，**修后已限制为水面之上**（水下由 `shadow.fsh` 烘进 caster 染色那一路单独承担，因两路相位相关系数实测仅 +0.07）；③ 水上：浅端填色与透射谱同相、水面反射过 `astra_scene_highlights`。
+  **未达成且未被判据覆盖的一项**：用户第三症"水下整体偏黑"——离线四门没有绝对亮度量；审查者提的主因候选（`shadow.fsh` 的水下 caster 染色 `0.30+1.5·focus` 压暗 57%）**被修复轮的对照证伪**：Astra 该乘子实测 p50/mean = 0.450/0.581，比其参考 Solas V2.2b `0.25+caustics·4.0` 的 0.322/0.355 **更亮 40%/64%**，故不是偏暗成因；主因仍未知，若实机判为偏暗，最小旋钮是地板 `0.30→0.55` 并夹 `focus∈[0,1]`（`shadow.fsh` 单常量）。
+- **需求 2（末地宇宙感）→ 达成**（详见上一节）：自写黑体替换 ITT 残留、双族星野、ISM 星云带、环带螺旋密度波、吸积盘温度序列、足迹宽度光子环；新增用户选项 0；两条设计文档数字为有记录的偏离（星野 2.28/deg² vs 文档 6–10；光子环 FWHM 0.39° vs 文档的**上界** 0.21°，worker 原转述为"目标"已由审查者更正），进 checklist 15b。
+- **需求 3（方块反射/泛光）→ 达成（修后）**：4 类方块、材质域 12–15 **不扩位**、`lit.fsh` 逐方块光泽 + 邻近发光体暖辉光（邻近信号用原版方块光等级，8 级及以下严格为 0），离线实测紧邻发光体 +0.0304 线性亮度、无发光体**精确 0**；新增用户选项 0。
+- **独立审查（一次，覆盖全部改动）**：`code-reviewer` 判定 **需修后复查（0 Critical + 2 Important）**。两条 Important：① 需求 3 的材质重分类把 stone/deepslate 族 29 个方块从 material 0 改成 14/15，**静默关掉了既有雨湿/涟漪/积水通路**（`lit.fsh` 两处 `material == 0u` 门 + `deferred.fsh` 的 standingWater 消费端），违反该需求自己的"不破坏既有材质"；② 水下焦散是同一场的两次不同相位叠加（相关系数 +0.05），`lit.fsh` 的 "cannot disagree" 声明为假。审查者同时核实了：4-bit 域不扩位属实、`lit.fsh` 两条链**零重叠**（`-U0` hunk 头 `+261,78` / `-313,16` / `-331,4`）、Astra↔ITT 字面量交集零命中、三项需求的"新增用户可见选项 = 0"成立。
+- **修复轮（逐条对账）**：① → `lit.fsh:182`/`:524` 两处门放宽为 `material == 0u || (material >= 12u && material <= 15u)`（12..15 与 1..11 不相交，等于恢复这 39 个 id 重分类前的行为）；② → `lit.fsh:405-473` 焦散项改为水面之上专用（`receivesCaustics` 初值改 `false`、门改 `isEyeInWater == 0`），注释重写为"两张相位相差一个水柱深度的图案必须二选一"；另修三条 Minor（`light_shafts.glsl` 注释与地板一致、`THIRD-PARTY.md:266/:279` 的 ITT 登记改为"表达式已全部删除"、探针 docstring 7 处数字与肩部判据改为有区分力的绝对上限 `SHOULDER_EXCESS_CAP = 0.70`，并用 `git archive 58669e9` + 覆盖新探针证明它**能红在旧代码上**：exit 2、[1] 6 条 FAIL）。按 `AGENTS.md` 第六节，修复只落在 findings 的影响面内（`lit.fsh`/`light_shafts.glsl`/`THIRD-PARTY.md`/探针），未触发默认复审条件。
+- **门（修复后实跑）**：`compile_glsl.py` 三档 `linked=270 failed=0 compute=27`；`check_pack.py` `17 checks: 0 FAIL, 1 WARN, 16 PASS`（WARN 仍是既有 #4 Voxy）；`settings.glsl` 与 `shaders.properties` **零 diff**。
+- **改动总账（`git diff --stat 58669e9 -- Astra/` 实测）**：**15 个文件**、+540/−162：`THIRD-PARTY.md`、`block.properties`、`atmosphere/{clouds_planar,weather}.glsl`、`dimension/{end_blackhole,end_ring,end_system,overworld}.glsl`、`water/{absorption,caustics,light_shafts}.glsl`、`program/{deferred.fsh,lit.fsh,lit.vsh,water.glsl}`；另有 `qa/` 下 4 个已跟踪改动与 36 项未跟踪产物（新增探针、日志、对拍件）。
+- **待实机**：checklist 新增 **15c**（水下/水上四项，含"水下整体亮度本轮未达成且无判据"的如实登记与最小旋钮）、**15d**（方块反射/泛光三项，含强度旋钮与"火把旁也会亮"的副产品说明）；连同 15b 与 F1/F2 的 7c/10c/10d/13a/13b/13c/15a 一并等实机。
+- **未提交**：按约定"提交由主控统一落地"，本轮所有改动都在**工作区**，未做任何 git 写操作（无 add/commit/push）。
