@@ -1,4 +1,4 @@
-"""Gate sensitivity: proves each anti-degradation check still fires.
+"""Sensitivity scenarios for check_pack.py checks 14, 15 and 16.
 
 check_pack.py reporting 0 FAIL says nothing by itself - a rule that cannot be broken
 also cannot hold. Each scenario below copies the working pack into a temporary
@@ -18,19 +18,19 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-ROOT = Path(tempfile.mkdtemp(prefix="astra-gate-"))
 SHADERS = "Astra/shaders"
 PROPS = f"{SHADERS}/shaders.properties"
 
 
-def fresh(tag):
-    dst = ROOT / tag
+def fresh(root, tag):
+    dst = root / tag
     shutil.copytree(REPO / "Astra", dst / "Astra")
     shutil.copytree(REPO / "qa" / "tools", dst / "qa" / "tools")
     src = REPO / "_analysis" / "Steadfast-0.8.0" / "shaders" / "shaders.properties"
     out = dst / "_analysis" / "Steadfast-0.8.0" / "shaders" / "shaders.properties"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, out)
+    if src.is_file():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, out)
     return dst
 
 
@@ -124,9 +124,9 @@ def s10_root_gate_without_folder_mirror(dst):
 
 def s11_gate_hidden_by_own_ifdef(dst):
     # the shape the pack shipped before P2-18: the gate only exists once the option is on
-    patch(dst, PROPS, "program.world-1/shadowcomp.enabled=NETHER_VOXEL_LIGHT",
+    patch(dst, PROPS, "program.world-1/shadowcomp.enabled=SHADOWS && NETHER_VOXEL_LIGHT",
           "#ifdef NETHER_VOXEL_LIGHT\n"
-          "program.world-1/shadowcomp.enabled=NETHER_VOXEL_LIGHT\n"
+          "program.world-1/shadowcomp.enabled=SHADOWS && NETHER_VOXEL_LIGHT\n"
           "#endif")
     return ("16", "sits inside a NETHER_VOXEL_LIGHT branch")
 
@@ -171,30 +171,50 @@ def run(dst):
     proc = subprocess.run([sys.executable, str(dst / "qa" / "tools" / "check_pack.py")],
                           capture_output=True, text=True, encoding="utf-8", errors="replace")
     fails = re.findall(r"^\[FAIL\] #(\d+) (.*)$", proc.stdout, re.M)
-    details = re.findall(r"^       - (.*)$", proc.stdout, re.M)
+    if not re.search(r"^\d+ checks:", proc.stdout, re.M):
+        raise RuntimeError("checker did not finish: " + (proc.stderr or proc.stdout)[-2000:])
+    details = {}
+    current = None
+    for line in proc.stdout.splitlines():
+        header = re.match(r"^\[(?:FAIL|WARN|PASS)\] #(\d+) ", line)
+        if header:
+            current = header.group(1)
+        elif line.startswith("       - ") and current is not None:
+            details.setdefault(current, []).append(line[9:])
     return proc.returncode, fails, details
 
 
-bad = 0
-for name, inject, expect in SCENARIOS:
-    dst = fresh(re.sub(r"[^a-z0-9]+", "-", name))
-    applied = inject(dst)
-    assert applied == expect, f"{name}: scenario did not apply as written"
-    code, fails, details = run(dst)
-    collateral = [f"{cid} {title[:60]}" for cid, title in fails if cid not in ("14", "15", "16")]
-    if expect is None:
-        ok = code == 0 and not fails
-        detail = "0 FAIL" if ok else f"{len(fails)} FAIL"
-    else:
-        cid, needle = expect
-        hit = next((d for d in details if needle in d), None)
-        ok = any(cid == f for f, _ in fails) and hit is not None
-        detail = f"fired #{cid}: {(hit or 'message not found')[:120]}"
-    if collateral:
-        detail += " | collateral: " + "; ".join(collateral)
-    bad += 0 if ok else 1
-    print(("PASS    " if ok else "MISFIRE ") + f"{name:38s} exit={code} {detail}")
+def main():
+    bad = 0
+    for name, inject, expect in SCENARIOS:
+        # Each scenario owns its temporary files, including on an anchor error.
+        with tempfile.TemporaryDirectory(prefix="astra-gate-") as tmp:
+            dst = fresh(Path(tmp), re.sub(r"[^a-z0-9]+", "-", name))
+            try:
+                applied = inject(dst)
+                assert applied == expect, f"{name}: scenario did not apply as written"
+                code, fails, details = run(dst)
+            except (AssertionError, RuntimeError) as error:
+                bad += 1
+                print(f"MISFIRE {name:38s} {error}")
+                continue
+            if expect is None:
+                ok = code == 0 and not fails
+                detail = "0 FAIL" if ok else f"{len(fails)} FAIL"
+            else:
+                cid, needle = expect
+                hit = next((d for d in details.get(cid, []) if needle in d), None)
+                ok = code == 1 and [f for f, _ in fails] == [cid] and hit is not None
+                detail = f"fired #{cid}: {(hit or 'message not found')[:120]}"
+            collateral = [f"{cid} {title[:60]}" for cid, title in fails
+                          if expect is None or cid != expect[0]]
+            if collateral:
+                detail += " | collateral: " + "; ".join(collateral)
+            bad += 0 if ok else 1
+            print(("PASS    " if ok else "MISFIRE ") + f"{name:38s} exit={code} {detail}")
+    print(f"\n{len(SCENARIOS) - bad}/{len(SCENARIOS)} scenario(s) behaved as specified")
+    return 1 if bad else 0
 
-shutil.rmtree(ROOT, ignore_errors=True)
-print(f"\n{len(SCENARIOS) - bad}/{len(SCENARIOS)} scenario(s) behaved as specified")
-sys.exit(1 if bad else 0)
+
+if __name__ == "__main__":
+    sys.exit(main())

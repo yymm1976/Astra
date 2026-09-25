@@ -23,10 +23,12 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 | `shaders/lib/encoding.glsl` | Mellow v3.4（`lib/util.glsl` 的 encodeUnitVector/decodeUnitVector/get_luminance、`lib/transformations.glsl` 的 to_linear） | 逐行移植（重命名）+ Astra 增补（srgb_encode/srgb_decode 为 IEC 标准式；pack_octahedral/unpack_octahedral/pack_u16 自写封装） | MIT | 文件头 `// From Mellow v3.4 (MIT) by TheCMK`。2026-09-21 T16 逐文件复核：所引的 `lib/util.glsl` 与 `lib/transformations.glsl` 内部**没有**任何第三方中继声明，持有人即 TheCMK，与被中继的 `lib/tonemap_operators.glsl` 不同 |
 | `shaders/lib/transforms.glsl` | Mellow v3.4（`lib/transformations.glsl`） | 逐行移植（删除 DH 分支；Voxy 矩阵分支改由入口专属 ASTRA_VOXY_PASS 控制，SC-32） | MIT | 文件头 `// From Mellow v3.4 (MIT) by TheCMK`。2026-09-21 T16 逐文件复核：本行所引的 Mellow 源文件（`lib/transformations.glsl`）内部**没有**任何第三方中继声明，持有人即 TheCMK，与被中继的 `lib/tonemap_operators.glsl` 不同 |
 | `shaders/lib/pow.glsl` | 思路参考：Complementary r5.9 / Photon v1.3b / Refrax v1.3.1 / rethinking-voxels 的整数幂平方链助手（见文件头清单） | 仅思路（全部函数 Astra 自写并经 Python 逐点对拍） | 各参考包许可不动本文件；本文件随 Astra 主许可 | 文件头列明四家出处 |
+| `shaders/global/lighting/blocklight.glsl` | Steadfast 0.8.0 diffuse.glsl 的手持光、方块光；Refrax v1.3.1 thunder.glsl 的闪电点光 | 表达式移植 / 改编，双来源 | 各段沿用来源许可，Refrax 段保留发布前重写标记 | 文件头列出两段来源及 REWRITE REQUIRED |
+| `shaders/lib/colors.glsl` | Steadfast 0.8.0 shaders.properties 的方块光、最小环境光颜色；Refrax v1.3.1 thunder.glsl 的闪电色 | 双来源常量移植 | 各段沿用来源许可，Refrax 段保留发布前重写标记 | 文件头列出两段来源及 REWRITE REQUIRED |
 | `shaders/lib/distort.glsl` | Steadfast 0.8.0（`lib/distort.glsl`，作者 coderbot） | 径向扭曲与 Z 缩放表达式移植；Astra 增补解析逆变换。2026-09-09 与 shadow_map_position 成套替换原 Mellow 方形扭曲，删除无调用的 compute_bias。**2026-09-20 改常数为按影距归一**：Steadfast 的裸 `0.20` 是其 160 格影距下的调参产物（核半径 = 因子 × 影距 = 32 格），Astra 出厂 256 格沿用会把高解析核推到 51.2 格、近场密度减半；现改为 `SHADOW_DISTORT_CORE = 25.6`（格）`/ float(SHADOW_DISTANCE)`，近场纹素密度与影距解耦，滑条只改变覆盖距离，代价是短影距下外圈空转面积增大（D=64 时 49.0%，D=256 时 17.4%，`shadowDistanceRenderMul = 1.5` 在上游侧部分利用该外圈）。为此新增本文件对 `lib/settings.glsl` 的显式 include——这是包内第一处 lib→settings 直接包含（其余 22 处全在 `shaders/program/` 入口，靠包含顺序拿到选项），settings.glsl 自带包含守卫，入口已包含时本行不重复展开，作用是让常量初始化式不隐式依赖包含顺序 | GPLv3 + §7 两条附加条款 | 文件头 GPL 来源说明 |
 | `shaders/lib/dither.glsl` | Mellow v3.4（`lib/noise.glsl` 的 ign/dither） | 逐行移植（Astra 无 TAA，dither 固定为静态 IGN） | MIT | 文件头 `// From Mellow v3.4 (MIT) by TheCMK`。2026-09-21 T16 逐文件复核：本行所引的 Mellow 源文件（`lib/noise.glsl`）内部**没有**任何第三方中继声明，持有人即 TheCMK，与被中继的 `lib/tonemap_operators.glsl` 不同 |
 | `shaders/lib/bayer.glsl` | 无参考（自写：教科书式 Bayer 递归构造，公共域模式） | 自写 | — | `// written for Astra` |
-| `shaders/shaders.properties` 的 `CUSTOM UNIFORMS` 段 | Steadfast 0.8.0（`shaders/shaders.properties`，作者 coderbot）；其中 11 条 `astraSolas*` 为 Solas V2.2b 时间/日相表达式的 Astra 改写 | **表达式级移植**（2026-09-05 复核更正：原记"结构借鉴"不成立）。Astra 侧 **49** 条（`check_pack.py` 第 6 项行数口径 27 `uniform.*` + 22 `variable.*`，且实测 49 个名称无同名重复）：verbatim=14 literal-suffix=2 rewritten=6 astra-only=27（逐字相同 / 仅字面量后缀差异 / 同名改写 / 自写；2026-09-21 随月相 CPU 标量新增 3 条自写表达式复算）；逐条名单与复核方法见下节 | Steadfast 部分：GPLv3 + §7 两条附加条款；`astraSolas*` 部分：Solas 未声明 | 段内注释 `Expression-level port from Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot ...` |
+| `shaders/shaders.properties` 的 `CUSTOM UNIFORMS` 段 | Steadfast 0.8.0（coderbot）；其中 9 条 `astraSolas*` 改写自 Solas V2.2b 时间/日相表达式 | 表达式级移植；当前 57 条（32 `uniform.*` + 25 `variable.*`）：verbatim=14 literal-suffix=2 rewritten=6 astra-only=35。2026-09-25 将天空和云的逐帧颜色公式移至 CPU，新增 5 个 uniform 和 3 个中间变量；分类方法与名称见下节 | Steadfast 部分：GPLv3 + §7 两条附加条款；Solas 部分沿用其来源登记 | 段内保留 Steadfast 表达式级移植说明；astra-only 仅表示 Steadfast 无同名定义，不代表没有其他来源 |
 | `shaders/block.properties` 基础表（10001–10007、10021–10027） | Mellow v3.4（`block.properties` 现代分支） | 逐行移植（数据表；删除 floodfill 10020） | MIT | 文件头注明 |
 | `shaders/block.properties` Astra 补全区（10010、10011，以及并入 10002/10004/10022/10025/10026/10027 的原版补漏 ID） | 无参考（自组：原版 1.21.x 事实 ID 数据） | 自写（2026-09-05 修正：block.properties 无 `+=` 追加运算符，原 6 条 `block.N+=` 行会整行替换基础表，已并入对应基础行） | — | 文件头注明 |
 | `shaders/entity.properties` | Refrax v1.3.1 / Solas V2.2b 的 `entity.properties`（仅分类思路） | 结构借鉴（分组方案自组，ID 内容为原版事实数据） | Refrax：专有 / Solas：未声明 | 文件头注明 |
@@ -42,16 +44,16 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 | `shaders/program/composite.vsh` 的 lightScreenPos 投影 | 无参考（自写：gbufferProjection * vec4(lightVector, 0)，W=0 方向投影） | 自写 | — | `// written for Astra` |
 | `shaders/global/lighting/diffuse.glsl` | Steadfast 0.8.0（`environment/lighting/diffuse.glsl`） | **表达式级移植**（Astra 改动：不复现 Steadfast 的 `SurfaceFragment` struct——GBuffer 解码归 E1；`lightVector`（视图空间、冻结集内）经 `lib/transforms.glsl view_player()` 重建世界向量；`NIGHT_DESATURATION_EFFECT` 不在 design.md 4.1 范围，已丢弃） | GPLv3 + §7 两条附加条款 | 文件头 GPL 派生声明（整段 derivative + GPL-3.0-or-later） |
 | `shaders/global/lighting/sss.glsl` | **双来源（2026-09-10 起）**：树叶分支 = Complementary r5.9（`lib/lighting/mainLighting.glsl:111-113` 的 `NdotL = mix(NdotL, 1.0, 0.35)`，subsurfaceMode == 2，`:118` max0 自clamp）；地面植被分支与强度混合 = Steadfast 0.8.0（`environment/lighting/diffuse.glsl` 的前向散射包裹项） | **表达式级移植** + Astra 增补强度控制（Steadfast 无 SSS 滑条：`sss_wrap()` 以 plain Lambert 到全强度 wrap 的 mix 表达，100 即逐字等价、0 即关闭；与 B1 `shadow_mapping()` 的除数归一化不得重复施加。参考的平坦直射 NdotLM=1.0、前向高光与影缘天光混合三项需扩 diffuse.glsl 接口，见 docs/handoffs/terrain-foliage.md 待办 3） | 树叶分支：**Complementary License 1.7（专有）**；地面分支：GPLv3 + §7 两条附加条款 | 文件头双来源声明（含 Steadfast GPL 派生段） |
-| `shaders/global/water/absorption.glsl` | 历史：SC-24 Solas `waterFog.glsl`、Steadfast 水体配置；当前为 Astra 方块距离 Beer-Lambert/单次散射重写 | Astra 自写传输公式及控制接线；2026-09-08 六图续修系数为 Astra 自定，历史参考保留 | 相关历史来源仍保留，非整包许可裁决 | 文件头列明历史参考与当前实现区别 |
-| `shaders/global/water/caustics.glsl` | **Solas V2.2b（`lib/water/waterCaustics.glsl`，消费口径见 `program/shadow.glsl:52-54`）— SC-24 换源，2026-09-06 起不再是 Steadfast 派生** | **表达式级移植**（Solas 的双层漂移噪声高度场 + 五点差分交叉相乘 `max((xDeltaA·-xDeltaB + yDeltaA·-yDeltaB) * 48, 0)`；Solas 的四个 `WATER_NORMAL_*` 选项内联为局部常量（§3.3 选项数纪律）；水深门控/48–64 格连续淡出/footprint 连续抑制三项 Astra 包络不变） | Solas：未声明（默认版权） | 同上 |
-| `shaders/global/water/refraction.glsl` | 历史：Solas V2.2b `program/composite4.glsl:91–111` 的 SC-24 屏幕偏移；SC-34-F1 已替换实际算法 | 当前为 Astra 自写的折射射线投影与深度平面迭代，颜色/水程采样由 program/water.glsl 负责；历史来源保留，不在本轮作整包许可放行 | 保留 Solas 历史来源说明 | `Historical provenance: From Solas V2.2b` |
+| `shaders/global/water/absorption.glsl` | 历史参考 Solas waterFog 与 Steadfast 吸收预设；当前距离输运与光谱参数由 Astra 编写 | 当前实现自写，历史改编记录保留 | 既有来源记录不变 | 文件头 Historical references 与 written for Astra |
+| `shaders/global/water/caustics.glsl` | Solas V2.2b waterCaustics.glsl 的噪声高度场；Astra 解析波焦散 | 水面高度场改编自 Solas；当前聚焦场为独立解析实现 | Solas 部分沿用来源登记 | 文件头 Adapted from Solas，并区分可见水面与解析焦散 |
+| `shaders/global/water/refraction.glsl` | Steadfast 0.8.0 environment/water/refraction.glsl，coderbot | 改编 | GPL-3.0-or-later 与 §7 附加条款 | 文件头 Adapted from Steadfast |
 | `shaders/global/water/particles.glsl` | 无参考（四包均无屏幕空间悬浮颗粒实现，检索命中的 particle 全为原版粒子 gbuffers 路径；观感对标 Solas 水下） | 自写（三层壳距 + 3D cell 整型 hash motes；hash 为公共域乘-移位模式，与 end.glsl 星野同构独立声明） | — | `// written for Astra (self-authored)` |
 | `shaders/global/water/surface.glsl` | **Steadfast 0.8.0（`environment/water/surface_noise.glsl` + `surface_noise_waves.glsl` + `parallax.glsl` + `lib/valueNoise.glsl`/`valueNoiseDerivatives.glsl`）— SC-24 换源，2026-09-06 起由"自写解析波"改为 Steadfast 派生** | **表达式级移植**（ripple[4]+crest[2] 噪声波场、解析导数梯度、Nyquist 比率受限、4 步自适应视差；Astra 改动：两个噪声 lib 内联并加 `surface_` 前缀（与 Solas 出身的 caustics 同编译单元）；删 textureGather/FDM 回退分支；`WATER_AA` 四档固定 BALANCED；切线空间视线由 `worldPos - cameraPosition` 现算且 Z 取 -abs(y)；roughness = 被滤掉的坡度能量，为本包对 Steadfast 的增补） | GPLv3 + §7 两条附加条款 | 文件头 GPL 派生声明 |
 | `shaders/global/dimension/nether.glsl` | Solas V2.2b（`lib/common.glsl` 的维度裁剪、其多云雾噪声塑形结构）+ Mellow v3.4（`lib/colors.glsl` 下界调色与 `global/lighting/lighting.glsl` 下界光照分支：思路与数值参考）+ **Complementary r5.9（2026-09-10 新增：`lib/lighting/mainLighting.glsl:506-519` 下界方向项与熔岩项、`:613-616` 平方和开方合成、`lib/colors/lightAndAmbientColors.glsl:80-81` 下界 ambient、`lib/lighting/minimumLighting.glsl:1-17` 暗部下限、`lib/common.glsl:811` netherColor 模式 2、`:815` lavaLightColor）** | 结构借鉴（Solas 在 voxel/LPV 光线步进内评估 cloudy fog，本包无体积体，故改逐片元评估，只借噪声塑形结构；Mellow 侧无表达式移植）；`NetherParams` struct 形参与 `fogColor` 需求为 Astra 自定；**2026-09-10 新增 Complementary 表达式级移植**（下界光照整段逐字照抄，含 `directionShade` 的二次平方；`vsBrightness` 因缺 uniform 以常量 0.5 顶替、`vanillaAO` 取 1.0，两项偏离已上报） | Solas：未声明 / Mellow：MIT / **Complementary：专有（License 1.7）** | `// PROVENANCE: adapted from Solas V2.2b (licence undeclared) - REWRITE REQUIRED before distribution` + Complementary 逐处 file:line 出处 |
 | `shaders/global/dimension/end.glsl` | Mellow v3.4（`lib/colors.glsl:42,70,74,78,82` 调色数值；`global/atmosphere/sky.glsl:54-65,105-131` 星野与末地天空；`global/atmosphere/fog.glsl:37-50` 真空雾；`global/lighting/lighting.glsl:44-46,80-81,127` skylight 常量与阴影旁路）+ Solas V2.2b（`lib/atmosphere/skyEffects.glsl:6-27,48-91` 星野/星云结构）+ Refrax v1.3.1（`lib/atmosphere.glsl:174-209` 星野、`:390` 末地雾色、`:393-408` 末地天空）+ **Complementary r5.9（2026-09-10 新增：`lib/lighting/mainLighting.glsl:507-512` 末地方向门控、`:613` 的 `pow2(directionShade)` 门控、`lib/lighting/minimumLighting.glsl:2` 的 `#if !defined END` 暗部下限排除、`program/deferred1.glsl:386` 的 `1.0 - maxBlindnessDarkness` 天空压暗）** | 数值/思路参考（Mellow 调色与真空雾参数为其公开数值，表达式自写）；Solas 结构借鉴并降配（9 次查表降到 4 次、去掉螺旋域扭曲）；**Refrax 记为结构级**（雾色与天空地平线色同源、双正弦闪烁、立方面星野三项同源），Astra 侧已把星野重写为绕倾斜极旋转的 3D 晶格 + 天底立体投影、闪烁项改为权重与共轭相位形式，以脱离 Refrax 的表达式；**2026-09-10 新增 Complementary 表达式级移植**（方向门控与暗部下限为逐字移植，`sqrt` 折块光未移植、AO 通道缺失已上报） | Mellow：MIT / Solas：未声明 / Refrax：专有 / **Complementary：专有（License 1.7）** | `// PROVENANCE: rewritten for Astra - REWRITE REQUIRED before distribution`（Solas 条目下）+ Complementary 段 `REWRITE REQUIRED`（1.7 许可）+ 逐条 file:line 出处注释 |
 | `shaders/global/post/grading.glsl` | Mellow v3.4（`program/final.fsh:56-76` 的 vibrance→saturation→contrast 链序与显示空间标定）+ Refrax v1.3.1（其 grade pass 的出厂数值区间与 film-look 思路） | 仅思路（链序沿用已移植的 `lib/tonemap.glsl` 中 Mellow 算子的调用次序；Refrax 侧明写 IDEA ONLY、无代码移植，并丢弃其内置 auto-warmth（§4.4 未要求））；四套预设参数为 Astra 自写出厂值，色调对标尚待用户目视确认 | Mellow：MIT / Refrax：专有 | 文件头两段 `PROVENANCE`（Refrax 段标 `IDEA ONLY, no code`） |
 
-| `shaders/global/water/light_shafts.glsl` | Solas V2.2b `lib/atmosphere/volumetricLight.glsl`：视线阴影积分思路；**2026-09-21 T13 追加 Solas V3.7b `lib/atmosphere/volumetrics.glsl:56`（强度软叶 + 天光可见度下限）、`:192-194`（`exp2` 指数采样分布）、`:130-131`（光束色向天空偏移）三处思路参考** | Astra 自写：按可见水程分段、共享入水日光/相函数/消光、编码及按实际深度重建；SC-34-F1 移除独立图案与额外增益；**T13 新增的 `UNDERWATER_SHAFT_CALIBRATION` 臂（默认关、三档出厂均关）只借上述三条思路，表达式为 Astra 自写：峰值按出厂正午 0.45 归一（系数 0.075 = 0.45/6）、`exp2` 分布改由 `minDist`/`maxDist` 界定、天空偏移沿用 Astra 既有 `skyColor` 与 `time`，未复制参照的 `SOLAS_BY_SEPTONIOUS` DRM 宏、未读取或改动 `drm/`** | Solas：未声明（默认版权，ARR）；所依赖阴影/变换模块仍按原许可 | `// Written for Astra (SC-33)` + 标定臂逐处 `idea only; expression written for Astra, ARR` |
+| `shaders/global/water/light_shafts.glsl` | Solas V2.2b volumetricLight.glsl 与 composite3/5，Septonious | 改编；Astra 使用受限步进与按距离重建，历史 IterationT 实现已被替换 | Solas 部分沿用来源登记 | 文件头 Adapted from Solas |
 | `shaders/program/scene.glsl`（2026-09-21 T14 新增 `CLOUD_SHADOWS` 地面云影臂） | BSL（`lib/lighting/shadows.glsl:295-374` 的 `GetCloudShadow()`：2D 云噪声沿光向投到地面，`:325` 的 `CLOUD_REVEAL` 再打孔洞透射）+ Complementary r5.9 Reimagined（`lib/lighting/cloudShadows.glsl:60` 的 `cloudSample *= sqrt3(1.0 - abs(EdotL))` 地平线衰减） | **仅思路、零表达式移植**：Astra 侧全部复用既有自有件——被追迹的密度场是 `global/atmosphere/weather.glsl:122-136` 的 `astra_cloud_transmission`（本包自写单平面追迹，每片元 2 次 `textureLod`），遮蔽门是 `global/lighting/shadowmap.glsl:239-241` 的 `static_shadow`，权重 0.75 与 `smoothstep(0.0, 0.2, cloudLightDir.y)` 衰减为 Astra 自写；BSL 的 `CLOUD_REVEAL` 透射与其噪声选择、Reimagined 的 `gaux4` 云阴影回读均未实现也未复制 | BSL：All Rights Reserved / Complementary：License 1.7（两者均专有）——本轮为思路级、无上游代码或公式进入本包，故条款不触发；若日后升级为表达式移植须走 `shaders/lib/vendor/` 流程 | 消费点行内 `PROVENANCE ... IDEA ONLY, no code and no formula transplanted`（格式同 `global/post/grading.glsl:234`） |
 | `shaders/global/post/exposure.glsl`（2026-09-21 T15 新增 `AUTO_EXPOSURE`） | Refrax v1.3.1：`program/exposure.fsh.glsl:27-55` 的屏幕空间自动曝光结构（5×5 网格 + 高斯权重 + `log2` 几何均值 + `clamp(KEY/avgLum, MIN, MAX)` + texel 历史 + 变暗/变亮不对称速率）、`lib/post.glsl:9-18` 的 `sceneExposure()` 消费与下界/末地旁路（消费点 `program/grade.fsh.glsl:161-163`）、`lib/settings.glsl:91-98` 的常量形态 | **仅思路、零表达式移植**：Astra 侧全部自写——8×8 跨步 `texelFetch` 网格（弃 Refrax 的 `texture()` + `fract(uv*64.0)` 抖动：1 像素视口内导数无定义）、`exp(-abs(d)²·2.1)` 角点权重 0.35、逐抽 `AE_CLIP=4.0` 高光截断（Photon 建议的性质一）、有效性改用 `.a` 位（Refrax 的 `prev<=0.0` 会把触底增益误判为无历史）、混合在 `log2` 域做（线性域会让"变亮"永远滞后于"变暗"）、一个量化码的死区吸附防 8-bit 历史抖动、水下冻结历史、常量全部为 Astra 自定（KEY 0.18 / MIN 0.60 / MAX 2.20 / FAST 2.5 / SLOW 0.5，均给出推导而非照抄 0.22/0.70/2.60/2.20/0.90）、载体为 `size.buffer.colortex10=1 1`（非 Refrax 的 `EXPOSURE_REGION`） | Refrax：专有（保留所有权利，允许借鉴；结构级照抄须逐处登记）——本轮为思路级、无上游代码或公式进入本包 | 文件头 `PROVENANCE ... IDEA ONLY, no code and no formula transplanted`（形态同 `global/post/grading.glsl`） |
 
@@ -69,18 +71,12 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 
 ## Steadfast 借用复核（机械可验证）
 
-SC-33 新增：`shaders/global/water/light_shafts.glsl` 为 Astra 自写；思路参考本地 Solas V2.2b `lib/atmosphere/volumetricLight.glsl` 与 `program/shadow.glsl` 的视线阴影累计和水面聚光。未移植 computeVL 表达式；固定分段积分、宽尺度图案、RGBA 编码和深度重建为独立实现。现有 `program/composite.fsh` 保留 Steadfast 空气光束消费者，并追加 Astra 水下消费者；所依赖的阴影和空间变换仍按上表各自来源登记。
+水下光束当前来源以登记表和文件头为准：现实现改编自 Solas V2.2b，SC-33 自写版本与后来的 IterationT 版本均为历史实现，不再描述当前文件。
 
 - 复核命令：`python qa/tools/provenance_steadfast.py`（逐条比对 `Astra/shaders/shaders.properties`
   与 `_analysis/Steadfast-0.8.0/shaders/shaders.properties` 的 `uniform.*`/`variable.*` 定义；
   Steadfast 对同名保留多条历史定义，任一相同即计 verbatim）。
-- 台账声明计数：`verbatim=14 literal-suffix=2 rewritten=6 astra-only=27`（合计 **49** 条 = 四类
-  之和，口径为整段 CUSTOM UNIFORMS 的去重名称；实测 49 个名称对应 49 条定义、无同名重复，与
-  `check_pack.py` 第 6 项的行数口径 `27 uniform.* + 22 variable.*` = 49 一致。2026-09-21 随月相
-  CPU 标量新增 3 条自写表达式复算，四类由 `14/2/6/24` 变为 `14/2/6/27`。自纠：上一版本行把合计
-  写作 `48`，而当时四类之和是 46，两者本来就对不上——第 8 项只逐一比对四类计数、不核对合计，
-  所以这个偏差不会触发 FAIL，只能靠这样写明口径来防。更早的 `40`/`46`/`50` 均为当时各类之和的
-  口径记录，未逐条重算）—— `check_pack.py` 第 8 项把四类与脚本实算值比对，不一致即 FAIL。
+- 台账声明计数：`verbatim=14 literal-suffix=2 rewritten=6 astra-only=35`，合计 **57** 个名称，32 个 `uniform.*` 与 25 个 `variable.*`，无同名重复。`astra-only` 仅指 Steadfast 无同名定义；其他来源仍按文件和表达式登记。
 - **verbatim（14）**：sunVector、lightVector、worldSunVector、skyVisibilityDay、borderFogDistance、
   renderDistanceFogTweak、windChaos、windTheta、LdotF、clipLightVector、
   godraysBaseExposure、godraysExposure、godraysDayExposureMorning（0.24）、
@@ -97,9 +93,9 @@ SC-33 新增：`shaders/global/water/light_shafts.glsl` 为 Astra 自写；思�
   名称清单同时多出一个名字、合计与声明数对不上，正是这一处漏列所致）。
   （moonrise/sunrise 已随 2026-09-20 死 uniform
   清理删除——它们无着色器消费者，见 consolidated review E3。）
-- **astra-only（27）**：moonProgress、windStrength、
+- **astra-only（35）**：moonProgress、windStrength、
   astraHeldLightBase、astraBlocklightSuppression、astraHeldLightSuppression（E1 总成 2026-09-06 新增，
-  CPU 标量表达式自写），SC-24/33 水体链新增的 11 条 `astraSolas*`：
+  CPU 标量表达式自写），SC-24/33 水体链的 9 条 `astraSolas*`：
   astraSolasTAlin、astraSolasTAmin、astraSolasTAfrc、astraSolasTAfrs、astraSolasTAmix、
   astraSolasHA、astraSolasTimeAngle、astraSolasTimeBrightness、astraSolasShadowFade
   （Solas 时间/日相表达式，Astra 侧自行改写并加 `astra` 前缀，无 Steadfast 同名定义），
@@ -112,11 +108,10 @@ SC-33 新增：`shaders/global/water/light_shafts.glsl` 为 Astra 自写；思�
   2026-09-21 新增的月相标量 astraMoonIllumination / astraMoonLimbSign /
   astraMoonLightScale（三者由 `program/sky.fsh` 与 `global/dimension/overworld.glsl` 里
   原有的逐片元公式逐字搬上来，Steadfast 无同名定义，见 survey P0-4）。
-  更正记录（2026-09-10 晚）：此前记为 16 条，是 SC-24 之后未随维度与降雨改动更新所致；
-  2026-09-20 复算为 24 条（随 lib/noise.glsl 删除与 pow.glsl 登记更新）；2026-09-21 随月相
-  标量新增复算为 27 条、合计 49 条。历史值一律写成散文：`check_pack.py` 第 8 项会把台账里
-  每一处「类名紧跟等号或括号再加数字」都当作当前声明与实算值比对，旧数字按这一格式写出来，
-  就成了一条永远对不上的现值声明。
+  2026-09-25 新增 astraSkyDrySquared / astraSkyRoot / astraSkyColorM /
+  astraSkyNoonBase / astraSkyNightWeather / astraSkyNightUp / astraSkyNightMiddle /
+  astraCloudNoonAmbient，来自既有 Complementary 派生天空与云的逐片元公式，改为 CPU 每帧计算；
+  这八个名称不在 Steadfast 中，原公式来源不因计算位置改变。
   注：`astraSolas*` 现在声明在 `lib/solas_water.glsl`（水体模块自持）；`check_pack.py`
   第 6 项已改为扫描整棵 include 树，不再因只查 `lib/uniforms.glsl` 而误报。
 - 更正记录（2026-09-05）：本行原写"结构借鉴（表达式与分节模式，数值为 Astra 自定；
@@ -138,6 +133,8 @@ SC-33 新增：`shaders/global/water/light_shafts.glsl` 为 Astra 自写；思�
   - REWRITE REQUIRED before distribution`，**发布前须重写**（思路保留、表达自写）；其余行仍为
   结构借鉴/仅思路级别。Solas 侧现为**六行**：三行结构借鉴（`program/shadow.fsh` 的染色思路、`global/dimension/nether.glsl` 的 cloudy-fog 噪声塑形、`global/dimension/end.glsl` 的星野与星云查表结构）+ **三行表达式级移植（SC-24，2026-09-06）**——`global/water/` 的 absorption（waterFog）、caustics（waterCaustics）、refraction（composite4 REFRACTION 段），三文件头均带 `// From Solas V2.2b` + `REWRITE REQUIRED` 标记；若再升级为逐行移植，同样须加标记并在此更新。
 - C 系列（C1..C6）2026-09-05 新登记的 8 行已进上表：5 行为 Steadfast 代码派生（GPL 面扩大），3 行为 Solas/Mellow/Refrax 的结构与思路级借鉴。`check_pack.py` 第 8 项现为 PASS（台账行数与带出处头的文件双向对齐）。
+
+2026-09-25 更正：以上 SC-24 的三文件统一来源及头部标记描述仅记录当时状态。当前 absorption 为 Astra 距离输运实现，caustics 保留 Solas 水面高度场并采用独立解析聚焦场，refraction 改编自 Steadfast；light_shafts 改编自 Solas。blocklight 与 colors 的双来源已补入登记表。
 
 ## 2026-09-06 E1/E2 总成增量
 
@@ -304,7 +301,7 @@ WarpSpace、旋转矩阵、纹理噪声、FBM、pcurve、IGN 等未被当前渲�
   （输出到 BytesIO、不写盘）可从脚本逐字节复现上述三组哈希，是包内唯一有完整工具留痕的 PNG；
   另注 `astra-ripple-3.png` 没有任何 `customTexture` 绑定（只有 1/2 被 `shaders.properties` 引到）。
   边界原则：**代码级移植按专有处理并登记；图像/音频等美术资产一律不得取用。**
-- `shaders/global/water/light_shafts.glsl`：**结构移植**参考的
+- `shaders/global/water/light_shafts.glsl`：**历史实现，现已由 Solas 改编版本替换**。当时结构移植参考的
   `UnderwaterVolumetricFog`——`caustics³` 调制、`1/max(3, d*0.1)` 距离衰减、
   折射太阳方向的相函数、起始采样点远离相机。步进距离改为沿射线真实距离。
 - 授权：IterationT 归档无许可文件，按专有处理，与本文件既有的 Refrax 条目同级，

@@ -8,8 +8,10 @@
 #include "/lib/encoding.glsl"
 // Included from scene.glsl, which already guards on DIMENSION_NETHER; the option
 // itself uses a plain #ifdef so Iris registers the boolean (SC-28).
-#if defined NETHER_VOXEL_LIGHT && defined SHADOWS
-    #include "/global/dimension/nether_colored_light.glsl"
+#ifdef NETHER_VOXEL_LIGHT
+    #ifdef SHADOWS
+        #include "/global/dimension/nether_colored_light.glsl"
+    #endif
 #endif
 
 struct NetherParams {

@@ -232,8 +232,11 @@ def check_gui(opts):
                        for a in allowed):
                 c.fail(f"profile.{pname}: '{t}' is not one of {name}'s enumerated values")
         c.note(f"profile.{pname}: {len(pset)} tokens, complete={pset == set(opts)}")
-    if len(profiles) != 3:
-        c.fail(f"{len(profiles)} profiles, design 3.3 requires 3")
+    expected_profiles = set(TIER_ORDER) | {"NO_SHADOWS"}
+    if set(profiles) != expected_profiles:
+        c.fail("expected the three quality tiers plus NO_SHADOWS; missing="
+               + str(sorted(expected_profiles - set(profiles)))
+               + ", unexpected=" + str(sorted(set(profiles) - expected_profiles)))
     return c
 
 
@@ -660,6 +663,10 @@ def check_provenance():
         import provenance_steadfast
     except Exception as e:
         c.fail(f"cannot import provenance_steadfast to verify the Steadfast ledger: {e}")
+        return c
+    if not Path(provenance_steadfast.STEADFAST).is_file():
+        c.warn("Steadfast reference source is unavailable; expression comparison skipped. "
+               "File-header and ledger checks above still apply.")
         return c
     measured = provenance_steadfast.counts()
 
@@ -1119,7 +1126,7 @@ def check_tier_differential(opts):
     if absent:
         c.fail("missing profile(s): " + ", ".join(absent))
         return c
-    keys = list(prof["BALANCED"])
+    keys = sorted(opts)
 
     # BALANCED is the shipping default and the benchmark anchor: every one of its values
     # must equal the settings.glsl raw default, or the pack stops being reproducible
@@ -1131,7 +1138,7 @@ def check_tier_differential(opts):
             want = "off" if meta.get("commented") else "on"
         else:
             want = meta.get("value")
-        got = prof["BALANCED"][name]
+        got = prof["BALANCED"].get(name)
         if want is None:
             drift.append(f"{name}: no raw default in settings.glsl")
         elif str(want) != got:
@@ -1140,8 +1147,13 @@ def check_tier_differential(opts):
         c.fail("profile.BALANCED diverges from the settings.glsl defaults: "
                + "; ".join(drift))
 
-    # Values, not names: the three tiers list an identical 67-token set in an identical
-    # order, so comparing name sets proves nothing (survey 6 P0-1 verification).
+    missing = [f"{tier}.{name}" for tier in TIER_ORDER for name in keys
+               if name not in prof[tier]]
+    if missing:
+        c.fail("quality tiers omit registered options: " + ", ".join(missing))
+        return c
+
+    # Compare values: matching option names alone says nothing about tier cost.
     for a, b in [("PERFORMANCE", "BALANCED"), ("BALANCED", "ULTRA"),
                  ("PERFORMANCE", "ULTRA")]:
         diff = [k for k in keys if prof[a][k] != prof[b][k]]
@@ -1208,6 +1220,7 @@ GUARD_SYMBOL_SOURCES = {
 # value and lets the rest fall through, so these constants document a value instead of
 # selecting one. check 13 still requires each to be a real value of its option.
 ENUM_ARM_TOKENS = {
+    "SHADOW_FILTER_SOFTWARE": ("SHADOW_FILTER_MODE", "lib/settings.glsl tests SHADOW_FILTER_HARDWARE"),
     "SKY_MINISHITA": ("SKY_MODE", "global/dimension/overworld.glsl tests SKY_GRADIENT"),
     "SUN_MOON_DISCS": ("SUN_MOON_MODE", "program/sky.fsh tests SUN_MOON_VANILLA"),
     "WATER_BALANCED": ("WATER_CHARACTER", "global/water/absorption.glsl tests COLD and TROPICAL"),

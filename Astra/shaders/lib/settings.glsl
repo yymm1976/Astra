@@ -126,11 +126,11 @@
 // Refraction offset strength, %
 // Controls the finite wave layer; background depth cannot amplify this strength.
 #define WATER_ABSORPTION 100 // [0 10 20 30 40 50 60 70 80 90 100]
-// Underwater absorption amount, % (0 = OFF, enables deferred pass)
+// Underwater absorption amount, % (0 = OFF); deferred still supplies scene colour.
 #define WATER_CHARACTER 1 // [0 1 2]
 // Water palette: 0 = COLD, 1 = BALANCED, 2 = TROPICAL
 #define WATER_CAUSTICS // [false true]
-// 6-layer crest caustics from shadow-encoded water height
+// Analytic wave focusing, using shadow-encoded water height for the light path.
 //#define UNDERWATER_PARTICLES // [false true]
 // 2026-09-11 user round: default off. Both the reference look (Solas' still, clear
 // underwater) and the user's request ("大幅调低") are served better by the volume
