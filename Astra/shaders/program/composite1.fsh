@@ -8,8 +8,9 @@
 // pass order and the buffers final reads are E1's resolution (design.md 2.2,
 // tasks-advanced-1.md cooperative rule 2).
 //
-// The mip levels are the multi-scale bloom source: Iris regenerates them after this
-// pass, and bloom_composite() in global/post/bloom.glsl reads four of them. That is
+// The mip levels are the multi-scale bloom source: final.fsh requests their generation
+// immediately before it reads them. A request here would mipmap the previous contents
+// before capture overwrites level zero. bloom_composite() reads four levels. That is
 // what lets two passes do the work of Mellow's 6-pass pyramid.
 // design.md 3.2 layer 2: program/* is the only lib entry
 #include "/lib/settings.glsl"
@@ -20,10 +21,17 @@ in vec2 texcoord;
 
 uniform sampler2D colortex0;
 
-const bool colortex2MipmapEnabled = true;
-
 /* RENDERTARGETS: 2 */
 
 void main() {
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    // Underwater final uses the separate colortex7 bloom captured after water
+    // composition. This pre-water HDR pyramid has no consumer in that mode.
+    // Write a defined value so no framebuffer preservation is required.
+    if (isEyeInWater == 1) {
+        gl_FragData[0] = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+    #endif
 	gl_FragData[0] = vec4(bloom_capture(colortex0, texcoord), 1.0);
 }

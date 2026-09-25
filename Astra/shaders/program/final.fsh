@@ -26,6 +26,27 @@
 #ifndef DIMENSION_NETHER
 #ifndef DIMENSION_END
     uniform sampler2D colortex1;
+
+// Pair the four texel weights of three adjacent bilinear samples on each axis.
+// For fractional texel position f the weights are (1-f, 1, 1, f) / 3.
+// Unlike fixed offsets, these positions preserve the 3x3 box during upsampling.
+float godrays_box_filter(sampler2D source, vec2 uv) {
+    vec2 size = vec2(textureSize(source, 0));
+    vec2 position = uv * size - 0.5;
+    vec2 base = floor(position);
+    vec2 f = fract(position);
+    vec2 leftWeight = (2.0 - f) / 3.0;
+    vec2 rightWeight = (1.0 + f) / 3.0;
+    vec2 leftUV = (base - 0.5 + 1.0 / (2.0 - f)) / size;
+    vec2 rightUV = (base + 1.5 + f / (1.0 + f)) / size;
+    vec2 edge = 0.5 / size;
+    leftUV = clamp(leftUV, edge, 1.0 - edge);
+    rightUV = clamp(rightUV, edge, 1.0 - edge);
+    return texture(source, leftUV).r * leftWeight.x * leftWeight.y
+         + texture(source, vec2(rightUV.x, leftUV.y)).r * rightWeight.x * leftWeight.y
+         + texture(source, vec2(leftUV.x, rightUV.y)).r * leftWeight.x * rightWeight.y
+         + texture(source, rightUV).r * rightWeight.x * rightWeight.y;
+}
 #endif
 #endif
 #endif
@@ -54,19 +75,14 @@ void main() {
     #ifndef DIMENSION_NETHER
     #ifndef DIMENSION_END
         if (isEyeInWater == 0 && godraysExposure > 0.0) {
-            vec2 stepUV = 1.0 / vec2(textureSize(colortex1, 0));
-            float density = 0.0;
-            for (int y = -1; y <= 1; ++y)
-                for (int x = -1; x <= 1; ++x)
-                    density += texture(colortex1, clamp(texcoord + vec2(x,y)*stepUV,
-                               stepUV*0.5, 1.0-stepUV*0.5)).r;
+            float density = godrays_box_filter(colortex1, texcoord);
             #ifdef GODRAYS_SUN_OCCLUSION
                 // Program/scattering.fsh probes the solar disc once per frame and leaves
                 // the result here. A format without an alpha channel reads back 1.0, so
                 // the worst this carrier can do is nothing.
                 density *= texelFetch(colortex1, ivec2(0), 0).a;
             #endif
-            hdr += vec3(1.0, 0.91, 0.76) * (density / 9.0)
+            hdr += vec3(1.0, 0.91, 0.76) * density
                    * godraysExposure * (GODRAYS_STRENGTH * 0.01);
         }
     #endif
