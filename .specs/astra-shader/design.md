@@ -106,6 +106,8 @@ shadow ──► gbuffers_*（前向光照，单一 lit 入口）──► compo
 
 > **决议（随 SC-27，再推翻上两条，2026-09-06）：v1 全线使用 Iris 默认缓冲格式，格式 const 一律注释。** 决定性对照：本 Iris（1.11.2+mc26.2）上实际可用的 Complementary r5.8.1，其格式声明整块被注释；Mellow 发布版同样——五个参照包零反例，任何位置的活跃格式 const 都会 C1503。§2.3 表格保留为设计意图（带宽目标），恢复格式声明的机制待查（roadmap）；短期代价：HDR 精度与带宽回归默认，`shadowcolor0` 水面高度编码精度下降待实机确认。noise 纹理改走 `textures/noise.png` 自动绑定（删除全部 `texture.*.noisetex` 指令——本版 Iris 对 composite1/final 等阶段名报 Unknown texture stage）。
 
+> **修订（2026-09-26 追认，取代上条"一律注释"）：SC-27 的"格式 const 一律注释"经 2026-09-10 复核为误诊。** 现行 operative 规则见 `qa/tools/check_pack.py:830-834`：缓冲区名称合法（colortexN / shadowcolorN / depthtexN）、值为整数或全大写引擎 token、每缓冲唯一声明、声明由 `#ifndef` 守卫。§2.3 表格的默认格式目标与 SC-33 关于 colortex1 保留 RGBA 的结论不受影响；已获追认的两个活跃实例（`global/post/exposure.glsl:31` 的 `colortex10Format = RGBA32F`、`program/shadow.fsh:34` 的 `shadowcolor0Format = RGBA16F`）记于 `escalations.md`（2026-09-26）。
+
 **决议：E1/E2（SC-32，2026-09-07）水下颗粒从 deferred 移到 final 的显示合成。** 半透明水面在背景重建分支输出 alpha=1，会覆盖 deferred 内的颗粒；颗粒因此必须在半透明完成后、tonemap 前叠加。final 用现有 depthtex0 的最近可见表面约束颗粒距离，不写 colortex4；deferred 启用条件与 ASTRA_SCENE_COPY 保持一致，仅由 SSR/折射/吸收决定，UNDERWATER_PARTICLES 不强开副本。不增加 pass、缓冲、varying，默认格式仍按 SC-27；显示端新增一次水下深度读取，三层颗粒计算移位而非重复执行。
 
 **决议：E1/E2（SC-33，2026-09-07）水下光束复用 composite 与 colortex1。** 根层 composite 由空气光束或有效的水下光束选项启用，条件在 shaders.properties 预处理后写成 true/false；下界/末地仍禁用。水下输出 RGB=`sqrt(scatter/4)`、A=`min(rayLength,48)/48`；final 以四邻域、距离权重重建，解码后加到 HDR，再叠颗粒与既有显示链。colortex1 不再可降为 R8，必须保留 RGBA；SC-27 默认格式路线保持，不增加活跃格式 const、pass 或几何 varying。关闭彩色阴影和焦散不影响水下光束独立读取 shadowtex1/shadowcolor0。
@@ -531,7 +533,7 @@ E1–E4 不整体标完成：本次完成可由源码确认的修复与书面裁
 - 测光 = 新增 `composite5`，片元数每帧 1（`program/exposure.fsh`），输出 `colortex10`，`size.buffer.colortex10=1 1`。1 片元 pass 的先例是本包既有的 `program/water_state.fsh`（composite，写 `colortex6`，同为 1×1、逐帧不清零）；跨帧持久历史即靠这一条性质成立。
 - 时序合法性：`colortex0` 的最后一个写者是 composite3（`water_composite.fsh`），composite4 写 `colortex7`，故 composite5 读到的 `colortex0` 正是 final 将消费的那份场景线性 HDR。测光不得放在 composite3 之前，也不得放在写 `colortex0` 的 pass 内（禁止读正在写的缓冲，§2.2 既有禁令）。
 - 门控：`program.composite5.enabled=AUTO_EXPOSURE` 与两条 `program.world-1|world1/composite5.enabled=false` 一律写在 properties 预处理分支**之外**——`check_pack` #16 明文规定坐在 `#ifdef X` 里的门恰在需要关掉它时消失（`:327-329` 的 voxel 门同一教训）。下界/末地不测光：两维度的出厂曝光走 `GRADING_EXPOSURE_NETHER/END`（`global/post/grading.glsl:77,81`），是纯维度常量，掺进场景相关增益会同时毁掉"两维度可独立辨识"的一等公民目标（§4.5）。
-- 历史编码必须格式无关（SC-27 全线 Iris 默认格式、禁活跃格式 const）：`t = (log2(gain) - log2(AE_MIN)) / (log2(AE_MAX) - log2(AE_MIN))` 夹到 `[0,1]` 存 `.r`。默认格式无论 RGBA8 还是 RGBA16F 都能原样承载 `[0,1]`；按 `water_pack_surface_height` 对 `colortex6` 的 255 量化处理解，本包实际按 8-bit 归一化对待 1×1 缓冲，故 `[0.60, 2.20]` 的 1.874 octaves 摊到 255 码 = 每码 0.51% 增益台阶，量化台阶不可见且被平滑吸收。
+- 历史编码必须格式无关（SC-27 2026-09-26 修订：允许格式 const，规则为名称合法 + 全大写引擎 token + 每缓冲唯一声明 + `#ifndef` 守卫）：`t = (log2(gain) - log2(AE_MIN)) / (log2(AE_MAX) - log2(AE_MIN))` 夹到 `[0,1]` 存 `.r`。默认格式无论 RGBA8 还是 RGBA16F 都能原样承载 `[0,1]`；按 `water_pack_surface_height` 对 `colortex6` 的 255 量化处理解，本包实际按 8-bit 归一化对待 1×1 缓冲，故 `[0.60, 2.20]` 的 1.874 octaves 摊到 255 码 = 每码 0.51% 增益台阶，量化台阶不可见且被平滑吸收。
 - 消费点：`global/post/grading.glsl` 的 `apply_auto_exposure()`，线性/前置 tonemap，紧接 `apply_exposure()` 之前。`apply_exposure` 仍是用户滑杆的唯一落点；新增这一槽而非把两件事塞进同一函数，是为了让"用户增益"与"传感器增益"各自可关。
 
 **对调研「做法」的两条实测偏离**

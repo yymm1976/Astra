@@ -91,7 +91,7 @@ void main() {
         waterBinormal = normalize(mat3(gbufferModelViewInverse) * (gl_NormalMatrix * cross(at_tangent.xyz, gl_Normal.xyz) * at_tangent.w));
         vec3 worldView = view_player(viewPos.xyz);
         waterViewVector = vec3(dot(waterTangent, worldView), dot(waterBinormal, worldView), dot(normal, worldView));
-        waterViewDistance = length(viewPos);
+        waterViewDistance = length(viewPos.xyz);
     #endif
     vec3 playerPos = view_camera_relative(viewPos.xyz);
     #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END

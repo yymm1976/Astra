@@ -65,9 +65,7 @@ def read(p):
 
 
 def strip_comments(text):
-    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
-    text = re.sub(r"//[^\n]*", " ", text)
-    return text
+    return option_matrix.strip_comments(text)
 
 
 def rel(p):
@@ -838,7 +836,7 @@ def check_iris_parser_contracts():
     for p in shader_files:
         body = strip_comments(read(p))
         for m in re.finditer(
-                r"\bconst\s+int\s+(colortex\d+Format|depthtex\d+Format)\s*=\s*([^;]+);", body):
+                r"\bconst\s+int\s+((?:colortex|shadowcolor|depthtex)\d+Format)\s*=\s*([^;]+);", body):
             name, value = m.group(1), m.group(2).strip()
             format_decls.setdefault(name, []).append((pk(p), value))
     for name, decls in sorted(format_decls.items()):

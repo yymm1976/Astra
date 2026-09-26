@@ -209,12 +209,20 @@ vec4 astra_planar_cloud(vec3 worldDir, float maxRayDistance) {
 	float lowerPlaneAltitude  = ASTRA_CLOUD_ALTITUDE - ASTRA_CLOUD_STRETCH;
 
 	// ASTRA: guard the plane solve first; a horizontal ray makes both distances blow up.
-	if (abs(nPlayerPos.y) < 1e-5) return vec4(0.0);
-	float lowerPlaneDistance  = (lowerPlaneAltitude  - cameraPosition.y) / nPlayerPos.y;
-	float higherPlaneDistance = (higherPlaneAltitude - cameraPosition.y) / nPlayerPos.y;
-	float minPlaneDistance = min(lowerPlaneDistance, higherPlaneDistance);
-	      minPlaneDistance = max(minPlaneDistance, 0.0);
-	float maxPlaneDistance = max(lowerPlaneDistance, higherPlaneDistance);
+	float minPlaneDistance;
+	float maxPlaneDistance;
+	if (abs(nPlayerPos.y) < 1e-5) {
+		if (cameraPosition.y < lowerPlaneAltitude || cameraPosition.y > higherPlaneAltitude)
+			return vec4(0.0);
+		// A horizontal ray inside the slab exits at the horizontal distance limit.
+		minPlaneDistance = 0.0;
+		maxPlaneDistance = ASTRA_CLOUD_THRESHOLD_F;
+	} else {
+		float lowerPlaneDistance = (lowerPlaneAltitude - cameraPosition.y) / nPlayerPos.y;
+		float higherPlaneDistance = (higherPlaneAltitude - cameraPosition.y) / nPlayerPos.y;
+		minPlaneDistance = max(min(lowerPlaneDistance, higherPlaneDistance), 0.0);
+		maxPlaneDistance = max(lowerPlaneDistance, higherPlaneDistance);
+	}
 	if (maxPlaneDistance < 0.0) return vec4(0.0);
     if (minPlaneDistance * length(nPlayerPos.xz) > ASTRA_CLOUD_THRESHOLD_F)
         return vec4(0.0);

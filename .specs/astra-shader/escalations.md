@@ -107,3 +107,16 @@
 Solas 雾色 glare×16 与 VL 4-12x 目标（自写曲线，无表达式移植——许可红线）。
 完整记录：`docs/2026-09-08-shadow-water-fix-round.md`；
 回退点：commit `6fcb0fd`。视觉通过仍待 A–J 机位复测。
+
+## SC-27 格式声明追认（2026-09-26）
+
+来源：`docs/2026-09-26-project-review-followup.md` 的 P1 项。SC-27 原文"格式 const 一律注释"经 2026-09-10 复核为误诊；现行 operative 规则见 `qa/tools/check_pack.py:830-834`：名称合法（colortexN / shadowcolorN / depthtexN）、整数或全大写引擎 token、每缓冲唯一声明、`#ifndef` 守卫。design.md §2.3 SC-27 条与 SC-41 括注已同步。
+
+追认下列两个活跃格式 const 实例，不再按"一律注释"处理：
+
+| 实例 | 声明 | 用途 |
+|---|---|---|
+| `Astra/shaders/global/post/exposure.glsl:31` | `colortex10Format = RGBA32F` | 自动曝光历史缓冲需保留小步长精度（SC-41） |
+| `Astra/shaders/program/shadow.fsh:34` | `shadowcolor0Format = RGBA16F` | 焦散阴影颜色附件需承载超过 1.0 的受光峰值（`program/shadow.fsh` P1 修复） |
+
+两者均由 `#ifndef <token>` 守卫包裹，避免引擎未定义 token 时编译失败。此项为追认，不新增 SC 编号。

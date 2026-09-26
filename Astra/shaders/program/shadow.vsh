@@ -63,7 +63,7 @@ void astra_voxel_write() {
     uint kind = 0u;
     bool solid = true;
     // Water, plants and torches are not full cubes: they must not block the volume.
-    if(raw == 10001 || raw == 10010 || (raw >= 10004 && raw <=10006)) { kind = 0u; solid = false; }
+    if(raw == 10001 || raw == 10010 || (raw >= 10003 && raw <=10006)) { kind = 0u; solid = false; }
     if(raw >=10021 && raw <=10027) { kind=uint(raw-10019); solid = false; }
     if(raw ==10028) { kind=9u; solid = false; }
     if(raw ==10029) { kind=10u; solid = false; }

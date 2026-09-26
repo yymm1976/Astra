@@ -70,7 +70,7 @@ option.DITHERING=Output Dithering
 option.VIGNETTE=Vignette
 option.WAVING_FOLIAGE=Waving Foliage
 option.WAVING_FOLIAGE_STRENGTH=Waving Strength
-option.VOXY_SUPPORT=Voxy Support (Experimental)
+option.VOXY_SUPPORT=Voxy Support (Unavailable)
 
 option.SUNLIGHT_STRENGTH.comment=Adjusts the strength of direct sunlight. 100 = default.
 option.MOONLIGHT_STRENGTH.comment=Adjusts the strength of moonlight at night. 100 = default.
@@ -101,8 +101,8 @@ option.AIR_PERSPECTIVE.comment=Enables a warm horizon tint toward the sun at sun
 option.BIOME_TINT.comment=Enables subtle tinting of fog and ambient light by biome temperature/humidity.
 option.BIOME_TINT_STRENGTH.comment=Adjusts the intensity of the biome tint.
 option.WATER_WAVES.comment=Enables animated water surface normals.
-option.WATER_WAVE_HEIGHT.comment=Determines the amplitude of water waves.
-option.WATER_WAVE_SPEED.comment=Determines the flow speed of the water surface.
+option.WATER_WAVE_HEIGHT.comment=Determines water-wave amplitude when viewed from above or below the surface.
+option.WATER_WAVE_SPEED.comment=Determines water-surface flow speed when viewed from above or below the surface.
 option.SCREENSPACE_REFLECTIONS.comment=Enables SSR on water and ice top faces; falls back to sky reflection. §c[-]§r High cost when many reflective surfaces are on screen.
 option.SCREENSPACE_REFRACTION.comment=Enables refraction under the water surface with per-tap depth and side rejection.
 option.REFRACTION_STRENGTH.comment=Adjusts the distortion strength of the refracted background. Water depth does not amplify it further.
@@ -116,12 +116,12 @@ option.SKY_FOG_STRENGTH.comment=Adjusts how much near/mid fog blends into the sk
 option.BORDER_FOG.comment=Enables fog at the edges of the loaded world to hide chunk borders.
 option.CAVE_FOG.comment=Enables extra fog in deep underground areas.
 option.UNDERWATER_FOG_DENSITY.comment=Adjusts the density of underwater fog.
-option.NETHER_FOG_DENSITY.comment=Adjusts Nether fog density, which uses its own height and density curve.
+option.NETHER_FOG_DENSITY.comment=Adjusts Nether distance fog, plumes, haze and ceiling smoke together. Zero disables these layers; 70 is the default.
 option.END_FOG_DENSITY.comment=Adjusts the density of the End void fog gradient.
-option.NETHER_VOXEL_LIGHT.comment=Lets fire, soul fire and lava cast coloured volumetric light into the surrounding space, propagated 8 steps per frame across a 64-block volume around the player. Requires OpenGL 4.3 compute shaders; Iris hides the option on hardware without them.
+option.NETHER_VOXEL_LIGHT.comment=Lets fire, soul fire and lava cast coloured volumetric light into the surrounding space, propagated 8 steps per frame across a 64-block volume around the player. Requires Shadows to be enabled and support for OpenGL 4.3 compute shaders.
 option.TONEMAP_OPERATOR.comment=Determines the tone mapping curve.
 option.EXPOSURE.comment=Adjusts the overall brightness of the image.
-option.AUTO_EXPOSURE.comment=Measures the assembled frame and multiplies a bounded gain on top of the Exposure slider, so caves open up and sunlit exteriors stop blowing out. The gain never moves the picture further than about one stop either way, and it settles over roughly a second. §e[*]§r Overworld only, and only above water; the Nether, the End and the underwater view keep the manual slider. §c[-]§r Off in every profile; its key grey and adaptation rates still need in-game calibration.
+option.AUTO_EXPOSURE.comment=Smoothly adjusts exposure from scene brightness with a gain of 0.60 to 2.20. Darkening is faster than brightening. Applies only in Overworld air; underwater views, the Nether and the End keep manual exposure. Off in every profile.
 option.SATURATION.comment=Adjusts overall colorfulness of the image.
 option.VIBRANCE.comment=Adjusts the colorfulness of the image, but already colorful pixels are less affected.
 option.CONTRAST.comment=Adjusts the darkness of dark colors and brightness of bright colors.
@@ -135,7 +135,7 @@ option.DITHERING.comment=Applies interleaved gradient noise on the output to rem
 option.VIGNETTE.comment=Darkens the corners of the screen.
 option.WAVING_FOLIAGE.comment=Enables vertex-animated sway for leaves and plants.
 option.WAVING_FOLIAGE_STRENGTH.comment=Determines the amplitude of the foliage sway.
-option.VOXY_SUPPORT.comment=Enables rendering Voxy distant chunks with Astra lighting. §e[*]§r Experimental on 26.x.
+option.VOXY_SUPPORT.comment=Reserved integration switch. Voxy distant-terrain rendering is not implemented; enabling this option has no rendering effect.
 
 value.SKY_MODE.0=Minishita
 value.SKY_MODE.1=Gradient

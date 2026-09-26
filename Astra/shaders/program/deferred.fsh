@@ -70,7 +70,8 @@ vec3 puddle_reflection(vec3 playerPos, vec3 normal) {
     return result;
 }
 vec3 rainy_air(vec3 endPoint) {
-    if(astraRainFactor < 0.01 || isEyeInWater != 0 || skyVisibilityDay <= 0.0) return vec3(0.0);
+    if(astraRainFactor < 0.01 || isEyeInWater != 0 || skyVisibilityDay <= 0.0
+            || blindness > 0.0001) return vec3(0.0);
     float access = smoothstep(0.35,0.85,float(eyeBrightnessSmooth.y)/240.0);
     if(access <= 0.0) return vec3(0.0);
     vec3 L = normalize(view_player(lightVector));
@@ -168,27 +169,11 @@ void main() {
         displayed = astra_apply_medium(source, playerPos, skylight);
 
         #if !defined DIMENSION_NETHER && !defined DIMENSION_END && CLOUD_MODE == CLOUD_PLANAR
-        // F2 (2026-09-21): the sheet used to be composited ONLY on the far plane (the
-        // `depth >= 0.999999` branch below), so every terrain pixel - i.e. everything a
-        // player sees while standing above the layer and looking down - carried no cloud,
-        // while the sky past the render distance did. The cloud-free disc around the player
-        // is exactly the terrain footprint. Compose it here as well, but only when the sheet
-        // really lies between the eye and this fragment: the eye must be outside the layer,
-        // the travel direction must point at it, and the plane crossing must be nearer than
-        // the terrain distance. The gate is evaluated BEFORE the call because GLSL evaluates
-        // arguments unconditionally.
-        //
-        // Cost for normal ground play is one subtraction and one comparison per terrain
-        // pixel: below the layer a downward ray gives planeDistance < 0, so the block exits
-        // before any noise, march or texture fetch.
-        float cloudLower = ASTRA_CLOUD_ALTITUDE - ASTRA_CLOUD_STRETCH;
-        float cloudUpper = ASTRA_CLOUD_ALTITUDE + ASTRA_CLOUD_STRETCH;
-        float cloudTerrainDistance = length(playerPos);
-        vec3 cloudRay = normalize(view_player(screen_view(vec3(texcoord,1.0))));
-        float cloudEntryPlane = cameraPosition.y > cloudUpper ? cloudUpper : cloudLower;
-        float cloudPlaneDistance = (cloudEntryPlane - cameraPosition.y) / cloudRay.y;
-        if ((cameraPosition.y > cloudUpper || cameraPosition.y < cloudLower)
-            && cloudPlaneDistance > 0.0 && cloudPlaneDistance < cloudTerrainDistance) {
+        // The shared slab intersection also handles a camera inside the cloud.
+        // Misses return before noise sampling; the march stops at opaque terrain.
+        if (isEyeInWater < 2 && blindness <= 0.0001) {
+            float cloudTerrainDistance = length(playerPos);
+            vec3 cloudRay = normalize(view_player(screen_view(vec3(texcoord,1.0))));
             vec4 sheet = astra_planar_cloud(cloudRay, cloudTerrainDistance);
             if (sheet.a > 0.0) displayed = mix(displayed, sheet.rgb, sheet.a);
         }
@@ -223,6 +208,18 @@ void main() {
         source = displayed; // Refraction/SSR background must also contain sky.
     }
     #endif
+    // Sky has no geometry depth, but still lies behind the camera's medium.
+    // Apply this after celestial/cloud composition so neither can shine through.
+    bool obscureSky = isEyeInWater >= 2 || blindness > 0.0001;
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    // Overworld water applies blindness in composite3 to the complete scene.
+    obscureSky = obscureSky && isEyeInWater != 1;
+    #endif
+    if (depth >= 0.999999 && obscureSky) {
+        vec3 skyPosition = view_camera_relative(screen_view(vec3(texcoord, 1.0)));
+        displayed = astra_apply_medium(displayed, skyPosition, 1.0);
+        source = displayed;
+    }
     gl_FragData[0] = vec4(displayed, 1.0);
     gl_FragData[1] = vec4(source, 1.0);
 }

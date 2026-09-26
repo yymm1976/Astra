@@ -27,7 +27,7 @@ vec4 end_fog(out float skyFogStrength, float distanceToEye, float borderDistance
     vec3 c = END_VOID_COLOR;
     float dark = max(blindness, darknessFactor);
     if (dark > 0.0) { f = max(f, 1.0-exp(-distanceToEye * dark * 0.1)); c *= 1.0-dark; }
-    if (isEyeInWater == 2) { f = 1.0-exp(-distanceToEye*2.0); c=vec3(1.0,0.05,0.0); }
+    if (isEyeInWater == 2 && blindness <= 0.0001) { f = 1.0-exp(-distanceToEye*2.0); c=vec3(1.0,0.05,0.0); }
     return vec4(c, f);
 }
 // Reuse the same shadow visibility for surface highlights in the lit pass.

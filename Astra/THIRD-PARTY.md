@@ -32,6 +32,7 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 | `shaders/lib/bayer.glsl` | 无参考（自写：教科书式 Bayer 递归构造，公共域模式） | 自写 | — | `// written for Astra` |
 | `shaders/shaders.properties` 的 `CUSTOM UNIFORMS` 段 | Steadfast 0.8.0（coderbot）；其中 9 条 `astraSolas*` 改写自 Solas V2.2b 时间/日相表达式 | 表达式级移植；当前 57 条（32 `uniform.*` + 25 `variable.*`）：verbatim=14 literal-suffix=2 rewritten=6 astra-only=35。2026-09-25 将天空和云的逐帧颜色公式移至 CPU，新增 5 个 uniform 和 3 个中间变量；分类方法与名称见下节 | Steadfast 部分：GPLv3 + §7 两条附加条款；Solas 部分沿用其来源登记 | 段内保留 Steadfast 表达式级移植说明；astra-only 仅表示 Steadfast 无同名定义，不代表没有其他来源 |
 | `shaders/block.properties` 基础表（10001–10007、10021–10027） | Mellow v3.4（`block.properties` 现代分支） | 逐行移植（数据表；删除 floodfill 10020） | MIT | 文件头注明 |
+| `shaders/item.properties` | 沿用 Astra 的 `block.properties` 材质分类，其中基础成员表来自 Mellow v3.4（TheCMK）；玻璃、冰、末地石与黑曜石沿用 Astra 分类 | 按物品注册名整理；省略仅方块存在的 ID 及依赖激活状态的发光体 | Mellow 来源数据沿用 MIT | 文件头说明来源与整理范围 |
 | `shaders/block.properties` Astra 补全区（10010、10011，以及并入 10002/10004/10022/10025/10026/10027 的原版补漏 ID） | 无参考（自组：原版 1.21.x 事实 ID 数据） | 自写（2026-09-05 修正：block.properties 无 `+=` 追加运算符，原 6 条 `block.N+=` 行会整行替换基础表，已并入对应基础行） | — | 文件头注明 |
 | `shaders/entity.properties` | Refrax v1.3.1 / Solas V2.2b 的 `entity.properties`（仅分类思路） | 结构借鉴（分组方案自组，ID 内容为原版事实数据） | Refrax：专有 / Solas：未声明 | 文件头注明 |
 | `shaders/global/lighting/shadowmap.glsl` | Steadfast 0.8.0（`environment/lighting/shadowmap.glsl` 的 ShadowMapping/SampleShadows/静态回退、`program/world/lit.vsh` 的 ShadowMapPosition、`program/shadow/shadow.vsh` 的水面高度编码） | **表达式级移植**（snake_case 重命名；shadowMapResolution/shadowDistance/entityShadowDistanceMul/shadowHardwareFiltering 上移到 lib/settings.glsl 不在此重复；彩色阴影组合与焦散接口为 Astra 增补）。**2026-09-20 两处偏置与畸变常数解耦**：掠射项原借用 `SHADOW_DISTORT_FACTOR`（当时恰为 0.20 格），该常数已改为按影距归一后不再代表格数，故改用文件内 `shadowGrazingBias = 0.20`（出厂默认数值不变）；末地分支的固定 `+0.015` 格并入单一纹素倍率 `0.46`（= 原 0.30 加 0.015 格在 2048 档下的纹素数），使该项整体随 SHADOW_RESOLUTION 缩放而非部分冻结 | GPLv3 + §7 两条附加条款 | 文件头 GPL 声明 |
@@ -57,7 +58,7 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 
 | `shaders/global/water/light_shafts.glsl` | Solas V2.2b volumetricLight.glsl 与 composite3/5，Septonious | 改编；Astra 使用受限步进与按距离重建，历史 IterationT 实现已被替换 | Solas 部分沿用来源登记 | 文件头 Adapted from Solas |
 | `shaders/program/scene.glsl`（2026-09-21 T14 新增 `CLOUD_SHADOWS` 地面云影臂） | BSL（`lib/lighting/shadows.glsl:295-374` 的 `GetCloudShadow()`：2D 云噪声沿光向投到地面，`:325` 的 `CLOUD_REVEAL` 再打孔洞透射）+ Complementary r5.9 Reimagined（`lib/lighting/cloudShadows.glsl:60` 的 `cloudSample *= sqrt3(1.0 - abs(EdotL))` 地平线衰减） | **仅思路、零表达式移植**：Astra 侧全部复用既有自有件——被追迹的密度场是 `global/atmosphere/weather.glsl:122-136` 的 `astra_cloud_transmission`（本包自写单平面追迹，每片元 2 次 `textureLod`），遮蔽门是 `global/lighting/shadowmap.glsl:239-241` 的 `static_shadow`，权重 0.75 与 `smoothstep(0.0, 0.2, cloudLightDir.y)` 衰减为 Astra 自写；BSL 的 `CLOUD_REVEAL` 透射与其噪声选择、Reimagined 的 `gaux4` 云阴影回读均未实现也未复制 | BSL：All Rights Reserved / Complementary：License 1.7（两者均专有）——本轮为思路级、无上游代码或公式进入本包，故条款不触发；若日后升级为表达式移植须走 `shaders/lib/vendor/` 流程 | 消费点行内 `PROVENANCE ... IDEA ONLY, no code and no formula transplanted`（格式同 `global/post/grading.glsl:234`） |
-| `shaders/global/post/exposure.glsl`（2026-09-21 T15 新增 `AUTO_EXPOSURE`） | Refrax v1.3.1：`program/exposure.fsh.glsl:27-55` 的屏幕空间自动曝光结构（5×5 网格 + 高斯权重 + `log2` 几何均值 + `clamp(KEY/avgLum, MIN, MAX)` + texel 历史 + 变暗/变亮不对称速率）、`lib/post.glsl:9-18` 的 `sceneExposure()` 消费与下界/末地旁路（消费点 `program/grade.fsh.glsl:161-163`）、`lib/settings.glsl:91-98` 的常量形态 | **仅思路、零表达式移植**：Astra 侧全部自写——8×8 跨步 `texelFetch` 网格（弃 Refrax 的 `texture()` + `fract(uv*64.0)` 抖动：1 像素视口内导数无定义）、`exp(-abs(d)²·2.1)` 角点权重 0.35、逐抽 `AE_CLIP=4.0` 高光截断（Photon 建议的性质一）、有效性改用 `.a` 位（Refrax 的 `prev<=0.0` 会把触底增益误判为无历史）、混合在 `log2` 域做（线性域会让"变亮"永远滞后于"变暗"）、一个量化码的死区吸附防 8-bit 历史抖动、水下冻结历史、常量全部为 Astra 自定（KEY 0.18 / MIN 0.60 / MAX 2.20 / FAST 2.5 / SLOW 0.5，均给出推导而非照抄 0.22/0.70/2.60/2.20/0.90）、载体为 `size.buffer.colortex10=1 1`（非 Refrax 的 `EXPOSURE_REGION`） | Refrax：专有（保留所有权利，允许借鉴；结构级照抄须逐处登记）——本轮为思路级、无上游代码或公式进入本包 | 文件头 `PROVENANCE ... IDEA ONLY, no code and no formula transplanted`（形态同 `global/post/grading.glsl`） |
+| `shaders/global/post/exposure.glsl`（2026-09-21 T15 新增 `AUTO_EXPOSURE`） | Refrax v1.3.1：`program/exposure.fsh.glsl:27-55` 的屏幕空间自动曝光结构（5×5 网格 + 高斯权重 + `log2` 几何均值 + `clamp(KEY/avgLum, MIN, MAX)` + texel 历史 + 变暗/变亮不对称速率）、`lib/post.glsl:9-18` 的 `sceneExposure()` 消费与下界/末地旁路（消费点 `program/grade.fsh.glsl:161-163`）、`lib/settings.glsl:91-98` 的常量形态 | **仅思路、零表达式移植**：Astra 侧全部自写——8×8 跨步 `texelFetch` 网格（弃 Refrax 的 `texture()` + `fract(uv*64.0)` 抖动：1 像素视口内导数无定义）、`exp(-abs(d)²·2.1)` 角点权重 0.35、逐抽 `AE_CLIP=4.0` 高光截断（Photon 建议的性质一）、有效性改用 `.a` 位（Refrax 的 `prev<=0.0` 会把触底增益误判为无历史）、混合在 `log2` 域做（线性域会让"变亮"永远滞后于"变暗"）、持久化 RGBA32F 历史保留微小增益变化，距目标约 0.51% 时吸附、水下冻结历史、常量全部为 Astra 自定（KEY 0.18 / MIN 0.60 / MAX 2.20 / FAST 2.5 / SLOW 0.5，均给出推导而非照抄 0.22/0.70/2.60/2.20/0.90）、载体为 `size.buffer.colortex10=1 1`（非 Refrax 的 `EXPOSURE_REGION`） | Refrax：专有（保留所有权利，允许借鉴；结构级照抄须逐处登记）——本轮为思路级、无上游代码或公式进入本包 | 文件头 `PROVENANCE ... IDEA ONLY, no code and no formula transplanted`（形态同 `global/post/grading.glsl`） |
 
 ## 第三方隔离目录 `shaders/lib/vendor/`
 
@@ -195,7 +196,7 @@ C5本轮仅根据本机Voxy 0.2.18-beta字节码确认空白配置跳过加载�
 | shaders.properties | 接入并加前缀的 Solas 时间表达式，以及两组独立纹理绑定 |
 | program/lit.vsh、lit.fsh、scene.glsl、scattering.fsh、final.fsh | **自写**（Astra 管线适配/组合层，非借用行）：调用及组合以上对应来源，仍保留 Astra 的 SSR、天空、局部光和部分后处理。本行的出处由被调用的各模块行各自登记，此处不重复登记 |
 
-具体已接入与仍有差异的模块见 docs/2026-09-10-reference-effects.md；不得把本轮表达式移植描述为完整包逐像素复现。
+具体已接入与仍有差异的模块见该轮详情记录（历史报告已于 2026-09-26 清理，可在 git 历史查阅）；不得把本轮表达式移植描述为完整包逐像素复现。
 
 
 ### 2026-09-10 水体入射光、反射与合成补齐
@@ -263,7 +264,7 @@ WarpSpace、旋转矩阵、纹理噪声、FBM、pcurve、IGN 等未被当前渲�
 - 授权：IterationT 归档内**不含任何许可文件**，按专有处理，与本文件既有的 Refrax 条目同级——
   仅限当前个人使用定位；发布前必须整段重写或取得授权（design.md 9.3 发布闸门）。
 - 历史说明：本文件此前登记的 `end.glsl` 手写解析式黑洞已**整段移除**，改为调用上述移植模块；
-  被移除的实现连同两次失败记录保留在 `docs/2026-09-10-next-agent-dimensions-weather.md`
+  被移除的实现连同两次失败记录保留在历史交接记录（2026-09-26 已清理，可在 git 历史查阅）
   与 `qa/session-log.md` 中，供追溯。
 - `shaders/program/lit.fsh` 的像素端焦散增量为 Astra 自写（见该处注释），用于在水面之上
   接收、阴影贴图投射路径无法实机验证时保证焦散仍然可见；Solas 的写入端口径仍保留在
@@ -319,7 +320,7 @@ WarpSpace、旋转矩阵、纹理噪声、FBM、pcurve、IGN 等未被当前渲�
 - Steadfast/Mellow/ITT 本轮只用于性能结构对照，没有新增三者的表达式移植。既有来源与授权要求继续适用。
 
 ### 2026-09-13 晨昏光照联动
-参考 Complementary r5.9 lightAndAmbientColors、mainLighting 的包裹法线响应、skyColors、mainFog、Unbound 云层密度结构及 reflectionBackground。Astra 的晨昏线性光色、方向天空目标、两次采样的云反射近似和距离收敛参数为适配实现。原有 Complementary 来源登记继续适用；未新增参考图像资产。详细路径见 docs/2026-09-13-complementary-dawn.md。
+参考 Complementary r5.9 lightAndAmbientColors、mainLighting 的包裹法线响应、skyColors、mainFog、Unbound 云层密度结构及 reflectionBackground。Astra 的晨昏线性光色、方向天空目标、两次采样的云反射近似和距离收敛参数为适配实现。原有 Complementary 来源登记继续适用；未新增参考图像资产。详细路径见该轮登记记录（历史报告已于 2026-09-26 清理，可在 git 历史查阅）。
 
 ### 2026-09-21 T16 · P2-13「MIT 可署名复用清单」
 

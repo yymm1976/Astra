@@ -74,7 +74,7 @@ void main() {
     #ifdef GODRAYS
     #ifndef DIMENSION_NETHER
     #ifndef DIMENSION_END
-        if (isEyeInWater == 0 && godraysExposure > 0.0) {
+        if (isEyeInWater == 0 && godraysExposure > 0.0 && blindness <= 0.0001) {
             float density = godrays_box_filter(colortex1, texcoord);
             #ifdef GODRAYS_SUN_OCCLUSION
                 // Program/scattering.fsh probes the solar disc once per frame and leaves

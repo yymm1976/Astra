@@ -47,8 +47,12 @@ COMPARISON_RE = re.compile(r"(?:==|!=|<=|>=|<|>)")
 
 def strip_comments(text: str) -> str:
     """Blank out // and /* */ comments so commented-out code never counts as a consumer."""
-    text = re.sub(r"/\*.*?\*/", lambda m: "\n" * m.group(0).count("\n"), text, flags=re.S)
-    return "\n".join(re.sub(r"//.*", "", line) for line in text.splitlines())
+    # Match in source order: a path such as global/* inside a // comment must
+    # not consume live code through the next block comment. Preserve include
+    # strings, line numbers and token boundaries for every caller.
+    tokens = r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*[\s\S]*?\*/'
+    return re.sub(tokens, lambda m: m.group() if m.group().startswith('"')
+                  else re.sub(r"[^\n]", " ", m.group()), text)
 
 
 def shader_sources(root: Path = PACK) -> dict[str, str]:
@@ -80,7 +84,7 @@ def parse_options(settings_text: str) -> dict[str, dict]:
         out[name] = {
             "levels": levels,
             "bool": is_bool,
-            "default": raw or ("true" if is_bool else "false"),
+            "default": ("false" if match.group("off") else "true") if is_bool else raw,
             "declared": "off" if match.group("off") else "on",
         }
     return out
@@ -187,7 +191,9 @@ def to_override(name: str, level: str, info: dict) -> str | None:
 def levels_from_profile(profile: dict[str, str | None], name: str, info: dict) -> str:
     """A shaders.properties token -> this option's level name, so profile rows and
     matrix rows speak one vocabulary."""
-    value = profile.get(name)
+    if name not in profile:
+        return info["default"]
+    value = profile[name]
     if info["bool"]:
         return "false" if value is None else "true"
     if value in (None, ""):

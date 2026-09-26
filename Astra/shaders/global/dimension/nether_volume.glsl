@@ -61,6 +61,9 @@ vec4 astra_bliss_fog(
 	vec3 viewPosition,
 	float dither
 ){
+    // Keep the shipped 70% appearance while making zero disable every fog layer.
+    const float densityScale = NETHER_FOG_DENSITY / 70.0;
+    if (densityScale <= 0.0) return vec4(0.0, 0.0, 0.0, 1.0);
 
 
 	/// -------------  RAYMARCHING STUFF ------------- \\\
@@ -113,7 +116,7 @@ vec4 astra_bliss_fog(
 
 		//------ PLUME EFFECT
 			float plumeDensity = min(densityVol * pow4(min(max(100.0-progressW.y,0.0)/30.0,1.0)), pow5(clamp(1.0 - length(progressW-cameraPosition)/borderFogDistance,0.0,1.0)));
-			plumeDensity *= 0.22 * ASTRA_NETHER_PLUME_SCALE;
+			plumeDensity *= 0.22 * ASTRA_NETHER_PLUME_SCALE * densityScale;
 			float plumeVolumeCoeff = exp(-plumeDensity*dd*dL);
 
 			vec3 lighting = vec3(1.0,0.4,0.2) * exp(-15.0*densityVol) * (clearArea*clearArea*0.9+0.1);
@@ -125,7 +128,7 @@ vec4 astra_bliss_fog(
 			// dont make haze contrube to absorbance.
 			// The Bliss ReflectedFog gate is defined nowhere in this pack, so the 0.65
 			// was unconditional; the dead guard is gone (consolidated review E5).
-			float hazeDensity = 0.00065 * ASTRA_NETHER_HAZE_SCALE;
+			float hazeDensity = 0.00065 * ASTRA_NETHER_HAZE_SCALE * densityScale;
 			float hazeVolumeCoeff = exp(-hazeDensity*dd*dL);
 			
 			vec3 hazeLighting = hazeColor;
@@ -134,7 +137,7 @@ vec4 astra_bliss_fog(
 
 		//------ CEILING SMOKE EFFECT
 			float ceilingSmokeDensity = 0.001 * cube(min(max(progressW.y-40.0,0.0)/50.0,1.0));
-			ceilingSmokeDensity *= 0.60 * ASTRA_NETHER_CEILING_SCALE;
+			ceilingSmokeDensity *= 0.60 * ASTRA_NETHER_CEILING_SCALE * densityScale;
 			float ceilingSmokeVolumeCoeff = exp(-ceilingSmokeDensity*dd*dL);
 			
 			// Bliss's white ceiling term assumed its own exposure/palette. Use the

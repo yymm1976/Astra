@@ -4,7 +4,7 @@
 // ============================================================
 //  Astra v1 - lib/settings.glsl
 //  Single source of truth for ALL user options (design.md 3.3).
-//  7 GUI categories / 3 profiles (profile values live in shaders.properties).
+//  7 GUI categories / 4 profiles (profile values live in shaders.properties).
 //  Conventions (design.md 3.2):
 //    - macros UPPER_SNAKE_CASE
 //    - booleans use #ifdef (bare define = on, commented-out define = off)
@@ -59,8 +59,8 @@
 
 // --- SHADOWS ---
 #define SHADOW_FILTER_MODE 0 // [0 1]
-// 0 = sixteen software depth comparisons in four gathers, with per-corner tint;
-// 1 = four hardware comparison taps with a centre-material approximation.
+// 0 = software depth comparisons; 1 = hardware comparison gathers.
+// Both surface paths pair all sixteen corners with their individual caster tint.
 #define SHADOWS // [false true]
 // Master switch for shadow map
 #define SHADOW_RESOLUTION 2048 // [512 1024 1536 2048 3072 4096]
@@ -168,7 +168,7 @@
 // Underwater fog density, %
 // 2026-09-06 second visual round: factory 100 -> 55 (25-40 block visibility target)
 // 2026-09-07 visual round: 55 -> 42 (toward Steadfast/Solas clean-through look; visibility >32 blocks)
-#define NETHER_FOG_DENSITY 70 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define NETHER_FOG_DENSITY 70 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Nether fog density, % (independent curve, design 4.5)
 // 2026-09-11 user round: "下界的雾气稍多" -> 100 to 70. The volumetric plume/haze
 // layer in nether_volume.glsl is composited on top of this, so the total density is
@@ -221,7 +221,7 @@
 #define WAVING_FOLIAGE_STRENGTH 100 // [25 50 75 100 125 150 175 200]
 // Foliage sway strength, %
 //#define VOXY_SUPPORT // [false true]
-// Voxy distant-terrain support (EXPERIMENTAL on 26.x, design 4.6)
+// Reserved Voxy integration switch; distant-terrain rendering is not implemented.
 // Iris keeps this option only because lib/uniforms.glsl references it; the real
 // Voxy integration (voxy.json patch + Voxy programs) is still pending (owner C5).
 

@@ -25,6 +25,15 @@ in float waterHeight;
 in vec3 waterCasterWorld;
 #include "/global/water/caustics.glsl"
 
+#if defined WATER_CAUSTICS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+// GBA carry focused light above 1.0; a normalized attachment clips its peaks.
+// R keeps the existing water-height encoding and 1.0 no-water marker.
+#ifndef RGBA16F
+const int RGBA16F = 0;
+#endif
+const int shadowcolor0Format = RGBA16F;
+#endif
+
 /* RENDERTARGETS: 0 */
 // GBA stores light-transmission RGB, so A is data, not surface coverage.
 // Iris adds an output-alpha discard to legacy gl_FragData[0] writes. Use an

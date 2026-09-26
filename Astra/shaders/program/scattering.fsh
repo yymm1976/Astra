@@ -91,7 +91,7 @@ void main() {
 		gl_FragData[0] = vec4(0.0);
 		return;
 	#endif
-	if (godraysExposure <= 0.0) {
+	if (godraysExposure <= 0.0 || blindness > 0.0001) {
 		// Whole-pass early-out (design.md 5). The buffer would otherwise keep whatever
 		// uninitialised content it had, which is invisible normally but is undefined
 		// behaviour and shows up the moment anyone turns on a buffer debug view.

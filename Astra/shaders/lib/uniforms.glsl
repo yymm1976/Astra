@@ -48,7 +48,7 @@ uniform float rainfall;
 uniform int   frameCounter;            // lib/dither.glsl
 uniform float frameTimeCounter;        // lib/noise.glsl wind/water scroll
 uniform vec3  cameraPosition;          // world-space camera
-uniform int   isEyeInWater;            // 0/1/2/3 air|water|fire|powder snow
+uniform int   isEyeInWater;            // 0/1/2/3 air|water|lava|powder snow
 uniform mat4  gbufferModelView;
 uniform mat4  gbufferModelViewInverse;
 uniform mat4  gbufferProjection;

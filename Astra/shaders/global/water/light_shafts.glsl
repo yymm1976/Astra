@@ -60,7 +60,8 @@ vec4 water_shafts_march(vec2 uv) {
         if (currentDist > maxCurrentDist) break;
         vec3 point = view_camera_relative(viewPos * (currentDist / eyeDistance));
         vec3 pos = distort(player_shadow(point)) * 0.5 + 0.5;
-        if (max(abs(pos.x * 2.0 - 1.0), abs(pos.y * 2.0 - 1.0)) >= 1.0) continue;
+        float coverage = shadow_coverage(point, pos);
+        if (coverage <= 0.0) continue;
         float weight = pow((currentDist / maxDist) / float(UNDERWATER_SHAFT_SAMPLES),
                            1.0 - time * 0.5);
         #if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
@@ -68,6 +69,7 @@ vec4 water_shafts_march(vec2 uv) {
         #else
         float shade = clamp((texture(shadowtex1, pos.xy).r - pos.z) * 65536.0, 0.0, 1.0);
         #endif
+        shade *= coverage;
         if (shade <= 0.0) continue;
         float caustic = solas_water_caustics(point + cameraPosition);
         shade *= clamp(1.0 + ASTRA_CAUSTIC_SHAFT_CONTRAST * (caustic - ASTRA_CAUSTIC_MEDIAN),

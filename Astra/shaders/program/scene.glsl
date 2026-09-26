@@ -92,6 +92,11 @@ vec3 astra_water_segment(vec3 radiance, vec3 start, vec3 finish, float skylight)
 vec4 astra_fog(vec3 playerPos, float skylight) {
     float distanceToCamera = length(playerPos);
     vec3 direction = playerPos / max(distanceToCamera, 1e-5);
+    // Powder snow is a camera medium in every dimension. Use the engine's
+    // medium colour; ordinary atmosphere settings must not remove its occlusion.
+    if (isEyeInWater == 3 && blindness <= 0.0001)
+        return vec4(srgb_decode(max(fogColor, vec3(0.0))),
+                    smoothstep(0.0, 2.0, distanceToCamera));
     // Absolute world height of the fragment: the valley mist lives in the world, not
     // in camera space, so it must not move when the camera does.
     float fragWorldY = cameraPosition.y + playerPos.y;
@@ -174,7 +179,9 @@ vec4 astra_fog(vec3 playerPos, float skylight) {
 vec3 astra_apply_medium(vec3 color, vec3 playerPos, float skylight) {
     if (isEyeInWater == 1) {
         #if defined DIMENSION_NETHER || defined DIMENSION_END
-            return astra_water_segment(color, vec3(0.0), playerPos, skylight);
+            // These dimensions have no underwater composite to apply blindness.
+            if (blindness <= 0.0001)
+                return astra_water_segment(color, vec3(0.0), playerPos, skylight);
         #else
             // Camera water fog is composed once after all geometry.
             return color;

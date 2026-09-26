@@ -14,7 +14,7 @@
 // caustic field below is a separate analytic wave surface - see the block after it for
 // why the noise-derived field could not be turned into a focus network.
 float solas_water_height(vec3 p, vec2 offset) {
-    vec2 wind = vec2(frameTimeCounter) * 0.5 * 1.5;
+    vec2 wind = vec2(frameTimeCounter) * 0.5 * 1.5 * (WATER_WAVE_SPEED * 0.01);
     p.xz -= p.y * 0.2;
     float a = textureLod(solasWaterNoise, (p.xz - wind) / 256.0 + offset / 256.0, 0.0).g;
     float b = textureLod(solasWaterNoise, (p.xz + wind) / 48.0 + offset / 256.0, 0.0).g;
@@ -29,6 +29,8 @@ vec3 solas_water_normal(vec3 worldPos, vec3 face, vec3 tangent, vec3 binormal,
     }
     float x = (solas_water_height(worldPos, vec2(-0.5, 0.0)) - solas_water_height(worldPos, vec2(0.5, 0.0))) / 0.5;
     float y = (solas_water_height(worldPos, vec2(0.0, -0.5)) - solas_water_height(worldPos, vec2(0.0, 0.5))) / 0.5;
+    x *= WATER_WAVE_HEIGHT * 0.01;
+    y *= WATER_WAVE_HEIGHT * 0.01;
     return normalize(tangent * x + binormal * y + face * (1.0 - x*x - y*y - fresnel * 0.5));
 }
 // The include guard used to close here, leaving the geometric caustics below

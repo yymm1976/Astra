@@ -41,7 +41,8 @@ vec4 astra_procedural_moon(vec3 worldDir, vec3 centre, float angularRadius, vec3
 	float shown = mix(0.045, 1.0, phaseMask);
 
 	float alpha = disc * shown;
-	return vec4(color * alpha, alpha);
+	// gbuffers_skytextured uses SRC_ALPHA for both cloud modes.
+	return vec4(color, alpha);
 }
 
 vec4 astra_procedural_disc(vec3 worldDir, vec3 centre, float angularRadius, vec3 color) {
@@ -49,7 +50,7 @@ vec4 astra_procedural_disc(vec3 worldDir, vec3 centre, float angularRadius, vec3
 	float cosineAngle = dot(worldDir, normalize(centre));
 	float edge = max(fwidth(cosineAngle), 2.0e-6);
 	float alpha = smoothstep(cosineRadius - edge, cosineRadius + edge, cosineAngle);
-	return vec4(color * alpha, alpha);
+	return vec4(color, alpha);
 }
 
 void main() {

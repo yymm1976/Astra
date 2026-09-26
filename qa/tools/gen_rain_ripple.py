@@ -8,6 +8,7 @@ animation loops seamlessly in both time and space.
 The three sheets differ in wavelet count, expansion rate and ring width so the shader can
 stack them by rain intensity.
 """
+from pathlib import Path
 import numpy as np
 from PIL import Image
 
@@ -62,12 +63,19 @@ specs = [
     ("astra-ripple-2.png", 14, 1.00, 2.2, 0.50, 0.65, 2.4, 202),
     ("astra-ripple-3.png", 24, 1.30, 2.6, 0.45, 0.70, 2.2, 303),
 ]
-for name, n, speed, ring_w, amp, life_frac, slope, seed in specs:
-    fr = make_sheet(n, speed, ring_w, amp, life_frac, seed)
-    enc = to_normal(fr, slope)
-    tall = np.concatenate([enc[f] for f in range(F)], axis=0)
-    path = f"Astra/shaders/textures/{name}"
-    Image.fromarray(tall, "RGBA").save(path)
-    # report how strong the rings actually are
-    nz = enc[..., 2].astype(np.float64) / 255.0
-    print(f"{path}: {n} wavelets, tilt p99 = {np.degrees(np.arccos(np.percentile(nz, 1))):.1f} deg")
+def main():
+    textures = Path(__file__).resolve().parents[2] / "Astra/shaders/textures"
+    for name, n, speed, ring_w, amp, life_frac, slope, seed in specs:
+        fr = make_sheet(n, speed, ring_w, amp, life_frac, seed)
+        enc = to_normal(fr, slope)
+        tall = np.concatenate([enc[f] for f in range(F)], axis=0)
+        path = textures / name
+        Image.fromarray(tall, "RGBA").save(path)
+        # Report the angle from the decoded signed normal component.
+        nz = enc[..., 2].astype(np.float64) / 255.0 * 2.0 - 1.0
+        tilt = np.degrees(np.arccos(np.clip(np.percentile(nz, 1), -1.0, 1.0)))
+        print(f"{path}: {n} wavelets, tilt p99 = {tilt:.1f} deg")
+
+
+if __name__ == "__main__":
+    main()

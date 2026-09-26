@@ -23,6 +23,14 @@
 // the metering pass reads and writes the same texel every frame; global/water/
 // medium_state.glsl already relies on that for colortex6.
 uniform sampler2D colortex10;
+// Retain the previous frame and enough precision for small adaptation steps.
+// An RGBA8 history rounds those steps away long before the target is reached.
+#ifndef RGBA32F
+const int RGBA32F = 0;
+#endif
+const int colortex10Format = RGBA32F;
+const bool colortex10Clear = false;
+const vec4 colortex10ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
 
 const int   AE_GRID           = 8;
 // 8x8 = 64 taps of the assembled frame. Not a full-frame read: a screen-space gain has
@@ -53,11 +61,10 @@ const float AE_RATE_SLOW      = 0.5;
 // of darkness reads as eyes adjusting, which is the effect worth having.
 const float AE_LOG_MIN        = -0.73697;
 const float AE_LOG_SPAN       = 1.87444;
-const float AE_LOG_CODE       = 0.00735;
+const float AE_LOG_SNAP       = 0.00735;
 // log2(AE_MIN_GAIN) and log2(AE_MAX_GAIN) - log2(AE_MIN_GAIN), written out as numbers
-// because a GLSL ES const initialiser may not call a built-in. The history is an 8-bit
-// buffer, so one code is 0.51% of gain: finer than the smallest exposure change that
-// reads on screen, and the reason the gain can be stored in the log domain at all.
+// for the bounded log encoding. Snap within 0.51% of the target; the float history
+// preserves per-frame increments until this window is reached.
 
 float astra_ae_encode(float gain) {
 	return clamp((log2(clamp(gain, AE_MIN_GAIN, AE_MAX_GAIN)) - AE_LOG_MIN) / AE_LOG_SPAN,
@@ -102,8 +109,11 @@ vec4 astra_ae_frame(sampler2D scene, float deltaTime) {
 	// by darkening the picture.
 	vec4 history = texelFetch(colortex10, ivec2(0), 0);
     // A valid frozen history needs no scene metering while submerged.
-    if(isEyeInWater != 0 && history.a > 0.5 && !isnan(history.r))
-        return vec4(history.r,0.0,0.0,1.0);
+    if (isEyeInWater != 0) {
+        float code = history.a > 0.5 && !isnan(history.r)
+            ? history.r : astra_ae_encode(1.0);
+        return vec4(code, 0.0, 0.0, 1.0);
+    }
     float target = astra_ae_meter(scene);
 	float current = history.a > 0.5 ? astra_ae_decode(history.r) : target;
 	if (isnan(current)) current = target;
@@ -114,9 +124,8 @@ vec4 astra_ae_frame(sampler2D scene, float deltaTime) {
 	if (isEyeInWater == 0) {
 		float currentLog = log2(max(current, AE_FLOOR));
 		float targetLog = log2(max(target, AE_FLOOR));
-		if (abs(targetLog - currentLog) <= AE_LOG_CODE) {
-			// Closer than one code: the storage cannot represent the difference, so
-			// blending it would dither the gain between two codes for ever.
+		if (abs(targetLog - currentLog) <= AE_LOG_SNAP) {
+			// Finish imperceptibly small changes instead of leaving an endless tail.
 			current = target;
 		} else {
 			float rate = target < current ? AE_RATE_FAST : AE_RATE_SLOW;

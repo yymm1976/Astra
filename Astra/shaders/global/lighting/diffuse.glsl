@@ -238,7 +238,7 @@ float night_desaturation(float skyLight, float localAttenuation, vec3 visibility
 	float night = 1.0 - skyVisibilityDay;
 	// Night vision is the player asking for colour to survive the dark.
 	night *= 1.0 - clamp(nightVision, 0.0, 1.0);
-	float lit = dot(visibility, vec3(0.2126, 0.7152, 0.0722));
+	float lit = clamp(dot(visibility, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
 	return NIGHT_DESATURATION_INTENSITY * night * skyLight * localAttenuation * lit;
 }
 
@@ -332,7 +332,7 @@ vec3 diffuse_lighting(
             solas_water_lighting(ambient, direct, false);
         #endif
         float NoL = max(dot(worldNormal, worldLightVector), 0.0);
-        vec3 shadow = clamp(visibility * clamp(NoL * 1.01 - 0.01, 0.0, 1.0), 0.0, 1.0);
+        vec3 shadow = max(visibility * clamp(NoL * 1.01 - 0.01, 0.0, 1.0), vec3(0.0));
         // astraSolasShadowFade (a horizon-glare fade: 0 while the sun sits at the
         // horizon, 1 while it is clear of it) used to gate this blend. It no longer
         // does: direct light is gated by the sun's elevation instead (the term below),
@@ -340,8 +340,11 @@ vec3 diffuse_lighting(
         // sunAngle convention, 0.25 = noon: shadowFade's zero sits AT the horizon
         // crossings, not at noon - an earlier comment here had the two backwards.
         float underwaterSun = smoothstep(-0.02, 0.16, worldSunVector.y);
-        vec3 sceneLight = mix(ambient * skyLight * skyLight, direct,
-            shadow * (1.0 - wetness * 0.75) * underwaterSun);
+        vec3 sunWeight = shadow * (1.0 - wetness * 0.75) * underwaterSun;
+        // Preserve focused direct light above 1.0 without extrapolating the
+        // ambient blend to a negative contribution at caustic peaks.
+        vec3 sceneLight = ambient * skyLight * skyLight * (1.0 - clamp(sunWeight, 0.0, 1.0))
+                        + direct * sunWeight;
         float vanilla = (0.25 * worldNormal.y + 0.75)
             + (0.667 - abs(worldNormal.x)) * (1.0 - abs(worldNormal.y)) * 0.15;
         vanilla = mix(1.0, vanilla * vanilla, clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0));
