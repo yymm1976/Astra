@@ -150,7 +150,7 @@ shaders.properties:104  program.world1/deferred.enabled=true    ← 用 world1/ 
   ```
   `SHADOW_FILTER_SOFTWARE = 0`、`SHADOW_FILTER_MODE` 默认 `0`，且**四档 profile 全部** `SHADOW_FILTER_MODE=0`。即：该符号命名的是**被选中的那一臂**，而分支测试的是**另一值**并让它 fall through —— 这正是 `check_pack.py:1210-1214` 的 `ENUM_ARM_TOKENS` 豁免表存在的理由。
 - **校验器自相矛盾**：`option_matrix.py` 同时列出 4 个"无读者常量宏"——`SHADOW_FILTER_SOFTWARE, SKY_MINISHITA, SUN_MOON_DISCS, WATER_BALANCED`——而 #13 只因后三者**在豁免表里**才没有误报。`WATER_BALANCED` 与本案完全同构（它也是 `WATER_CHARACTER` 的出厂默认臂）。
-- 项目文档也已记录"保留这些 token"的决定（`docs/2026-09-20-hunyuan-full-review.md:197` A8；`docs/2026-09-20-qoder-full-review.md:58` F-20）。
+- 项目文档也已记录"保留这些 token"的决定（两份 2026-09-20 历史审查报告中的 A8 与 F-20 条目；报告已于 2026-09-26 清理，可在 git 历史查阅）。
 
 **修法**：把 `SHADOW_FILTER_SOFTWARE` 加入 `ENUM_ARM_TOKENS`（一行）。**若照提示字面删除，会丢掉落库默认臂的唯一文档。** 这是本次审查中**最重要的"不要照着做"的一条**。
 

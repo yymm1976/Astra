@@ -1,16 +1,22 @@
 # 文档入口与时效
 
-当前用户功能入口为 [Astra README](../Astra/README.md)，选项和调度以 `Astra/shaders/lib/settings.glsl`、`Astra/shaders/shaders.properties` 为准。本文状态更新于 2026-09-25。
+当前用户功能入口为 [Astra README](../Astra/README.md)，选项和调度以 `Astra/shaders/lib/settings.glsl`、`Astra/shaders/shaders.properties` 为准。本文状态更新于 2026-09-26。
 
 带日期的审查、任务记录和性能调研描述当时源码。其结论不自动适用于当前版本，也不是新的执行指令；旧的数量、参数、缺陷清单不能直接拿来修改当前实现。
 
 | 文档 | 适用范围 / 当前状态 |
 |---|---|
+| [09-26 全量源码审查续篇](2026-09-26-project-review-followup.md) | 最新一轮：焦散动态范围、介质遮挡、物品材质映射、选项与工具入口修复 |
+| [09-26 全项目审查与修复](2026-09-26-project-review.md) | 当日较早一轮的已实施修复与结论范围 |
 | [交接处理记录](2026-09-24-handoff-resolution.md) | 已实施改动的记录；观感待办不代表已经解决 |
 | [低配优化记录](2026-09-25-low-end-optimization.md) | 已实施优化及适用边界，不作固定 FPS 承诺 |
 | [跨包调研后续](2026-09-25-survey-followup.md) | 对调研指标的纠正与已采用的改动 |
 | [09-25 全量审查](2026-09-25-full-audit.md) | F-1/F-3/F-5/F-6 已处理，F-4 为工具误报且已修，F-2 不成立；不能作为当前缺陷清单 |
-| 其他 `*audit*.md` / `*review*.md` | 历史审查；各条仍需对照当前实现判定，不统一宣称全部已解决 |
+| [参考包批次登记与 Codex 提示词](2026-09-24-codex-refs-prompt.md) | 参考包批次登记与 Codex 提示词；属材料登记，非执行指令 |
+| [低配参考集第 3 轮调研](2026-09-25-low-end-shaders-round3.md) | 低配参考集第 3 轮调研；结论只描述当时样本 |
+| [17 包横向普查](2026-09-25-lowend-cross-pack-survey.md) | 低配包横向普查；描述当时样本，不构成当前结论 |
+| [09-26 全量审查与调研汇总](2026-09-26-full-review-and-research.md) | 全量审查 + IterationT 3.2 调研 + 完成度评估 + 水下接线审计 + 黑洞深读汇总 |
+| 历史轮次报告清理 | 2026-09-26 已清理 09-06 ~ 09-24 的 50 份历史轮次报告，git 历史可查；其结论仍需对照当前实现判定 |
 | [引擎前提](../qa/open-premises.md) | P-2 的距离乘链已有引擎依据；游戏观感与其他驱动情况独立记录 |
 | [工具配置](../qa/tools/README.md) | 本机路径配置、参考文件获取及退出状态 |
 
