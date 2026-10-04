@@ -1,9 +1,13 @@
 # Astra shaderpack repo — reference material stays out of version control
 /_analysis/
+/reference_shaderpacks/
 /*.zip
 
 # Python bytecode (qa/tools/check_pack.py imports provenance_steadfast)
 __pycache__/
+
+# Machine-specific Minecraft paths (command-line arguments/env still override).
+/qa/local_paths.json
 
 # bloom_lod_probe.py dumps every frame as RGBA32F floats (283 MB per run); the tool
 # regenerates them, only results.json and the baselines are evidence worth keeping
@@ -20,3 +24,10 @@ Thumbs.db
 /qa/underwater-light-*/
 /qa/**/*.f32
 /qa/**/*.npy
+
+# Local captures and raw image arrays; authored reports and PNG figures are tracked.
+/qa/runtime-feedback-*/
+/docs/images/*.npy
+
+# Local editor/session state.
+/.zcode/

@@ -1,0 +1,61 @@
+Astra pack validator | pack=Astra/shaders | python=3.10.11
+========================================================================
+[PASS] #1 settings.glsl option registry (design 3.3: 60-80 options)
+       . 79 options: 79 with value list, 32 bool, 47 slider/enum
+[PASS] #2 shaders.properties screen/sliders/profile <-> settings.glsl bijection
+       . 1 main screen + 7 categories: FOG, LIGHTING, PERFORMANCE, POST, SHADOWS, SKY, WATER
+       . 8 enum/dropdown option(s) (not sliders): ANTIALIASING, CLOUD_MODE, DEBUG_VERTEX_AO, SHADOW_FILTER_MODE, SKY_MODE, SUN_MOON_MODE, TONEMAP_OPERATOR, WATER_CHARACTER
+       . sliders=39 vs 39 slider-typed options
+       . profile.PERFORMANCE: 79 tokens, complete=True
+       . profile.NO_SHADOWS: 79 tokens, complete=True
+       . profile.BALANCED: 79 tokens, complete=True
+       . profile.ULTRA: 79 tokens, complete=True
+[PASS] #3 lang files cover every option with title + comment
+       . zh_CN.lang: 79 titles, 79 comments
+       . en_US.lang: 79 titles, 79 comments
+[FAIL] #4 include graph (design 3.2 layering): no dangling include, every entry reaches lib/settings.glsl, no unwired module, no layer violation
+       - orphan and not registered in PENDING_CONSUMERS: global/dimension/nether_volume.glsl (wire it or record its owner task)
+       - deferred.fsh: shell includes lib/settings.glsl directly - layer 1 shells must only #version/#define/include a program file (design 3.2)
+       ~ pending wiring: global/water/temporal.glsl <- owner R5 residual: the SSR hit-radiance history was retired 2026-09-28 (a geometry pass has no composite ping-pong contract); kept as the research record for a future composite-stage producer, see docs/2026-09-28-water-material-lighting.md
+       ~ pending wiring: voxy_opaque.glsl <- owner C5 (voxy.json patch data, not an #include entry)
+       ~ pending wiring: voxy_translucent.glsl <- owner C5 (voxy.json patch data, not an #include entry)
+       . 227 compiled entries, 78 lib/global modules, 74 reachable, 3 waiting on their owner task, 1 unwired-and-unregistered
+[PASS] #5 engine/vanilla symbols referenced by lib|global must be declared in the declaration layer (settings/uniforms)
+[PASS] #6 custom uniforms: shaders.properties <-> GLSL uniform declarations
+       . 32 uniform.* + 25 variable.* in properties; 118 uniform decl(s) across the include tree
+[PASS] #7 block.properties / entity.properties syntax + ID sanity
+       . block.properties: 27 id groups
+       . entity.properties: 5 id groups
+       . 138 minecraft: id(s) absent from all 4 reference packs (new/renamed, verify at smoke): minecraft:acacia_log, minecraft:acacia_planks, minecraft:acacia_wood, minecraft:andesite, minecraft:bamboo_block, minecraft:bamboo_mosaic, minecraft:bamboo_planks, minecraft:bamboo_sapling, minecraft:basalt, minecraft:birch_log, minecraft:birch_planks, minecraft:birch_wood
+[PASS] #8 THIRD-PARTY.md ledger <-> file provenance headers <-> license rules (design 9)
+       . 72 ledger rows
+       . Steadfast expression-diff matches every ledger count: verbatim=14 literal-suffix=2 rewritten=6 astra-only=35 (stated 12x)
+[PASS] #9 bayer.glsl ordered-dither matrix correctness
+       . matches canonical recursive Bayer8 (row-major, [y*8+x] indexing)
+[PASS] #10 M1 'minimal final chain' (design 7: tonemap + sRGB) actually present
+       . final.fsh: 20 lines of code, tonemap/sRGB present=False
+[FAIL] #11 Iris 1.11.2 parser contracts (SC-21..SC-27)
+       - boolean option DIRECTIONAL_SKYLIGHT is only referenced through defined() global/lighting/diffuse.glsl - with no #ifdef/#ifndef site, so Iris never discovers it: no GUI row and its profile token is inert (SC-28)
+       - boolean option SCREENSPACE_AO is only referenced through defined() program/deferred.fsh - with no #ifdef/#ifndef site, so Iris never discovers it: no GUI row and its profile token is inert (SC-28)
+       . 0 staged texture directive(s); 3 custom image(s); 10 compute shader(s); 64 engine const(s); 2 Voxy uniform declaration(s); Iris default buffer formats; 135/32 boolean option(s) wired
+[PASS] #12 profile tier differential (survey 6 P0-1: cost-monotone ladder)
+       . PERFORMANCE vs BALANCED: 16 value diff(s), density 16/79 = 20%
+       . BALANCED vs ULTRA: 7 value diff(s), density 7/79 = 9%
+       . PERFORMANCE vs ULTRA: 20 value diff(s), density 20/79 = 25%
+       . 20 of 79 listed tokens vary across tiers; non-cost by design: END_PRECESSION_MINUTES
+       . resolved per-tier pass and buffer sets: qa/tools/inspect_iris_properties.py
+[PASS] #13 option consumers and branch symbols (survey 6 P2-12 option matrix)
+       . 79 option(s), 45 of which can flip a preprocessor branch; pairwise matrix = 106 row(s), python qa/tools/compile_glsl.py --matrix
+[PASS] #14 buffer declarations live, unique and consumed (survey 6 P2-11)
+       . 96 live engine declaration(s) covering 28 buffer(s): colortex0=10, colortex10=1, colortex11=1, colortex12=1, colortex13=1, colortex14=1, colortex15=1, colortex16=2, colortex17=2, colortex18=2, colortex19=1, colortex2=1, colortex20=2, colortex21=1, colortex22=1, colortex23=1, colortex24=2, colortex25=1, colortex26=1, colortex27=1, colortex3=4, colortex4=1, colortex5=1, colortex6=1, colortex7=2, colortex8=2, colortex9=1, shadowcolor0=2; 0 declaration(s) hidden in comments
+[FAIL] #15 lib/vendor/ isolation and no multiplied licence text (survey 6 P2-10)
+       - global/post/fxaa.glsl: carries licence text (Permission is hereby granted, free of charge) outside lib/vendor/. Keep one copy in the upstream's vendor directory; a per-file licence header is the VanillaPlus failure mode (4,384 of 11,373 lines)
+       . lib/vendor/ exists: 2 upstream directory(ies) (lib/vendor/bakinglab, lib/vendor/glsl-tone-map), 11 file(s), 1 file(s) carrying licence text outside it
+[PASS] #16 per-dimension pipeline trimming uses keys Iris parses (survey P2-18)
+       . dimension folders world-1, world1; 60 program gate(s) (43 folder-qualified), 0 inert namespaced directive(s)
+       . 18 folder gate(s) whose pass file exists only at the pack root (world-1/composite2, world-1/composite3, world-1/composite4, world-1/composite5, world-1/deferred1, world-1/deferred2, world-1/prepare, world-1/prepare1, world-1/prepare2, world-1/prepare3, world1/composite2, world1/composite3, world1/composite4, world1/composite5, world1/deferred2, world1/prepare1, world1/prepare2, world1/prepare3): redundant if a dimension folder drops a pass it does not ship, load-bearing if Iris inherits the root source instead - 18 of them read a literal false, which switches the pass off either way
+       . per-dimension buffer sizing is not expressible on Iris 1.11.2 - size.buffer.* is keyed by the bare buffer name - so P2-18's allocation clause is closed by check_dimension_gating's namespaced-key rule instead
+[PASS] #17 built-in uniform type faces (Iris registration <-> GLSL declaration)
+       . 31 built-in declaration(s) checked against 151 registered names; 0 mismatches
+========================================================================
+17 checks: 3 FAIL, 0 WARN, 14 PASS
