@@ -47,6 +47,7 @@ public class EndPreview {
   glUniform1i(glGetUniformLocation(p,"panorama"),Integer.parseInt(args[4]));
   if(args.length>6) {bindImage(p,"astraEndTransfer",args[6],1);bindImage(p,"astraEndFlow",args[7],2);}
   if(args.length>8) bindImage(p,"astraEndTransferMeta",args[8],4);
+  if(args.length>13) bindImage(p,"astraEndFlowMips",args[13],5);
   if(args.length>11) glUniform3f(glGetUniformLocation(p,"previewLook"),
       Float.parseFloat(args[9]),Float.parseFloat(args[10]),Float.parseFloat(args[11]));
   if(args.length>12) glUniform1i(glGetUniformLocation(p,"previewForeground"),Integer.parseInt(args[12]));
@@ -95,7 +96,7 @@ def end_bloom(pixels):
     yy,xx=np.meshgrid((np.arange(h)+.5)/h,(np.arange(w)+.5)/w,indexing='ij')
     result=np.zeros_like(pixels)
     for level,weight in enumerate([.50,.25,.15,.10]):
-        result+=sample_bilinear(capture,xx*capture.shape[1]-.5,yy*capture.shape[0]-.5)*weight*.35
+        result+=sample_bilinear(capture,xx*capture.shape[1]-.5,yy*capture.shape[0]-.5)*weight*.21
         if level<3:
             nh,nw=capture.shape[0]//2,capture.shape[1]//2
             capture=capture[:nh*2,:nw*2].reshape(nh,2,nw,2,3).mean(axis=(1,3))
@@ -234,24 +235,34 @@ void main(){
         look=light*np.cos(np.deg2rad(offset))+disc_axis*np.sin(np.deg2rad(offset))
         look/=np.linalg.norm(look)
     java=JAVA.replace('1024,768',f'{args.width},{args.height}').replace('1024*768',f'{args.width}*{args.height}')
-    java=java.replace('1024*3/4',f'{args.width}*3/4').replace('768*3/4',f'{args.height}*3/4')
+    sky_scale=_re.search(r'^size\.buffer\.colortex9=([0-9.]+)\s+([0-9.]+)',
+                         (root_shaders/'shaders.properties').read_text(encoding='utf-8'),_re.M)
+    if sky_scale is None: raise ValueError('Missing End sky buffer scale')
+    java=java.replace('1024*3/4',str(int(args.width*float(sky_scale[1]))))
+    java=java.replace('768*3/4',str(int(args.height*float(sky_scale[2]))))
     cp=lwjgl_classpath(DEFAULT_MC_ROOT)
     out=root/args.output;out.parent.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='astra-end-') as tmp:
         t=Path(tmp);(t/'EndPreview.java').write_text(java,encoding='utf-8');(t/'end.frag').write_text(source,encoding='utf-8')
         subprocess.run(['javac','-cp',cp,str(t/'EndPreview.java')],check=True)
         seconds=args.seconds
-        subprocess.run(['java','-cp',cp+';'+str(t),'EndPreview',str(t/'end.frag'),str(t/'pixels.bin'),str(int(seconds%1200*20)),str(int(seconds//1200)),str(int(args.panorama)),str(seconds),str(root_shaders/'textures/astra-end-transfer.png'),str(root_shaders/'textures/astra-end-flow.png'),str(root_shaders/'textures/astra-end-transfer-meta.png'),str(look[0]),str(look[1]),str(look[2]),str(int(args.foreground))],check=True)
+        subprocess.run(['java','-cp',cp+';'+str(t),'EndPreview',str(t/'end.frag'),str(t/'pixels.bin'),str(int(seconds%1200*20)),str(int(seconds//1200)),str(int(args.panorama)),str(seconds),str(root_shaders/'textures/astra-end-transfer.png'),str(root_shaders/'textures/astra-end-flow.png'),str(root_shaders/'textures/astra-end-transfer-meta.png'),str(look[0]),str(look[1]),str(look[2]),str(int(args.foreground)),str(root_shaders/'textures/astra-end-flow-mips.png')],check=True)
         pixels=np.fromfile(t/'pixels.bin',dtype='>f4').reshape(args.height,args.width,4)[::-1,:,:3]
     assert np.isfinite(pixels).all(), 'Non-finite radiance'
     np.save(out.with_suffix('.npy'),pixels)
-    # Same Uchimura constants and sRGB transfer as Astra's default air display.
+    # End sky uses the configured curve on luminance, then fits the whole RGB
+    # vector to the display gamut. Match the default Uchimura sky shoulder.
     x=np.maximum(pixels,0)
     if not args.no_bloom: x=x+end_bloom(x)
+    x*=1.05
+    rgb=x
+    x=np.sum(rgb*np.array([.2126,.7152,.0722]),axis=2,keepdims=True)
     m=0.22; l0=(1-m)*0.4; s0=m+l0; s1=s0; c2=1/(1-s1)
     toe=np.clip(x/m,0,1); w0=1-toe*toe*(3-2*toe)
     w2=(x>=s0).astype(float); w1=1-w0-w2
     mapped=m*np.power(x/m,1.33)*w0+x*w1+(1-(1-s1)*np.exp(-c2*(x-s0)))*w2
+    mapped=rgb*(mapped/np.maximum(x,1e-6))
+    mapped/=np.maximum(mapped.max(axis=2,keepdims=True),1)
     display=np.where(mapped<=0.0031308,mapped*12.92,1.055*np.power(np.maximum(mapped,0),1/2.4)-0.055)
     Image.fromarray(np.uint8(np.clip(display*255,0,255))).save(out)
     print(f'{out} | max={pixels.max():.4f}, median={np.median(pixels):.6f}, finite=true')

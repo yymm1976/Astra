@@ -1,9 +1,12 @@
 #ifndef ASTRA_NETHER_VOLUME_GLSL
 #define ASTRA_NETHER_VOLUME_GLSL
+// Retired C3 research module. The active Nether uses homogeneous fog; this file
+// has no current volume producer, sampler bindings or program include.
+#include "/lib/nether_fog_density.glsl"
 // Adapted from X0nk Bliss Stable lib/nether_fog.glsl, retrieved 2026-09-10.
 // Original noise layout; Astra exposure uses lower plume/ceiling density.
 //
-// This volume is composited over the plain nether fog in program/scene.glsl as
+// The former integration composited this volume over the plain nether fog as
 //   result = result * volume.a + volume.rgb
 // which is the single-scattering form: the volume attenuates what is behind it and
 // adds its own in-scattered light exactly once. Do not fold the plain-fog term in
@@ -61,8 +64,9 @@ vec4 astra_bliss_fog(
 	vec3 viewPosition,
 	float dither
 ){
-    // Keep the shipped 70% appearance while making zero disable every fog layer.
-    const float densityScale = NETHER_FOG_DENSITY / 70.0;
+    // Share the distance fog's biome response; apply it once, before the march.
+    // Zero still disables all three layers, and wastes retains the 70% appearance.
+    float densityScale = (NETHER_FOG_DENSITY / 70.0) * astra_nether_biome_density();
     if (densityScale <= 0.0) return vec4(0.0, 0.0, 0.0, 1.0);
 
 
@@ -94,7 +98,7 @@ vec4 astra_bliss_fog(
 	vec3 color = vec3(0.0);
 	float absorbance = 1.0;
 
-	vec3 hazeColor = nether_palette(fogColor);
+	vec3 hazeColor = nether_atmosphere_tint(fogColor);
 
 
 	for (int i = 0; i < SAMPLECOUNT; i++) {
@@ -119,7 +123,7 @@ vec4 astra_bliss_fog(
 			plumeDensity *= 0.22 * ASTRA_NETHER_PLUME_SCALE * densityScale;
 			float plumeVolumeCoeff = exp(-plumeDensity*dd*dL);
 
-			vec3 lighting = vec3(1.0,0.4,0.2) * exp(-15.0*densityVol) * (clearArea*clearArea*0.9+0.1);
+			vec3 lighting = vec3(0.50,0.12,0.025) * exp(-15.0*densityVol) * (clearArea*clearArea*0.9+0.1);
 
 			color += (lighting - lighting * plumeVolumeCoeff) * absorbance;
 			absorbance *= plumeVolumeCoeff;

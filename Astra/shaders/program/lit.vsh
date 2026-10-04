@@ -3,8 +3,17 @@
 #include "/lib/uniforms.glsl"
 #include "/lib/encoding.glsl"
 #include "/lib/transforms.glsl"
+#include "/lib/wet_material.glsl"
+#include "/lib/ao_material.glsl"
 #include "/global/lighting/shadowmap.glsl"
 #include "/global/lighting/wind.glsl"
+#ifdef ASTRA_TAA
+#include "/lib/taa_state.glsl"
+uniform sampler2D colortex17;
+out vec4 taaPreviousClip;
+out float taaPreviousViewDepth;
+flat out float taaFoliageValid;
+#endif
 #ifdef ASTRA_TERRAIN
 in vec4 mc_Entity;
 in vec3 at_midBlock;
@@ -24,6 +33,7 @@ out vec3 cameraRelativePosition;
 out vec3 surfaceShadowPosition;
 flat out uint faceData;
 uint astra_material(int id) {
+    if (id == 10033) return 0u; // non-emitting partial shapes; voxel identity is separate
     if (id >= 10001 && id <= 10007) return uint(id - 10000);
     if (id == 10010) return 8u;
     if (id == 10011) return 9u;
@@ -32,12 +42,13 @@ uint astra_material(int id) {
     // values 0..11 in use (0 default, 1..7 block.properties classes, 8 glass, 9 ice,
     // 10 emissive, 11 end stone), so 12..15 are free and no bit extension is needed:
     // The octahedral normal keeps its 18-bit layout and no existing class changes
-    // value. Bit 22 separately tags End obsidian; bits 23..31 remain unused.
+    // value. Bit 22 tags End obsidian; bits 23..24 carry the independent wet class.
     if (id == 10013) return 12u;   // netherrack
     if (id == 10014) return 13u;   // blackstone / basalt family
     if (id == 10015) return 14u;   // deepslate family
     if (id == 10016) return 15u;   // stone / cobblestone family
     if (id >= 10021 && id <= 10030) return 10u;
+    if (id >= 10034 && id <= 10040) return 10u;
     return 0u;
 }
 void main() {
@@ -50,7 +61,11 @@ void main() {
         // AO is not opacity. Only terrain receives the separateAo contract.
         tint.a = 1.0;
         #ifndef DIMENSION_NETHER
+        #if defined ASTRA_SSAO && !defined ASTRA_TRANSLUCENT && !defined ASTRA_UNLIT_TERRAIN
+            // Classified below: AO receivers preserve albedo for ambient-only AO.
+        #else
             tint.rgb *= vertexAO;
+        #endif
         #endif
     #endif
     uint material = 0u;
@@ -64,9 +79,19 @@ void main() {
         if (entityId >= 100 && entityId <= 103) material = 10u;
         if (entityId == 1) material = 10u;
     #endif
+    #if defined ASTRA_SSAO && defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT && defined SHADOWS && !defined ASTRA_UNLIT_TERRAIN
+    if (!astra_ao_receiver(material)) tint.rgb *= vertexAO;
+    #endif
     vec3 normal = mat3(gbufferModelViewInverse) * (gl_NormalMatrix * gl_Normal);
     normal = dot(normal, normal) > 1e-8 ? normalize(normal) : vec3(0.0, 1.0, 0.0);
     faceData = pack_octahedral(normal, 9) | (material << 18);
+    #if defined DIMENSION_NETHER && defined ASTRA_TERRAIN
+    // Preserve lava identity separately from the shared emissive category.
+    if (int(mc_Entity.x + 0.5) == 10030) faceData |= 1u << 25;
+    #endif
+    #if defined ASTRA_TERRAIN && !defined DIMENSION_NETHER && !defined DIMENSION_END
+        faceData |= astra_wet_class(int(mc_Entity.x + 0.5)) << 23;
+    #endif
     #ifdef DIMENSION_END
     #if defined ASTRA_TERRAIN
         if(int(mc_Entity.x+0.5)==10017) faceData|=1u<<22;
@@ -120,16 +145,64 @@ void main() {
         viewPos.xyz = camera_relative_view(playerPos);
     }
     #endif
+    #ifdef ASTRA_TAA
+    taaPreviousClip=vec4(0.0);
+    taaPreviousViewDepth=0.0;
+    taaFoliageValid=0.0;
+    #if defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT
+    bool foliage=material==2u || material==4u || material==5u || material==6u;
+    vec4 effects, windState;
+    if(foliage && isEyeInWater==0 && astra_taa_state_valid(colortex17,effects,windState)) {
+        vec3 previousRelative=playerPos+(cameraPosition-previousCameraPosition);
+        #ifdef WAVING_FOLIAGE
+        bool previousGround=material==4u || material==5u || material==6u;
+        bool previousTop=material==6u || ((material==4u || material==5u) && at_midBlock.y<0.0);
+        float previousWindWeight=astra_foliage_wind_lod(previousRelative);
+        float previousStrength=windState.z*previousWindWeight;
+        // Anchored bases and fully faded wind keep the same previous position.
+        // They still retain valid camera motion, without reading unused phases.
+        if (previousStrength != 0.0 && (material==2u || (previousGround && previousTop))) {
+            vec3 windPhases=texelFetch(colortex17,ivec2(3,0),0).xyz;
+            previousRelative+=astra_foliage_displacement(playerPos+cameraPosition,
+                effects.z,windState.y,previousStrength,material==2u,previousGround,previousTop,windPhases);
+        }
+        #endif
+        vec4 previousView=gbufferPreviousModelView*vec4(previousRelative,1.0);
+        taaPreviousClip=gbufferPreviousProjection*previousView;
+        taaPreviousViewDepth=-previousView.z;
+        taaFoliageValid=1.0;
+    }
+    #endif
+    #endif
     #if defined ASTRA_TERRAIN && defined WAVING_FOLIAGE
         bool ground = material == 4u || material == 5u || material == 6u;
         bool top = material == 6u || ((material == 4u || material == 5u) && at_midBlock.y < 0.0);
-        wave_foliage(material == 2u, ground, top, playerPos);
-        viewPos.xyz = camera_relative_view(playerPos);
+        // Only displaced vertices need to rebuild the view-space position.
+        if (material == 2u || (ground && top)) {
+            wave_foliage(material == 2u, ground, top, playerPos);
+            viewPos.xyz = camera_relative_view(playerPos);
+        }
     #endif
     cameraRelativePosition = playerPos;
     // Match the shadow pass's interpolated triangle, including foliage motion.
     // Reprojecting the interior after a nonlinear warp uses a different surface.
-    surfaceShadowPosition = shadow_map_position(playerPos, normal,
-                                dot(normal, astra_shadow_light_direction()));
-    gl_Position = gl_ProjectionMatrix * viewPos;
+    #if defined SHADOWS && !defined DIMENSION_NETHER && !defined ASTRA_WEATHER
+    float shadowNdotL = dot(normal, astra_shadow_light_direction());
+    #if defined ASTRA_TERRAIN && !defined DIMENSION_END && !defined ASTRA_WATER_PASS
+    bool shadowReceiver = shadowNdotL > -0.10 || material == 8u;
+    #ifdef SSS_FOLIAGE
+    if (material >= 2u && material <= 6u)
+        shadowReceiver = material != 2u || shadowNdotL > -0.60;
+    #endif
+    // Flat native face normals cannot become lit after interpolation. The
+    // margin also covers their fragment-side octahedral quantization.
+    surfaceShadowPosition = vec3(0.0);
+    if (shadowReceiver)
+    #endif
+        surfaceShadowPosition = shadow_map_position(playerPos, normal, shadowNdotL);
+    #else
+    // These lighting paths never consume a projected surface shadow coordinate.
+    surfaceShadowPosition = vec3(0.0);
+    #endif
+    gl_Position = astra_jitter_clip(gl_ProjectionMatrix * viewPos);
 }

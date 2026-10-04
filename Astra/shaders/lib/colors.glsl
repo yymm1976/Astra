@@ -1,5 +1,6 @@
 #ifndef ASTRA_LIB_COLORS_GLSL
 #define ASTRA_LIB_COLORS_GLSL
+#include "/lib/color_controls.glsl"
 
 // Astra v1 — lib/colors.glsl
 // Light-source palette (design.md 3.1: 调色板 / 光色常量). C1 owns the *lighting*
@@ -37,7 +38,7 @@
 //   Direction matches Steadfast's ORANGER_BLOCKLIGHT lean without its overwhelming
 //   magnitude: gain (R) and back off (B) by the same fraction so the average luminance
 //   stays within ~5% of the prior value (cave materials keep their current tonemap fold).
-const vec3 BLOCKLIGHT_COLOR = vec3(4.4, 2.9, 1.7);
+const vec3 BLOCKLIGHT_COLOR = vec3(4.4, 2.9, 1.7) * ASTRA_TINT_BLOCK * ASTRA_STYLE_BLOCK;
 
 // Cave-floor minimum ambient. Two parts:
 //   MIN_AMBIENT_TINT  — the cool blue-ish direction of "darkness that is not pure black"
@@ -46,7 +47,7 @@ const vec3 BLOCKLIGHT_COLOR = vec3(4.4, 2.9, 1.7);
 //                       referenced Steadfast value 5 = 0.005).
 // The product reproduces Steadfast's minAmbientMinishita exactly at MIN_AMBIENT = 5:
 //   (5 * 0.001) * vec3(0.33, 0.8, 1.0) = vec3(0.00165, 0.004, 0.005).
-const vec3 MIN_AMBIENT_TINT  = vec3(0.33, 0.8, 1.0);
+const vec3 MIN_AMBIENT_TINT  = vec3(0.33, 0.8, 1.0) * ASTRA_TINT_CAVE;
 const vec3 MIN_AMBIENT_COLOR = (MIN_AMBIENT * 0.001) * MIN_AMBIENT_TINT;
 
 // Lightning flash tint — cool blue-white (Refrax THUNDER_TINT). Applied by

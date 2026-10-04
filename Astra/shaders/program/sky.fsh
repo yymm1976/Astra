@@ -77,9 +77,9 @@ void main() {
             // reads. No new pass and no new render target: one function call on four
             // pixels of sky per frame.
             celestial.rgb = astra_scene_highlights(celestial.rgb);
-            vec3 celestialDirection=astra_sky_world_direction();
-            float throughCloud = astra_cloud_transmission(cameraPosition,celestialDirection);
-            celestial.a *= throughCloud * mix(1.0,0.25,astraRainFactor);
+            // The current-frame cloud is composed after opaque depth exists.
+            // Deferred attenuates this additive celestial layer by that coverage.
+            celestial.a *= mix(1.0,0.25,astraRainFactor);
             gl_FragData[0] = celestial;
 		#else
 			vec3 worldDir = astra_sky_world_direction();
@@ -114,11 +114,6 @@ void main() {
         #endif
         #if SUN_MOON_MODE != SUN_MOON_VANILLA
         if (gl_FragData[0].a<=0.0) discard;
-        #if CLOUD_MODE == CLOUD_PLANAR
-        // The celestial pass is after skybasic: attenuate the disc by the
-        // same visible cloud sheet, also in clear weather.
-        gl_FragData[0].a *= 1.0-astra_planar_cloud(astra_sky_world_direction()).a;
-        #endif
         gl_FragData[0].a *= mix(1.0,0.22,astraRainFactor);
         #endif
     #endif

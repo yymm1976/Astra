@@ -1,6 +1,9 @@
 #ifndef ASTRA_GLOBAL_DIMENSION_OVERWORLD_GLSL
 #define ASTRA_GLOBAL_DIMENSION_OVERWORLD_GLSL
 #include "/lib/twilight.glsl"
+#if CLOUD_MODE == CLOUD_PLANAR && !defined ASTRA_SKY_CACHE_WRITE
+    #include "/lib/sky_reflection_cache.glsl"
+#endif
 
 // Astra v1 - overworld sky/light facade.
 // Uniforms: worldSunVector, sunProgress, moonProgress, skyVisibilityDay, sunrise,
@@ -15,6 +18,7 @@ vec3 astra_sky_radiance(vec3 worldDir) {
 #endif
     vec3 direction=normalize(worldDir);
     sky=astra_twilight_atmosphere(sky,direction);
+    sky *= astra_sky_color_gain(direction.y, skyVisibilityDay, astraTwilightFactor, astraDawnBlend);
 	sky = astra_twilight_highlights(sky);
 #ifdef LIGHTNING_FLASH
 	// Sky-wide part of a thunderstorm flash. Before this the bolt only existed as a point
@@ -26,17 +30,9 @@ vec3 astra_sky_radiance(vec3 worldDir) {
 }
 
 vec3 astra_sky_ambient() {
-	vec3 dayAmbient = mix(vec3(0.28, 0.30, 0.35), vec3(0.36, 0.43, 0.57), sunProgress);
-	vec3 nightAmbient = mix(vec3(0.050, 0.063, 0.086), vec3(0.083, 0.106, 0.148), moonProgress);
-	// C1 owns the user strength multiplier. This interface returns the untuned HDR colour so
-	// every lighting consumer applies SKYLIGHT_STRENGTH exactly once.
-	// Twilight is diffuse illumination and persists across the sun/moon handoff.
-	float twilight = smoothstep(-0.20, 0.08, worldSunVector.y);
-	vec3 ambient = mix(nightAmbient, dayAmbient, twilight);
-    vec3 morningAmbient=mix(vec3(0.13,0.14,0.18),vec3(0.29,0.25,0.255),
-                             smoothstep(-0.14,0.06,worldSunVector.y));
-    ambient=mix(ambient,morningAmbient,astra_twilight_strength());
-	return mix(ambient, vec3(dot(ambient, vec3(0.25, 0.65, 0.10))) * 0.78, rainStrength * 0.55);
+    // CPU evaluates the same day/night, twilight and rain palette once per frame.
+    // C1 still applies SKYLIGHT_STRENGTH exactly once at the consuming surface.
+    return astraAmbientPalette * ASTRA_TINT_AMBIENT * ASTRA_STYLE_AMBIENT;
 }
 
 // Reflection deliberately omits sun/moon discs and the star field. Roughness raises the
@@ -52,50 +48,20 @@ vec3 astra_sky_reflection(vec3 worldDir, float roughness) {
 	float r = clamp(roughness, 0.0, 1.0);
 	vec3 safeDir = normalize(vec3(worldDir.x, max(worldDir.y, mix(-0.03, 0.10, r)), worldDir.z));
 	float convergence = r * r * mix(0.22, 1.0, smoothstep(0.10, 0.40, r));
-    vec3 reflectedSky=astra_sky_radiance(safeDir);
-    #if CLOUD_MODE == CLOUD_PLANAR
-    // Complementary reflectionBackground reflects the same atmosphere and
-    // clouds. The reflection plane reuses the real sheet's own density test
-    // and visible-alpha law (clouds_planar.glsl:219/222-225/315-317) instead
-    // of a private threshold: the old arm started 0.04 below the march's hard
-    // gate, and its travel-based fade erased clouds the sheet still shows --
-    // a shallow ray's slant travel crosses 2400..4000 while its horizontal
-    // distance is still well inside the sheet's own ASTRA_CLOUD_THRESHOLD_F.
-    float morning=astra_twilight_strength();
-    if (morning>0.0 && safeDir.y>0.025 && cameraPosition.y<ASTRA_CLOUD_ALTITUDE) {
-        float travel=(ASTRA_CLOUD_ALTITUDE-cameraPosition.y)/safeDir.y;
-        vec3 hit=cameraPosition+safeDir*travel;
-        vec2 horizontalOffset=hit.xz-cameraPosition.xz;
-        float horizontalDistance2=dot(horizontalOffset,horizontalOffset);
-        float coverage=0.0;
-        if (horizontalDistance2<=ASTRA_CLOUD_THRESHOLD_F*ASTRA_CLOUD_THRESHOLD_F) {
-            float gate=astra_cloud_existence_gate(0.0);
-            float coarse=astra_cloud_coarse(hit,ASTRA_CLOUD_ALTITUDE);
-            // The sheet's layer-edge fade term is abs(ALTITUDE-y)/STRETCH; this
-            // plane solve lands exactly on ALTITUDE, so it is the sheet's
-            // mid-layer test with that term at its clamp floor (~0).
-            if (coarse>gate) {
-                float distanceRatio=(ASTRA_CLOUD_THRESHOLD_F-sqrt(horizontalDistance2))
-                                    /ASTRA_CLOUD_THRESHOLD_F;
-                // F1: same contract as the sheet -- gate on coarse, ramp starts at the gate.
-                float columnDensity=smoothstep(gate,astra_cloud_saturation(),
-                                               astra_cloud_noise(hit,ASTRA_CLOUD_ALTITUDE));
-                coverage=sqrt(clamp(distanceRatio,0.0,0.75)*1.33333)*columnDensity;
-            }
-        }
-        float toward=cube(max(dot(safeDir,worldSunVector),0.0));
-        vec3 body=vec3(0.18,0.15,0.17)+astra_twilight_sunlight()*(0.08+0.13*toward);
-        reflectedSky=mix(reflectedSky,body,coverage*morning*0.70);
-    }
+    #if CLOUD_MODE == CLOUD_PLANAR && !defined ASTRA_SKY_CACHE_WRITE
+        // Current-frame sky and the visible cloud model, shared by every reflector.
+        // The producer never enters this branch or binds its own target as a sampler.
+        vec3 reflectedSky = astra_cached_reflection_sky(safeDir, r);
+    #else
+        vec3 reflectedSky = astra_sky_radiance(safeDir);
     #endif
 	return mix(reflectedSky,
                astra_sky_ambient()+astra_twilight_sky(safeDir)*0.35, convergence);
 }
 
 vec3 astra_direct_light() {
-	vec3 sun = mix(vec3(0.92, 0.81, 0.65), vec3(1.10, 0.99, 0.83), sunProgress)
-	         * (SUNLIGHT_STRENGTH * 0.01);
-    sun = mix(sun,astra_twilight_sunlight()*(SUNLIGHT_STRENGTH*0.01),astra_twilight_strength());
+    vec3 sun = astraSunPalette * (SUNLIGHT_STRENGTH * 0.01)
+             * astra_sun_color_gain(astraTwilightFactor, astraDawnBlend);
 	// 2026-09-23 night-visual round ("夜晚阴影太多显得奇怪"): the old palette was a
 	// saturated blue (R<G<B, 0.30/0.40/0.62 -> 0.48/0.61/0.88) at 0.68 absolute, i.e.
 	// about 4x astra_sky_ambient(), so direct light dominated the night and every cast
@@ -105,8 +71,7 @@ vec3 astra_direct_light() {
 	// direct term lands at 1.5..2.3x the sky ambient over the whole moonProgress and
 	// moon-phase range (mid-phase/mid-phase 3.8:1 -> 1.9:1). See diffuse.glsl night note.
 	// Phase (astraMoonLightScale, 0.82..1.06) and the horizon/rain gates below are unchanged.
-	vec3 moon = mix(vec3(0.30, 0.30, 0.48), vec3(0.42, 0.42, 0.67), moonProgress)
-	          * (MOONLIGHT_STRENGTH * 0.0046);
+    vec3 moon = astraMoonPalette * (MOONLIGHT_STRENGTH * 0.0046) * ASTRA_TINT_MOON;
 	// Moon phase (design: the phase stays visible and is allowed a SMALL effect on
 	// direct moonlight - MakeUp does the same in its night palette). This multiplies
 	// the direct term only: the ambient term is astra_sky_ambient(), which has no phase
@@ -115,12 +80,9 @@ vec3 astra_direct_light() {
 	// hint that the moon is thin, not a second night cycle.
 	moon *= astraMoonLightScale;
 	// Match the actual shadow source, including Iris's dusk/dawn handoff.
-	vec3 source = normalize(view_player(lightVector));
-	float sunSource = step(0.0, dot(source, worldSunVector));
-	vec3 direct = mix(moon, sun, sunSource);
-	float horizon = mix(smoothstep(0.08,0.40,source.y),
-        smoothstep(0.0,0.085,source.y)*mix(0.82,1.0,smoothstep(0.12,0.40,source.y)),sunSource);
-	return direct * horizon * mix(1.0, 0.22, astraRainFactor);
+    // The source transform, normalization, handoff and horizon polynomials are
+    // uniform across the frame; shaders.properties evaluates them on the CPU.
+    return mix(moon, sun, astraSunSource) * astraDirectLightGate;
 }
 
 vec3 astra_overworld_sky(vec3 worldDir) {

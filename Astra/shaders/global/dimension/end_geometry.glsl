@@ -128,7 +128,27 @@ float end_box(vec3 p,vec3 size) {
     return length(max(d,vec3(0)))+min(max(d.x,max(d.y,d.z)),0.0);
 }
 // Conservative signed distances to original, genuinely three-dimensional solids.
-float end_body_shape(vec3 p,int id) {
+struct EndBodyShapeParams {
+    vec4 towerHeight;
+    vec4 towerZ;
+    vec3 shardZ;
+};
+EndBodyShapeParams end_body_shape_params(int id) {
+    EndBodyShapeParams params;
+    params.towerHeight=vec4(0.0); params.towerZ=vec4(0.0); params.shardZ=vec3(0.0);
+    if(id>=66) {
+        float seed=float(id)+31.0;
+        for(int j=0;j<4;j++) {
+            float f=float(j);
+            params.towerHeight[j]=0.32+0.35*end_hash(seed+f*17.0);
+            params.towerZ[j]=0.13*sin(seed+f*2.0);
+        }
+        for(int j=0;j<3;j++) params.shardZ[j]=0.12*sin(seed+float(j));
+    }
+    return params;
+}
+// Island dimensions depend only on the body ID, not on the current march point.
+float end_body_shape(vec3 p,int id,EndBodyShapeParams params) {
     float seed=float(id)+31.0;
     if(id>=66) {
         float radial=max(abs(p.x),abs(p.z)*1.35);
@@ -136,15 +156,15 @@ float end_body_shape(vec3 p,int id) {
         float shape=max((radial-1.0)*0.7,max((radial*0.80-p.y-0.95)*0.6,p.y-top));
         for(int j=0;j<4;j++) {
             float f=float(j), x=-0.67+f*0.44;
-            float h=0.32+0.35*end_hash(seed+f*17.0);
-            vec3 q=p-vec3(x,h*0.5+0.10,0.13*sin(seed+f*2.0));
+            float h=params.towerHeight[j];
+            vec3 q=p-vec3(x,h*0.5+0.10,params.towerZ[j]);
             float width=0.065+0.045*clamp(h-p.y,0.0,1.0);
             shape=min(shape,end_box(q,vec3(width,h*0.5,0.075)));
         }
         for(int j=0;j<3;j++) {
             float x=-0.56+float(j)*0.49;
             float bottom=-0.95+abs(x)*0.80;
-            vec3 q=p-vec3(x,bottom-0.06,0.12*sin(seed+float(j)));
+            vec3 q=p-vec3(x,bottom-0.06,params.shardZ[j]);
             shape=min(shape,end_box(q,vec3(0.065,0.22,0.11)));
             shape=max(shape,-end_box(p-vec3(x+0.14,bottom-0.06,0),vec3(0.04,0.17,0.80)));
         }
@@ -168,12 +188,17 @@ float end_body_shape(vec3 p,int id) {
     }
     return shape*0.8;
 }
-bool end_body_intersect(vec3 origin,vec3 ray,float limit,vec4 body,int id,float cone,
-                        out float hit,out vec3 normal,out float coverage) {
+float end_body_shape(vec3 p,int id) {
+    return end_body_shape(p,id,end_body_shape_params(id));
+}
+// Keep the march independent of shading: occlusion queries need only a hit,
+// and closest-body searches can defer the six shape samples for the normal.
+bool end_body_hit(vec3 origin,vec3 ray,float limit,vec4 body,int id,float cone,
+                  out float hit,out vec3 localHit,out float epsilon) {
     vec3 offset=origin-body.xyz;
     float along=dot(offset,ray), radius=body.w*1.65;
     float discriminant=along*along-dot(offset,offset)+radius*radius;
-    hit=END_FAR; normal=vec3(0,1,0); coverage=0.0;
+    hit=END_FAR; localHit=vec3(0.0); epsilon=0.0;
     if(discriminant<0.0) return false;
     float start=max(0.0,-along-sqrt(discriminant));
     float finish=min(limit,-along+sqrt(discriminant));
@@ -182,12 +207,13 @@ bool end_body_intersect(vec3 origin,vec3 ray,float limit,vec4 body,int id,float 
     vec3 p=transpose(basis)*(origin-body.xyz)/body.w;
     vec3 direction=transpose(basis)*ray;
     float t=start/body.w, endT=finish/body.w;
-    float epsilon=clamp(cone*max(start,0.1)/body.w*0.35,0.0003,0.015);
+    epsilon=clamp(cone*max(start,0.1)/body.w*0.35,0.0003,0.015);
     float closest=END_FAR, closestT=t;
     bool reached=false;
+    EndBodyShapeParams params=end_body_shape_params(id);
     for(int j=0;j<96;j++) {
         vec3 q=p+direction*t;
-        float d=end_body_shape(q,id);
+        float d=end_body_shape(q,id,params);
         if(d<closest) { closest=d; closestT=t; }
         if(d<epsilon) { reached=true; break; }
         t+=max(d,epsilon*0.25);
@@ -195,12 +221,23 @@ bool end_body_intersect(vec3 origin,vec3 ray,float limit,vec4 body,int id,float 
     }
     if(!reached) return false;
     hit=closestT*body.w;
-    vec3 q=p+direction*closestT;
+    localHit=p+direction*closestT;
+    return hit<limit;
+}
+vec3 end_body_normal(vec3 q,float epsilon,vec4 body,int id) {
     vec2 e=vec2(max(epsilon*0.5,0.0002),0.0);
-    vec3 gradient=vec3(end_body_shape(q+e.xyy,id)-end_body_shape(q-e.xyy,id),
-                       end_body_shape(q+e.yxy,id)-end_body_shape(q-e.yxy,id),
-                       end_body_shape(q+e.yyx,id)-end_body_shape(q-e.yyx,id));
-    normal=basis*normalize(gradient+vec3(1e-9));
+    EndBodyShapeParams params=end_body_shape_params(id);
+    vec3 gradient=vec3(end_body_shape(q+e.xyy,id,params)-end_body_shape(q-e.xyy,id,params),
+                       end_body_shape(q+e.yxy,id,params)-end_body_shape(q-e.yxy,id,params),
+                       end_body_shape(q+e.yyx,id,params)-end_body_shape(q-e.yyx,id,params));
+    return end_body_basis(body.xyz,id)*normalize(gradient+vec3(1e-9));
+}
+bool end_body_intersect(vec3 origin,vec3 ray,float limit,vec4 body,int id,float cone,
+                        out float hit,out vec3 normal,out float coverage) {
+    vec3 localHit; float epsilon;
+    normal=vec3(0,1,0); coverage=0.0;
+    if(!end_body_hit(origin,ray,limit,body,id,cone,hit,localHit,epsilon)) return false;
+    normal=end_body_normal(localHit,epsilon,body,id);
     // Once a solid is reached it is opaque; marching tolerance is not opacity.
     coverage=1.0;
     return hit<limit;
@@ -222,8 +259,9 @@ float end_body_shadow(vec3 position,vec3 light,vec4 body,int id) {
     vec3 p=transpose(basis)*(position-body.xyz)/body.w;
     vec3 direction=transpose(basis)*light;
     float t=0.025, visibility=1.0;
+    EndBodyShapeParams params=end_body_shape_params(id);
     for(int i=0;i<24;i++) {
-        float d=end_body_shape(p+direction*t,id);
+        float d=end_body_shape(p+direction*t,id,params);
         if(d<0.001) return 0.0;
         visibility=min(visibility,12.0*d/t);
         t+=max(d,0.01);

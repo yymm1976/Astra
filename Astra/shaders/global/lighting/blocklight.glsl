@@ -6,7 +6,7 @@
 // the handheld point light, and the lightning flash point light.
 //
 // Provenance (dual source — see THIRD-PARTY.md):
-//   - held_light_strength(), block_lighting(): From Steadfast 0.8.0 (GPLv3 + Section 7
+//   - block_lighting(): From Steadfast 0.8.0 (GPLv3 + Section 7
 //     additional terms) by coderbot, source: _analysis/Steadfast-0.8.0/shaders/environment/
 //     lighting/diffuse.glsl (HeldLightStrength, BlockLighting).
 //     This file is a derivative of Steadfast and is licensed under the GNU General Public
@@ -25,8 +25,9 @@
 //     Z3 uniform set is frozen at SC-14). blocklightSuppression and the handheld base are
 //     NOT recomputed here — they are documented parameters supplied by E1 (see contract).
 //   - BLOCKLIGHT_STRENGTH / HANDHELD_LIGHT_STRENGTH (%) scale the respective source's
-//     contribution to the shared 0..1 intensity; 100 = Steadfast-exact.
-//   - Steadfast's `heldLight` fragment field is computed here from camera distance
+//     contribution to the shared 0..1 intensity. The held-light curve is now original
+//     Astra, informed by SUMMARY's continuous falloff and player-centre ideas.
+//   - The `heldLight` fragment field is computed here from player-head distance
 //     (held_light_strength), not carried in: held light has no lightmap, it is purely
 //     "how far is this fragment from the light the player is holding".
 //
@@ -39,9 +40,9 @@
 //
 // Interface contract (E1 unfrozen — every non-frozen input is a documented parameter):
 //   skyLight, blockLight  — 0..1 lightmap values (1 = light level 15), E1-supplied.
-//   heldLightBase         — CPU: pow(heldBlockLightValue / 15, 4), 0..1 (Steadfast
-//                           heldLightBaseStrength). heldBlockLightValue is not in the frozen
-//                           uniforms.glsl, so E1 passes the precomputed base.
+//   heldLightBase         — CPU: max of both hands' light levels / 15, clamped 0..1.
+//                           The source cap and distance curve are applied below;
+//                           the shared light consumer subsequently takes its fourth power.
 //   blocklightSuppression — CPU: (1 - nightBlocklightFade) * (1 - pow(rainStrength, 4)),
 //                           0..1 (Steadfast blocklightSuppression). 0 = no suppression.
 //   heldLightSuppression  — CPU: smooth(eyeBrightness.y / 240, 0.4, 0.4), 0..1 (Steadfast
@@ -55,17 +56,18 @@
 
 #include "/lib/colors.glsl"
 
-// Handheld light: modelled on the same scale as a Minecraft block light, centred on the
-// camera. Linear falloff to zero at 15 blocks (Steadfast's tuned reach) rather than
-// inverse-square, which spilled light implausibly far. Gated by HANDHELD_LIGHTING;
-// HANDHELD_LIGHT_STRENGTH (%) scales the base the caller precomputed.
+// SUMMARY ideas (Hysteria/Insanity/BSL): player-centred continuous falloff and
+// a bounded source. Original Astra rational intensity, no reference expression
+// copied. The existing fourth-power consumer makes intensity fall as (1+d2/20.25)^-2.
+// The source cap is applied before the user's strength multiplier.
 float held_light_strength(float heldLightBase, vec3 playerPos) {
 	#ifndef HANDHELD_LIGHTING
 		return 0.0;
 	#else
-		float base = heldLightBase * (HANDHELD_LIGHT_STRENGTH * 0.01);
-		float fragDistance = length(playerPos);
-		return clamp(base - fragDistance / 15.0, 0.0, 1.0);
+		float base = min(heldLightBase, 14.0 / 15.0) * (HANDHELD_LIGHT_STRENGTH * 0.01);
+        if (base <= 0.0) return 0.0;
+        vec3 toLight = playerPos + relativeEyePosition;
+		return clamp(base * inversesqrt(1.0 + dot(toLight, toLight) / 20.25), 0.0, 1.0);
 	#endif
 }
 
@@ -79,7 +81,7 @@ float held_light_strength(float heldLightBase, vec3 playerPos) {
 // the suppression across most sky-lit area. Held light is additionally suppressed by the
 // player's OWN sky exposure (heldLightSuppression), so a torch held while standing in
 // sunlight does not still bleed into a nearby cave.
-vec3 block_lighting(
+float local_light_intensity(
 	float skyLight,
 	float blockLight,
 	float heldLight,
@@ -96,7 +98,13 @@ vec3 block_lighting(
 		heldLightIntensity *= 1.0 - heldLightSkyLight * blocklightSuppression;
 	#endif
 
-	return BLOCKLIGHT_COLOR * min(1.0, blockLightIntensity + heldLightIntensity);
+	return blockLightIntensity + heldLightIntensity;
+}
+
+vec3 block_lighting(float skyLight, float blockLight, float heldLight,
+                    float blocklightSuppression, float heldLightSuppression) {
+    return BLOCKLIGHT_COLOR * min(1.0, local_light_intensity(skyLight, blockLight, heldLight,
+                                  blocklightSuppression, heldLightSuppression));
 }
 
 // ---------------------------------------------------------------------------
@@ -124,13 +132,8 @@ float local_light_attenuation(
 	float blocklightSuppression,
 	float heldLightSuppression
 ) {
-	float blockLightIntensity = pow4(blockLight) * (BLOCKLIGHT_STRENGTH * 0.01);
-	float heldLightIntensity  = pow4(heldLight);
-	#ifdef BLOCKLIGHT_SUPPRESSION
-		blockLightIntensity *= 1.0 - sqrt(skyLight) * blocklightSuppression;
-		heldLightIntensity *= 1.0 - sqrt(max(skyLight, heldLightSuppression)) * blocklightSuppression;
-	#endif
-	return 1.0 - clamp(blockLightIntensity + heldLightIntensity, 0.0, 1.0);
+	return 1.0 - clamp(local_light_intensity(skyLight, blockLight, heldLight,
+                         blocklightSuppression, heldLightSuppression), 0.0, 1.0);
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +179,8 @@ vec3 lightning_point_light(vec3 playerPos, vec3 worldNormal, float skyLight, vec
 	if (bolt.w < 0.5) {
 		return vec3(0.0);
 	}
+	float reach = smoothstep(0.02, 0.40, skyLight);
+	if (reach <= 0.0) return vec3(0.0);
 
 	vec3 toBolt = bolt.xyz + vec3(0.0, LIGHTNING_LIFT, 0.0) - playerPos;
 	float d2 = dot(toBolt, toBolt);
@@ -183,8 +188,6 @@ vec3 lightning_point_light(vec3 playerPos, vec3 worldNormal, float skyLight, vec
 
 	float atten = LIGHTNING_RANGE2 / (LIGHTNING_RANGE2 + d2);
 	float wrap  = clamp(dot(worldNormal, L) * 0.55 + 0.45, 0.0, 1.0);
-	float reach = smoothstep(0.02, 0.40, skyLight);   // only sky-exposed surfaces catch the flash
-
 	return LIGHTNING_TINT * (atten * wrap * reach * LIGHTNING_INTENSITY);
 }
 

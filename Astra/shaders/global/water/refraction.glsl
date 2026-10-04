@@ -2,12 +2,16 @@
 #define ASTRA_GLOBAL_WATER_REFRACTION_GLSL
 // Adapted from Steadfast 0.8.0 environment/water/refraction.glsl, coderbot.
 // GPL-3.0-or-later with Section 7 terms; see Astra/LICENSE and THIRD-PARTY.md.
+// SUMMARY efficiency idea: avoid depth queries when refraction has no displacement.
 vec2 water_depth_range(sampler2D depthBuffer, vec2 uv) {
     vec4 depths = textureGather(depthBuffer, clamp(uv, vec2(0.0), vec2(1.0)));
     return vec2(min(min(depths.x, depths.y), min(depths.z, depths.w)),
                 max(max(depths.x, depths.y), max(depths.z, depths.w)));
 }
-vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 normalDelta) {
+vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 normalDelta, vec2 rasterUV) {
+    // A true zero-displacement path must retain the caller's pixel centre.
+    // Keep the existing projected origin for nonzero refraction.
+    if (REFRACTION_STRENGTH == 0 || dot(normalDelta, normalDelta) <= 0.0) return rasterUV;
     vec2 uv = view_screen(viewPos).xy;
     float backgroundDepth = water_depth_range(depthBuffer, uv).y;
     float backgroundZ = screen_view(vec3(uv, backgroundDepth)).z;
@@ -19,5 +23,8 @@ vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 normalDelta) {
     refractedUV = mix(uv, refractedUV, visibility);
     if (gl_FragCoord.z > water_depth_range(depthBuffer, refractedUV).x) return uv;
     return refractedUV;
+}
+vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 normalDelta) {
+    return water_refracted_uv(depthBuffer, viewPos, normalDelta, view_screen(viewPos).xy);
 }
 #endif

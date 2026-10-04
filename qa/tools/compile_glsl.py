@@ -18,12 +18,12 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from minecraft_paths import default_minecraft_root
+from shader_options import declaration
 
 
 DEFAULT_MC_ROOT = default_minecraft_root()
 PROFILE_RE = re.compile(r"^profile\.([A-Za-z0-9_]+)=(.*)$")
 INCLUDE_RE = re.compile(r'^\s*#include\s+["<]([^">]+)[">]\s*(?://.*)?$')
-DEFINE_RE = re.compile(r"^(\s*)(//\s*)?#define\s+([A-Z][A-Z0-9_]*)(?:\s+(.*?))?\s*$")
 
 # Values below are the ordinals of Iris 1.11.2's WorldRenderingPhase enum, read
 # from the installed iris.jar (net/irisshaders/iris/pipeline/WorldRenderingPhase).
@@ -207,24 +207,29 @@ def apply_profile_settings(text: str, values: dict[str, str | None]) -> str:
     output: list[str] = []
     seen: set[str] = set()
     for line in text.splitlines():
-        match = DEFINE_RE.match(line)
-        if not match or match.group(3) not in values:
+        item = declaration(line)
+        if not item or item.name not in values or (item.const_type and not item.levels):
             output.append(line)
             continue
-        indent, commented, name, old_value = match.groups()
+        indent, name = item.indent, item.name
         seen.add(name)
         value = values[name]
         # A profile token may enable or disable an option whose factory default is
         # the opposite, so the original commented/uncommented state is dropped here
         # in favour of the profile value.
-        if value is None:
+        if item.const_type:
+            if item.const_type == "bool":
+                value = "false" if value is None else "true" if value == "" else value
+            elif value is None or value == "":
+                raise ValueError(f"const option {name} requires a numeric value")
+            suffix = " " + item.comment if item.comment else ""
+            output.append(f"{indent}const {item.const_type} {name} = {value};{suffix}")
+        elif value is None:
             output.append(f"{indent}// profile disables {name}")
         elif value == "":
             output.append(f"{indent}#define {name}")
         else:
-            suffix = ""
-            if old_value and "//" in old_value:
-                suffix = " //" + old_value.split("//", 1)[1]
+            suffix = " " + item.comment if item.comment else ""
             output.append(f"{indent}#define {name} {value}{suffix}")
     missing = sorted(set(values) - seen)
     if missing:
@@ -443,6 +448,11 @@ def main() -> int:
         raise ValueError("no option configurations to compile")
     if args.batch_rows < 1:
         raise ValueError("--batch-rows must be at least 1")
+
+    # Resolve option declarations before reporting unrelated JDK/library errors.
+    settings = (shader_root / "lib/settings.glsl").read_text(encoding="utf-8-sig")
+    for _, values in work:
+        apply_profile_settings(settings, {**values, **overrides})
 
     javac = shutil.which("javac")
     java = shutil.which("java")

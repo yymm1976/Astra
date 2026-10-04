@@ -32,6 +32,7 @@ from collections import defaultdict
 from itertools import combinations
 from pathlib import Path
 import re
+from shader_options import declaration, parse_options as annotated_options
 
 ROOT = Path(__file__).resolve().parents[2]
 PACK = ROOT / "Astra" / "shaders"
@@ -43,6 +44,12 @@ DEFINE_RE = re.compile(
 CONDITION_RE = re.compile(r"^\s*#\s*(?:if|elif|ifdef|ifndef)\b")
 IFDEF_NAME_RE = re.compile(r"^\s*#\s*(?:ifdef|ifndef)\s+([A-Za-z_]\w*)")
 COMPARISON_RE = re.compile(r"(?:==|!=|<=|>=|<|>)")
+
+# This built-in is read by Iris to construct the sun/moon and shadow transforms,
+# rather than referenced by a GLSL expression. Do not exempt arbitrary constants.
+ENGINE_OPTION_CONSUMERS = {
+    "sunPathRotation": "Iris: sun/moon path and shadow transforms",
+}
 
 
 def strip_comments(text: str) -> str:
@@ -66,28 +73,13 @@ def shader_sources(root: Path = PACK) -> dict[str, str]:
 
 
 def parse_options(settings_text: str) -> dict[str, dict]:
-    """name -> {levels, bool, default, declared} for every `#define` with a value list.
-
-    `declared` records the shipped state: "on" for a live #define, "off" for a
-    commented-out one. A #define with no value list is a constant, not an option, so
-    Iris never shows a row for it and it is excluded here.
-    """
-    out: dict[str, dict] = {}
-    for line in settings_text.splitlines():
-        match = DEFINE_RE.match(line)
-        if not match or not match.group("levels"):
-            continue
-        name = match.group("name")
-        levels = match.group("levels").split()
-        is_bool = set(levels) == {"false", "true"}
-        raw = (match.group("value") or "").split("//")[0].strip()
-        out[name] = {
-            "levels": levels,
-            "bool": is_bool,
-            "default": ("false" if match.group("off") else "true") if is_bool else raw,
-            "declared": "off" if match.group("off") else "on",
-        }
-    return out
+    """Annotated macro and const options, using the shared Iris declaration parser."""
+    return {name: {"levels": list(item.levels), "bool": item.boolean,
+                   "default": (item.value if item.const_type else
+                               "false" if item.off else "true") if item.boolean else item.value,
+                   "declared": "off" if item.off else "on",
+                   "const_type": item.const_type}
+            for name, item in annotated_options(settings_text).items()}
 
 
 def _compared_values(line: str, name: str) -> set[str]:
@@ -110,6 +102,10 @@ def option_space(root: Path = PACK) -> dict:
     guards: dict[str, set[str]] = defaultdict(set)
     macros: dict[str, set[str]] = defaultdict(set)
 
+    for name, consumer in ENGINE_OPTION_CONSUMERS.items():
+        if name in options and options[name]["const_type"] == "float":
+            consumers[name].add(consumer)
+
     for rel, body in sources.items():
         # A backslash continuation hides everything after the first line from a
         # line-by-line scan, so join them before looking for conditionals.
@@ -118,9 +114,9 @@ def option_space(root: Path = PACK) -> dict:
             # A line that defines a name does not *read* it. Without this, every option's
             # own settings.glsl #define counts as a consumer and an option nobody reads -
             # the exact defect this module exists to find - could never be reported.
-            defining = DEFINE_RE.match(line)
+            defining = declaration(line)
             mentioned = [name for name in options
-                         if name != (defining and defining.group("name"))
+                         if name != (defining and defining.name)
                          and re.search(r"\b" + re.escape(name) + r"\b", line)]
             for name in mentioned:
                 consumers[name].add(rel)
@@ -183,7 +179,7 @@ def option_space(root: Path = PACK) -> dict:
 
 def to_override(name: str, level: str, info: dict) -> str | None:
     """A matrix level -> the value form apply_profile_settings expects."""
-    if not info["bool"]:
+    if not info["bool"] or info.get("const_type"):
         return level
     return "" if level == "true" else None
 
@@ -195,6 +191,8 @@ def levels_from_profile(profile: dict[str, str | None], name: str, info: dict) -
         return info["default"]
     value = profile[name]
     if info["bool"]:
+        if info.get("const_type") and value in ("false", "true"):
+            return value
         return "false" if value is None else "true"
     if value in (None, ""):
         return info["default"]

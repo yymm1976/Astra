@@ -13,40 +13,23 @@
 vec3 water_absorption_coefficient() {
     return vec3(0.055, 0.028, 0.010) * (WATER_ABSORPTION * 0.01);
 }
-vec3 water_surface_absorption(float appearanceDepth) {
-    // Air-side appearance per block of vertical depth, separate from volume
-    // extinction. Two ends interpolated by appearanceDepth (2026-09-21 A1):
-    //
-    //   shallow end - BLUE absorbed FASTER than green, so green survives and the
-    //     transmission is cyan-green. The 2026-09-20 consolidated review (C1) re-ordered
-    //     every spectrum so green was absorbed faster at EVERY depth; that fixed the deep
-    //     end but left the shallow transmission blue-leaning (g/b = 0.96 at 0 blocks),
-    //     so the shallows' cyan could only come from a warm bed - on a neutral bed they
-    //     read blue-teal (measured 184.6 deg hue). This end puts the green back.
-    //   deep end - green absorbed much faster than blue, by a wider margin than the old
-    //     single spectrum (gap 0.25 vs 0.04 per block; Steadfast's equivalent gap is
-    //     2/16 = 0.125 per block), so the water converges on deep blue with depth
-    //     instead of staying teal (measured 16 blocks: blue/green 1.63 -> 5.48).
-    //
-    // COLD keeps a single spectrum: it is the "blue from the shallows down" character.
-    vec3 shallow, deep;
+vec3 water_surface_absorption(vec2 depthBlend) {
+    // Continuous depth response without separate ramps meeting at five blocks.
+    // A modest shallow extinction retains body while the bed stays readable.
+    vec3 shallow = vec3(0.240, 0.045, 0.060);
+    vec3 middle, deep;
     #if WATER_CHARACTER == WATER_COLD
-        shallow = vec3(1.000, 0.2200, 0.0800);
-        deep    = vec3(1.000, 0.2200, 0.0800);
+        middle = vec3(0.230, 0.050, 0.035);
+        deep   = vec3(0.380, 0.180, 0.050);
     #elif WATER_CHARACTER == WATER_TROPICAL
-        // Strongest red removal; green survives the shallow band for the Caribbean
-        // cyan, blue wins the deep end.
-        shallow = vec3(2.000, 0.0400, 0.0700);
-        deep    = vec3(2.000, 0.2400, 0.0450);
+        middle = vec3(0.290, 0.020, 0.085);
+        deep   = vec3(0.460, 0.180, 0.040);
     #else
-        // Default: clear cyan-green shallows, teal middle depths, deep blue water.
-        shallow = vec3(1.000, 0.0500, 0.0900);
-        deep    = vec3(1.000, 0.3000, 0.0500);
+        middle = vec3(0.250, 0.025, 0.080);
+        deep   = vec3(0.420, 0.200, 0.045);
     #endif
-    // appearanceDepth is depth + 1 capped at 24 (water_surface_medium below), so the
-    // blend spans the first 15 blocks and then holds the deep end.
-    float blend = clamp((appearanceDepth - 1.0) / 15.0, 0.0, 1.0);
-    return mix(shallow, deep, blend) * (WATER_ABSORPTION * 0.01);
+    return mix(mix(shallow, middle, depthBlend.x), deep, depthBlend.y)
+         * (WATER_ABSORPTION * 0.01);
 }
 // Spectral single-scattering coefficient (100% fog-density reference point).
 // Kept small in red so the teal selectivity bought above is not diluted.
@@ -71,38 +54,23 @@ vec3 water_transport(vec3 radiance, float distanceInWater, vec3 incidentLight, v
 vec3 water_medium(vec3 radiance, float distanceInWater, vec3 incidentLight) {
     return water_transport(radiance, distanceInWater, incidentLight, water_extinction());
 }
-// Air-side appearance. Historically this branch was pure absorption ("do not add the
-// blue underwater volume source") - that prohibition stopped a grey-blue wash but also
-// made deep water converge on a black, green-tinted bed: with no in-scatter the water
-// never reads as a BODY, and the no-hit fallback path shaded it as exactly zero
-// (consolidated review C2 / F-06 / F-40, superseding the old rule; the underwater
-// VOLUME source is still not used here - the fill below uses the surface spectrum's
-// own equilibrium colour).
-// The +1 block offset keeps knee-deep water visibly tinted; the cap at 24 blocks lets
-// the deep end keep darkening instead of freezing at 16.
-vec3 water_body_color(float appearanceDepth) {
-    // The water's own colour as seen from air, scaled by daylight at the call site.
-    // 2026-09-22 (four-symptom round): this used to be one constant navy, (0.020, 0.160,
-    // 0.300), at EVERY depth - a hue the transmission curve it accompanies never has. At
-    // the shallow end it turned even knee-deep water to blue/green 3.31 while the bed it
-    // covered was being transmitted at 1.04, and the mismatch is what read as "grey-blue
-    // and opaque" from the bank (qa/tools/airside_water_probe.py sections 1-2 measured
-    // both ends). The two ends now follow the SAME (appearanceDepth - 1)/15 blend the
-    // spectrum uses: the shallow end carries the shallow transmission's own hue (T at 0
-    // blocks, (0.368, 0.951, 0.914), normalised to this luma - cyan-green), and the deep
-    // end keeps the old navy, so deep water still converges on blue.
-    float blend = clamp((appearanceDepth - 1.0) / 15.0, 0.0, 1.0);
-    return mix(vec3(0.056, 0.148, 0.142), vec3(0.020, 0.160, 0.300), blend);
+// Air-side fill follows the same continuous response as transmission. Existing
+// underwater absorption, scattering and wave optics remain independent.
+vec3 water_body_color(vec2 depthBlend) {
+    return mix(mix(vec3(0.065, 0.148, 0.150), vec3(0.056, 0.148, 0.142), depthBlend.x),
+               vec3(0.020, 0.160, 0.300), depthBlend.y);
 }
 vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight) {
-    float depth = max(verticalDepth, 0.0);
-    float appearanceDepth = clamp(depth + 1.0, 0.0, 24.0);
-    vec3 transmission = exp(-appearanceDepth * water_surface_absorption(appearanceDepth));
-    // Single-scattering fill: as the bed fades, the water's own colour takes over. Both
-    // ends see the same appearance depth, so fill and transmission cannot disagree about
-    // how deep this column is.
+    // Use the actual column thickness; an artificial extra block would tint
+    // even ankle-deep water and hide the neutral bed in a one-block pool.
+    float appearanceDepth = max(verticalDepth, 0.0);
+    float depthSquared = appearanceDepth * appearanceDepth;
+    // Shared by extinction and fill; no duplicate ramp or added exponential.
+    vec2 depthBlend = vec2(appearanceDepth / (appearanceDepth + 4.0),
+                          depthSquared / (depthSquared + 324.0));
+    vec3 transmission = exp(-appearanceDepth * water_surface_absorption(depthBlend));
     return radiance * transmission
-         + water_body_color(appearanceDepth) * clamp(incidentLight, 0.0, 2.0)
+         + water_body_color(depthBlend) * clamp(incidentLight, 0.0, 2.0)
            * (1.0 - transmission);
 }
 #endif

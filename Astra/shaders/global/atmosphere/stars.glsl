@@ -1,85 +1,128 @@
 #ifndef ASTRA_GLOBAL_ATMOSPHERE_STARS_GLSL
 #define ASTRA_GLOBAL_ATMOSPHERE_STARS_GLSL
 
-// ============================================================
-//  Astra v1 - star field, ported from Complementary r5.9 (Reimagined).
-//  Reference root: _analysis/Complementary r5.9/Reimagined/shaders/
-//    lib/atmospherics/stars.glsl:3-5    GetStarNoise   -> astra_star_noise()
-//    lib/atmospherics/stars.glsl:7-12   GetStarCoord   -> astra_star_coord()
-//    lib/atmospherics/stars.glsl:14-48  GetStars       -> astra_stars()
-//    program/gbuffers_skybasic.glsl:92  sphereness = 0.5 for the overworld
-//    program/gbuffers_skybasic.glsl:24  reflection uses sphereness = 0.5 too
-//
-//  The previous Astra implementation (cubemap-face cell hashing) is REPLACED.
-//  The reference projects the direction onto a sphere instead of a cube:
-//      starCoord = wpos / (wpos.y + length(wpos.xz) * sphereness)
-//  which removes the face-seam stretching the cube projection produced at the
-//  zenith and along the four vertical seams.
-//
-//  ASTRA MAPPING (reference input -> Astra input):
-//    syncedTime       <- frameTimeCounter   (reference: (worldTime + day*24000) * 0.05,
-//                                            i.e. seconds; Astra has no worldTime uniform)
-//    invRainFactor    <- 1.0 - rainStrength (reference: lib/common.glsl:744)
-//    invNoonFactor2   <- (1 - sunProgress)^2 (reference: lib/common.glsl:745-746;
-//                                            noonFactor <- sunProgress, see sky_gradient.glsl)
-//    sunVisibility    <- astra_sky_factors().sunVisibility (verbatim from worldSunVector.y)
-//    NIGHT_STAR_AMOUNT = 2 (reference default, lib/common.glsl:99) -> `star -= 0.7;`
-// ============================================================
+// Complementary r5.9 (Reimagined) provenance retained: spherical projection,
+// horizon / sun-moon exclusion and weather / dusk visibility envelopes.
+// Astra's integer catalogue, overlapping charts and colour / twinkle below
+// replace the former three sine hashes and frameTimeCounter position drift.
+// Photon / Bliss informed the stable four-corner reconstruction; their shader
+// functions and blackbody implementation are not copied here. See THIRD-PARTY.md.
 
 #include "/global/atmosphere/sky_gradient.glsl"
 
-// lib/atmospherics/stars.glsl:3-5
-float astra_star_noise(vec2 pos) {
-	return fract(sin(dot(pos, vec2(12.9898, 4.1414))) * 43758.54953);
+uint astra_star_hash(ivec2 cell, uint salt) {
+    uint h = uint(cell.x) * 1597334677u ^ uint(cell.y) * 3812015801u ^ salt;
+    h = (h ^ (h >> 15u)) * 2246822519u;
+    h = (h ^ (h >> 13u)) * 3266489917u;
+    return h ^ (h >> 16u);
 }
 
-// lib/atmospherics/stars.glsl:7-12
-// The reference takes a view-space position and converts it with gbufferModelViewInverse.
-// Astra's callers already hand us a world-space direction, so only the spherical
-// projection itself is kept (`viewPos * 1000.0` and the matrix multiply drop out).
-vec2 astra_star_coord(vec3 worldDir, float sphereness) {
-	vec3 wpos = normalize(worldDir);
-	vec3 starCoord = wpos / (wpos.y + length(wpos.xz) * sphereness);
-	starCoord.x += 0.006 * frameTimeCounter;   // ASTRA MAP: 0.006 * syncedTime
-	return starCoord.xz;
+vec3 astra_star_cell(ivec2 cell, uint salt) {
+    uint seed = astra_star_hash(cell, salt);
+    float draw = float(seed >> 8u) * (1.0 / 16777216.0);
+    // Default occupancy approximates the former product-of-three > 0.7 field.
+    #if STAR_AMOUNT == 1
+        const float coverage = 0.004;
+    #elif STAR_AMOUNT == 3
+        const float coverage = 0.009;
+    #elif STAR_AMOUNT == 4
+        const float coverage = 0.014;
+    #else
+        const float coverage = 0.0058;
+    #endif
+    if (draw <= 1.0 - coverage) return vec3(0.0);
+
+    float rank = (draw - (1.0 - coverage)) / coverage;
+    // A sparse bright tail shares the catalogue lookup with the small stars.
+    float flux = 0.95 * pow4(rank) * (1.0 + 0.35 * smoothstep(0.985, 1.0, rank));
+    uint detail = astra_star_hash(cell, seed ^ 277803737u);
+    float temperature = float(detail & 255u) * (1.0 / 255.0);
+    // Restrained colour-temperature palette, avoiding a per-star blackbody fit.
+    vec3 warm = vec3(1.0, 0.86, 0.72);
+    vec3 neutral = vec3(0.90, 0.95, 1.0);
+    vec3 cool = vec3(0.75, 0.86, 1.0);
+    vec3 colour = temperature < 0.5
+        ? mix(warm, neutral, temperature * 2.0)
+        : mix(neutral, cool, temperature * 2.0 - 1.0);
+    colour *= 0.90 / dot(colour, vec3(0.2126, 0.7152, 0.0722));
+    // Random phase and amplitude per star, with the time-only sin/cos on CPU.
+    vec2 phase = vec2(float((detail >> 8u) & 255u), float((detail >> 16u) & 255u))
+               * (2.0 / 255.0) - 1.0;
+    float twinkle = 1.0 + 0.035 * dot(astraStarTwinkle, phase);
+    return colour * (flux * twinkle);
 }
 
-// lib/atmospherics/stars.glsl:14-48
-vec3 astra_stars(vec2 starCoord, float VdotU, float VdotS,
-                 float invRainFactor, float invNoonFactor2, float sunVisibility) {
-	if (VdotU < 0.0) return vec3(0.0);   // :18
-
-	starCoord *= 0.2;                    // :20
-	float starFactor = 1024.0;           // :21
-	starCoord = floor(starCoord * starFactor) / starFactor;   // :22
-
-	float star = 1.0;                    // :24
-	star *= astra_star_noise(starCoord.xy);        // :25
-	star *= astra_star_noise(starCoord.xy + 0.1);  // :26
-	star *= astra_star_noise(starCoord.xy + 0.23); // :27
-
-	star -= 0.7;                         // :33 - NIGHT_STAR_AMOUNT == 2
-	star = max0(star);                   // :41
-	star *= star;                        // :42
-
-	star *= min1(VdotU * 3.0) * max0(1.0 - pow100(abs(VdotS) * 1.002));   // :44
-	star *= invRainFactor * pow4(invNoonFactor2) * (1.0 - 0.5 * sunVisibility);  // :45
-
-	return 40.0 * star * vec3(0.38, 0.4, 0.5);   // :47
+vec3 astra_star_chart(vec2 coord, uint salt) {
+    vec2 grid = coord * 204.8;
+    ivec2 cell = ivec2(floor(grid));
+    vec2 blend = fract(grid);
+    blend = blend * blend * (3.0 - 2.0 * blend);
+    vec3 row0 = mix(astra_star_cell(cell, salt),
+                    astra_star_cell(cell + ivec2(1, 0), salt), blend.x);
+    vec3 row1 = mix(astra_star_cell(cell + ivec2(0, 1), salt),
+                    astra_star_cell(cell + ivec2(1, 1), salt), blend.x);
+    return mix(row0, row1, blend.y);
 }
 
-// ------------------------------------------------------------
-// Astra interface - unchanged signature, consumed by
-// global/dimension/overworld.glsl:51-57 (astra_overworld_sky).
-// ------------------------------------------------------------
+vec3 astra_milky_way(vec3 celestial) {
+    // A low-frequency celestial band shares the existing noise texture. Only
+    // visible night-sky rays inside the band pay these two lookups; no new march.
+    const vec3 pole = normalize(vec3(0.42, 0.34, 0.84));
+    float latitude = abs(dot(celestial, pole));
+    float band = 1.0 - smoothstep(0.035, 0.22, latitude);
+    if (band <= 0.0) return vec3(0.0);
+    vec2 coordinate = celestial.xy * vec2(0.63, 0.84) + celestial.z * vec2(0.27, -0.19);
+    float broad = textureLod(solasWaterNoise, coordinate + vec2(0.17, 0.41), 0.0).b;
+    float structure = 0.35 + 0.65 * smoothstep(0.20, 0.80, broad);
+    float core = 1.0 - smoothstep(0.012, 0.065, latitude);
+    float dust = 0.0;
+    // The detail octave affects dust only inside the narrow galactic core.
+    // The wider band keeps its original broad structure with one lookup.
+    if (core > 0.0) {
+        float detail = textureLod(solasWaterNoise, coordinate * 3.0 + vec2(0.53, 0.11), 0.0).b;
+        dust = core * (1.0 - smoothstep(0.28, 0.68, detail)) * 0.50;
+    }
+    return (vec3(0.009, 0.012, 0.020) * band * structure
+          + vec3(0.004, 0.0038, 0.0032) * core * broad) * (1.0 - dust);
+}
+
+vec3 astra_star_field(vec3 worldDir, out float pointStars) {
+    pointStars = 0.0;
+    #if STAR_AMOUNT == 0
+        return vec3(0.0);
+    #else
+        if (astraStarVisibility <= 0.0) return vec3(0.0);
+        vec3 nDir = normalize(worldDir);
+        if (nDir.y <= 0.0) return vec3(0.0);
+        // Actual sun direction avoids the shadow-light sun/moon handoff. All
+        // three basis vectors are CPU values; no pixel-local rotation trig.
+        vec3 celestial = vec3(dot(nDir, astraStarTangent),
+                              dot(nDir, astraSunDirection),
+                              dot(nDir, astraStarAxis));
+        float radial = length(celestial.xy);
+        // The old upper-only projection is singular when rotated below its
+        // equator. Two spherical charts overlap smoothly across a fixed band.
+        // Only the band evaluates both; each pole uses its well-defined chart.
+        float northWeight = smoothstep(-0.12, 0.12, celestial.z);
+        vec3 stars = vec3(0.0);
+        if (celestial.z > -0.12)
+            stars += astra_star_chart(celestial.xy / (celestial.z + 0.5 * radial),
+                                      19349663u) * northWeight;
+        if (celestial.z < 0.12)
+            stars += astra_star_chart(celestial.xy / (-celestial.z + 0.5 * radial),
+                                      83492791u) * (1.0 - northWeight);
+        pointStars = max(stars.r, max(stars.g, stars.b));
+        vec3 galaxy = astra_milky_way(celestial);
+        if (pointStars <= 0.0 && max(galaxy.r, max(galaxy.g, galaxy.b)) <= 0.0)
+            return vec3(0.0);
+        float discExclusion = max0(1.0 - pow100(abs(celestial.y) * 1.002));
+        return (stars + galaxy) * (min1(nDir.y * 3.0) * discExclusion * astraStarVisibility);
+    #endif
+}
+
 vec3 astra_star_field(vec3 worldDir) {
-	vec3 nDir = normalize(worldDir);
-	AstraSkyFactors f = astra_sky_factors();
-	// program/gbuffers_skybasic.glsl:92 - sphereness 0.5 for the overworld sky.
-	vec2 starCoord = astra_star_coord(nDir, 0.5);
-	float VdotS = dot(nDir, normalize(worldSunVector));
-	return astra_stars(starCoord, nDir.y, VdotS,
-	                   f.invRainFactor, f.invNoonFactor2, f.sunVisibility);
+    float pointStars;
+    return astra_star_field(worldDir, pointStars);
 }
 
 #endif

@@ -1,11 +1,28 @@
 """Shared local Minecraft paths. Explicit arguments always take precedence."""
 from pathlib import Path
+import json
 import os
 import sys
+
+LOCAL_CONFIG = Path(__file__).resolve().parents[1] / "local_paths.json"
+
+
+def local_paths() -> dict[str, str]:
+    if not LOCAL_CONFIG.is_file():
+        return {}
+    values = json.loads(LOCAL_CONFIG.read_text(encoding="utf-8-sig"))
+    if not isinstance(values, dict) or any(
+            not isinstance(values.get(key, ""), str)
+            for key in ("minecraft_root", "minecraft_instance")):
+        raise ValueError(f"Invalid Minecraft paths in {LOCAL_CONFIG}")
+    return values
 
 
 def default_minecraft_root() -> Path:
     configured = os.environ.get("ASTRA_MC_ROOT")
+    if configured:
+        return Path(configured).expanduser()
+    configured = local_paths().get("minecraft_root")
     if configured:
         return Path(configured).expanduser()
     home = Path.home()
@@ -29,6 +46,12 @@ def minecraft_root(path=None) -> Path:
 
 def minecraft_instance(root: Path, path=None) -> Path:
     configured = path if path is not None else os.environ.get("ASTRA_MC_INSTANCE")
+    if configured is None:
+        local = local_paths()
+        # A different explicit root must not inherit this machine's local instance.
+        local_root = local.get("minecraft_root")
+        if local_root and Path(local_root).expanduser().resolve() == root.resolve():
+            configured = local.get("minecraft_instance") or None
     if configured is not None:
         instance = Path(configured).expanduser().resolve()
         if not instance.is_dir():

@@ -4,7 +4,7 @@
 // ============================================================
 //  Astra v1 - lib/settings.glsl
 //  Single source of truth for ALL user options (design.md 3.3).
-//  7 GUI categories / 4 profiles (profile values live in shaders.properties).
+//  Nested colour controls and 4 quality profiles (shaders.properties).
 //  Conventions (design.md 3.2):
 //    - macros UPPER_SNAKE_CASE
 //    - booleans use #ifdef (bare define = on, commented-out define = off)
@@ -34,6 +34,13 @@
 #define SHADOW_FILTER_HARDWARE   1
 
 // --- LIGHTING ---
+//#define DIRECTIONAL_SKYLIGHT // [false true]
+// Optional overworld directional sky irradiance, independent of TAA and clouds.
+//#define SCREENSPACE_AO // [false true]
+// Optional ambient-only AO for opaque overworld terrain.
+#define AO_STRENGTH 75 // [0 25 50 75 100]
+#define AO_RADIUS 100 // [50 100 150 200]
+// Radius in hundredths of a block; AO is a local contact term.
 #define SUNLIGHT_STRENGTH 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Direct sunlight strength, % (100 = default)
 #define MOONLIGHT_STRENGTH 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
@@ -59,8 +66,10 @@
 
 // --- SHADOWS ---
 #define SHADOW_FILTER_MODE 0 // [0 1]
+#define SHADOW_FILTER_QUALITY 1 // [0 1 2]
+// 0 = one footprint (4 corners); 1 = two (8); 2 = four (16).
 // 0 = software depth comparisons; 1 = hardware comparison gathers.
-// Both surface paths pair all sixteen corners with their individual caster tint.
+// Both comparison modes pair each corner with its individual caster tint.
 #define SHADOWS // [false true]
 // Master switch for shadow map
 #define SHADOW_RESOLUTION 2048 // [512 1024 1536 2048 3072 4096]
@@ -69,8 +78,10 @@
 // Shadow render distance, blocks
 #define ENTITY_SHADOW_DISTANCE 64 // [32 48 64 96 128]
 // Entity shadow distance, blocks
+#define ENTITY_SHADOWS // [false true]
+// Renderer-level switch for entity, player and block-entity shadow casters.
 #define SHADOW_SOFTNESS 2 // [1 2 4 8 16]
-// Shadow edge softness, texels (4-tap PCF, max 16)
+// Shadow footprint radius, texels; medium/high filter quality only.
 #define COLORED_SHADOWS // [false true]
 // Tinted shadows via shadowcolor0 (stained glass / water)
 #define STATIC_SHADOW_FALLBACK // [false true]
@@ -87,21 +98,27 @@
 #define SUN_MOON_MODE 0 // [0 1]
 // 0 = vanilla sun/moon texture, 1 = procedural discs
 #define STARS // [false true]
-// Cell-hash star field with subtle twinkle
+#define STAR_AMOUNT 2 // [0 1 2 3 4]
+// Celestial star catalogue: off / sparse / normal / dense / very dense.
 #define CLOUD_MODE 1 // [0 1 2]
+#define CLOUD_QUALITY 1 // [0 1 2]
+// Planar clouds: quarter/half/native screen grid, with 32/64/96 march limits.
 // 0 = vanilla clouds, 1 = planar wispy clouds, 2 = off
 #define CLOUD_COVERAGE 50 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
 // Planar cloud coverage, % (CLOUD_MODE=1 only)
 //#define CLOUD_SHADOWS // [false true]
 // Project the planar cloud field onto the ground in clear weather as well as rain.
 // Off by default in every tier; the strength and the horizon fade need in-game A/B.
+// Independent cloud history, shared with the properties resource schedule.
+// Disabling it selects the current-frame sheet and releases its history targets.
+#define CLOUD_TEMPORAL // [false true]
 #define AIR_PERSPECTIVE // [false true]
 // View-angle-dependent horizon tinting at sunrise/sunset (Refrax style)
 #define BIOME_TINT // [false true]
 // Subtle fog/ambient tint by biome temperature/humidity
 #define BIOME_TINT_STRENGTH 50 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
 // Biome tint strength, %
-#define END_STONE_GLOW 100 // [0 25 50 75 100 125 150]
+#define END_STONE_GLOW 0 // [0 25 50 75 100 125 150]
 #define NETHERRACK_GLOW 100 // [0 25 50 75 100]
 #define DEBUG_VERTEX_AO 0 // [0 1]
 // End dimension: faint nebula layer (low intensity)
@@ -119,7 +136,16 @@
 #define WATER_WAVE_SPEED 100 // [25 50 75 100 125 150 175 200]
 // Wave flow speed, %
 #define SCREENSPACE_REFLECTIONS // [false true]
-// SSR on water/ice top faces (24 steps, sky fallback)
+//#define ROUGH_SKY_REFLECTIONS // [false true]
+// Optional mip-filtered overworld environment + normalized environment BRDF.
+// Off by default to retain the existing water/ice/puddle appearance.
+#define WATER_EFFECT_QUALITY 1 // [0 1 2]
+// Water SSR total depth-query budget: 16/30/40 (including 4/6/8 refinements).
+// Reflection reconstruction uses 1/5/9 bilinear footprints. Refraction keeps
+// the same interface-side rejection and true optical path at every quality.
+// SSR on water/ice top faces (quality-dependent budget, sky fallback)
+// Water reflections use current-frame radiance. Geometry passes do not provide
+// the composite-stage ping-pong contract needed for a self-written history.
 #define SCREENSPACE_REFRACTION // [false true]
 // Finite interface perturbation with per-tap depth/side rejection
 #define REFRACTION_STRENGTH 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
@@ -130,50 +156,32 @@
 #define WATER_CHARACTER 1 // [0 1 2]
 // Water palette: 0 = COLD, 1 = BALANCED, 2 = TROPICAL
 #define WATER_CAUSTICS // [false true]
-// Analytic wave focusing, using shadow-encoded water height for the light path.
+// Shared optical-wave focus cached in the water shadow records.
 //#define UNDERWATER_PARTICLES // [false true]
-// 2026-09-11 user round: default off. Both the reference look (Solas' still, clear
-// underwater) and the user's request ("大幅调低") are served better by the volume
-// light and caustics carrying the underwater read; the motes remain available for
-// anyone who wants the suspended-matter layer.
-// Underwater suspended particles
+// Optional underwater suspended particles.
 #define UNDERWATER_LIGHT_SHAFTS // [false true]
-// Shadowed underwater sunlight, independent of the air GODRAYS option
+// Shadowed underwater sunlight, independent of the air GODRAYS option.
 #define UNDERWATER_SHAFT_STRENGTH 100 // [0 25 50 75 100 125 150 175 200]
-// Underwater light shaft brightness, %
-// The user control scales the integrated solar source once.
+// Underwater light shaft brightness, %.
 #define UNDERWATER_SHAFT_SAMPLES 7 // [4 5 6 7 8 9 10]
-// Shadow samples along each full-resolution water view ray
-//#define UNDERWATER_SHAFT_CALIBRATION // [false true]
-// Swap the three underwater-shaft calibration curves (intensity lobe, sample
-// distribution, beam tint) to their Solas V3.7b shapes. Off by default in every tier;
-// absolute weights need in-game A/B before any tier would enable it.
+// Shadow samples along each water ray in the scattering target.
 #define FANCY_TRANSLUCENTS // [false true]
-// Premultiplied alpha blending for translucents (blend ONE, ONE_MINUS_SRC_ALPHA)
+// Premultiplied alpha blending for translucents.
 
 // --- FOG ---
 #define FOG_DENSITY 50 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
-// Atmospheric fog density, % (pow3 coefficient precomputed on CPU)
-// 2026-09-06 second visual round: factory default 100 → 65（清爽风格收尾）
-// 2026-09-07 third visual round: 65 → 50（大幅减雾）
+// Atmospheric fog density, %.
 #define SKY_FOG_STRENGTH 15 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
-// Fog blending into sky, % (low values skip sky color computation)
-// 2026-09-06 second visual round: factory default 50 → 25；远端仍强制收敛天空色。
-// 2026-09-07 third visual round: 25 → 15（雾是点缀不是滤镜）
+// Fog blending into sky, %.
 #define BORDER_FOG // [false true]
-// Render-distance border fog
+// Render-distance border fog.
 #define CAVE_FOG // [false true]
-// Cave fog
+// Cave fog.
 #define UNDERWATER_FOG_DENSITY 40 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
-// Underwater fog density, %
-// 2026-09-06 second visual round: factory 100 -> 55 (25-40 block visibility target)
-// 2026-09-07 visual round: 55 -> 42 (toward Steadfast/Solas clean-through look; visibility >32 blocks)
+// Astra cyan water haze: 40 gives visible distance fog with a short near-eye fade.
+// Other values scale density; reference-style atmosphere, locally tuned strength.
 #define NETHER_FOG_DENSITY 70 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
-// Nether fog density, % (independent curve, design 4.5)
-// 2026-09-11 user round: "下界的雾气稍多" -> 100 to 70. The volumetric plume/haze
-// layer in nether_volume.glsl is composited on top of this, so the total density is
-// the two together; cut the homogeneous layer rather than the plumes that carry the
-// depth the user asked for.
+// Scales Complementary's distance fog; there is no additional plume layer.
 #define END_FOG_DENSITY 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // End void fog density, %
 #define NETHER_VOXEL_LIGHT // [false true]
@@ -182,6 +190,23 @@
 // Bounded subset of the Solas voxel-light architecture, not a full 128+ volume. Needs
 // OpenGL 4.3 compute and custom images; on hardware without them Iris drops the option
 // and the rest of the pack keeps working.
+//#define VOLUMETRIC_FOG // [false true]
+// Optional ray-marched overworld volumetric fog: height-based density, sun/moon phase
+// lobes, sky incident, shadow-map and cloud-shadow attenuation, composed as scene*T+S.
+// While enabled it REPLACES the atmospheric distance fog, the rain haze (rainy_air) and
+// the air GODRAYS over the same air segment; caves, blindness, lava, powder snow and
+// underwater keep their own media. Default off in every profile, independent of TAA.
+// Design and ownership: docs/handoffs/2026-09-27-R2-overworld-volume.md.
+#define VOLUME_FOG_DENSITY 50 // [0 25 50 75 100 125 150 175 200]
+#define VOLUME_FOG_QUALITY 1 // [0 1 2]
+// Low: quarter grid / up to 12 steps; balanced: half / 24; high: half / 48.
+#define VOLUME_FOG_ADAPTIVE // [false true]
+// Fewer samples on short rays, quadratic near-camera distribution; fixed mode
+// keeps the selected count and uniform segment lengths.
+// Volumetric fog density, % (sea-level extinction; 50 matches the default atmospheric
+// fog curve's optical depth at 200 blocks). High air keeps a bounded thin floor. The
+// phase lobe's anisotropy is a bounded source constant (ASTRA_VOLUME_PHASE_G in
+// global/atmosphere/volume_fog.glsl).
 
 // --- POST ---
 #define TONEMAP_OPERATOR 0 // [0 1 2 3]
@@ -201,8 +226,12 @@
 // Color grading: temperature shift (-cool / +warm)
 #define BLOOM // [false true]
 // Bloom (2-pass: composite1 capture + final composite)
+#define BLOOM_QUALITY 1 // [0 1 2]
+// Capture source reads: low 4, balanced 9, high 13; all keep threshold and knee.
 #define BLOOM_STRENGTH 100 // [0 10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200]
 // Bloom strength, %
+#define PURKINJE_STRENGTH 0 // [0 10 20 30 40 50 60 70 80 90 100]
+// Optional night blue shift; zero removes the colour operation. Independent of quality.
 //#define GODRAYS // [false true]
 // Godrays (half-res, default OFF for the BALANCED profile, design 1.2)
 #define GODRAYS_STRENGTH 100 // [0 10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200]
@@ -211,9 +240,81 @@
 // Godrays sun occlusion (one probed pixel fades the whole beam field when the
 // solar disc is behind geometry; needs in-game A/B, see qa/session-log.md)
 #define DITHERING // [false true]
-// IGN output dithering (banding suppression, required without AA)
+// IGN output dithering (banding suppression, after any spatial AA)
+#define ANTIALIASING 1 // [0 1 2]
+// 0 off, 1 display-space FXAA, 2 HDR temporal AA with projection jitter.
 //#define VIGNETTE // [false true]
 // Vignette (explicitly OFF by default, design 4.4)
+
+// --- COLOURS: independent of quality profiles ---
+#define COLOR_STYLE 0 // [0 1 2 3]
+// 0 native; 1 warm natural; 2 cool clear; 3 soft. RGB gains stack on the style.
+#define TINT_SKY_DAY_TOP_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DAY_TOP_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DAY_TOP_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DAY_HORIZON_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DAY_HORIZON_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DAY_HORIZON_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DAWN_TOP_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DAWN_TOP_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DAWN_TOP_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DAWN_HORIZON_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DAWN_HORIZON_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DAWN_HORIZON_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DUSK_TOP_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DUSK_TOP_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DUSK_TOP_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DUSK_HORIZON_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DUSK_HORIZON_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_DUSK_HORIZON_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_NIGHT_TOP_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_NIGHT_TOP_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_NIGHT_TOP_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_NIGHT_HORIZON_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_NIGHT_HORIZON_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SKY_NIGHT_HORIZON_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SUN_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SUN_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_SUN_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_DAWN_SUN_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_DAWN_SUN_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_DAWN_SUN_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_DUSK_SUN_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_DUSK_SUN_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_DUSK_SUN_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_MOON_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_MOON_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_MOON_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_AMBIENT_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_AMBIENT_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_AMBIENT_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_BLOCK_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_BLOCK_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_BLOCK_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_CAVE_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_CAVE_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_CAVE_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_END_LIGHT_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_END_LIGHT_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_END_LIGHT_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_END_AMBIENT_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_END_AMBIENT_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_END_AMBIENT_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_END_SKY_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_END_SKY_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_END_SKY_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_NETHER_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_NETHER_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define TINT_NETHER_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define LOOK_SHADOWS_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define LOOK_SHADOWS_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define LOOK_SHADOWS_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define LOOK_MIDS_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define LOOK_MIDS_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define LOOK_MIDS_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define LOOK_HIGHS_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define LOOK_HIGHS_G 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define LOOK_HIGHS_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 
 // --- PERFORMANCE + ADVANCED ---
 #define WAVING_FOLIAGE // [false true]
@@ -237,7 +338,7 @@ const float shadowDistanceRenderMul = 1.5;             // shadow frustum extent,
 // cell boundaries; this does not change the shadow map's texel resolution.
 const float shadowIntervalSize   = 0.5;
 // Both Steadfast and Solas use this orbit; Iris applies it to sky and shadow matrices.
-const float sunPathRotation = -40.0;
+const float sunPathRotation = -40.0; // [-60.0 -50.0 -40.0 -30.0 -20.0 -10.0 0.0 10.0 20.0 30.0 40.0 50.0 60.0]
 // noisetex/noise.png were removed: nothing sampled them (consolidated review E4).
 const int   noiseTextureResolution = 256;              // engine default kept explicit
 
@@ -363,6 +464,41 @@ const bool shadowHardwareFiltering1 = false;
 // also needs a GLSL declaration. Scene/bloom formats: water_buffer_formats.glsl;
 // End data/sky formats: end_illumination.fsh and end_sky_buffer.fsh.
 
+// AA modes: 0 off, 1 display-space FXAA, 2 HDR temporal AA.
+// Keep the public Bloom switch discoverable while zero strength removes its
+// producers, pyramids and display reads. Properties use the same two conditions.
+#ifdef BLOOM
+#if BLOOM_STRENGTH > 0
+    #define ASTRA_BLOOM
+#endif
+#endif
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && DEBUG_VERTEX_AO == 0
+    #ifdef DIRECTIONAL_SKYLIGHT
+        #define ASTRA_DIRECTIONAL_SKYLIGHT
+    #endif
+    #if defined SCREENSPACE_AO && defined SHADOWS && AO_STRENGTH > 0
+        #define ASTRA_SSAO
+    #endif
+#endif
+// R2/H3: the volume march is overworld-only and does not depend on the AO debug
+// mode, TAA or shadows (without SHADOWS the sun term keeps cloud shadow only).
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && defined VOLUMETRIC_FOG
+    #define ASTRA_VOLUME_FOG
+#endif
+// R6/T3: the screen-cloud history is overworld-only (planar clouds are) and
+// deliberately independent of ASTRA_TAA: it keeps its own previous-frame state
+// so cloud stability survives ANTIALIASING != 2. CLOUD_TEMPORAL (above)
+// selects the independent resolve instead of the current-frame sheet.
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && CLOUD_MODE == CLOUD_PLANAR
+    #ifdef CLOUD_TEMPORAL
+    #define ASTRA_CLOUD_TEMPORAL
+    #endif
+#endif
+// The AO diagnostic stays unjittered even when temporal AA is selected.
+#if ANTIALIASING == 2 && DEBUG_VERTEX_AO == 0
+    #define ASTRA_TAA
+#endif
+
 // E1/E2 internal scheduling predicate; not a user option.
 #ifdef UNDERWATER_LIGHT_SHAFTS
 #ifdef SHADOWS
@@ -381,6 +517,10 @@ const vec4 colortex0ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
 // and translucent pixels keep it, so a 1.0 here would open deferred's puddle gate on
 // every one of them (consolidated review A2 / F-42). The .r marker is unchanged.
 const vec4 colortex3ClearColor = vec4(0.498, 0.0, 0.0, 0.0);  // 127/255 skylight marker
+// R2/H3 volume S/T: the identity segment (no scattering, full transmittance). The
+// production pass overwrites every texel it owns each frame; the clear only covers
+// frames where the pass is enabled but a dimension slot does not run it.
+const vec4 colortex23ClearColor = vec4(0.0, 0.0, 0.0, 1.0);
 const vec4 shadowcolor0ClearColor = vec4(1.0, 1.0, 1.0, 1.0);
 const vec4 colortex5ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
 const vec4 colortex6ClearColor = vec4(0.0, 0.0, 0.0, 0.0);

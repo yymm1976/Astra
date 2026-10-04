@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compile_glsl  # shared Iris render-stage table (SC-31)
 import option_matrix  # shared option/consumer analysis (check 13)
+from shader_options import parse_options
 
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
@@ -80,26 +81,10 @@ def rel(p):
 def parse_settings():
     """returns dict name -> {value, list, commented}"""
     path = PACK / "lib" / "settings.glsl"
-    opts = {}
-    for line in read(path).splitlines():
-        m = re.match(r"^(//\s*)?#define\s+([A-Z][A-Z0-9_]*)\b(.*)$", line.strip())
-        if not m:
-            continue
-        commented, name, rest = m.group(1) is not None, m.group(2), m.group(3)
-        vl = re.search(r"\[([^\]]*)\]", rest)
-        if vl is None:
-            continue  # include guard / enum token constant, not a user option
-        value = None
-        vm = re.match(r"\s+([-\w.]+)", rest)
-        if vm and not commented:
-            value = vm.group(1)
-        opts[name] = {
-            "value": value,
-            "list": vl.group(1).split() if vl else None,
-            "bool": bool(vl) and set(vl.group(1).split()) == {"false", "true"},
-            "commented": commented,
-        }
-    return opts
+    return {name: {"value": item.value if item.value and not item.off else None,
+                   "list": list(item.levels), "bool": item.boolean,
+                   "commented": item.off, "const_type": item.const_type}
+            for name, item in parse_options(read(path)).items()}
 
 
 def logical_lines(text):
@@ -131,15 +116,23 @@ def parse_properties():
 
 # ---------------------------------------------------------------- checks
 
+def quality_option_names(opts):
+    # Colour settings intentionally survive a performance-profile change.
+    independent = {"COLOR_STYLE", "TONEMAP_OPERATOR", "EXPOSURE", "AUTO_EXPOSURE",
+                   "SATURATION", "VIBRANCE", "CONTRAST", "COLOR_TEMPERATURE"}
+    return {name for name in opts if name not in independent
+            and not name.startswith(("TINT_", "LOOK_"))}
+
+
 def check_option_registry():
-    c = Check(1, "settings.glsl option registry (design 3.3: 60-80 options)")
+    c = Check(1, "settings.glsl option registry (nested colour controls supported)")
     opts = parse_settings()
     n = len(opts)
     c.note(f"{n} options: {sum(1 for o in opts.values() if o['list'])} with value list, "
            f"{sum(1 for o in opts.values() if o['bool'])} bool, "
            f"{sum(1 for o in opts.values() if o['list'] and not o['bool'])} slider/enum")
-    if not (60 <= n <= 80):
-        c.fail(f"option count {n} outside design 3.3 range 60-80")
+    if n < 60:
+        c.fail(f"option count {n} below the core option set")
     for name, o in opts.items():
         if o["commented"] and not o["bool"]:
             # commented-out #define of a numeric option = default OFF enum/slider, suspicious
@@ -153,7 +146,9 @@ def check_option_registry():
 def check_gui(opts):
     c = Check(2, "shaders.properties screen/sliders/profile <-> settings.glsl bijection")
     props, _ = parse_properties()
-    screens = {k: v for k, v in props.items() if k == "screen" or k.startswith("screen.")}
+    screens = {k: v for k, v in props.items()
+               if (k == "screen" or k.startswith("screen."))
+               and not k.endswith((".columns", ".comment"))}
     listed = set()
     for k, vals in screens.items():
         for v in vals:
@@ -171,14 +166,19 @@ def check_gui(opts):
                + ", ".join(sorted(extra)))
     subscreens = sorted(k for k in screens if k != "screen")
     c.note(f"1 main screen + {len(subscreens)} categories: {', '.join(s.split('.',1)[1] for s in subscreens)}")
-    if len(subscreens) != 7:
-        c.fail(f"{len(subscreens)} GUI categories, design 3.3 requires 7")
+    required_screens = {"screen." + name for name in
+                        ("LIGHTING", "SHADOWS", "SKY", "WATER", "FOG", "POST", "PERFORMANCE", "COLORS")}
+    if required_screens - set(screens):
+        c.fail("missing GUI categories: " + ", ".join(sorted(required_screens - set(screens))))
 
     sliders = set()
     for v in props.get("sliders", []):
         sliders |= set(v.split())
     def is_enum(o):
-        vals = [int(v) for v in o["list"]]
+        try:
+            vals = [int(v) for v in o["list"]]
+        except ValueError:
+            return False  # Float const options are sliders, not integer enum arms.
         return vals == list(range(len(vals))) and len(vals) <= 5
 
     numeric = {k for k, o in opts.items() if o["list"] and not o["bool"]}
@@ -193,6 +193,7 @@ def check_gui(opts):
         c.fail("sliders= lists an enum/dropdown option: " + ", ".join(sorted(sliders & enums)))
     c.note(f"sliders={len(sliders)} vs {len(numeric) - len(enums)} slider-typed options")
 
+    quality_opts = quality_option_names(opts)
     profiles = {k.split(".", 1)[1]: v for k, v in props.items() if k.startswith("profile.")}
     for pname, vals in profiles.items():
         toks = []
@@ -203,9 +204,9 @@ def check_gui(opts):
         if dup:
             c.fail(f"profile.{pname}: duplicated token(s): {', '.join(sorted(dup))}")
         pset = set(names)
-        if set(opts) - pset:
-            c.fail(f"profile.{pname}: missing {len(set(opts)-pset)} option(s): "
-                   + ", ".join(sorted(set(opts) - pset)))
+        if quality_opts - pset:
+            c.fail(f"profile.{pname}: missing {len(quality_opts-pset)} quality option(s): "
+                   + ", ".join(sorted(quality_opts - pset)))
         if pset - set(opts):
             c.fail(f"profile.{pname}: unknown token(s): " + ", ".join(sorted(pset - set(opts))))
         for t in toks:
@@ -229,7 +230,7 @@ def check_gui(opts):
             if not any(re.fullmatch(r"[-\d.eE+]+", a) and abs(val - float(a)) < 1e-9
                        for a in allowed):
                 c.fail(f"profile.{pname}: '{t}' is not one of {name}'s enumerated values")
-        c.note(f"profile.{pname}: {len(pset)} tokens, complete={pset == set(opts)}")
+        c.note(f"profile.{pname}: {len(pset)} tokens, quality complete={quality_opts <= pset}")
     expected_profiles = set(TIER_ORDER) | {"NO_SHADOWS"}
     if set(profiles) != expected_profiles:
         c.fail("expected the three quality tiers plus NO_SHADOWS; missing="
@@ -346,6 +347,13 @@ PENDING_CONSUMERS = {
     "lib/noise.glsl": "C2 / E2 (water surface)",
     "lib/dither.glsl": "C6",
     "lib/bayer.glsl": "B4",
+    "lib/sky_sh9.glsl": "S1 (H1 directional skylight wiring)",
+    "lib/volume_integral.glsl": "S2 (H3 overworld volumetric fog wiring)",
+    "global/water/temporal.glsl": "R5 residual: the SSR hit-radiance history was retired "
+                                  "2026-09-28 (a geometry pass has no composite ping-pong "
+                                  "contract); kept as the research record for a future "
+                                  "composite-stage producer, see "
+                                  "docs/2026-09-28-water-material-lighting.md",
     "global/lighting/shadowmap.glsl": "B1",
     "global/lighting/diffuse.glsl": "C1",
     "global/lighting/blocklight.glsl": "C1",
@@ -372,6 +380,12 @@ PENDING_CONSUMERS = {
     "voxy_translucent.glsl": "C5 (voxy.json patch data, not an #include entry)",
 }
 
+RETIRED_MODULES = {
+    "global/dimension/nether_volume.glsl": "C3 research implementation; active Nether "
+                                          "uses homogeneous fog, no volume producer "
+                                          "or sampler binding",
+}
+
 
 def pk(p):
     return Path(p).resolve().relative_to(PACK.resolve()).as_posix()
@@ -390,12 +404,16 @@ def check_include_graph():
               if not is_entry(p) and p.suffix in (".glsl", ".vsh", ".fsh")]
     orphans = [p for p in layers if p not in used]
     pending = [x for x in orphans if pk(x) in PENDING_CONSUMERS]
-    untracked = [x for x in orphans if pk(x) not in PENDING_CONSUMERS]
+    retired = [x for x in orphans if pk(x) in RETIRED_MODULES]
+    untracked = [x for x in orphans
+                 if pk(x) not in PENDING_CONSUMERS and pk(x) not in RETIRED_MODULES]
     for x in untracked:
         c.fail(f"orphan and not registered in PENDING_CONSUMERS: {pk(x)} "
                f"(wire it or record its owner task)")
     for x in sorted(pending, key=pk):
         c.warn(f"pending wiring: {pk(x)} <- owner {PENDING_CONSUMERS[pk(x)]}")
+    for x in sorted(retired, key=pk):
+        c.note(f"retired, intentionally not loaded: {pk(x)} <- {RETIRED_MODULES[pk(x)]}")
 
     # layer 1: a shell carries only #version + macro + include of a program file
     for e in sorted(entries, key=pk):
@@ -1082,9 +1100,13 @@ TIER_ORDER = ("PERFORMANCE", "BALANCED", "ULTRA")
 # Numeric knobs whose value must not step down along PERFORMANCE -> ULTRA, because the
 # larger number is more work or a richer implementation (SHADOW_SOFTNESS widens the PCF
 # footprint; SUN_MOON_MODE 1 draws procedural discs instead of the vanilla texture).
+# ANTIALIASING: 0 off, 1 FXAA (extra final pass + full-resolution colortex13), 2 TAA
+# (FXAA machinery plus jitter, HDR history buffers and reprojection) - profiles read
+# 0/1/1 along PERFORMANCE -> BALANCED -> ULTRA, monotone up (TAA is opt-in per docs).
 TIER_MONOTONE_UP = {
     "SHADOW_RESOLUTION", "SHADOW_DISTANCE", "ENTITY_SHADOW_DISTANCE", "SHADOW_SOFTNESS",
-    "UNDERWATER_SHAFT_SAMPLES", "CLOUD_MODE", "SUN_MOON_MODE",
+    "UNDERWATER_SHAFT_SAMPLES", "CLOUD_MODE", "SUN_MOON_MODE", "ANTIALIASING",
+    "SHADOW_FILTER_QUALITY", "CLOUD_QUALITY", "VOLUME_FOG_QUALITY",
 }
 # Knobs where the smaller number is the richer implementation, so the value must not
 # step up: SKY_MODE 0 = Minishita physical atmosphere, 1 = gradient
@@ -1110,7 +1132,7 @@ def _profile_values():
                 d[t[1:]] = "off"
             elif "=" in t:
                 name, raw = t.split("=", 1)
-                d[name] = raw
+                d[name] = {"true": "on", "false": "off"}.get(raw, raw)
             else:
                 d[t] = "on"
         out[key.split(".", 1)[1]] = d
@@ -1124,7 +1146,7 @@ def check_tier_differential(opts):
     if absent:
         c.fail("missing profile(s): " + ", ".join(absent))
         return c
-    keys = sorted(opts)
+    keys = sorted(quality_option_names(opts))
 
     # BALANCED is the shipping default and the benchmark anchor: every one of its values
     # must equal the settings.glsl raw default, or the pack stops being reproducible
@@ -1133,7 +1155,9 @@ def check_tier_differential(opts):
     for name in keys:
         meta = opts.get(name) or {}
         if meta.get("bool"):
-            want = "off" if meta.get("commented") else "on"
+            disabled = meta.get("commented") or (
+                meta.get("const_type") == "bool" and meta.get("value") == "false")
+            want = "off" if disabled else "on"
         else:
             want = meta.get("value")
         got = prof["BALANCED"].get(name)
@@ -1212,6 +1236,11 @@ GUARD_SYMBOL_SOURCES = {
     "EXTERNALLY_DEFINED_UNIFORMS": "lib/uniforms.glsl's own include guard. Absent from the "
                                    "installed iris.jar (qa/tools/inspect_iris_properties.py), "
                                    "so it is always true and hides no code",
+    "ASTRA_WATER_TEMPORAL": "guards the retired water hit-radiance history module "
+                            "global/water/temporal.glsl (2026-09-28). The branch is false "
+                            "by design until a composite-stage producer task lands; the "
+                            "module is registered in PENDING_CONSUMERS, see "
+                            "docs/2026-09-28-water-material-lighting.md",
 }
 
 # settings.glsl enum tokens that name the arm no branch ever tests: the code checks one

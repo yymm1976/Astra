@@ -39,20 +39,25 @@ vec3 end_blackhole_system(vec3 ray,float cone,out float backgroundVisibility) {
     vec4 front=vec4(0.0);
     if(primary.z>0.00001) {
         primaryFrame=end_emission_frame(q,0.0);
-        front=end_flow_material(primary.xy,primaryFootprint,primaryFrame);
         // Behind-hole high-order images share the critical-curve fade, even
         // when a grazing ray misses the front disc and stores them as first hit.
-        if(primary.y>0.0) front.a*=outside*smoothstep(1.025,1.065,r);
+        float frontVisibility=primary.y>0.0 ? outside*smoothstep(1.025,1.065,r) : 1.0;
+        if (frontVisibility > 0.0) {
+            front=end_flow_material(primary.xy,primaryFootprint,primaryFrame);
+            front.a*=frontVisibility;
+        }
     }
     float frontCover=front.a*primary.z;
-    float sourceZ=-primary.y*0.987117
-                  +primaryFrame.w*end_disc_half_height(length(primary.xy))*END_DISC_INCLINATION;
-    if(primary.z<0.001) sourceZ=-100.0;
+    float sourceZ=-100.0;
+    if(primary.z>=0.001)
+        sourceZ=-primary.y*0.987117
+                +primaryFrame.w*end_disc_half_height(length(primary.xy))*END_DISC_INCLINATION;
     vec4 behind,ahead;
     end_plasma_layers(q,sourceZ,outside,behind,ahead);
     color=behind.rgb;
     backgroundVisibility*=behind.a;
-    if(frontCover<1.0 && outside>0.00001) {
+    float rearReveal=smoothstep(1.025,1.065,r);
+    if(frontCover<1.0 && outside>0.00001 && rearReveal>0.0) {
         float secondaryFootprint;
         vec3 secondary=end_disc_transfer(q,1.0,aa,secondaryFootprint);
         if(secondary.z>0.00001) {
@@ -63,7 +68,7 @@ vec3 end_blackhole_system(vec3 ray,float cone,out float backgroundVisibility) {
             // same rear surface does not acquire a dark seam at the disc cutoff.
             float available=primary.z>0.00001 ? min(primary.z,1.0-frontCover) : 1.0;
             float rearCoverage=clamp(secondary.z/max(available,0.00001),0.0,1.0);
-            float backCover=back.a*outside*rearCoverage*smoothstep(1.025,1.065,r);
+            float backCover=back.a*outside*rearCoverage*rearReveal;
             color=mix(color,back.rgb,backCover);
             backgroundVisibility*=1.0-backCover;
         }
@@ -76,7 +81,8 @@ vec3 end_blackhole_system(vec3 ray,float cone,out float backgroundVisibility) {
     color=color*ahead.a+ahead.rgb;
     backgroundVisibility*=ahead.a;
     // Disc material can hide the launch region. The pole always shares its axis.
-    color+=end_polar_jet(q,aa,outside)*(1.0-frontCover);
+    if(frontCover!=1.0)
+        color+=end_polar_jet(q,aa,outside)*(1.0-frontCover);
     if(backgroundVisibility>0.00001)
         color+=end_background(end_lensed_background(ray),cone)*backgroundVisibility;
     return color;
@@ -84,27 +90,38 @@ vec3 end_blackhole_system(vec3 ray,float cone,out float backgroundVisibility) {
 void astra_end_blackhole(inout vec3 color,vec3 originalRay,vec3 unusedLightDirection) {
     #ifdef ASTRA_END_SKY_BUFFER
     float cone=max(end_sky_ray_cone,0.00002);
+    #elif defined ASTRA_END_REFLECTION_FOOTPRINT
+    // Reflections and medium queries may execute after discard or in divergent
+    // material flow. Use the projection's bounded angular pixel size there.
+    vec2 pixelCone=2.0/max(abs(vec2(gbufferProjection[0][0],gbufferProjection[1][1]))
+                           *vec2(viewWidth,viewHeight),vec2(1.0));
+    float cone=max(max(pixelCone.x,pixelCone.y),0.00002);
     #else
     float cone=max(max(length(dFdx(originalRay)),length(dFdy(originalRay))),0.00002);
     #endif
     // Only seven distant island silhouettes remain. The previous independent dust
     // ring and 66 foreground asteroids no longer compete with the accretion flow.
     float closest=END_FAR;
-    vec3 normal=vec3(0.0);
+    vec3 nearestLocal=vec3(0.0);
+    float nearestEpsilon=0.0;
     vec4 nearest=vec4(0.0);
     int nearestId=-1;
     for(int i=66;i<END_BODY_COUNT;i++) {
         vec4 body=end_body(i);
-        float hit,coverage; vec3 n;
-        if(end_body_intersect(vec3(0.0),originalRay,closest,body,i,cone,hit,n,coverage)) {
-            closest=hit; normal=n; nearest=body; nearestId=i;
+        float hit,epsilon; vec3 localHit;
+        if(end_body_hit(vec3(0.0),originalRay,closest,body,i,cone,hit,localHit,epsilon)) {
+            closest=hit; nearestLocal=localHit; nearestEpsilon=epsilon;
+            nearest=body; nearestId=i;
         }
     }
     if(nearestId>=0) {
+        vec3 normal=end_body_normal(nearestLocal,nearestEpsilon,nearest,nearestId);
         vec3 position=originalRay*closest;
         vec3 light=normalize(end_source_position()-position);
         float lit=max(dot(normal,light),0.0);
-        float visibility=end_body_shadow(position+normal*nearest.w*0.012,light,nearest,nearestId);
+        // Backlit silhouettes have no diffuse term to shadow.
+        float visibility=lit>0.0
+            ? end_body_shadow(position+normal*nearest.w*0.012,light,nearest,nearestId) : 1.0;
         float rim=pow(1.0-max(dot(normal,-originalRay),0.0),5.0);
         color=vec3(0.0007,0.0010,0.0019)+vec3(0.065,0.072,0.085)*lit*visibility
               +vec3(0.018,0.021,0.027)*rim*lit;

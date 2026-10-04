@@ -19,16 +19,47 @@ uniform float sunProgress;             // 0 at sun horizon, 1 at zenith
 uniform float moonProgress;            // same, for the moon
 uniform float skyVisibilityDay;        // skylight collapse around dusk/dawn
 uniform float astraTwilightFactor;      // shared, rain-aware twilight envelope (also underwater)
+uniform float astraDawnBlend;           // 1 for dawn, 0 for dusk; used only in the twilight envelope
 uniform vec3  astraSkyColorM;           // rain-adjusted sqrt(skyColor), CPU palette terms
 uniform vec3  astraSkyNoonBase;         // pow(astraSkyColorM, 2.9)
 uniform vec3  astraSkyNightUp;          // weather-adjusted night palette
 uniform vec3  astraSkyNightMiddle;
 uniform vec3  astraCloudNoonAmbient;    // pow(max(skyColor,0), 0.75) * 0.85
+uniform vec3  astraCloudDayLight;       // clear-day cloud light, before weather/tint
+uniform vec3  astraCloudDayAmbient;     // clear-day cloud ambient, before weather/tint
+uniform vec3  astraAmbientPalette;     // rain/twilight-adjusted overworld ambient
+uniform vec3  astraSunPalette;         // twilight-adjusted sun; strength applied in GLSL
+uniform vec3  astraMoonPalette;        // moon progress; phase/strength applied in GLSL
+uniform float astraSunSource;          // actual shadow source: 1 sun, 0 moon
+uniform float astraDirectLightGate;    // actual source horizon visibility and weather attenuation
+uniform vec3 astraSunDirection;         // normalized world sun direction, CPU-side
+uniform vec3 astraStarTangent;          // celestial tangent, independent of shadow-light handoff
+uniform vec3 astraStarAxis;             // fixed tilted celestial pole
+uniform vec2 astraStarTwinkle;          // time-only sin/cos, positions follow the sun instead
+uniform float astraStarVisibility;     // existing dusk/rain envelope, evaluated once per frame
+uniform vec3 astraWorldLightDirection;  // normalized actual shadow source, CPU-side
+uniform vec4 astraSkyFactorsSun;        // sun factor, visibility, visibility squared, noon
+uniform vec4 astraSkyFactorsTime;       // inverse noon, squared inverse noon, night, shadow time
+uniform vec4 astraSkyFactorsWeather;    // rain squared, dry factor, two night curve values
+uniform vec3 astraSkyDayUp;
+uniform vec3 astraSkyDayMiddle;
+uniform vec3 astraSkyDayDown;
+uniform vec3 astraSkySunsetDown;
+uniform vec3 astraSkyGlareColor;
+uniform vec4 astraMinishitaSun;          // normalized clipped source direction + weighted strength
+uniform vec4 astraMinishitaMoon;
+uniform vec2 astraJitterCurrent;        // current and previous Halton offsets in screen UV
+uniform vec2 astraJitterPrevious;
+uniform vec2 astraCloudShadowAnchor;    // snapped world-space cloud-plane cache centre
+uniform float astraCloudShadowFade;    // actual source elevation fade
+uniform vec2 astraWetWeather;          // rain response and biome rain eligibility
+uniform float astraVolumeDensity;     // sea-level extinction including weather
+uniform int astraTimeDiscontinuity;   // CPU detects abrupt changes to the daylight clock
+uniform float astraPurkinjeGate;       // night envelope, reduced by night vision
 uniform float borderFogDistance;       // == far
 uniform float atmosphereFogCoefficient;// pow(d,3) fog coefficient (distance-normalized)
 uniform float dayUnderwaterFogFade;    // underwater fog day/night ramp
-uniform float windStrength;            // base wind strength (rain-aware); WAVING_FOLIAGE_STRENGTH scales in-shader
-uniform vec4  windTheta;               // XYZ = direction thetas, W = magnitude theta
+uniform vec3  astraFoliageWindPhases;   // time-only sine phases shared by terrain/shadows
 uniform float godraysExposure;         // base exposure * view-angle fade * offscreen fade
 uniform float astraMoonIllumination;   // moon disc lit fraction: 1 full, 0 new
 uniform float astraMoonLimbSign;       // terminator side: +1 below moonPhase 4, -1 above (which
@@ -48,11 +79,17 @@ uniform float rainfall;
 uniform int   frameCounter;            // lib/dither.glsl
 uniform float frameTimeCounter;        // lib/noise.glsl wind/water scroll
 uniform vec3  cameraPosition;          // world-space camera
+uniform vec3  relativeEyePosition;     // cameraPosition - player head position (Iris)
 uniform int   isEyeInWater;            // 0/1/2/3 air|water|lava|powder snow
 uniform mat4  gbufferModelView;
 uniform mat4  gbufferModelViewInverse;
 uniform mat4  gbufferProjection;
 uniform mat4  gbufferProjectionInverse;
+#ifdef ASTRA_TAA
+uniform mat4  gbufferPreviousModelView;
+uniform mat4  gbufferPreviousProjection;
+uniform vec3  previousCameraPosition;
+#endif
 uniform mat4  shadowModelView;         // global/lighting/shadowmap.glsl
 uniform mat4  shadowProjection;
 uniform mat4  shadowModelViewInverse;  // program/shadow.vsh: shadow view -> camera-relative world point

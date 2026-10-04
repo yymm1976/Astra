@@ -19,11 +19,14 @@
 //           chain, not here - see bloom_composite's strength argument.
 // Owner: B5. Consumers: program/composite1.fsh (capture), program/final.fsh (composite,
 //           E1/C6's side of the chain).
+// SUMMARY small-budget/mip-bloom ideas (MakeUp/Mellow): low and balanced capture
+// kernels below are original Astra filters. High retains the existing 13-tap path
+// and its provenance; this change does not replace the prefilter's source.
 
 // --- prefilter tuning (HDR, pre-tonemap; colortex0 is R11F_G11F_B10F) ---
 // Anything at or below white contributes nothing, which is what keeps bloom off the
 // midtones and stops it from turning into a grey haze over the whole frame.
-#if defined DIMENSION_END && defined ASTRA_BLOOM_CAPTURE
+#if defined DIMENSION_END && defined ASTRA_BLOOM_CAPTURE && END_STONE_GLOW > 0
 uniform sampler2D colortex3;
 #endif
 const float BLOOM_THRESHOLD = 1.0;
@@ -68,7 +71,7 @@ const float BLOOM_TAP_WEIGHT[13] = float[13](
 //   above threshold + knee  -> color * (brightness - threshold) / brightness
 vec3 bloom_prefilter(vec3 color) {
 	float brightness = max(color.r, max(color.g, color.b));
-	if (brightness <= 1e-5) {
+	if (brightness <= BLOOM_THRESHOLD) {
 		return vec3(0.0);
 	}
 
@@ -82,7 +85,7 @@ vec3 bloom_prefilter(vec3 color) {
 }
 
 // Stage 1 (program/composite1.fsh): prefiltered downsample of the HDR scene into the
-// bloom capture buffer. One pass, 13 texture fetches, no colour output
+// bloom capture buffer. One pass, 4/9/13 source texture fetches, no colour output
 // dependency - the buffer Iris produces here is what gets mipmapped.
 //
 // src is colortex0 at render resolution; texCoord is the capture pass's own normalised
@@ -104,21 +107,51 @@ vec3 bloom_capture(sampler2D src, vec2 texCoord) {
 	vec2 pad = 0.5 * srcTexel * tapScale;
 
 	vec3 acc = vec3(0.0);
-	for (int i = 0; i < 13; i++) {
-		vec2 coord = clamp(texCoord + vec2(BLOOM_TAP[i]) * srcTexel * tapScale,
+    #if BLOOM_QUALITY == 0
+    const int taps = 4;
+    #elif BLOOM_QUALITY == 2
+    const int taps = 13;
+    #else
+    const int taps = 9;
+    #endif
+	for (int i = 0; i < taps; i++) {
+        vec2 offset;
+        float weight;
+        #if BLOOM_QUALITY == 0
+        // Four bilinear footprints cover the quarter-resolution texel's 4x4
+        // source footprint. Lower budgets may suppress isolated bright pixels.
+        offset = vec2((i & 1) == 0 ? -1.0 : 1.0,
+                      (i & 2) == 0 ? -1.0 : 1.0) * 0.5;
+        weight = 0.25;
+        #elif BLOOM_QUALITY == 2
+        offset = vec2(BLOOM_TAP[i]);
+        weight = BLOOM_TAP_WEIGHT[i];
+        #else
+        ivec2 node = ivec2(i % 3, i / 3) - 1;
+        // Separable binomial kernel, variance matched to the high kernel:
+        // 0.5 * sqrt(3)^2 = 1.5 source-texel units per axis, before tapScale.
+        offset = vec2(node) * 1.73205081;
+        weight = float((node.x == 0 ? 2 : 1) * (node.y == 0 ? 2 : 1)) / 16.0;
+        #endif
+		vec2 coord = clamp(texCoord + offset * srcTexel * tapScale,
 		                   pad, 1.0 - pad);
         vec3 source = bloom_prefilter(max(textureLod(src,coord,0.0).rgb,vec3(0.0)));
-        #if defined DIMENSION_END && defined ASTRA_BLOOM_CAPTURE
+        #if defined DIMENSION_END && defined ASTRA_BLOOM_CAPTURE && END_STONE_GLOW > 0
+        // With pore emission disabled, colortex3.a is identically zero.
+        // Ordinary scene/sky bloom above remains independent of this option.
         // Reject sky and opaque surfaces covered by translucent geometry. The mask
         // is written only by identity-gated End-stone terrain, never pale sand.
         float depth = textureLod(depthtex0,coord,0.0).r;
-        float opaqueDepth = textureLod(depthtex1,coord,0.0).r;
-        if (depth < 0.999999 && abs(depth-opaqueDepth) < 1e-7) {
+        if (depth < 0.999999) {
             float emission = textureLod(colortex3,coord,0.0).a;
-            source += vec3(0.16/0.19,1.0,0.08/0.19)*emission;
+            if (emission > 0.0) {
+                float opaqueDepth = textureLod(depthtex1,coord,0.0).r;
+                if (abs(depth-opaqueDepth) < 1e-7)
+                    source += vec3(0.16/0.19,1.0,0.08/0.19)*emission;
+            }
         }
         #endif
-        acc += source * BLOOM_TAP_WEIGHT[i];
+        acc += source * weight;
 	}
 
 	return acc;

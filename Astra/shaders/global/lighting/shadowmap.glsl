@@ -16,6 +16,7 @@
 // caster texel; only the depth comparison runs in GLSL or in the texture unit.
 #include "/lib/distort.glsl"
 #include "/lib/transforms.glsl"
+#include "/lib/water_palette.glsl"
 
 const float WATER_HEIGHT_NONE = 1.0;
 
@@ -44,10 +45,37 @@ uniform sampler2D shadowtex1;
 #endif
 #endif
 #if defined SHADOWS || defined WATER_CAUSTICS
-uniform sampler2D shadowcolor0; // R: water height, GBA: transparent-caster tint
+// R: water height/type. Overworld water GBA: optical slope X/Z, scalar focus.
+// Non-water casters and other dimensions retain GBA transmission RGB.
+uniform sampler2D shadowcolor0;
 vec4 shadow_caster_data(vec2 uv) {
     ivec2 size = textureSize(shadowcolor0, 0);
     return texelFetch(shadowcolor0, clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1), 0);
+}
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && defined WATER_CAUSTICS
+vec4 shadow_water_caustic_gain(vec4 heights, vec4 focus, float receiverWorldY) {
+    vec4 depth = max(heights * 127.5 - 64.0 + water_height_origin() - receiverWorldY, vec4(0.0));
+    vec4 depthSquared = depth * depth;
+    vec4 depthWeight = depthSquared / (depthSquared + 16.0);
+    vec4 deviation = max(focus, vec4(0.0)) - 1.0;
+    // A one-block pool retains only a faint lens response. Compress bright
+    // ridges as a scalar, so RGB clipping cannot turn cyan patches white.
+    float contrast = isEyeInWater == 1 ? 0.90 : 0.65;
+    return 1.0 + depthWeight * contrast * deviation / (1.0 + abs(deviation) * 0.60);
+}
+#endif
+vec3 shadow_water_transmission(vec4 caster, float receiverWorldY) {
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        #ifdef WATER_CAUSTICS
+        // The water medium owns spectral colouring. Surface caustics change
+        // light intensity only, avoiding a second cyan pattern on the bed.
+        return vec3(shadow_water_caustic_gain(vec4(caster.r), vec4(caster.a), receiverWorldY).x);
+        #else
+        return vec3(1.0);
+        #endif
+    #else
+    return caster.gba;
+    #endif
 }
 #endif
 
@@ -76,7 +104,9 @@ float shadow_uv_coverage(vec3 shadowPos) {
     #endif
 }
 float shadow_coverage(vec3 playerPos, vec3 shadowPos) {
-    return shadow_map_fade(playerPos) * shadow_uv_coverage(shadowPos);
+    float fade = shadow_map_fade(playerPos);
+    if (fade <= 0.0) return 0.0;
+    return fade * shadow_uv_coverage(shadowPos);
 }
 
 #ifdef SHADOWS
@@ -99,7 +129,7 @@ vec4 shadow_gather_visibility(sampler2D depths, vec2 uv, float referenceDepth) {
     return step(vec4(referenceDepth), textureGather(depths, clamp(uv,edge,1.0-edge), 0).wzxy);
 }
 #endif
-vec3 shadow_lobe_light(vec2 uv, float referenceDepth) {
+vec3 shadow_lobe_light(vec2 uv, float referenceDepth, float receiverWorldY) {
     ivec2 size = textureSize(shadowtex0, 0);
     vec2 edge = 0.5 / vec2(size);
     uv = clamp(uv, edge, 1.0-edge);
@@ -113,6 +143,30 @@ vec3 shadow_lobe_light(vec2 uv, float referenceDepth) {
     vec4 transparentWeight = max(opaqueVisibility-allVisibility, vec4(0.0)) * weights;
     // Preserve each corner's discrete caster, including mixed water/glass edges.
     if (any(greaterThan(transparentWeight, vec4(0.0)))) {
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined COLORED_SHADOWS && !defined WATER_CAUSTICS
+        // Both caster responses are white with these options off. The paired
+        // depths already supply the complete result, with no caster payload.
+        return light + vec3(dot(transparentWeight, vec4(1.0)));
+        #endif
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        // Open water occupies many shoreline receivers. Gather just height and
+        // focus rather than reading four full RGBA slope records per lobe.
+        // Sparse edges already need fewer than four caster reads. Keep their
+        // original path instead of paying for gathers that cannot save work.
+        if (all(greaterThan(transparentWeight, vec4(0.0)))) {
+          vec4 waterHeights = textureGather(shadowcolor0, uv, 0).wzxy;
+          if (all(lessThan(waterHeights, vec4(0.999)))) {
+            #ifdef WATER_CAUSTICS
+            vec4 focus = textureGather(shadowcolor0, uv, 3).wzxy;
+            vec4 gain = shadow_water_caustic_gain(waterHeights, focus, receiverWorldY);
+            light += vec3(dot(gain, transparentWeight));
+            #else
+            light += vec3(dot(vec4(1.0), transparentWeight));
+            #endif
+            return light;
+          }
+        }
+        #endif
         ivec2 corner = ivec2(floor(location));
         for (int i=0; i<4; ++i) {
             if (transparentWeight[i] <= 0.0) continue;
@@ -122,8 +176,9 @@ vec3 shadow_lobe_light(vec2 uv, float referenceDepth) {
             #ifdef COLORED_SHADOWS
                 transmission = caster.gba;
             #endif
-            if (caster.r < 0.999)
-                transmission = isEyeInWater == 1 ? caster.gba : vec3(1.0);
+            if (caster.r < 0.999) {
+                transmission = shadow_water_transmission(caster, receiverWorldY);
+            }
             light += transmission * transparentWeight[i];
         }
     }

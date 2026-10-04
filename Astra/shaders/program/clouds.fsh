@@ -5,11 +5,16 @@
 #include "/lib/transforms.glsl"
 #include "/program/scene.glsl"
 #include "/global/atmosphere/clouds_planar.glsl"
+#include "/lib/taa_reactive.glsl"
 
 in vec2 texcoord;
 in vec4 tint;
 
+#ifdef ASTRA_TAA
+/* RENDERTARGETS: 0,16 */
+#else
 /* RENDERTARGETS: 0 */
+#endif
 
 vec3 astra_cloud_world_direction() {
 	vec2 screenUv = gl_FragCoord.xy / vec2(viewWidth, viewHeight);
@@ -28,14 +33,22 @@ void main() {
 	vec4 cloud = texture(gtexture, texcoord) * tint;
 	cloud.rgb = srgb_decode(max(cloud.rgb, vec3(0.0)));
 	cloud.rgb *= mix(vec3(0.72), vec3(1.0), skyVisibilityDay);
-    vec3 direction=astra_cloud_world_direction();
-    vec3 morningCloud=astra_twilight_atmosphere(cloud.rgb,direction);
-    cloud.rgb=mix(cloud.rgb,morningCloud*mix(0.60,0.92,tint.r),astra_twilight_strength());
+    float twilight=astra_twilight_strength();
+    if (twilight > 0.0) {
+        vec3 direction=astra_cloud_world_direction();
+        vec3 morningCloud=astra_twilight_atmosphere(cloud.rgb,direction);
+        cloud.rgb=mix(cloud.rgb,morningCloud*mix(0.60,0.92,tint.r),twilight);
+    }
 	cloud.rgb = mix(cloud.rgb, vec3(dot(cloud.rgb, vec3(0.25, 0.65, 0.10))) * 0.72,
 	                rainStrength * 0.65);
 	#ifdef FANCY_TRANSLUCENTS
 		cloud.rgb *= cloud.a;
 	#endif
 	gl_FragData[0] = cloud;
+    #ifdef ASTRA_TAA
+    // Vanilla cloud geometry has no matching motion history. Mark its visible
+    // footprint even when it is drawn after the deferred scene classification.
+    gl_FragData[1] = vec4(1.0, 0.0, 0.0, 1.0);
+    #endif
 #endif
 }

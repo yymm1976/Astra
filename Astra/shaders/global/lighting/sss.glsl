@@ -146,7 +146,8 @@ float sss_wrap(float ndotl, bool isLeaves, float sssStrength) {
 // surface->camera ray point the same way, and that is what this now selects.
 float sss_transmission(float ndotl, vec3 viewDir, vec3 worldLightVector, bool isLeaves,
                        float skyLight, float sssStrength) {
-	if (sssStrength <= 0.0) return 0.0;
+	// The existing exposure smoothstep is exactly zero for these cave plants.
+	if (sssStrength <= 0.0 || skyLight <= 0.20) return 0.0;
 	// Looking towards the light sees through the surface.
 	float vdotl = dot(-viewDir, worldLightVector);
 	if (vdotl <= 0.0) return 0.0;

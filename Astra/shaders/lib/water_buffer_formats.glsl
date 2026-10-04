@@ -14,6 +14,7 @@ const int colortex0Format = R11F_G11F_B10F;
 // per texel as default RGBA8, while preserving radiance above one.
 const int colortex2Format = R11F_G11F_B10F;
 const int colortex4Format = R11F_G11F_B10F;
-// Solas bloom uses eighth-root encoding, requiring its reference precision.
-const int colortex7Format = RGBA16;
+// The current underwater capture stores the same linear HDR prefilter as 2.
+// Normalized RGBA16 would clamp every bloom peak above one; no alpha is used.
+const int colortex7Format = R11F_G11F_B10F;
 #endif

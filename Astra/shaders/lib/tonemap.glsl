@@ -42,8 +42,14 @@ vec3 uchimura_tonemap_full(vec3 x, float P, float a, float m, float l, float c, 
     vec3 w2 = vec3(step(m + l0, x));
     vec3 w1 = vec3(1.0 - w0 - w2);
 
-    vec3 T = vec3(m * pow(x / m, vec3(c)) + b);
-    vec3 S = vec3(P - (P - S1) * exp(CP * (x - S0)));
+    // The toe and shoulder are disjoint ranges. When every channel's weight
+    // is zero, omit that curve while retaining the original transition masks.
+    vec3 T = vec3(0.0);
+    if (any(greaterThan(w0, vec3(0.0))))
+        T = vec3(m * pow(x / m, vec3(c)) + b);
+    vec3 S = vec3(0.0);
+    if (any(greaterThan(w2, vec3(0.0))))
+        S = vec3(P - (P - S1) * exp(CP * (x - S0)));
     vec3 L = vec3(m + a * (x - m));
 
     return T * w0 + L * w1 + S * w2;
@@ -221,9 +227,10 @@ vec3 apply_contrast(vec3 color, float contrast) {
     // Endpoint-preserving curve: a nonzero shadow must not become negative
     // and get clipped to black by the final grade.
     vec3 c = clamp(color, 0.0, 1.0);
-    vec3 low = 0.5 * pow(2.0 * c, vec3(contrast));
-    vec3 high = 1.0 - 0.5 * pow(2.0 * (1.0 - c), vec3(contrast));
-    return mix(low, high, step(vec3(0.5), c));
+    // Both halves are mirror images. Evaluate one power per channel instead
+    // of evaluating both curves and discarding one of them.
+    vec3 curved = 0.5 * pow(2.0 * min(c,1.0-c), vec3(contrast));
+    return mix(curved,1.0-curved,step(vec3(0.5),c));
 }
 
 #endif

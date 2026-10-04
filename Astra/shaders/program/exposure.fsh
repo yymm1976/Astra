@@ -1,5 +1,5 @@
 // Auto-exposure metering: 64 taps of the assembled frame, one stored gain per frame.
-// Runs after composite3 (colortex0's last writer) and before final, so the frame it
+// Runs after composite3 (the underwater scene in reused colortex4) and before final, so the frame it
 // measures is the frame final displays - minus the bloom, godray and darkness terms
 // final adds itself, which is deliberate: effects that exposure would otherwise feed
 // back into must not drive their own exposure.
@@ -9,6 +9,9 @@
 #include "/lib/uniforms.glsl"
 #include "/global/post/exposure.glsl"
 uniform sampler2D colortex0;
+#ifdef ASTRA_BLOOM
+uniform sampler2D colortex4;
+#endif
 uniform float frameTime;
 /* RENDERTARGETS: 10 */
 void main() {
@@ -16,8 +19,14 @@ void main() {
 	// execution even if the buffer scale is ever widened. program/scattering.fsh's
 	// broadcast texel uses the same corner test, and the vector comparison has to be
 	// all(lessThan(...)) - GLSL ES has no < for vectors (survey 11.F-9).
-	if (all(lessThan(gl_FragCoord.xy, vec2(1.0))))
-		gl_FragData[0] = astra_ae_frame(colortex0, frameTime);
+	if (all(lessThan(gl_FragCoord.xy, vec2(1.0)))) {
+        #ifdef ASTRA_BLOOM
+        if (isEyeInWater == 1 && DEBUG_VERTEX_AO == 0)
+            gl_FragData[0] = astra_ae_frame(colortex4, frameTime);
+        else
+        #endif
+		    gl_FragData[0] = astra_ae_frame(colortex0, frameTime);
+    }
 	else
 		discard;
 }

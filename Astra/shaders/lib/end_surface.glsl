@@ -1,19 +1,27 @@
 #ifndef ASTRA_END_SURFACE_GLSL
 #define ASTRA_END_SURFACE_GLSL
+#include "/lib/color_controls.glsl"
 #include "/lib/end_light.glsl"
 // A bounded, integrated disc-light proxy shared by terrain and offline geometry.
 // Shadow projection, diffuse and specular use the same world-space direction.
-const vec3 END_DISC_IRRADIANCE=vec3(0.56,0.78,1.10);
-const vec3 END_DISC_AMBIENT=vec3(0.10,0.12,0.17);
+const vec3 END_DISC_IRRADIANCE=vec3(0.56,0.78,1.10) * ASTRA_TINT_END_LIGHT;
+const vec3 END_DISC_AMBIENT=vec3(0.10,0.12,0.17) * ASTRA_TINT_END_AMBIENT;
 // End-stone emission is identity-gated in lib/surface_emission.glsl.
 vec3 end_surface_direct(vec3 normal,float visibility,float eclipse) {
     return END_DISC_IRRADIANCE*max(dot(normal,end_light_direction()),0.0)
            *visibility*(1.0-0.65*eclipse);
 }
-vec3 end_surface_diffuse(vec3 albedo,vec3 normal,float visibility,float eclipse) {
+// Native lighting also exports the direct term; evaluate its irradiance once.
+vec3 end_surface_diffuse(vec3 albedo,vec3 normal,float visibility,float eclipse,
+                         out vec3 directRadiance) {
     float hemisphere=0.65+0.35*max(normal.y,0.0);
     vec3 direct=end_surface_direct(normal,visibility,eclipse);
+    directRadiance=albedo*direct;
     return albedo*(END_DISC_AMBIENT*hemisphere+direct);
+}
+vec3 end_surface_diffuse(vec3 albedo,vec3 normal,float visibility,float eclipse) {
+    vec3 directRadiance;
+    return end_surface_diffuse(albedo,normal,visibility,eclipse,directRadiance);
 }
 // Use the material normal directly. A fract(worldPos) bevel highlights internal
 // coplanar block seams too; exposed-edge bevels require actual neighbour geometry.

@@ -4,11 +4,14 @@
 #include "/lib/transforms.glsl"
 #include "/global/lighting/shadowmap.glsl"
 #include "/global/water/medium_state.glsl"
-uniform sampler2D colortex5;
+#include "/lib/water_interface_record.glsl"
 /* RENDERTARGETS: 6 */
 void main() {
     vec4 best = vec4(0.0);
     float bestDistance = 1e20;
+    vec4 nearestSide = vec4(0.0);
+    float sideDistance = 1e20;
+    int nearSides = 0;
     ivec2 size = textureSize(colortex5, 0);
     // A viewport grid finds the nearest local interface; no fixed sea level.
     for (int y = 0; y < 12; ++y) {
@@ -17,6 +20,17 @@ void main() {
             ivec2 pixel = clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1);
             vec4 data = texelFetch(colortex5, pixel, 0);
             if (data.a < 0.5) continue;
+            if (water_interface_is_side(data)) {
+                float depth = texelFetch(depthtex0, pixel, 0).r;
+                if (depth >= 0.999999) continue;
+                float distanceToSide = length(view_camera_relative(screen_view(vec3(uv, depth))));
+                if (distanceToSide < 1.5) ++nearSides;
+                if (distanceToSide < sideDistance) {
+                    sideDistance = distanceToSide;
+                    nearestSide = vec4(0.0, 0.0, data.b, 0.25);
+                }
+                continue;
+            }
             float surfaceY = water_unpack_surface_height(data.rg);
             if (isEyeInWater == 1 && surfaceY < cameraPosition.y - 0.25) continue;
             vec3 ray = view_camera_relative(screen_view(vec3(uv, 0.5)));
@@ -30,15 +44,21 @@ void main() {
             }
         }
     }
-    if (best.a < 0.5 && isEyeInWater == 1) {
+    // A nearby water wall with no nearby top is a thin sheet, not an ocean
+    // extending to the horizon. Also identify it while approaching from air,
+    // so opaque lighting has this record on the first submerged frame.
+    if (nearSides >= 3 && bestDistance > 3.0) best = nearestSide;
+    if (best.a == 0.0 && isEyeInWater == 1) {
         // Looking down hides the interface: retain its last observed world height.
         vec4 previous = water_volume_state();
-        if (previous.a > 0.5 && water_unpack_surface_height(previous.rg) >= cameraPosition.y - 0.25)
+        if (previous.a > 0.125 && previous.a < 0.375)
+            best = previous;
+        else if (previous.a > 0.5 && water_unpack_surface_height(previous.rg) >= cameraPosition.y - 0.25)
             best = previous;
         #ifdef SHADOWS
             // First submerged frame can also recover a real surface from the sun map.
             vec3 p = distort(player_shadow(vec3(0.0))) * 0.5 + 0.5;
-            if (best.a < 0.5 && shadow_uv_coverage(p) > 0.0) {
+            if (best.a == 0.0 && shadow_uv_coverage(p) > 0.0) {
                 float code = shadow_caster_data(p.xy).r;
                 if (code < 0.999) {
                     float h = decode_water_height(code);

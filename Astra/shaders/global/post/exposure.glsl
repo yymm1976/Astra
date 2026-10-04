@@ -2,6 +2,7 @@
 #define ASTRA_GLOBAL_POST_EXPOSURE_GLSL
 
 #include "/lib/encoding.glsl"
+#include "/global/water/medium_state.glsl"
 
 // ============================================================
 //  Astra v1 - global/post/exposure.glsl
@@ -108,36 +109,31 @@ vec4 astra_ae_frame(sampler2D scene, float deltaTime) {
 	// would decode as AE_MIN_GAIN and the first frame of every world load would start
 	// by darkening the picture.
 	vec4 history = texelFetch(colortex10, ivec2(0), 0);
-    // A valid frozen history needs no scene metering while submerged.
-    if (isEyeInWater != 0) {
+    // Bodies of water keep their own display curve. Thin sheets use the air
+    // curve, so their exposure must continue adapting with the surrounding scene.
+    if (isEyeInWater != 0 && !water_is_thin_sheet()) {
         float code = history.a > 0.5 && !isnan(history.r)
             ? history.r : astra_ae_encode(1.0);
         return vec4(code, 0.0, 0.0, 1.0);
     }
     float target = astra_ae_meter(scene);
-	float current = history.a > 0.5 ? astra_ae_decode(history.r) : target;
+	float current = history.a > 0.5 && astraTimeDiscontinuity == 0
+        ? astra_ae_decode(history.r) : target;
 	if (isnan(current)) current = target;
 
-	// Underwater the gain is never consumed (program/final.fsh applies it on the air
-	// arm only), so freezing the history is what keeps it meaningful: surfacing
-	// continues from the last air value instead of from whatever the water fog read as.
-	if (isEyeInWater == 0) {
-		float currentLog = log2(max(current, AE_FLOOR));
-		float targetLog = log2(max(target, AE_FLOOR));
-		if (abs(targetLog - currentLog) <= AE_LOG_SNAP) {
-			// Finish imperceptibly small changes instead of leaving an endless tail.
-			current = target;
-		} else {
-			float rate = target < current ? AE_RATE_FAST : AE_RATE_SLOW;
-			// frameTime is seconds (bliss-shader / iterationT calibrate it as a shutter
-			// time), so the rate is per second and the response is frame-rate neutral.
-			float blend = clamp(1.0 - exp(-max(deltaTime, 1e-4) * rate), 0.0, 1.0);
-			// Exponential blend in the log domain: one frame always moves the same
-			// perceptual amount, which a linear mix would not do (it would take the
-			// same number of frames to move 0.02 of gain near 0.6 as to move 1.2 near
-			// 1.0, so brightening would lag darkening by construction).
-			current = exp2(mix(currentLog, targetLog, blend));
-		}
+	// Air and thin sheets share the same adaptive display path.
+	float currentLog = log2(max(current, AE_FLOOR));
+	float targetLog = log2(max(target, AE_FLOOR));
+	if (abs(targetLog - currentLog) <= AE_LOG_SNAP) {
+		// Finish imperceptibly small changes instead of leaving an endless tail.
+		current = target;
+	} else {
+		float rate = target < current ? AE_RATE_FAST : AE_RATE_SLOW;
+		// frameTime is seconds (bliss-shader / iterationT calibrate it as a shutter
+		// time), so the rate is per second and the response is frame-rate neutral.
+		float blend = clamp(1.0 - exp(-max(deltaTime, 1e-4) * rate), 0.0, 1.0);
+		// Exponential blend in the log domain preserves perceptual adaptation.
+		current = exp2(mix(currentLog, targetLog, blend));
 	}
 	return vec4(astra_ae_encode(current), 0.0, 0.0, 1.0);
 }

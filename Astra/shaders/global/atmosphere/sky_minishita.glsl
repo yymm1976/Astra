@@ -2,7 +2,7 @@
 #define ASTRA_GLOBAL_ATMOSPHERE_SKY_MINISHITA_GLSL
 
 // Astra v1 - two-view-sample mini atmosphere.
-// Uniforms: worldSunVector, sunProgress, moonProgress, skyVisibilityDay, rainStrength.
+// Uniforms: astraMinishitaSun, astraMinishitaMoon, skyVisibilityDay, rainStrength.
 // Original Astra implementation. The integration layout follows the public Minishita idea
 // (tiny spherical atmosphere, very few samples); no reference-pack expression is copied.
 //
@@ -40,7 +40,7 @@ const float ASTRA_MIE_HEIGHT = 0.0040;
 const vec3 ASTRA_BETA_R = vec3(3.92, 8.96, 21.0);
 const float ASTRA_BETA_M = 3.4;
 const float ASTRA_MIE_G = 0.76;
-const float ASTRA_SKY_DAY_GAIN = 22.0;
+// Source strength (including the 22.0 day gain) is now CPU-precomputed.
 const float ASTRA_SKY_HORIZON_ELEVATION = 0.10;
 
 float astra_atmos_exit(vec3 origin, vec3 direction, float radius) {
@@ -66,11 +66,20 @@ float astra_phase_mie(float cosineTheta) {
 	     / (8.0 * ASTRA_PI * (2.0 + g2) * base * sqrt(base));
 }
 
-vec3 astra_minishita_source(vec3 worldDir,vec3 sourceDir,float sourceStrength) {
+vec3 astra_minishita_extinction(vec3 samplePos, vec3 sourceDir, vec2 opticalView) {
+	float lightDistance = astra_atmos_exit(samplePos, sourceDir, ASTRA_ATMOS_RADIUS);
+	vec2 opticalLight = astra_atmos_density(samplePos + sourceDir * (0.5 * lightDistance))
+	                  * lightDistance;
+	vec2 optical = opticalView + opticalLight;
+	return exp(-(ASTRA_BETA_R * optical.x + vec3(ASTRA_BETA_M * optical.y)));
+}
+
+vec3 astra_minishita_sky(vec3 worldDir) {
 	// Two view samples cannot resolve the long grazing optical path, and negative
 	// rays can enter the solid planet. Continue the stable lower sky into the
 	// horizon instead of amplifying its erroneous olive extinction.
-	vec3 viewDir = normalize(worldDir);
+	vec3 originalDir = normalize(worldDir);
+	vec3 viewDir = originalDir;
 	if (viewDir.y < ASTRA_SKY_HORIZON_ELEVATION) {
 		float horizontalLength = length(viewDir.xz);
 		vec2 azimuth = horizontalLength > 1e-5 ? viewDir.xz / horizontalLength : vec2(0.0, 1.0);
@@ -81,13 +90,20 @@ vec3 astra_minishita_source(vec3 worldDir,vec3 sourceDir,float sourceStrength) {
 	vec3 observer = vec3(0.0, ASTRA_PLANET_RADIUS + 0.0008, 0.0);
 	float distanceToTop = astra_atmos_exit(observer, viewDir, ASTRA_ATMOS_RADIUS);
 
-	float mu = dot(viewDir, sourceDir);
-	float phaseR = astra_phase_rayleigh(mu);
-	float phaseM = astra_phase_mie(mu) * 0.45;
+	vec2 sunPhase = vec2(0.0), moonPhase = vec2(0.0);
+	if (astraMinishitaSun.a > 0.0) {
+		float mu = dot(viewDir, astraMinishitaSun.xyz);
+		sunPhase = vec2(astra_phase_rayleigh(mu), astra_phase_mie(mu) * 0.45)
+		         * astraMinishitaSun.a;
+	}
+	if (astraMinishitaMoon.a > 0.0) {
+		float mu = dot(viewDir, astraMinishitaMoon.xyz);
+		moonPhase = vec2(astra_phase_rayleigh(mu), astra_phase_mie(mu) * 0.45)
+		          * astraMinishitaMoon.a;
+	}
 
 	vec2 opticalView = vec2(0.0);
-	vec3 scatteredR = vec3(0.0);
-	vec3 scatteredM = vec3(0.0);
+	vec3 radiance = vec3(0.0);
 	float segment = distanceToTop * 0.5;
 
 	// Two midpoint view samples and one midpoint light sample at each view point.
@@ -96,38 +112,23 @@ vec3 astra_minishita_source(vec3 worldDir,vec3 sourceDir,float sourceStrength) {
 		vec2 density = astra_atmos_density(samplePos);
 		opticalView += density * segment;
 
-		float lightDistance = astra_atmos_exit(samplePos, sourceDir, ASTRA_ATMOS_RADIUS);
-		vec2 opticalLight = astra_atmos_density(samplePos + sourceDir * (0.5 * lightDistance))
-		                  * lightDistance;
-		vec2 optical = opticalView + opticalLight;
-		vec3 extinction = exp(-(ASTRA_BETA_R * optical.x + vec3(ASTRA_BETA_M * optical.y)));
-		scatteredR += density.x * extinction * segment;
-		scatteredM += density.y * extinction * segment;
+		// Twilight's two sources share observer, view samples and optical depth.
+		if (astraMinishitaSun.a > 0.0) {
+			vec3 extinction = astra_minishita_extinction(samplePos, astraMinishitaSun.xyz, opticalView);
+			radiance += (density.x * ASTRA_BETA_R * sunPhase.x
+			           + density.y * ASTRA_BETA_M * sunPhase.y) * extinction * segment;
+		}
+		if (astraMinishitaMoon.a > 0.0) {
+			vec3 extinction = astra_minishita_extinction(samplePos, astraMinishitaMoon.xyz, opticalView);
+			radiance += (density.x * ASTRA_BETA_R * moonPhase.x
+			           + density.y * ASTRA_BETA_M * moonPhase.y) * extinction * segment;
+		}
 	}
-
-	vec3 radiance = (scatteredR * ASTRA_BETA_R * phaseR
-	               + scatteredM * ASTRA_BETA_M * phaseM) * sourceStrength;
-	return max(vec3(0.0),radiance);
-}
-vec3 astra_minishita_sky(vec3 worldDir) {
-    // Only twilight needs both sources. Fade residual sunlight below the horizon
-    // instead of switching the entire scattering direction at elevation zero.
-    float day=smoothstep(-0.16,0.08,worldSunVector.y);
-    vec3 radiance=vec3(0.0);
-    if(day>0.0) {
-        vec3 sun=normalize(vec3(worldSunVector.x,max(worldSunVector.y,0.01),worldSunVector.z));
-        radiance+=astra_minishita_source(worldDir,sun,
-                    ASTRA_SKY_DAY_GAIN*mix(0.40,1.0,sunProgress))*day;
-    }
-    if(day<1.0) {
-        vec3 moon=normalize(vec3(-worldSunVector.x,max(-worldSunVector.y,0.01),-worldSunVector.z));
-        radiance+=astra_minishita_source(worldDir,moon,0.055+0.025*moonProgress)*(1.0-day);
-    }
 	float night = 1.0 - skyVisibilityDay;
-	radiance += vec3(0.0035, 0.0065, 0.014) * night * (0.35 + 0.65 * max(normalize(worldDir).y, 0.0));
+	radiance += vec3(0.0035, 0.0065, 0.014) * night * (0.35 + 0.65 * max(originalDir.y, 0.0));
 	radiance *= mix(1.0, 0.58, rainStrength);
 
-	// Sky, reflections and fully fogged terrain share this continuation.
+	// Sky, reflections and fully fogged terrain share the existing continuation.
 	return max(vec3(0.0), radiance);
 }
 

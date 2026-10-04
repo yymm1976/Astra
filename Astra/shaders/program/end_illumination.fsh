@@ -45,8 +45,8 @@ void main() {
         float limit=length(target); vec3 ray=target/limit;
         float transmission=1.0;
         for(int j=66;j<END_BODY_COUNT;j++) {
-            float hit,cover; vec3 normal;
-            if(end_body_intersect(vec3(0.0),ray,limit,islands[j-66],j,0.0001,hit,normal,cover)) {
+            float hit,epsilon; vec3 localHit;
+            if(end_body_hit(vec3(0.0),ray,limit,islands[j-66],j,0.0001,hit,localHit,epsilon)) {
                 transmission=0.0; break;
             }
         }

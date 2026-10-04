@@ -2,6 +2,7 @@
 #define ASTRA_GLOBAL_POST_GRADING_GLSL
 
 #include "/lib/encoding.glsl"
+#include "/lib/color_controls.glsl"
 #include "/lib/dither.glsl"
 #include "/lib/tonemap.glsl"
 #include "/global/post/exposure.glsl"
@@ -68,10 +69,8 @@
 // the first two Iris visual rounds. Matching Refrax still needs the user's
 // visual verdict; source-level adjustments do not settle the final look.
 //
-// All three GUI profiles currently ship IDENTICAL grading values, and they do it
-// in shaders.properties (profile.PERFORMANCE/BALANCED/ULTRA set the slider macros
-// directly) - not by interpolating anything in this file. Per-profile looks are a
-// shaders.properties change; what follows is only the neutral default.
+// Grading and colour styles are independent of quality profiles. Choosing a
+// performance tier leaves the user's exposure, tone curve and colour gains intact.
 // ------------------------------------------------------------
 
 const float GRADING_EXPOSURE_NETHER = 1.05;
@@ -124,6 +123,22 @@ vec3 apply_exposure(vec3 linearHDR) {
 	return linearHDR * (EXPOSURE * 0.01 * grading_dimension_exposure());
 }
 
+// SUMMARY idea (Mellow/Bliss/Photon/Nostalgia/Kappa): mesopic night blue shift.
+// Original Astra luminance-preserving blend; no reference formula copied.
+vec3 astra_purkinje(vec3 hdr) {
+    #if PURKINJE_STRENGTH > 0 && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    if (astraPurkinjeGate <= 0.0) return hdr;
+    float luminance = dot(hdr, vec3(0.2126, 0.7152, 0.0722));
+    float weight = astraPurkinjeGate * (PURKINJE_STRENGTH * 0.01)
+                 * (1.0 - smoothstep(0.01, 0.12, luminance));
+    // The tint has unit luminance; bright local lights retain their own colour.
+    const vec3 rodTint = vec3(0.55, 1.0, 1.5) / 0.94043;
+    return mix(hdr, luminance * rodTint, weight);
+    #else
+    return hdr;
+    #endif
+}
+
 // Auto-exposure sits in front of apply_exposure rather than inside it: it is a scene
 // measurement, and the user's slider stays the thing it multiplies. Like apply_vignette,
 // the function always exists and returns its input untouched when the option is off, so
@@ -161,11 +176,24 @@ vec3 apply_color_temperature(vec3 color) {
 // running full saturation first would push channels into the range vibrance then
 // tries to protect, and the two sliders would fight.
 // ------------------------------------------------------------
+vec3 apply_tonal_balance(vec3 color) {
+    #if LOOK_SHADOWS_R != 100 || LOOK_SHADOWS_G != 100 || LOOK_SHADOWS_B != 100 || LOOK_MIDS_R != 100 || LOOK_MIDS_G != 100 || LOOK_MIDS_B != 100 || LOOK_HIGHS_R != 100 || LOOK_HIGHS_G != 100 || LOOK_HIGHS_B != 100
+    float luma = clamp(dot(color, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+    float shadows = 1.0 - smoothstep(0.05, 0.40, luma);
+    float highs = smoothstep(0.60, 0.95, luma);
+    float mids = 1.0 - shadows - highs;
+    return color * (ASTRA_LOOK_SHADOWS * shadows + ASTRA_LOOK_MIDS * mids + ASTRA_LOOK_HIGHS * highs);
+    #else
+    return color;
+    #endif
+}
+
 vec3 apply_grading(vec3 displayColor) {
 	vec3 color = apply_color_temperature(displayColor);
 	color = apply_vibrance(color, VIBRANCE * 0.01);
 	color = apply_saturation(color, SATURATION * 0.01);
 	color = apply_contrast(color, CONTRAST * 0.01);
+    color = apply_tonal_balance(color);
 	return clamp(color, vec3(0.0), vec3(1.0));
 }
 

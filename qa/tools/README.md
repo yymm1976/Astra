@@ -1,6 +1,8 @@
 # 本地工具配置
 
-工具从命令行参数、环境变量、系统常见 Minecraft 目录依次取路径。仓库不再指定某一台机器的盘符或实例名称。
+工具从命令行参数、环境变量、本地 `qa/local_paths.json`、系统常见 Minecraft 目录依次取路径。仓库代码不指定某一台机器的盘符或实例名称。
+
+`qa/local_paths.json` 已排除版本控制，可填写 `minecraft_root` 与 `minecraft_instance` 两个字符串路径。本地实例仅用于其对应根目录；指定另一个根目录时，不会沿用本地实例。此机器已指向包含现有库文件的游戏目录。
 
 | 参数 / 环境变量 | 含义 |
 |---|---|
@@ -16,6 +18,10 @@
 `inspect_iris_properties.py` 读取四档配置，用安装版本的 Iris 解析选项和布尔条件。三个画质档参与递增比较，NO_SHADOWS 单独要求关闭阴影。它读取调度配置，不测游戏帧率。
 
 `compile_glsl.py` 不带 `--profiles` 时仍只选择 PERFORMANCE、BALANCED、ULTRA。需要四档时明确指定 `--profiles PERFORMANCE NO_SHADOWS BALANCED ULTRA`；历史 270 次链接记录不能因此改称四档。
+
+选项登记、配置覆盖与条件分析共用 `shader_options.py`，支持带取值注释的 `#define` 和 `const float/int/bool` 声明。未标注取值的引擎常量不计入用户选项。配置覆盖会保留 const 的类型和分号，选项错误先于 JDK／库路径错误报告。`sunPathRotation` 的消费者单独登记为 Iris 天体／阴影矩阵，不要求它在 GLSL 中另有计算引用；其他 const 仍须有实际消费者。
+
+`underwater_light_probe.py` 已停用，直接提示旧介质接口已移除并返回 2。旧结果对应历史实现，不能描述当前光束、波面透镜或吸收链。
 
 ## 参考副本
 

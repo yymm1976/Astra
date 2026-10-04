@@ -1,5 +1,6 @@
 #ifndef ASTRA_LIB_TRANSFORMS_GLSL
 #define ASTRA_LIB_TRANSFORMS_GLSL
+#include "/lib/taa_jitter.glsl"
 
 // From Mellow v3.4 (MIT) by TheCMK - lib/transformations.glsl
 // Renamed to snake_case per design.md 3.2; Distant-Horizons branches dropped
@@ -16,6 +17,7 @@ vec3 project_and_divide(mat4 projection_mat, vec3 x) {
 
 // [0,1] screen depth/uv -> view space
 vec3 screen_view(vec3 x) {
+    x.xy -= astra_jitter_uv();
     x = x * 2.0 - 1.0;
     return project_and_divide(gbufferProjectionInverse, x);
 }
@@ -28,6 +30,15 @@ vec3 view_player(vec3 x) {
         mat4 mat = gbufferModelViewInverse;
     #endif
     return mat3(mat) * x;
+}
+
+// Frame-wide source direction. Explicit Voxy geometry retains its own transform.
+vec3 astra_world_light_direction() {
+    #ifdef ASTRA_VOXY_PASS
+    return normalize(view_player(lightVector));
+    #else
+    return astraWorldLightDirection;
+    #endif
 }
 
 // player-relative world space -> view space (direction-only transform)
@@ -43,7 +54,9 @@ vec3 player_view(vec3 x) {
 // view space -> [0,1] screen space
 vec3 view_screen(vec3 x) {
     x = project_and_divide(gbufferProjection, x);
-    return x * 0.5 + 0.5;
+    x = x * 0.5 + 0.5;
+    x.xy += astra_jitter_uv();
+    return x;
 }
 
 // Point transforms include translation; view_player/player_view above transform
@@ -88,7 +101,7 @@ vec3 astra_shadow_light_direction() {
     #ifdef DIMENSION_END
     return end_light_direction();
     #else
-    return normalize(view_player(lightVector));
+    return astra_world_light_direction();
     #endif
 }
 vec3 player_shadow(vec3 player_pos) {

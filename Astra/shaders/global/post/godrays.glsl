@@ -51,6 +51,15 @@ float depth_compare_sample(vec3 texCoord) {
 // lightScreenPos is the shadow light's position in the same space (0..1, may be
 // off-screen - the CPU-side offscreen fade in godraysExposure handles that).
 float godrays_density(vec2 screenCoord, vec2 lightScreenPos) {
+	#ifdef ASTRA_VOLUME_FOG
+	// R2/H3: with the optional overworld volume on, the ray march owns this air
+	// segment's solar in-scatter (per-step shadow map, cloud shadow and phase lobe).
+	// Keeping the screen-space beam would scatter the same air twice (handoff R2
+	// section 4.3), so the legacy path yields nothing while the volume option is on.
+	// godraysExposure / GODRAYS_STRENGTH stay display-side and need no change; the
+	// underwater arm of composite2 is a different medium and keeps working.
+	return 0.0;
+	#else
 	const float NUM_SAMPLES = 8.0;
 	const float DENSITY = 0.83;
 	const float DECAY = pow(0.5, 1.0 / NUM_SAMPLES);
@@ -75,6 +84,7 @@ float godrays_density(vec2 screenCoord, vec2 lightScreenPos) {
 	}
 
 	return accumulated / NUM_SAMPLES;
+	#endif
 }
 
 #endif

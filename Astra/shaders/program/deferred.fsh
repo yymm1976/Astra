@@ -1,30 +1,52 @@
 // E2: retain unattenuated HDR in 4; medium is applied once to display buffer 0.
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
+#include "/lib/taa_reactive.glsl"
 #include "/program/scene.glsl"
+#ifdef SCREENSPACE_AO
+#ifdef ASTRA_SSAO
+#include "/lib/ao_resolve.glsl"
+#endif
+#endif
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && CLOUD_MODE == CLOUD_PLANAR
+    #include "/global/atmosphere/clouds_screen.glsl"
+#endif
 uniform sampler2D colortex0;
 uniform sampler2D colortex3;
+#ifdef ASTRA_VOLUME_FOG
+// R2/H3: half-resolution S/T produced by program/volume_main.fsh this frame.
+uniform sampler2D colortex23;
+#endif
 #ifdef DIMENSION_END
 uniform sampler2D colortex9;
 #endif
 in vec2 texcoord;
+#ifdef ASTRA_TAA
+uniform sampler2D colortex16;
+/* RENDERTARGETS: 0,4,16 */
+#else
 /* RENDERTARGETS: 0,4 */
+#endif
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+vec3 puddle_reflection_sky(vec3 ray, float noV) {
+    return astra_reflection_sky(ray, 0.18) * smoothstep(-0.04, 0.04, ray.y)
+         * astra_environment_reflection_gain(0.18, noV, 0.025);
+}
 vec3 puddle_reflection(vec3 playerPos, vec3 normal) {
-    vec3 ray = reflect(normalize(playerPos), normal);
-    vec3 result = astra_reflection_sky(ray, 0.18)
-                * smoothstep(-0.04, 0.04, ray.y);
+    vec3 incident = normalize(playerPos);
+    vec3 ray = reflect(incident, normal);
+    float noV = max(dot(normal, -incident), 0.0);
     #ifdef SCREENSPACE_REFLECTIONS
     vec3 start = camera_relative_view(playerPos + normal * 0.025);
     vec3 direction = player_view(ray);
     float reach = direction.z > 0.0 ? min(32.0, (-0.06-start.z)/direction.z) : 32.0;
-    if (reach <= 0.05 || start.z >= -0.06) return result;
+    if (reach <= 0.05 || start.z >= -0.06) return puddle_reflection_sky(ray, noV);
     vec3 finish = start + direction * reach;
     vec2 a = view_screen(start).xy, b = view_screen(finish).xy;
     float ka = 1.0 / -start.z, kb = 1.0 / -finish.z;
     vec3 qa = start * ka, qb = finish * kb;
     float pixels = length((b-a) * vec2(textureSize(depthtex0, 0)));
-    if (pixels < 1.0) return result;
+    if (pixels < 1.0) return puddle_reflection_sky(ray, noV);
     // Fixed screen footprint, perspective-correct depth: thin cutout plants no
     // longer fall between increasingly large world-space steps.
     float stepT = 1.25 / pixels;
@@ -34,10 +56,16 @@ vec3 puddle_reflection(vec3 playerPos, vec3 normal) {
         vec2 uv = mix(a,b,t);
         if(any(lessThan(uv,vec2(0.002))) || any(greaterThan(uv,vec2(0.998)))) break;
         float d = textureLod(depthtex0,uv,0.0).r;
+        // Sky has no crossing; retain march progress without reconstructing it.
+        if (d >= 0.999999) {
+            previousT=t;
+            if(t>=1.0) break;
+            continue;
+        }
         vec3 p = mix(qa,qb,t)/mix(ka,kb,t);
         vec3 prev = mix(qa,qb,previousT)/mix(ka,kb,previousT);
         float sceneZ = screen_view(vec3(uv,d)).z;
-        if(d < 0.999999 && min(p.z,prev.z) <= sceneZ && max(p.z,prev.z) >= sceneZ-0.06) {
+        if(min(p.z,prev.z) <= sceneZ && max(p.z,prev.z) >= sceneZ-0.06) {
             float lo=previousT, hi=t;
             for(int j=0;j<6;++j) {
                 float mid=(lo+hi)*0.5;
@@ -49,50 +77,74 @@ vec3 puddle_reflection(vec3 playerPos, vec3 normal) {
             }
             uv=mix(a,b,hi);
             float hd=textureLod(depthtex0,uv,0.0).r;
+            if (hd >= 0.999999) {
+                previousT=t;
+                if(t>=1.0) break;
+                continue;
+            }
             vec3 hp=mix(qa,qb,hi)/mix(ka,kb,hi);
             float error=screen_view(vec3(uv,hd)).z-hp.z;
-            if(hd < 0.999999 && error >= 0.0 && error < 0.10 && length(hp-start)>0.06) {
+            if(error >= 0.0 && error < 0.10 && length(hp-start)>0.06) {
                 float edge=smoothstep(0.0,0.06,min(min(uv.x,1.0-uv.x),min(uv.y,1.0-uv.y)));
                 float rangeFade=1.0-smoothstep(80.0,96.0,float(i));
                 // The reflected hit is another pixel of the same scene, so it is
                 // subject to the same highlight ceiling. Without this, a reflection of
                 // the sun or of a bright sky region re-entered the frame above the
                 // shoulder and was handed to the tonemapper unclipped twice.
-                result=mix(result,astra_scene_highlights(textureLod(colortex0,uv,0.0).rgb),
-                           edge*rangeFade);
-                break;
+                vec3 reflected = astra_scene_highlights(textureLod(colortex0,uv,0.0).rgb);
+                float confidence = edge * rangeFade;
+                // A full-confidence hit owns the result; query the sky only
+                // for misses and the existing screen/range transition.
+                if (confidence >= 1.0) return reflected;
+                return mix(puddle_reflection_sky(ray, noV), reflected, confidence);
             }
         }
         previousT=t;
         if(t>=1.0) break;
     }
     #endif
-    return result;
+    return puddle_reflection_sky(ray, noV);
 }
 vec3 rainy_air(vec3 endPoint) {
     if(astraRainFactor < 0.01 || isEyeInWater != 0 || skyVisibilityDay <= 0.0
             || blindness > 0.0001) return vec3(0.0);
     float access = smoothstep(0.35,0.85,float(eyeBrightnessSmooth.y)/240.0);
     if(access <= 0.0) return vec3(0.0);
-    vec3 L = normalize(view_player(lightVector));
-    float distanceToEye = min(length(endPoint),100.0);
-    vec3 ray = normalize(endPoint);
+    vec3 L = astra_world_light_direction();
+    float endpointLength = length(endPoint);
+    float distanceToEye = min(endpointLength,100.0);
+    if (distanceToEye <= 0.0) return vec3(0.0);
+    vec3 ray = endPoint / endpointLength;
     float phase = 0.06 + 0.94*pow8(max(dot(ray,L),0.0));
     float sum = 0.0;
+    float stepLength = distanceToEye / 10.0;
+    float attenuation = exp(-stepLength * 0.004);
+    float attenuationStep = exp(-stepLength * 0.008);
+    #ifdef SHADOWS
+    // Project this ray once; each sample retains its homogeneous divide and
+    // nonlinear distortion, including any shadow-projection translation.
+    vec4 shadowOrigin = shadowProjection * (shadowModelView * vec4(0.0,0.0,0.0,1.0));
+    vec4 shadowStep = shadowProjection * (shadowModelView * vec4(ray * stepLength,0.0));
+    #endif
     for(int i=0;i<10;++i) {
-        float t = (float(i)+0.5)*distanceToEye/10.0;
+        float sampleIndex = float(i) + 0.5;
+        float t = sampleIndex * stepLength;
         vec3 p = ray*t;
         float lit = astra_cloud_transmission(p+cameraPosition,L);
         #ifdef SHADOWS
-        vec3 sp = distort(player_shadow(p))*0.5+0.5;
-        sp.z -= 0.00002;
-        float coverage = shadow_coverage(p,sp);
-        if (lit > 0.0 && coverage > 0.0)
-            lit *= mix(1.0,shadow_opaque_visibility(sp),coverage);
+        if (lit > 0.0) {
+            vec4 clip = shadowOrigin + shadowStep * sampleIndex;
+            vec3 sp = distort(clip.xyz / clip.w) * 0.5 + 0.5;
+            sp.z -= 0.00002;
+            float coverage = shadow_coverage(p,sp);
+            if (coverage > 0.0)
+                lit *= mix(1.0,shadow_opaque_visibility(sp),coverage);
+        }
         #endif
-        sum += lit * exp(-t*0.008);
+        sum += lit * attenuation;
+        attenuation *= attenuationStep;
     }
-    return vec3(1.0,0.91,0.78) * sum * (distanceToEye/10.0)
+    return vec3(1.0,0.91,0.78) * sum * stepLength
          * 0.003 * phase * astraRainFactor * access * skyVisibilityDay;
 }
 #endif
@@ -111,11 +163,39 @@ void main() {
     #endif
     vec3 source = texture(colortex0, texcoord).rgb;
     float depth = texture(depthtex0, texcoord).r;
+    #ifdef ASTRA_TAA
+    float reactive = texelFetch(colortex16, ivec2(gl_FragCoord.xy), 0).r;
+    #if !defined DIMENSION_END && CLOUD_MODE == CLOUD_VANILLA
+    if (depth >= 0.999999) reactive = 1.0;
+    #endif
+    #ifdef DIMENSION_NETHER
+    // Animated lighting and screen-space reflections have no single geometric
+    // motion. Keep their existing short history even with the smoke module retired.
+    reactive = max(reactive, 0.65);
+    #endif
+    #endif
     vec3 displayed = source;
     if (depth < 0.999999) {
-        uint lightData = uint(round(texelFetch(colortex3, ivec2(gl_FragCoord.xy), 0).r * 255.0));
-        if ((lightData & 128u) != 0u) depth = ((depth * 2.0 - 1.0) / MC_HAND_DEPTH) * 0.5 + 0.5;
-        vec3 playerPos = view_camera_relative(screen_view(vec3(texcoord, depth)));
+        vec4 surface = texelFetch(colortex3, ivec2(gl_FragCoord.xy), 0);
+        uint lightData = uint(round(surface.r * 255.0));
+        bool hand = (lightData & 128u) != 0u;
+        if (hand) depth = ((depth * 2.0 - 1.0) / MC_HAND_DEPTH) * 0.5 + 0.5;
+        // Terrain AO and medium reconstruction share the same view position.
+        // Hand pixels have no AO eligibility and keep their corrected projection.
+        vec3 viewPos = screen_view(vec3(texcoord, depth));
+        #ifdef ASTRA_SSAO
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        // The palette matches LightParams.skyAmbient in the lit pass, so the
+        // SH re-evaluation at the geometric normal reproduces the rendered
+        // directional term exactly (R1 bent-normal swap inside). Overworld
+        // only: nether/end never produced colortex21 and their colortex19.rgb
+        // is zero, so the call there was already a no-op.
+        if (!hand && (isEyeInWater == 0 || water_is_thin_sheet()))
+            source=astra_apply_ambient_ao(source,texcoord,-viewPos.z,
+                                          astra_sky_ambient());
+        #endif
+        #endif
+        vec3 playerPos = view_camera_relative(viewPos);
         float skylight = float(lightData & 127u) / 127.0;
         #if !defined DIMENSION_NETHER && !defined DIMENSION_END
         // colortex3: r = packed skylight (+hand flag), gb = wet/ripple normal (whose
@@ -143,7 +223,6 @@ void main() {
         // the ripple amplitude itself scales with the same puddle mask
         // (global/atmosphere/weather.glsl), so this sharpens the threshold rather than
         // adding information (consolidated review F-16).
-        vec4 surface = texelFetch(colortex3, ivec2(gl_FragCoord.xy), 0);
         float standingWater = clamp(surface.a, 0.0, 1.0);
         if (standingWater > 0.15 && isEyeInWater == 0 && (lightData & 128u) == 0u) {
             vec3 n = decode_unit_vector(surface.gb*2.0-1.0);
@@ -166,32 +245,67 @@ void main() {
                 source = mix(source,puddle_reflection(playerPos,n), weight);
         }
         #endif
-        displayed = astra_apply_medium(source, playerPos, skylight);
+        // R2/H3: the buffered volume owns the ordinary overworld air segment. The
+        // fallback keeps blindness, lava, powder snow and the underwater camera on the
+        // legacy medium exactly as they were (handoff R2 sections 1/4). scene*T + S
+        // adds the in-scatter once; colortex4 below stays unmediated.
+        #ifdef ASTRA_VOLUME_FOG
+        if ((isEyeInWater == 0 || water_is_thin_sheet()) && blindness <= 0.0001) {
+            vec4 volume;
+            if ((lightData & 128u) != 0u)
+                volume = astra_volume_prefix_medium(playerPos);
+            else
+                volume = astra_volume_resolve(colortex23, colortex3, texcoord, -viewPos.z, playerPos);
+            volume = astra_volume_border(volume, length(playerPos));
+            displayed = astra_volume_apply(source, volume);
+        } else
+        #endif
+        {
+            displayed = astra_apply_medium(source, playerPos, skylight);
+        }
 
         #if !defined DIMENSION_NETHER && !defined DIMENSION_END && CLOUD_MODE == CLOUD_PLANAR
-        // The shared slab intersection also handles a camera inside the cloud.
-        // Misses return before noise sampling; the march stops at opaque terrain.
-        if (isEyeInWater < 2 && blindness <= 0.0001) {
+        // Screen-cloud resolve clips against this surface, with a local march only
+        // when the opaque endpoint lies within/near the cloud slab.
+        if (isEyeInWater < 2 && blindness <= 0.0001
+            && max(cameraPosition.y, cameraPosition.y + playerPos.y)
+               >= ASTRA_CLOUD_ALTITUDE - ASTRA_CLOUD_STRETCH - 1.0) {
             float cloudTerrainDistance = length(playerPos);
-            vec3 cloudRay = normalize(view_player(screen_view(vec3(texcoord,1.0))));
-            vec4 sheet = astra_planar_cloud(cloudRay, cloudTerrainDistance);
-            if (sheet.a > 0.0) displayed = mix(displayed, sheet.rgb, sheet.a);
+            vec3 cloudRay = normalize(view_player(viewPos));
+            vec4 sheet = astra_screen_cloud(texcoord, cloudRay, cloudTerrainDistance);
+            displayed = displayed * (1.0 - sheet.a) + sheet.rgb;
+            #ifdef ASTRA_TAA
+            if (sheet.a > 0.001) reactive = 1.0;
+            #endif
         }
         #endif
-        #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_VOLUME_FOG
+        // With the volume on, this air segment's rain in-scatter belongs to the march
+        // (bounded weather gain in astra_volume_extinction); adding rainy_air here
+        // would scatter the same air twice (handoff R2 section 4.2).
         displayed += rainy_air(playerPos);
         #endif
     }
     #if defined DIMENSION_END || defined DIMENSION_NETHER
     if (depth >= 0.999999) {
         #ifdef DIMENSION_END
-        vec4 sky = texture(colortex9, texcoord);
+        // Native-resolution producer skips geometry texels. Point access keeps
+        // their empty payload out of neighbouring sky silhouettes.
+        vec4 sky = texelFetch(colortex9, ivec2(gl_FragCoord.xy), 0);
         displayed = sky.rgb;
-        float starVisibility = sky.a * (1.0-max(blindness,darknessFactor));
+        float starVisibility = sky.a * (1.0-clamp(blindness,0.0,1.0));
+        #ifdef ASTRA_TAA
+        // Opaque, slow disc regions can accumulate. Lensed stars/translucent
+        // silhouettes stay reactive; bright photosphere changes use short history.
+        reactive = mix(0.10,1.0,smoothstep(0.02,0.40,sky.a));
+        if(max(sky.r,max(sky.g,sky.b))>6.0) reactive=max(reactive,0.65);
+        #endif
         displayed += end_crisp_photon_ring(ray,cone)
-                   * (1.0-max(blindness,darknessFactor)) * (1.0-0.18*end_eclipse());
+                   * ASTRA_TINT_END_SKY
+                   * (1.0-clamp(blindness,0.0,1.0)) * (1.0-0.18*end_eclipse());
         if (starVisibility > 0.0)
             displayed += end_starfield_filtered(endStarRay, cone, endStarDx, endStarDy) * starVisibility
+                       * ASTRA_TINT_END_SKY
                        * (1.0-0.18*end_eclipse());
         #else
         displayed = astra_sky(normalize(view_player(screen_view(vec3(texcoord, 1.0)))));
@@ -201,10 +315,36 @@ void main() {
     #endif
     #if !defined DIMENSION_END && !defined DIMENSION_NETHER && CLOUD_MODE != CLOUD_VANILLA
     if (depth >= 0.999999) {
+        #if CLOUD_MODE == CLOUD_PLANAR
+        vec4 cloud = astra_screen_cloud_sample(texcoord);
+        displayed = cloud.rgb;
+        // Fully covered sky contributes neither atmosphere, stars nor a disc.
+        // Do not build those layers only to multiply them by zero afterwards.
+        if (cloud.a < 1.0) {
+        #endif
         vec3 skyRay = normalize(view_player(screen_view(vec3(texcoord,1.0))));
-        // Sun/moon were drawn additively over black in skytextured; their
-        // phase texture and cloud transmission are already present in source.
-        displayed = astra_sky(skyRay) + source;
+        // Sun/moon were drawn additively over black in skytextured. Their phase
+        // is in source; current cloud transmission is applied at this composition.
+        // Same composition as astra_overworld_sky, exposing the star contribution
+        // to TAA without a second catalogue query or rejecting the entire sky.
+        vec3 clearSky = astra_sky_radiance(skyRay);
+        #ifdef STARS
+            float pointStars;
+            vec3 skyStars = astra_star_field(skyRay, pointStars);
+            clearSky += skyStars;
+            #ifdef ASTRA_TAA
+            if (pointStars > 0.0) reactive = 1.0;
+            #endif
+        #endif
+        #if CLOUD_MODE == CLOUD_PLANAR
+            displayed += (clearSky + source) * (1.0 - cloud.a);
+        }
+            #ifdef ASTRA_TAA
+            if (cloud.a > 0.001) reactive = 1.0;
+            #endif
+        #else
+        displayed = clearSky + source;
+        #endif
         source = displayed; // Refraction/SSR background must also contain sky.
     }
     #endif
@@ -222,4 +362,7 @@ void main() {
     }
     gl_FragData[0] = vec4(displayed, 1.0);
     gl_FragData[1] = vec4(source, 1.0);
+    #ifdef ASTRA_TAA
+    gl_FragData[2] = vec4(reactive, 0.0, 0.0, 1.0);
+    #endif
 }

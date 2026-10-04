@@ -11,7 +11,7 @@
 //   - colortex1 holds the raw accumulated density in [0, 1], deliberately unscaled so
 //     the buffer's full precision is used (Steadfast's note: scaling here and
 //     unscaling later is pure precision loss, since the value gets smoothed anyway);
-//     no colortex1Format is declared anywhere in the pack, so this is the Iris default;
+//     RGBA16F preserves compressed water-volume values and ray lengths (air uses R);
 //   - godraysExposure (view-angle x offscreen x time-of-day, all CPU-side per
 //     design.md 4.4) is already folded into the exposure, NOT into this value;
 //   - GODRAYS_STRENGTH is likewise NOT applied here - it belongs to the stage-2
@@ -21,13 +21,12 @@
 //     reads it back with texelFetch; the other texels of alpha are written but read by
 //     nobody, air or water.
 // Water output: RGB = fourth-root(gamma-domain VL / 128), A = ray length / 128.
-// water_composite reconstructs four point samples, decoding storage before the
-// spatial/distance average. The Solas additive gamma-domain interface is retained.
+// water_composite reconstructs a compact nine-texel footprint with per-texel distance
+// rejection, then decodes its compressed average in the retained Solas domain.
 // Both channels are consumed: water_shafts_resolve takes ITS ray length from depthtex0
-// (light_shafts.glsl's water_shafts_view) and reads each of the four taps' own distance
-// from the stored alpha, so the two numbers come from the same capped quantity. It does
-// NOT rebuild the tap distance from depthtex0 any more - that path could not reject a sky
-// texel without also rejecting every real one (see the note in the resolve).
+// (light_shafts.glsl's water_shafts_view) and reads each of the nine taps' own distance
+// from the stored alpha, so both use the same 128-block endpoint identity.
+// The integrated source is separately bounded to a 48-block visible segment.
 // design.md 3.2 layer 2: program files provide the lib entry.
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
@@ -37,6 +36,7 @@
     #include "/program/scene.glsl"
     #define ASTRA_SHAFT_MARCH_PASS
     #include "/global/water/light_shafts.glsl"
+    #include "/global/water/shaft_history.glsl"
 #endif
 #endif
 in vec2 texcoord;
@@ -74,13 +74,39 @@ float godrays_sun_visibility(vec2 lightPos) {
 }
 #endif
 
+#ifndef RGBA16F
+const int RGBA16F=0;
+#endif
+const int colortex1Format=RGBA16F;
+#ifdef ASTRA_UNDERWATER_SHAFTS
+const int colortex29Format=RGBA16F;
+const bool colortex29Clear=false;
+const vec4 colortex29ClearColor=vec4(0.0,0.0,0.0,0.0);
+/* RENDERTARGETS: 1,29 */
+#else
 /* RENDERTARGETS: 1 */
+#endif
 
 void main() {
+    #ifdef ASTRA_UNDERWATER_SHAFTS
+    gl_FragData[1]=vec4(0.0);
+    #endif
 	if (isEyeInWater != 0) {
 		#ifdef ASTRA_UNDERWATER_SHAFTS
 			if (isEyeInWater == 1) {
-				gl_FragData[0] = water_shafts_march(texcoord);
+                // A one-block falling sheet has no long submerged light volume.
+                // Do not accumulate a previous ocean's shaft history into it.
+                if (water_is_thin_sheet()) {
+                    gl_FragData[0] = vec4(0.0);
+                    return;
+                }
+                // History uses the same endpoint as the march; reconstruct it once.
+                vec3 endpoint;
+                float marchLength;
+                vec4 volume=water_shafts_march(texcoord,endpoint,marchLength);
+                volume=water_shafts_history(volume,texcoord,endpoint,marchLength);
+                gl_FragData[0] = volume;
+                gl_FragData[1] = volume;
 				return;
 			}
 		#endif
@@ -91,7 +117,7 @@ void main() {
 		gl_FragData[0] = vec4(0.0);
 		return;
 	#endif
-	if (godraysExposure <= 0.0 || blindness > 0.0001) {
+	if (godraysExposure <= 0.0 || blindness > 0.0001 || GODRAYS_STRENGTH == 0) {
 		// Whole-pass early-out (design.md 5). The buffer would otherwise keep whatever
 		// uninitialised content it had, which is invisible normally but is undefined
 		// behaviour and shows up the moment anyone turns on a buffer debug view.

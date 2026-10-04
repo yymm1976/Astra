@@ -132,6 +132,7 @@ vec3 water_particles(vec3 rayDir, float sceneDistance, float skylight, float tim
 
 		// 层种子错开（不同层的 mote 不对齐成"串"）。
 		float contribution = particles_shell(pos, uvec3(uint(i) * 0x9E37u + 1u), time);
+		if (contribution <= 0.0) continue;
 		contribution *= smoothstep(0.0, 0.75, sceneDistance - shellDistance);
 
 		// 距离衰减：复用水下吸收（本模块在 absorption 之后被 program 顺序引入）。

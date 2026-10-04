@@ -12,6 +12,7 @@
 // design.md 3.2 layer 2: program/* is the only lib entry
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
+#include "/lib/taa_jitter.glsl"
 
 out vec2 texcoord;
 out vec2 lightScreenPos;
@@ -21,7 +22,7 @@ void main() {
 	texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
 
 	// W = 0: a directional light is a direction, not a position.
-	vec4 clipLight = gbufferProjection * vec4(lightVector, 0.0);
+	vec4 clipLight = astra_jitter_clip(gbufferProjection * vec4(lightVector, 0.0));
 
 	// Behind the camera the projection flips sign. godraysExposure already folds in an
 	// offscreen / behind-camera fade and the pass early-outs before this varying is

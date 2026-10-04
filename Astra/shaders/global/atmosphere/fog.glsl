@@ -115,6 +115,23 @@ vec4 fog_v2(
 		float borderFog = 0.0;
 	#endif
 
+	// These media replace every ordinary atmosphere term. Keep border fog and
+	// the original priority, but do not evaluate valley/cave/rain terms first.
+	skyFogStrength = 0.0;
+	if (blindness > 0.0001) {
+		float opacity = max(0.85, 1.0 - exp(-square(fragDistance * blindness * 0.5)));
+		return vec4(0.0, 0.0, 0.0, min(borderFog + opacity, 1.0));
+	}
+	if (isEyeInWater == 1 && !water_is_thin_sheet()) {
+		// Solas getWaterFog: retain the linear exponent and underwater palette.
+		float opacity = 1.0 - exp(-fragDistance * 0.06 * (UNDERWATER_FOG_DENSITY * 0.01));
+		return vec4(params.underwaterColor, min(borderFog + opacity, 1.0));
+	}
+	if (isEyeInWater == 2) {
+		float opacity = max(0.85, 1.0 - exp(-square(fragDistance * 0.5)));
+		return vec4(1.0, 0.05, 0.0, min(borderFog + opacity, 1.0));
+	}
+
 	// The pow(d,3) coefficient is precomputed on the CPU including the render-distance
 	// normalisation (design.md 5); FOG_DENSITY is the user's percentage on top.
 	//
@@ -143,39 +160,12 @@ vec4 fog_v2(
 	#endif
 
 	// Rain thickens outdoor air; cave and underwater fog keep their own medium.
-	if (isEyeInWater == 0) {
+	if (isEyeInWater == 0 || water_is_thin_sheet()) {
         atmosphereFog *= 1.10 + 2.2 * astraRainFactor * caveFogTransition;
         atmosphereFog += (1.0-exp(-fragDistance*0.0055*astraRainFactor))*caveFogTransition;
     }
 	skyFogStrength = caveFogTransition * mix(SKY_FOG_STRENGTH * 0.01, 0.65, astraRainFactor);
 	vec3 fogColor = (1.0 - caveFogTransition) * params.caveColor;
-
-	if (blindness > 0.0001) {
-		// Blindness is just a very strong, very black fog.
-		atmosphereFog = max(
-			0.85,
-			1.0 - exp(-square(fragDistance * blindness * 0.5)));
-		fogColor = vec3(0.0);
-		skyFogStrength = 0.0;
-	} else if (isEyeInWater == 1) {
-		// Underwater fog: curve re-based on Solas getWaterFog (2026-09-06 visual round,
-		// issue "水下太黑"; design 4.3 says the underwater look targets Solas).
-		// Solas uses 1-exp(-6 * 0.01 * d * density) — the linear exponent fogs far
-		// faster than the old squared one (32 blocks: 0.85 vs 0.34), which is what
-		// makes Solas' underwater read as bright teal instead of murky dark terrain.
-		// From Solas V2.2b lib/water/waterFog.glsl (licence undeclared) — constant-level.
-		// No sky colour: you cannot see the sky through it.
-		atmosphereFog = 1.0 - exp(
-			-fragDistance * 0.06 * (UNDERWATER_FOG_DENSITY * 0.01));
-		fogColor = params.underwaterColor;
-		skyFogStrength = 0.0;
-	} else if (isEyeInWater == 2) {
-		// Lava: same exponential shape, but with a high floor, since you are not meant
-		// to see much while submerged in it.
-		atmosphereFog = max(0.85, 1.0 - exp(-square(fragDistance * 0.5)));
-		fogColor = vec3(1.0, 0.05, 0.0);
-		skyFogStrength = 0.0;
-	}
 
 	float fogFactor = min(borderFog + atmosphereFog, 1.0);
 
@@ -206,8 +196,9 @@ vec4 fog_v2(
 // atmosphere owner (D2) and is expected to already carry the sunrise intensity.
 #ifdef AIR_PERSPECTIVE
 vec3 fog_air_perspective(vec3 fogColor, vec3 viewDir, vec3 sunGlowColor) {
-	float sunAmount = max(dot(viewDir, worldSunVector), 0.0);
 	float horizon = astra_twilight_strength();
+	if (horizon <= 0.0) return fogColor;
+	float sunAmount = max(dot(viewDir, worldSunVector), 0.0);
 	vec3 result = fogColor + sunGlowColor * (pow4(sunAmount) * horizon);
 	// Direction asymmetry. The reference derives its cool side from the same sky
 	// colour it uses for everything else; here the existing horizon sky tint

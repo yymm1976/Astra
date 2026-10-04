@@ -6,7 +6,7 @@ float astra_rain_exposure(float skyLight) {
     // rain round is exactly that situation, so the curve is relaxed to a still-selective
     // but usable range.
     return pow4(clamp(skyLight, 0.0, 1.0))
-         * smoothstep(0.0, 0.15, rainfall) * smoothstep(0.10, 0.20, temperature);
+         * astraWetWeather.y;
 }
 // Short rain envelope. Both wet signals - standing water and damp ground - are driven
 // by astraRainFactor rather than by the engine's `wetness` memory, so both appear with
@@ -16,7 +16,7 @@ float astra_rain_exposure(float skyLight) {
 // visibly stopped - the user's "停雨后长时间泛白的反射块". astraRainFactor is smoothed
 // over a few seconds (shaders.properties), so this still ramps rather than switching.
 float astra_rain_response() {
-    return smoothstep(0.02, 0.55, astraRainFactor);
+    return astraWetWeather.x;
 }
 float astra_puddle(vec3 worldPos, vec3 normal, float skyLight) {
     // Coverage only: how much standing water has collected here, 0..1. The damp
@@ -25,17 +25,23 @@ float astra_puddle(vec3 worldPos, vec3 normal, float skyLight) {
     //
     // Smaller, separated patches; visible standing water follows the short
     // rain envelope rather than the engine's long-lived wetness memory.
-    float n = texture(solasWaterNoise, worldPos.xz * 0.00075).b * 0.65
-            + texture(solasWaterNoise, worldPos.xz * 0.00150).b * 0.35;
+    float response = astraRainFactor * astra_rain_response() * 0.85
+                   * astra_rain_exposure(skyLight) * smoothstep(0.86, 0.999, normal.y);
+    if (response <= 0.0) return 0.0;
     // Only about one third of stable ten-block regions can accumulate puddles.
     vec2 cell = floor(worldPos.xz * 0.1);
     float choice = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
+    // Inactive cells have zero coverage regardless of their boundary fade.
+    if (choice >= 0.33) return 0.0;
     vec2 edge = smoothstep(vec2(0.0), vec2(0.08),
                           min(fract(worldPos.xz * 0.1), 1.0 - fract(worldPos.xz * 0.1)));
-    float coverage = (1.0 - step(0.33, choice)) * edge.x * edge.y;
-    return coverage * smoothstep(0.48, 0.64, n) * astraRainFactor
-         * astra_rain_response() * 0.85
-         * astra_rain_exposure(skyLight) * smoothstep(0.86, 0.999, normal.y);
+    float coverage = edge.x * edge.y;
+    if (coverage <= 0.0) return 0.0;
+    // This custom noise has no mip chain. Explicit base-level sampling also
+    // avoids implicit derivatives after the sparse-cell rejection above.
+    float n = textureLod(solasWaterNoise, worldPos.xz * 0.00075, 0.0).b * 0.65
+            + textureLod(solasWaterNoise, worldPos.xz * 0.00150, 0.0).b * 0.35;
+    return coverage * smoothstep(0.48, 0.64, n) * response;
 }
 // ---------------------------------------------------------------------------
 // Damp ground: the everywhere-effect that the puddle above is the exception to.
@@ -107,15 +113,16 @@ vec2 astra_rain_ripple(vec3 worldPos, float strength, float footprint, float gra
     strength *= smoothstep(0.01, 0.8, astraRainFactor) * clamp(puddleFraction, 0.0, 1.0);
     if (strength <= 0.0 || footprint >= 0.08) return vec2(0.0);
     vec2 p = worldPos.xz / ASTRA_RIPPLE_TILE;
+    vec2 uv = fract(p);
+    vec2 edge = smoothstep(vec2(0.0), vec2(0.06), min(uv, 1.0 - uv));
+    if (edge.x <= 0.0 || edge.y <= 0.0) return vec2(0.0);
     float phase = fract(sin(dot(floor(p), vec2(127.1, 311.7))) * 43758.5453);
     float frame = mod(frameTimeCounter * 0.65, 1.0) * 60.0 + phase * 60.0;
-    vec2 uv = fract(p);
     vec2 n = astra_ripple_layer(astraRipple1, uv, frame);
     float secondLayer = smoothstep(0.75, 1.0, strength) * 0.15;
     if (secondLayer > 0.0)
         n += astra_ripple_layer(astraRipple2, uv, frame + 23.0) * secondLayer;
     // Fade unresolved rings and tile boundaries rather than aliasing across frames.
-    vec2 edge = smoothstep(vec2(0.0), vec2(0.06), min(uv, 1.0 - uv));
     float resolved = 1.0 - smoothstep(0.015, 0.08, footprint);
     float grazing = mix(0.42, 1.0, clamp(graze, 0.0, 1.0));
     return n * strength * 0.28 * edge.x * edge.y * resolved * grazing;
@@ -126,18 +133,13 @@ float astra_cloud_transmission(vec3 worldPos, vec3 lightDir) {
     // Only the procedural sheet has a density field to project.
     return 1.0;
     #else
-    if (lightDir.y <= 0.01) return 0.0;
+    if (lightDir.y <= 0.01 || astraCloudShadowFade <= 0.0) return 1.0;
     float t = (ASTRA_CLOUD_ALTITUDE-worldPos.y)/lightDir.y;
     if(t <= 0.0) return 1.0;
     vec3 hit = worldPos + lightDir*t;
-    // F1 (2026-09-21): the shadow arm reads the SAME contract as the sheet: the shared
-    // gate and the COARSE octave for existence. The old local expression was numerically
-    // identical to the shared gate at layer level, so this is an ownership change, not a
-    // retune; what does change is that the rotated detail octave no longer casts shadow.
-    float gate = astra_cloud_existence_gate(0.0);
-    float n = astra_cloud_coarse(hit, ASTRA_CLOUD_ALTITUDE);
-    float cloud = smoothstep(gate-0.025,gate+0.025,n);
-    return mix(1.0, 0.07, cloud);
+    // The point lies on the actual cloud plane for this receiver's height. The cache
+    // shares the original coarse-octave field; outside its footprint use that field.
+    return astra_cloud_shadow_at(hit);
     #endif
 }
 #endif

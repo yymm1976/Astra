@@ -15,6 +15,7 @@
 // design.md 3.2 layer 2: program/* is the only lib entry
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
+#include "/global/water/medium_state.glsl"
 #define ASTRA_BLOOM_CAPTURE
 #include "/global/post/bloom.glsl"
 in vec2 texcoord;
@@ -26,9 +27,9 @@ uniform sampler2D colortex0;
 void main() {
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
     // Underwater final uses the separate colortex7 bloom captured after water
-    // composition. This pre-water HDR pyramid has no consumer in that mode.
+    // composition. Thin sheets retain the air curve and this HDR pyramid.
     // Write a defined value so no framebuffer preservation is required.
-    if (isEyeInWater == 1) {
+    if (isEyeInWater == 1 && !water_is_thin_sheet()) {
         gl_FragData[0] = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }

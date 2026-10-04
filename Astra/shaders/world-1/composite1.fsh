@@ -1,4 +1,4 @@
 #version 400 compatibility
 #define DIMENSION_NETHER
 
-#include "/program/composite1.fsh"
+#include "/program/nether_reflection_resolve.fsh"

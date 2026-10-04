@@ -62,23 +62,13 @@
 //   - nether vine voxel-occlusion waveMult (wavingBlocks.glsl:154-171): needs the voxel
 //     lighting system the reference gates on COLORED_LIGHTING_INTERNAL > 0.
 //
-// What the CPU uniforms did before: windStrength / windTheta (lib/uniforms.glsl:26-27,
-// defined in shaders.properties:222-233) drove the old Steadfast wind. The reference shape
-// needs only a scalar time, so both are now unused in this module; deleting them is a
-// public shaders.properties change and was handed to the main task. frameTimeCounter
-// (lib/uniforms.glsl:38) is in the frozen uniform set and is delivered identically to the
-// terrain and shadow passes, so the leaf casting stays exactly consistent with the
-// visible model.
-//
-// Per-vertex cost: FOUR sines, unchanged in count from the previous implementation. wind_wave_shape()
-// is called once per displaced vertex and issues 1 magnitude sine + 3 direction sines; the old
-// wind_displacement() issued the same 1 + 3. What changed is the phase basis: the old version fed
-// all four from the CPU-precomputed windTheta/windStrength uniforms, while the reference drives the
-// three direction sines' cross-coupling (d0/d1/d2) from frameTimeCounter directly — so three
-// time-only sines that used to be hoisted onto the CPU once per frame now evaluate per vertex. They
-// depend on frameTimeCounter alone (no position term) and could be hoisted again by the main task if
-// this ever shows up in a profile. Corrected 2026-09-10: an earlier revision of this header claimed
-// "seven sines vs three", which double-counted the phase terms and understated the old cost.
+// Current and shadow passes share astraFoliageWindPhases from shaders.properties.
+// Three time-only sines are evaluated once per frame; the per-vertex evaluator
+// retains one magnitude sine and three spatial direction sines. The explicit-time
+// compatibility interface derives the three phases itself for arbitrary times.
+// TAA stores the actual phases alongside time/rain/strength and reuses them for
+// historical displacement, keeping the visible model, shadow and motion coherent.
+// The retired Steadfast windStrength / windTheta expressions have been removed.
 //
 // NOTE `frameTimeCounter` is in SECONDS, not ticks: Iris's SystemTimeUniforms accumulates
 // delta/1000 per frame and wraps at 3600 (read from the shipped iris-neoforge jar's bytecode,
@@ -86,27 +76,48 @@
 // be used here unchanged, with the inline 170.0 from wavingBlocks.glsl:38/:55 and WAVING_SPEED =
 // 1.00 (common.glsl:228). No ticks->seconds conversion belongs in this file.
 //
-// Uniforms: frameTimeCounter, rainStrength, cameraPosition (lib/uniforms.glsl)
+// Uniforms: frameTimeCounter, rainStrength, cameraPosition, astraFoliageWindPhases
 // Consts:   WAVING_FOLIAGE_STRENGTH (lib/settings.glsl)
 // Owner: B3. Consumers: program/lit.vsh (terrain) and program/shadow.vsh (casting) — both
 // call this same function with the same classification, which is what keeps leaf shadows
 // and leaf models in lockstep.
+//
+// S4 — explicit-time entry (2026-09-27): astra_foliage_displacement() evaluates the same
+// displacement from parameters alone (undeformed absolute world position, time in seconds,
+// rain amount, strength scale, the three classification bools), so a caller that owns a
+// known previous frame can place the same vertex at that historical time. It and its core
+// astra_wind_wave() read NO uniform — no frameTimeCounter / cameraPosition / rainStrength —
+// which is what makes a historical evaluation honest instead of silently re-reading the
+// current frame. wave_foliage() stays the current-frame wrapper (unchanged signature) and
+// feeds the live uniforms in; the reference-derived shape and every art constant are
+// untouched. Wiring is NOT done here: the undeformed position, the previous-frame time and
+// rain amount, and the TAA motion reconnection are the main task's; this module still
+// declares no history and adds no history uniform. See
+// docs/handoffs/2026-09-27-S4-foliage-time.md.
 
 // GetRawWave, verbatim from wavingBlocks.glsl:5-16. `wind` is the reference's scalar wind
 // time (see wind_wave). The magnitude cycles [0, 0.08] with a positional phase; the three
 // direction sines carry that magnitude and cross-couple through d0/d1/d2 so the gusts
 // whip instead of rotating monotonously.
-vec3 wind_wave_shape(vec3 pos, float wind) {
+// Share time-only phases across vertices and their shadow casters. Explicit
+// historical callers can still derive these from their own time parameter.
+vec3 astra_wind_time_phases(float wind) {
+	return vec3(sin(wind * 0.0127), sin(wind * 0.0089), sin(wind * 0.0114));
+}
+vec3 wind_wave_shape(vec3 pos, float wind, vec3 timePhases) {
 	float magnitude = sin(wind * 0.0027 + pos.x + pos.y) * 0.04 + 0.04;
-	float d0 = sin(wind * 0.0127);
-	float d1 = sin(wind * 0.0089);
-	float d2 = sin(wind * 0.0114);
+	float d0 = timePhases.x;
+	float d1 = timePhases.y;
+	float d2 = timePhases.z;
 	vec3 wave;
 	wave.x = magnitude * sin(wind*0.0224 + d1 + d2 + pos.x - pos.z + pos.y);
 	wave.y = magnitude * sin(wind*0.0015 + d2 + d0 + pos.x);
 	wave.z = magnitude * sin(wind*0.0063 + d0 + d1 - pos.x + pos.z + pos.y);
 
 	return wave;
+}
+vec3 wind_wave_shape(vec3 pos, float wind) {
+	return wind_wave_shape(pos, wind, astra_wind_time_phases(wind));
 }
 
 // GetWave, verbatim in shape from wavingBlocks.glsl:18-33. The reference builds
@@ -115,13 +126,28 @@ vec3 wind_wave_shape(vec3 pos, float wind) {
 // re-sample block (:22-28) is inert at the reference default WAVING_I_RAIN_MULT = 100, so
 // only the intensity line (:30-32) is transcribed — with Astra's own rain factor (see the
 // header "Astra-owned design kept").
-vec3 wind_wave(vec3 pos, float waveSpeed) {
-	float wind = frameTimeCounter * waveSpeed;
-	vec3 wave = wind_wave_shape(pos, wind);
+//
+// S4 explicit core: all frame state arrives as parameters (wave time in the same units as
+// wind_wave_shape's `wind`, rain amount, strength scale), so this is safe to evaluate at a
+// known previous frame's time as well as the current one. Reads no uniform.
+vec3 astra_wind_wave(vec3 pos, float wind, float rainAmount, float strengthScale,
+                     vec3 timePhases) {
+	vec3 wave = wind_wave_shape(pos, wind, timePhases);
 
-	float wavingIntensity = (WAVING_FOLIAGE_STRENGTH * 0.01) * (1.0 + 0.5 * rainStrength);
+	float wavingIntensity = strengthScale * (1.0 + 0.5 * rainAmount);
 
 	return wave * wavingIntensity;
+}
+vec3 astra_wind_wave(vec3 pos, float wind, float rainAmount, float strengthScale) {
+	return astra_wind_wave(pos, wind, rainAmount, strengthScale, astra_wind_time_phases(wind));
+}
+
+// Compat entry kept for the current frame (pre-S4 signature): supplies the live frame state to
+// the explicit core. Nothing outside this file calls it at present, but the entry stays so an
+// existing wind_wave reference is not silently removed.
+vec3 wind_wave(vec3 pos, float waveSpeed) {
+	return astra_wind_wave(pos, frameTimeCounter * waveSpeed, rainStrength,
+	                       WAVING_FOLIAGE_STRENGTH * 0.01);
 }
 
 // Call-site helper for the foliage vertex stages. E1 passes the classification it decoded
@@ -131,43 +157,106 @@ vec3 wind_wave(vec3 pos, float waveSpeed) {
 //                              crops are in 10004)
 // topOfFoliage is `at_midBlock.y < 0.0`: only the upper vertices of a plant move, so
 // the base stays planted in the block below instead of the whole plant sliding.
-// playerPos is camera-relative world space (Mellow convention, as in lib/distort.glsl).
+//
+// S4 explicit evaluator. Receives the UNDEFORMED absolute world position and returns the
+// world-axis displacement only (undeformedWorldPosition is not rewritten). timeSeconds is
+// seconds (same unit as frameTimeCounter, lib/uniforms.glsl:38); rainAmount follows the
+// rainStrength semantics; strengthScale = 1.0 means 100%, independently of settings.
+// Reads no uniform or strength option, so a caller holding a known previous
+// frame can call it with that frame's time / rain for the same vertex. Everything
+// art-facing is byte-identical to the pre-S4 path: 170.0 time scale, leaf spatial squeeze
+// and axis ratios, grass column stretch and base anchor, the *0.1, and the rain amplitude.
+vec3 astra_foliage_displacement(
+	vec3 undeformedWorldPosition,
+	float timeSeconds,
+	float rainAmount,
+	float strengthScale,
+	bool isLeaves,
+	bool isGroundFoliage,
+	bool topOfFoliage,
+	vec3 timePhases
+) {
+	// Non-foliage and the anchored grass base keep the original zero displacement; leaves win
+	// when both classifications are set, exactly as before.
+	if (strengthScale == 0.0 || !(isLeaves || (isGroundFoliage && topOfFoliage))) {
+		return vec3(0.0);
+	}
+
+	// waveSpeed 170.0 (wavingBlocks.glsl:38/:55) with WAVING_SPEED 1.00 -> wind = t * 170.0.
+	float wind = timeSeconds * 170.0;
+
+	if (isLeaves) {
+		// DoWave_Leaves, verbatim from wavingBlocks.glsl:52-67 (waveMult 1.0, :149).
+		// The position squeeze slows the spatial phase so a canopy moves in large
+		// patches; the component mix then makes leaves sweep sideways (x*4, z*8)
+		// more than they bounce (y*3). :58 (inSnowy) and the :60-62 indoor gate are
+		// not portable here — see the header. The else branch constant 0.1 (:64) is.
+		vec3 leafWorldPos = undeformedWorldPosition * vec3(0.75, 0.375, 0.75);
+		vec3 wave = astra_wind_wave(leafWorldPos, wind, rainAmount, strengthScale, timePhases);
+		wave *= vec3(4.0, 3.0, 8.0);
+		wave *= 0.1;
+		return wave;
+	}
+
+	// DoWave_Foliage, verbatim from wavingBlocks.glsl:35-50 (waveMult 1.0, :122).
+	// Halving the world y first stretches the gust along the column so a plant
+	// reads as one unit. wave.y = 0 keeps the base planted. The "+ wave.y * 4.0"
+	// term on :41 is transcribed as-is; it is dead because :40 zeroes wave.y one
+	// line earlier — the reference itself leaves it there.
+	vec3 groundWorldPos = undeformedWorldPosition;
+	groundWorldPos.y *= 0.5;
+	vec3 wave = astra_wind_wave(groundWorldPos, wind, rainAmount, strengthScale, timePhases);
+	wave.x = wave.x * 3.0;
+	wave.y = 0.0;
+	wave.z = wave.z * 8.0 + wave.y * 4.0;
+	wave *= 0.1;
+	return wave;
+}
+
+// Retain the uniform-free explicit-time interface for arbitrary historical times.
+vec3 astra_foliage_displacement(vec3 undeformedWorldPosition, float timeSeconds,
+    float rainAmount, float strengthScale, bool isLeaves, bool isGroundFoliage,
+    bool topOfFoliage) {
+	if (strengthScale == 0.0 || !(isLeaves || (isGroundFoliage && topOfFoliage)))
+		return vec3(0.0);
+	return astra_foliage_displacement(undeformedWorldPosition, timeSeconds,
+		rainAmount, strengthScale, isLeaves, isGroundFoliage, topOfFoliage,
+		astra_wind_time_phases(timeSeconds * 170.0));
+}
+
+// Current-frame wrapper. playerPos is camera-relative world space (Mellow convention, as in
+// lib/distort.glsl), so cameraPosition turns it back into the absolute world position the
+// explicit evaluator wants. frameTimeCounter is already in seconds; rainStrength and the
+// live strength option (percent converted once to a scale) are passed through. The signature is unchanged, so
+// program/lit.vsh:130 and program/shadow.vsh:110 need no edit and the visible model and its
+// shadow keep sharing one algorithm.
+// Astra distance policy, inspired by Potato's far-wind gate. Keep nearby sway
+// intact, fade over 128..192 blocks, then skip the displacement evaluator.
+// Historical callers pass their PREVIOUS camera-relative undeformed position.
+float astra_foliage_wind_lod(vec3 cameraRelativePosition) {
+	float distanceSquared = dot(cameraRelativePosition, cameraRelativePosition);
+	return 1.0 - smoothstep(128.0 * 128.0, 192.0 * 192.0, distanceSquared);
+}
+
 void wave_foliage(
 	bool isLeaves,
 	bool isGroundFoliage,
 	bool topOfFoliage,
 	inout vec3 playerPos
 ) {
-	if (isLeaves || (isGroundFoliage && topOfFoliage)) {
-		vec3 worldPos = playerPos + cameraPosition;
-
-		if (isLeaves) {
-			// DoWave_Leaves, verbatim from wavingBlocks.glsl:52-67 (waveMult 1.0, :149).
-			// The position squeeze slows the spatial phase so a canopy moves in large
-			// patches; the component mix then makes leaves sweep sideways (x*4, z*8)
-			// more than they bounce (y*3). :58 (inSnowy) and the :60-62 indoor gate are
-			// not portable here — see the header. The else branch constant 0.1 (:64) is.
-			vec3 leafWorldPos = worldPos * vec3(0.75, 0.375, 0.75);
-			vec3 wave = wind_wave(leafWorldPos, 170.0);
-			wave *= vec3(4.0, 3.0, 8.0);
-			wave *= 0.1;
-			playerPos += wave;
-		} else {
-			// DoWave_Foliage, verbatim from wavingBlocks.glsl:35-50 (waveMult 1.0, :122).
-			// Halving worldPos.y first stretches the gust along the column so a plant
-			// reads as one unit. wave.y = 0 keeps the base planted. The "+ wave.y * 4.0"
-			// term on :41 is transcribed as-is; it is dead because :40 zeroes wave.y one
-			// line earlier — the reference itself leaves it there.
-			vec3 groundWorldPos = worldPos;
-			groundWorldPos.y *= 0.5;
-			vec3 wave = wind_wave(groundWorldPos, 170.0);
-			wave.x = wave.x * 3.0;
-			wave.y = 0.0;
-			wave.z = wave.z * 8.0 + wave.y * 4.0;
-			wave *= 0.1;
-			playerPos += wave;
-		}
-	}
+	float distanceWeight = astra_foliage_wind_lod(playerPos);
+	if (distanceWeight <= 0.0) return;
+	vec3 undeformedWorldPos = playerPos + cameraPosition;
+	playerPos += astra_foliage_displacement(
+		undeformedWorldPos,
+		frameTimeCounter,
+		rainStrength,
+		WAVING_FOLIAGE_STRENGTH * 0.01 * distanceWeight,
+		isLeaves,
+		isGroundFoliage,
+		topOfFoliage,
+		astraFoliageWindPhases
+	);
 }
 
 #endif
