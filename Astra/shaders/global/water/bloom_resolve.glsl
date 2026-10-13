@@ -23,7 +23,7 @@ void getBloom(inout vec3 color, vec2 coord) {
     if (amount <= 0.0) return;
     // Water uses only the two tightest levels (4/8-pixel footprints), rather
     // than the air glow's 16/32-pixel tail. Both weights sum to one.
-    vec3 softScene = textureLod(colortex7,coord,0.0).rgb*0.8
-                   +textureLod(colortex7,coord,1.0).rgb*0.2;
+    vec3 softScene = textureLod(colortex2,coord,0.0).rgb*0.8
+                   +textureLod(colortex2,coord,1.0).rgb*0.2;
     color = mix(color, max(softScene,vec3(0.0)), amount);
 }

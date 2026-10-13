@@ -57,9 +57,9 @@ def s0_baseline(dst):
 
 def s1_block_comment_format(dst):
     patch(dst, f"{SHADERS}/lib/water_buffer_formats.glsl",
-          "const int colortex7Format = R11F_G11F_B10F;",
-          "/* const int colortex7Format = R11F_G11F_B10F; */")
-    return ("14", "colortex7Format")
+          "const int colortex2Format = R11F_G11F_B10F;",
+          "/* const int colortex2Format = R11F_G11F_B10F; */")
+    return ("14", "colortex2Format")
 
 
 def s2_line_comment_clear(dst):
@@ -117,8 +117,8 @@ def s7_licence_text_outside_vendor(dst):
 def s8_prose_buffer_mention(dst):
     # control: naming a buffer in a comment is normal and must stay clean
     patch(dst, f"{SHADERS}/lib/water_buffer_formats.glsl",
-          "const int colortex7Format = R11F_G11F_B10F;",
-          "const int colortex7Format = R11F_G11F_B10F;\n"
+          "const int colortex2Format = R11F_G11F_B10F;",
+          "const int colortex2Format = R11F_G11F_B10F;\n"
           "// colortex12Format would be RGBA16F if anything ever wrote that buffer.")
     return None
 
@@ -159,7 +159,7 @@ def s13_gate_names_unknown_folder(dst):
 SCENARIOS = [
     ("baseline-no-defect", s0_baseline, None),
     ("prose-buffer-mention-control", s8_prose_buffer_mention, None),
-    ("block-commented-colortex7Format", s1_block_comment_format, ("14", "colortex7Format")),
+    ("block-commented-colortex2Format", s1_block_comment_format, ("14", "colortex2Format")),
     ("line-commented-colortex5ClearColor", s2_line_comment_clear, ("14", "colortex5ClearColor")),
     ("phantom-buffer-colortex11", s3_phantom_buffer, ("14", "colortex11")),
     ("duplicate-colortex6ClearColor", s4_duplicate_clear, ("14", "colortex6ClearColor declared 2 times")),

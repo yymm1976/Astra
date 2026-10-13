@@ -33,12 +33,10 @@ uniform sampler2D colortex1;
 #ifdef ASTRA_BLOOM
     #include "/global/post/bloom.glsl"
     uniform sampler2D colortex2;
+    const bool colortex2MipmapEnabled = true;
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-        uniform sampler2D colortex7;
-        const bool colortex7MipmapEnabled = true;
         #include "/global/water/bloom_resolve.glsl"
     #endif
-    const bool colortex2MipmapEnabled = true;
 #endif
 #endif
 #ifdef GODRAYS

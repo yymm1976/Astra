@@ -26,8 +26,9 @@ uniform sampler2D colortex0;
 
 void main() {
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-    // Underwater final uses the separate colortex7 bloom captured after water
-    // composition. Thin sheets retain the air curve and this HDR pyramid.
+    // Ordinary water defers its capture to composite4, which overwrites this same
+    // attachment with the full HDR scene after water composition. Thin sheets
+    // retain the air curve and this HDR pyramid.
     // Write a defined value so no framebuffer preservation is required.
     if (isEyeInWater == 1 && !water_is_thin_sheet()) {
         gl_FragData[0] = vec4(0.0, 0.0, 0.0, 1.0);

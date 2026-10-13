@@ -66,8 +66,17 @@ void water_scene_endpoint_position(ivec2 pixel, ivec2 size, float depth,
     point = screen_view(vec3(pixelUV,min(depth,0.999999)));
     float tolerance = max(0.004,entityDepth*0.0005);
     if (entityDepth > 0.0 && (depth >= 0.999999 || entityDepth <= -point.z+tolerance)) {
-        point *= entityDepth/max(-point.z,0.0001);
-        chosenEntityDepth = entityDepth;
+        // Keep the selected entity colour on this same raster ray. Scaling
+        // around zero displaced its endpoint when projection bobbing moved the eye.
+        vec3 eye = projection_view_origin();
+        vec3 ray = point - eye;
+        if (abs(ray.z) > 0.000001) {
+            float travel = (-entityDepth - eye.z) / ray.z;
+            if (travel > 0.0) {
+                point = eye + ray * travel;
+                chosenEntityDepth = entityDepth;
+            }
+        }
     }
 }
 void water_scene_endpoint(ivec2 pixel, ivec2 size, float depth,

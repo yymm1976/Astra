@@ -92,10 +92,19 @@ FUNCTIONS = [
      ("ACESFitted", "vec3color"), BAKING),
 ]
 
-# The one Astra-authored deviation the ledger records: a NaN guard on the CDL power step
-# (fractional exponent on a possibly negative base). Labels absent here must be byte-identical.
+# Exact registered edits only; every other body statement must match upstream.
 ASTRA_DIFF = {
     "agxCdl(...)": [("insert", "", "max("), ("insert", "", ",vec3(0.0))")],
+}
+# Two zero-weight curve skips in Uchimura. Construct the expected body from
+# upstream with these exact statement substitutions, rather than exempting it.
+ASTRA_REPLACEMENTS = {
+    "uchimura(vec3,float x7)": [
+        ("vec3T=vec3(m*pow(x/m,vec3(c))+b);",
+         "vec3T=vec3(0.0);if(any(greaterThan(w0,vec3(0.0))))T=vec3(m*pow(x/m,vec3(c))+b);"),
+        ("vec3S=vec3(P-(P-S1)*exp(CP*(x-S0)));",
+         "vec3S=vec3(0.0);if(any(greaterThan(w2,vec3(0.0))))S=vec3(P-(P-S1)*exp(CP*(x-S0)));"),
+    ],
 }
 # The one Mellow-side deviation, recorded so the relay is not mistaken for Astra's own edit:
 # Mellow's dispatcher wrapper gamma-corrects in and out of the upstream fit.
@@ -198,13 +207,21 @@ def main():
     for label, ka, km, ku, source in FUNCTIONS:
         u = up[source][ku]
         a = apply_aliases(ast[ka], ASTRA_ALIASES if source == SEGUIN else ACES_ALIASES)
+        target = u
+        replacements = ASTRA_REPLACEMENTS.get(label, [])
+        for old, new in replacements:
+            if target.count(old) != 1:
+                failures.append(f"{label}: registered statement anchor no longer occurs exactly once: {old}")
+                break
+            target = target.replace(old, new, 1)
         expected = ASTRA_DIFF.get(label, [])
-        if a == u:
-            verdict = "identical" if not expected else "IDENTICAL - ledger expected a diff"
+        if a == target:
+            verdict = (f"registered exact substitutions: {len(replacements)}" if replacements
+                       else "identical") if not expected else "IDENTICAL - ledger expected a diff"
             if expected:
                 failures.append(label + ": documented Astra deviation is gone")
         else:
-            verdict = check_diff(label, expected, insert_diff(u, a), "Astra", failures)
+            verdict = check_diff(label, expected, insert_diff(target, a), "Astra", failures)
         mrow = ""
         if km and mel:
             m = apply_aliases(mel[km], MELLOW_ALIASES if source == SEGUIN else ACES_ALIASES)

@@ -15,6 +15,7 @@
 // ------------------------------------------------------------
 uniform vec3  lightVector;             // normalized shadow light (sun by day, moon by night)
 uniform vec3  worldSunVector;          // world-space SUN direction (independent of shadow light)
+uniform vec2  astraSunHorizontalDirection; // normalized horizontal sun, CPU precomputed for fog
 uniform float sunProgress;             // 0 at sun horizon, 1 at zenith
 uniform float moonProgress;            // same, for the moon
 uniform float skyVisibilityDay;        // skylight collapse around dusk/dawn

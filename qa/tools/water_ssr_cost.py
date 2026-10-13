@@ -15,8 +15,12 @@ from compile_glsl import Expander, parse_profiles, lwjgl_classpath, DEFAULT_MC_R
 from water_path_probe import JAVA
 
 SHADERS=ROOT/'Astra/shaders'
-profile=parse_profiles(SHADERS/'shaders.properties')['BALANCED']
+PROFILE_NAME='QUALITY'
+profile=parse_profiles(SHADERS/'shaders.properties')[PROFILE_NAME]
+profile['SCREENSPACE_REFLECTIONS']=''
 profile.update(SHADOWS=None,UNDERWATER_LIGHT_SHAFTS=None,ANTIALIASING='0')
+print(f'Profile={PROFILE_NAME}; SSR explicitly on (native_no_ssr explicitly off); '
+      'ANTIALIASING=0; underwater shafts off; native shadow helpers on',flush=True)
 
 head='''#version 400 compatibility
 #extension GL_ARB_shading_language_packing : require

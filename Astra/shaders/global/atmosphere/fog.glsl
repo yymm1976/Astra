@@ -210,7 +210,9 @@ vec3 fog_air_perspective(vec3 fogColor, vec3 viewDir, vec3 sunGlowColor) {
 	// (astra_twilight_sky - the atmosphere's own away-from-sun term) supplies the
 	// tint, so no second twilight palette is introduced. It is scaled down because
 	// the term is already calibrated for the sky's own brightness.
-	float away = clamp(-dot(viewDir.xz, normalize(worldSunVector.xz + vec2(1e-5))), 0.0, 1.0);
+	// Same horizontal facing term as before; the 1e-5 offset and normalization
+	// now run once per frame in shaders.properties instead of per fragment.
+	float away = clamp(-dot(viewDir.xz, astraSunHorizontalDirection), 0.0, 1.0);
 	// `away` is the horizontal facing weight. Rays on the sun's side and exactly
 	// vertical rays have zero blend weight; near-vertical rays may still contribute.
 	// astra_twilight_sky is the expensive part here (two high-exponent pow() calls
@@ -218,8 +220,13 @@ vec3 fog_air_perspective(vec3 fogColor, vec3 viewDir, vec3 sunGlowColor) {
 	// The mix is the identity at weight zero, so the skipped case is unchanged.
 	if (away > 0.0) {
 		float level = 1.0 - min(abs(viewDir.y) * 2.2, 1.0);   // strongest along the horizon
-		vec3 cool = astra_twilight_sky(viewDir) * 0.35;
-		result = mix(result, result + cool * level, away * horizon * 0.50);
+		// level == 0 for every ray with abs(viewDir.y) >= 1/2.2, so that whole
+		// high-elevation band contributes nothing through the mix; skip the two
+		// high powers and exp inside astra_twilight_sky there.
+		if (level > 0.0) {
+			vec3 cool = astra_twilight_sky(viewDir) * 0.35;
+			result = mix(result, result + cool * level, away * horizon * 0.50);
+		}
 	}
 	return result;
 }

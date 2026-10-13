@@ -11,15 +11,18 @@
 //   - colortex1 holds the raw accumulated density in [0, 1], deliberately unscaled so
 //     the buffer's full precision is used (Steadfast's note: scaling here and
 //     unscaling later is pure precision loss, since the value gets smoothed anyway);
-//     RGBA16F preserves additive water radiance and ray lengths (air uses R);
+//     RG16F keeps the air density in R and source visibility in G; underwater
+//     shafts keep RGBA16F because they add radiance RGB and ray length A;
 //   - godraysExposure (view-angle x offscreen x time-of-day, all CPU-side per
 //     design.md 4.4) is already folded into the exposure, NOT into this value;
 //   - GODRAYS_STRENGTH is likewise NOT applied here - it belongs to the stage-2
 //     composite, so that changing the slider does not require re-running this pass;
-//   - with GODRAYS_SUN_OCCLUSION or planar clouds, texel (0,0)'s alpha carries
-//     source visibility for the whole frame instead of the density broadcast. Stage 2
-//     reads it back with texelFetch; the other texels of alpha are written but read by
-//     nobody, air or water.
+//   - with GODRAYS_SUN_OCCLUSION or planar clouds, texel (0,0) carries source
+//     visibility for the whole frame instead of the density broadcast. In the air
+//     RG16F configuration that scalar is written to G; only when underwater shafts
+//     are compiled in (RGBA16F, where A is otherwise the water ray length) does it
+//     live in A. Stage 2 reads back the matching channel with texelFetch; the other
+//     texels are written but read by nobody.
 // Water output: RGB = refracted additive linear VL, A = min(ray length,48) / 128
 // in the overworld budget (otherwise the full endpoint / 128). The consumer
 // interpolates radiance directly and rejects mismatched corner distances.
@@ -77,10 +80,21 @@ float godrays_sun_visibility(vec2 lightPos) {
 }
 #endif
 
+// Air-only scattering needs just density + one source-visibility scalar, so it uses
+// RG16F. Underwater shafts add radiance RGB and a distance in A, which keeps the
+// existing RGBA16F carrier. The token declarations stay in the #ifndef pattern used
+// by the other format sites.
+#ifdef ASTRA_UNDERWATER_SHAFTS
 #ifndef RGBA16F
 const int RGBA16F=0;
 #endif
 const int colortex1Format=RGBA16F;
+#else
+#ifndef RG16F
+const int RG16F=0;
+#endif
+const int colortex1Format=RG16F;
+#endif
 const bool colortex1Clear = true;
 const vec4 colortex1ClearColor = vec4(0.0,0.0,0.0,0.0);
 /* RENDERTARGETS: 1 */
@@ -146,7 +160,11 @@ void main() {
                 && all(lessThanEqual(lightScreenPos, vec2(1.0))))
                 sourceVisibility *= 1.0 - clamp(astra_screen_cloud_sample(lightScreenPos).a, 0.0, 1.0);
             #endif
+            #ifdef ASTRA_UNDERWATER_SHAFTS
 			gl_FragData[0].a = sourceVisibility;
+            #else
+            gl_FragData[0].g = sourceVisibility;
+            #endif
 		}
 	#endif
 }

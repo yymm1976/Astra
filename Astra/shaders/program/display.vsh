@@ -44,7 +44,11 @@ void main() {
     // Ordinary water uses the same texel's alpha as distance, so never read it here.
     if ((isEyeInWater == 0 || (isEyeInWater == 1 && displayOrdinaryWater == 0))
         && godraysExposure > 0.0 && blindness <= 0.0001)
+        #ifdef ASTRA_UNDERWATER_SHAFTS
         displayGodraysVisibility = texelFetch(colortex1, ivec2(0), 0).a;
+        #else
+        displayGodraysVisibility = texelFetch(colortex1, ivec2(0), 0).g;
+        #endif
     #endif
     #endif
     #ifdef AUTO_EXPOSURE

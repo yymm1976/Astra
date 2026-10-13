@@ -25,11 +25,11 @@ import os
 import shutil
 import sys
 from minecraft_paths import minecraft_root, minecraft_instance, iris_jar
+from shader_options import ALL_PROFILES, QUALITY_TIERS, parse_profiles, parse_options
 
 ROOT = Path(__file__).resolve().parents[2]
 PACK = ROOT / "Astra" / "shaders"
-TIER_ORDER = ("PERFORMANCE", "BALANCED", "ULTRA")
-ALL_PROFILES = ("PERFORMANCE", "NO_SHADOWS", "BALANCED", "ULTRA")
+TIER_ORDER = QUALITY_TIERS
 JAVA = '''
 import java.nio.file.*;
 import java.util.*;
@@ -120,22 +120,10 @@ public class IrisPropertyInspection {
 
 def profiles():
     """profile name -> {option: 'true' | 'false' | value}, as Iris stores overrides"""
-    out = {}
-    for line in (PACK / "shaders.properties").read_text(encoding="utf-8").splitlines():
-        m = re.match(r"^profile\.([A-Za-z0-9_]+)=(.*)$", line)
-        if not m:
-            continue
-        tokens = {}
-        for token in m.group(2).split():
-            if token.startswith("!"):
-                tokens[token[1:]] = "false"
-            elif "=" in token:
-                name, raw = token.split("=", 1)
-                tokens[name] = raw
-            else:
-                tokens[token] = "true"
-        out[m.group(1)] = tokens
-    return out
+    return {name: {key: "false" if value is None else "true" if value == "" else value
+                   for key, value in values.items()}
+            for name, values in parse_profiles(
+                (PACK / "shaders.properties").read_text(encoding="utf-8-sig")).items()}
 
 
 def parse_output(stdout):
@@ -175,15 +163,10 @@ def declared_options():
     whatever the #define carries on the source line, so a numeric option's declaration
     default can stand in for a profile that does not set it.
     """
-    out = {}
-    pattern = re.compile(r"^\s*(?P<comment>//)?\s*#define\s+(?P<name>[A-Za-z_]\w*)\b"
-                         r"(?P<value>.*?)//\s*\[(?P<values>.*)\]\s*$")
-    for line in (PACK / "lib/settings.glsl").read_text(encoding="utf-8").splitlines():
-        m = pattern.match(line)
-        if m:
-            kind = "bool" if set(m.group("values").split()) == {"false", "true"} else "str"
-            out[m.group("name")] = (kind, m.group("value").strip(), bool(m.group("comment")))
-    return out
+    return {name: ("bool" if item.boolean else "str", item.value,
+                   item.off or (item.boolean and item.const_type == "bool" and item.value == "false"))
+            for name, item in parse_options(
+                (PACK / "lib/settings.glsl").read_text(encoding="utf-8-sig")).items()}
 
 
 def main():
@@ -352,7 +335,7 @@ public class Iris {
             print(f"     added: " + ", ".join(sorted(added)))
 
     # 3. Canary: colortex1 is conditioned on UNDERWATER_SHAFT_SAMPLES, so an option map
-    #    that never reached the preprocessor would leave all three tiers on one scale.
+    #    that never reached the preprocessor would leave all quality tiers on one scale.
     scales = {t: buffers[t].get("size.buffer.colortex1") for t in TIER_ORDER}
     print("size.buffer.colortex1 by tier: " + " | ".join(f"{t}={scales[t]}" for t in TIER_ORDER))
     if len(set(scales.values())) < 2:
@@ -363,7 +346,7 @@ public class Iris {
     print(f"size.buffer keys varying by tier: "
           + (", ".join(sorted(varied)) if varied else "none"))
     if not varied:
-        failures.append("no size.buffer.* line varies across the three tiers")
+        failures.append("no size.buffer.* line varies across the quality tiers")
 
     # 4. Picking a tier must change what the loader schedules. A step that changes neither
     #    a gate nor a buffer is knob-only (cost lives in the GLSL macros) and is reported,

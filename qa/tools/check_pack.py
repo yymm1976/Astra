@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import compile_glsl  # shared Iris render-stage table (SC-31)
 import option_matrix  # shared option/consumer analysis (check 13)
-from shader_options import parse_options
+from shader_options import ALL_PROFILES, QUALITY_TIERS, parse_options, parse_profiles
 
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
@@ -118,7 +118,7 @@ def parse_properties():
 
 def quality_option_names(opts):
     # Colour settings intentionally survive a performance-profile change.
-    independent = {"COLOR_STYLE", "TONEMAP_OPERATOR", "EXPOSURE", "AUTO_EXPOSURE",
+    independent = {"OVERWORLD_LOOK", "COLOR_STYLE", "TONEMAP_OPERATOR", "EXPOSURE", "AUTO_EXPOSURE",
                    "SATURATION", "VIBRANCE", "CONTRAST", "COLOR_TEMPERATURE"}
     return {name for name in opts if name not in independent
             and not name.startswith(("TINT_", "LOOK_"))}
@@ -194,16 +194,23 @@ def check_gui(opts):
     c.note(f"sliders={len(sliders)} vs {len(numeric) - len(enums)} slider-typed options")
 
     quality_opts = quality_option_names(opts)
-    profiles = {k.split(".", 1)[1]: v for k, v in props.items() if k.startswith("profile.")}
-    for pname, vals in profiles.items():
-        toks = []
-        for v in vals:
-            toks += v.split()
-        names = [(t[1:] if t.startswith("!") else t).split("=", 1)[0] for t in toks]
+    try:
+        profiles = parse_profiles(read(PACK / "shaders.properties"))
+    except ValueError as error:
+        c.fail(str(error))
+        return c
+    for pname, values in profiles.items():
+        # Inherited overrides are intentional. Duplicate local option tokens still
+        # indicate ambiguous configuration, independently of parent expansion.
+        local = [t for v in props.get("profile." + pname, []) for t in v.split()
+                 if not t.startswith("profile.")]
+        names = [(t[1:] if t.startswith("!") else t).split("=", 1)[0] for t in local]
         dup = {t for t in names if names.count(t) > 1}
         if dup:
             c.fail(f"profile.{pname}: duplicated token(s): {', '.join(sorted(dup))}")
-        pset = set(names)
+        toks = ["!" + name if value is None else name if value == "" else name + "=" + value
+                for name, value in values.items()]
+        pset = set(values)
         if quality_opts - pset:
             c.fail(f"profile.{pname}: missing {len(quality_opts-pset)} quality option(s): "
                    + ", ".join(sorted(quality_opts - pset)))
@@ -231,9 +238,9 @@ def check_gui(opts):
                        for a in allowed):
                 c.fail(f"profile.{pname}: '{t}' is not one of {name}'s enumerated values")
         c.note(f"profile.{pname}: {len(pset)} tokens, quality complete={quality_opts <= pset}")
-    expected_profiles = set(TIER_ORDER) | {"NO_SHADOWS"}
+    expected_profiles = set(ALL_PROFILES)
     if set(profiles) != expected_profiles:
-        c.fail("expected the three quality tiers plus NO_SHADOWS; missing="
+        c.fail("expected four quality tiers plus NO_SHADOWS; missing="
                + str(sorted(expected_profiles - set(profiles)))
                + ", unexpected=" + str(sorted(set(profiles) - expected_profiles)))
     return c
@@ -1127,54 +1134,44 @@ def check_iris_parser_contracts():
 
 # ------------------------------------------------------- tier differential
 
-TIER_ORDER = ("PERFORMANCE", "BALANCED", "ULTRA")
+TIER_ORDER = QUALITY_TIERS
 
 # Numeric knobs whose value must not step down along PERFORMANCE -> ULTRA, because the
 # larger number is more work or a richer implementation (SHADOW_SOFTNESS widens the PCF
 # footprint; SUN_MOON_MODE 1 draws procedural discs instead of the vanilla texture).
 # ANTIALIASING: 0 off, 1 FXAA (extra final pass + full-resolution colortex13), 2 TAA
-# (FXAA machinery plus jitter, HDR history buffers and reprojection) - profiles read
-# 0/1/1 along PERFORMANCE -> BALANCED -> ULTRA, monotone up (TAA is opt-in per docs).
+# (HDR history buffers and reprojection) - profiles read 0/1/1/1 along the quality
+# ladder, monotone up (TAA is opt-in per docs).
 TIER_MONOTONE_UP = {
     "SHADOW_RESOLUTION", "SHADOW_DISTANCE", "ENTITY_SHADOW_DISTANCE", "SHADOW_SOFTNESS",
     "UNDERWATER_SHAFT_SAMPLES", "CLOUD_MODE", "SUN_MOON_MODE", "ANTIALIASING",
     "SHADOW_FILTER_QUALITY", "CLOUD_QUALITY", "VOLUME_FOG_QUALITY",
-    "BLOOM_QUALITY", "WATER_EFFECT_QUALITY",
+    "BLOOM_QUALITY", "WATER_EFFECT_QUALITY", "WATER_WAVE_QUALITY",
 }
 # Knobs where the smaller number is the richer implementation, so the value must not
 # step up: SKY_MODE 0 = Minishita physical atmosphere, 1 = gradient
 # (global/dimension/overworld.glsl:11).
-TIER_MONOTONE_DOWN = {"SKY_MODE"}
+# OVERWORLD_BUDGET 2/1/0 progressively releases workload ceilings.
+TIER_MONOTONE_DOWN = {"SKY_MODE", "OVERWORLD_BUDGET"}
 # Tiered on purpose but decoupled from cost - reported, never asserted.
 TIER_NONCOST = {"END_PRECESSION_MINUTES"}
 
 
 def _profile_values():
     """profile name -> {option: 'on' | 'off' | numeric value as written}"""
-    props, _ = parse_properties()
-    out = {}
-    for key, vals in props.items():
-        if not key.startswith("profile."):
-            continue
-        toks = []
-        for v in vals:
-            toks += v.split()
-        d = {}
-        for t in toks:
-            if t.startswith("!"):
-                d[t[1:]] = "off"
-            elif "=" in t:
-                name, raw = t.split("=", 1)
-                d[name] = {"true": "on", "false": "off"}.get(raw, raw)
-            else:
-                d[t] = "on"
-        out[key.split(".", 1)[1]] = d
-    return out
+    return {name: {key: "off" if value is None else "on" if value == "" else
+                   {"true": "on", "false": "off"}.get(value, value)
+                   for key, value in values.items()}
+            for name, values in parse_profiles(read(PACK / "shaders.properties")).items()}
 
 
 def check_tier_differential(opts):
     c = Check(12, "profile tier differential (survey 6 P0-1: cost-monotone ladder)")
-    prof = _profile_values()
+    try:
+        prof = _profile_values()
+    except ValueError as error:
+        c.fail(str(error))
+        return c
     absent = [t for t in TIER_ORDER if t not in prof]
     if absent:
         c.fail("missing profile(s): " + ", ".join(absent))
@@ -1209,8 +1206,7 @@ def check_tier_differential(opts):
         return c
 
     # Compare values: matching option names alone says nothing about tier cost.
-    for a, b in [("PERFORMANCE", "BALANCED"), ("BALANCED", "ULTRA"),
-                 ("PERFORMANCE", "ULTRA")]:
+    for a, b in [*zip(TIER_ORDER, TIER_ORDER[1:]), (TIER_ORDER[0], TIER_ORDER[-1])]:
         diff = [k for k in keys if prof[a][k] != prof[b][k]]
         c.note(f"{a} vs {b}: {len(diff)} value diff(s), density "
                f"{len(diff)}/{len(keys)} = {len(diff) / max(len(keys), 1):.0%}")

@@ -240,6 +240,11 @@ vec4 astra_fog_path(vec3 playerPos, float skylight, float fragWorldY, bool airLe
     return astra_fog_path_ordinary(playerPos, skylight, fragWorldY, airLeg);
     #else
     float strength = clamp(blindness, 0.0, 1.0);
+    #ifndef DIMENSION_NETHER
+    // The final water composition owns camera blindness for ordinary water
+    // AND thin sheets. Thin sheets still need their ordinary air/short-water fog.
+    if (isEyeInWater == 1) strength = 0.0;
+    #endif
     float blindOpacity = 0.0;
     if (strength > 0.0001) {
         float darkness = length(playerPos) * strength * 0.5;

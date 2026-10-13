@@ -26,8 +26,7 @@ vec3 water_shafts_view_origin() {
     // model-view is its separate rotation. The perspective eye is the inverse
     // projection of the homogeneous clip Z axis, not necessarily view (0,0,0).
     // In a usual perspective projection this reduces exactly to that zero.
-    vec4 eye = gbufferProjectionInverse[2];
-    return abs(eye.w) > 0.000001 ? eye.xyz/eye.w : vec3(0.0);
+    return projection_view_origin();
 }
 
 vec3 water_shafts_view(vec2 uv, out float rayLength, out float sceneDepth,

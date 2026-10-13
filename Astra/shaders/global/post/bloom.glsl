@@ -21,7 +21,7 @@ const float BLOOM_KNEE = 0.5;
 // Ceiling on the emitted scalar excess, before preserving the source hue.
 const float BLOOM_SOURCE_CLAMP = 16.0;
 
-// Must match size.buffer.colortex2/7 in shaders.properties. Source-space offsets
+// Must match size.buffer.colortex2 in shaders.properties. Source-space offsets
 // widen with the reduction ratio, preserving the existing screen-space radius.
 const float BLOOM_CAPTURE_SCALE = 0.25;
 

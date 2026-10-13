@@ -2,9 +2,14 @@
 #define ASTRA_SKY_REFLECTION_CACHE_GLSL
 
 // ITT 3.2 shared sky/cloud environment: idea only. Original Astra cache mapping.
-// Original mode: 258 x 128, including two longitude gutters. Rough mode: 256 x
-// 128, with periodic filtering at each mip instead of downsampling narrow gutters.
+// Low sky quality: 128 x 64 core; balanced/high: 256 x 128. Original mode
+// adds two longitude gutters; rough mode uses periodic filtering at each mip.
+// Match the colortex11 dimensions in shaders.properties in every dimension.
+#if CLOUD_QUALITY == 0
+const vec2 ASTRA_SKY_CACHE_CORE = vec2(128.0, 64.0);
+#else
 const vec2 ASTRA_SKY_CACHE_CORE = vec2(256.0, 128.0);
+#endif
 const float ASTRA_SKY_CACHE_PI = 3.14159265359;
 
 vec3 astra_sky_cache_direction(vec2 pixel) {

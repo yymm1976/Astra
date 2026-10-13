@@ -22,6 +22,12 @@ uniform sampler2D colortex14;
 #endif
 float astra_cloud_shadow_at(vec3 hit) {
     if (astraCloudShadowFade <= 0.0) return 1.0;
+    #if !defined CLOUD_SHADOWS && !defined ASTRA_VOLUME_FOG
+    // Matches the producer's neutral early-out in program/cloud_shadow_cache.fsh:
+    // with no surface-shadow or volume consumer and no rain, every texel carries
+    // the same transmission 1.0, so no cached value can change this result.
+    if (astraRainFactor < 0.01) return 1.0;
+    #endif
     #ifdef ASTRA_CLOUD_SHADOW_WRITE
         return astra_cloud_plane_transmission(hit);
     #else

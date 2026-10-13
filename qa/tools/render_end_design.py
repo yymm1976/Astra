@@ -81,22 +81,35 @@ def sample_bilinear(data,x,y):
     b=data[np.minimum(iy+1,h-1),ix]*(1-fx)+data[np.minimum(iy+1,h-1),np.minimum(ix+1,w-1)]*fx
     return a*(1-fy)+b*fy
 
-def end_bloom(pixels):
-    # Same 13 taps, threshold, source ceiling and four End mip weights as GLSL.
+def end_bloom(pixels,sky_mask=None):
+    # Production BLOOM_QUALITY=2 disk and integrated knee (global/post/bloom.glsl).
+    # CPU mip averaging approximates driver mip generation; no pixel identity claim.
     h,w=pixels.shape[:2]; ch,cw=h//4,w//4
     yy,xx=np.meshgrid((np.arange(ch)+0.5)*h/ch-0.5,(np.arange(cw)+0.5)*w/cw-0.5,indexing='ij')
     capture=np.zeros((ch,cw,3))
-    taps=[(0,0,.125),(-1,-1,.125),(1,-1,.125),(-1,1,.125),(1,1,.125),(-2,0,.0625),(2,0,.0625),(0,-2,.0625),(0,2,.0625),(-2,-2,.03125),(2,-2,.03125),(-2,2,.03125),(2,2,.03125)]
+    disk=[(1.93185165,0.51763809),(1.41421356,1.41421356),
+          (0.51763809,1.93185165),(-0.51763809,1.93185165),
+          (-1.41421356,1.41421356),(-1.93185165,0.51763809),
+          (-1.93185165,-0.51763809),(-1.41421356,-1.41421356),
+          (-0.51763809,-1.93185165),(0.51763809,-1.93185165),
+          (1.41421356,-1.41421356),(1.93185165,-0.51763809)]
+    taps=[(0,0,.25)]+[(dx,dy,.0625) for dx,dy in disk]
     for dx,dy,weight in taps:
-        c=sample_bilinear(pixels,xx+dx*2,yy+dy*2)
+        # tapScale=2 at quarter capture; GLSL pads UV by 0.5*srcTexel*tapScale.
+        c=np.maximum(sample_bilinear(pixels,np.clip(xx+dx*2,.5,w-1.5),
+                                    np.clip(yy+dy*2,.5,h-1.5)),0)
         brightness=c.max(axis=2,keepdims=True)
-        soft=np.clip(brightness-1,0,1)**2/2.0001
-        excess=np.minimum(np.maximum(soft,brightness-1.5),16)
+        above=brightness-1.0
+        s=np.clip(above,0,1)  # width=2*BLOOM_KNEE=1
+        excess=np.where(above<1,s*s*(.375+s*(.25-.125*s)),above-.5)
+        excess=np.minimum(excess,16)
         capture+=c*excess/np.maximum(brightness,1e-5)*weight
     yy,xx=np.meshgrid((np.arange(h)+.5)/h,(np.arange(w)+.5)/w,indexing='ij')
     result=np.zeros_like(pixels)
+    # Production display attenuates only sky receivers, not foreground terrain.
+    receiver_gain=.21 if sky_mask is None else .35*np.where(sky_mask[...,None],.60,1.0)
     for level,weight in enumerate([.50,.25,.15,.10]):
-        result+=sample_bilinear(capture,xx*capture.shape[1]-.5,yy*capture.shape[0]-.5)*weight*.21
+        result+=sample_bilinear(capture,xx*capture.shape[1]-.5,yy*capture.shape[0]-.5)*weight*receiver_gain
         if level<3:
             nh,nw=capture.shape[0]//2,capture.shape[1]//2
             capture=capture[:nh*2,:nw*2].reshape(nh,2,nw,2,3).mean(axis=(1,3))
@@ -215,8 +228,9 @@ void main(){
   vec4 sky=texture(offlineSky,uv);
   vec3 color=sky.rgb+end_crisp_photon_ring(ray,cone);
   if(sky.a>0.0) color+=end_starfield_filtered(starRay,cone,starDx,starDy)*sky.a;
-  if(previewForeground>0) {vec4 terrain=preview_island(ray,cone);color=mix(color,terrain.rgb,terrain.a);}
-  gl_FragColor=vec4(color,1.0);
+   float skyReceiver=1.0;
+   if(previewForeground>0) {vec4 terrain=preview_island(ray,cone);color=mix(color,terrain.rgb,terrain.a);skyReceiver=1.0-terrain.a;}
+   gl_FragColor=vec4(color,skyReceiver);
  }
 }
 '''
@@ -247,13 +261,15 @@ void main(){
         subprocess.run(['javac','-cp',cp,str(t/'EndPreview.java')],check=True)
         seconds=args.seconds
         subprocess.run(['java','-cp',cp+';'+str(t),'EndPreview',str(t/'end.frag'),str(t/'pixels.bin'),str(int(seconds%1200*20)),str(int(seconds//1200)),str(int(args.panorama)),str(seconds),str(root_shaders/'textures/astra-end-transfer.png'),str(root_shaders/'textures/astra-end-flow.png'),str(root_shaders/'textures/astra-end-transfer-meta.png'),str(look[0]),str(look[1]),str(look[2]),str(int(args.foreground)),str(root_shaders/'textures/astra-end-flow-mips.png')],check=True)
-        pixels=np.fromfile(t/'pixels.bin',dtype='>f4').reshape(args.height,args.width,4)[::-1,:,:3]
+        readback=np.fromfile(t/'pixels.bin',dtype='>f4').reshape(args.height,args.width,4)[::-1]
+        pixels=readback[:,:,:3]
+        sky_mask=readback[:,:,3]>.5
     assert np.isfinite(pixels).all(), 'Non-finite radiance'
     np.save(out.with_suffix('.npy'),pixels)
     # End sky uses the configured curve on luminance, then fits the whole RGB
     # vector to the display gamut. Match the default Uchimura sky shoulder.
     x=np.maximum(pixels,0)
-    if not args.no_bloom: x=x+end_bloom(x)
+    if not args.no_bloom: x=x+end_bloom(x,sky_mask)
     x*=1.05
     rgb=x
     x=np.sum(rgb*np.array([.2126,.7152,.0722]),axis=2,keepdims=True)

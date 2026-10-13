@@ -22,6 +22,13 @@ vec3 screen_view(vec3 x) {
     return project_and_divide(gbufferProjectionInverse, x);
 }
 
+// Camera bobbing can translate the perspective eye inside the projection.
+// The inverse clip-Z axis gives that eye, independent of pixel/depth/jitter.
+vec3 projection_view_origin() {
+    vec4 eye = gbufferProjectionInverse[2];
+    return abs(eye.w) > 0.000001 ? eye.xyz / eye.w : vec3(0.0);
+}
+
 // view space -> player-relative world space (direction-only transform)
 vec3 view_player(vec3 x) {
     #ifdef ASTRA_VOXY_PASS

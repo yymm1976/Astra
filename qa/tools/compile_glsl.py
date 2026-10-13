@@ -18,11 +18,10 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from minecraft_paths import default_minecraft_root
-from shader_options import declaration
+from shader_options import ALL_PROFILES, declaration, parse_profiles as expand_profiles
 
 
 DEFAULT_MC_ROOT = default_minecraft_root()
-PROFILE_RE = re.compile(r"^profile\.([A-Za-z0-9_]+)=(.*)$")
 INCLUDE_RE = re.compile(r'^\s*#include\s+["<]([^">]+)[">]\s*(?://.*)?$')
 
 # Values below are the ordinals of Iris 1.11.2's WorldRenderingPhase enum, read
@@ -185,22 +184,7 @@ public final class AstraShaderCompiler {
 
 
 def parse_profiles(properties: Path) -> dict[str, dict[str, str | None]]:
-    profiles: dict[str, dict[str, str | None]] = {}
-    for raw in properties.read_text(encoding="utf-8").splitlines():
-        match = PROFILE_RE.match(raw.strip())
-        if not match:
-            continue
-        values: dict[str, str | None] = {}
-        for token in match.group(2).split():
-            if token.startswith("!"):
-                values[token[1:]] = None
-            elif "=" in token:
-                name, value = token.split("=", 1)
-                values[name] = value
-            else:
-                values[token] = ""
-        profiles[match.group(1).upper()] = values
-    return profiles
+    return expand_profiles(properties.read_text(encoding="utf-8-sig"))
 
 
 def apply_profile_settings(text: str, values: dict[str, str | None]) -> str:
@@ -363,7 +347,7 @@ def covering_array_rows(shader_root: Path, profiles: dict, selected: list[str],
 
     option_matrix lives next to this file; the sys.path line keeps the import working
     when compile_glsl is imported as a module instead of run as a script. The selected
-    profiles seed the rows so the three shipping configurations are always part of the
+    profiles seed the rows so the selected shipping configurations are always part of the
     compiled set, not just an extra sweep.
     """
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -391,7 +375,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shaders", type=Path, default=repo_root / "Astra" / "shaders")
     parser.add_argument("--minecraft-root", type=Path, default=DEFAULT_MC_ROOT)
-    parser.add_argument("--profiles", nargs="+", default=["PERFORMANCE", "BALANCED", "ULTRA"],
+    parser.add_argument("--profiles", nargs="+", default=list(ALL_PROFILES),
                         help="profiles to compile; in --matrix mode these also seed the rows")
     parser.add_argument("--matrix", action="store_true",
                         help="compile a pairwise covering array over every option that can "

@@ -15,13 +15,17 @@
 
 自动查找遇到多个实例或多个 Iris jar 会要求明确选择，不会按文件名猜测版本。编译工具及其 GPU 辅助脚本仍依赖 Windows 的 LWJGL 3.3.3；取消固定路径不表示已完成跨平台驱动适配。
 
-`inspect_iris_properties.py` 读取四档配置，用安装版本的 Iris 解析选项和布尔条件。三个画质档参与递增比较，NO_SHADOWS 单独要求关闭阴影。它读取调度配置，不测游戏帧率。下界体素光门按现行 `program.world-1/shadowcomp` 加数字 `1..8` 的命名核对，并要求每档与 `shaders.properties` 里的资源门 `SHADOWS && NETHER_VOXEL_LIGHT && BLOCKLIGHT_STRENGTH > 0` 一致；某档没有覆盖到的选项取 `lib/settings.glsl` 的声明默认值，数值无法解析时明确报错，不会当成通过。
+`inspect_iris_properties.py` 读取五档配置，用安装版本的 Iris 解析选项和布尔条件。PERFORMANCE、BALANCED、QUALITY、ULTRA 四个画质档参与递增比较，NO_SHADOWS 单独要求关闭阴影。它读取调度配置，不测游戏帧率。下界体素光门按现行 `program.world-1/shadowcomp` 加数字 `1..8` 的命名核对，并要求每档与 `shaders.properties` 里的资源门 `SHADOWS && NETHER_VOXEL_LIGHT && BLOCKLIGHT_STRENGTH > 0` 一致；某档没有覆盖到的选项取 `lib/settings.glsl` 的声明默认值，数值无法解析时明确报错，不会当成通过。
 
-`compile_glsl.py` 不带 `--profiles` 时仍只选择 PERFORMANCE、BALANCED、ULTRA。需要四档时明确指定 `--profiles PERFORMANCE NO_SHADOWS BALANCED ULTRA`；历史 270 次链接记录不能因此改称四档。
+`compile_glsl.py` 不带 `--profiles` 时选择全部五档：PERFORMANCE、NO_SHADOWS、BALANCED、QUALITY、ULTRA。仍可通过 `--profiles PERFORMANCE BALANCED ULTRA` 手动选择旧三个档位，历史数量不改称五档结果。`check_pack.py` 保留 BALANCED 与源码原始默认一致、画质档成本递增、预设选项完整性及未知选项拒绝规则；主世界配色与其他独立颜色选择不要求随画质档重置。
 
-`water_ssr_cost.py` 复用完整 `gbuffers_water` 入口做独立 GL_TIME_ELAPSED 计量（RTX4050、1080p、BALANCED），读取当前生产源码：`native` 为现态，`native_floor20`/`native_full_coarse`/`native_refraction_old` 只恢复对应改动前的渐入窗口、粗查询密度或冗余读取作对照，另有 `native_no_ssr`/`native_no_refraction`/`native_sequential` 分量开关与 `full/waves/trace/transmit` 隔离函数体；`--scene shore|canopy|wall60`、`--pitch` 选择场景与视向，`--image` 输出渲染帧用于逐位比较。它不是 Iris 补丁后的游戏绘制，结果不换算 FPS。
+`water_ssr_cost.py` 复用完整 `gbuffers_water` 入口做独立 GL_TIME_ELAPSED 计量（1080p），读取当前生产源码。当前选用 QUALITY 承接旧 BALANCED 的效果开关，并显式开启 SSR；运行输出注明档位及覆盖项。`native` 保持当前源码，`native_no_ssr` 显式关闭 SSR；光束关闭、AA关闭及原生阴影辅助开启的覆盖保持。`native_floor20`/`native_full_coarse`/`native_refraction_old` 只恢复对应改动前的渐入窗口、粗查询密度或冗余读取作对照，另有 `native_no_refraction`/`native_sequential` 分量开关与 `full/waves/trace/transmit` 隔离函数体；`--scene shore|canopy|wall60`、`--pitch` 选择场景与视向，`--image` 输出渲染帧。历史 BALANCED 数字对应当时配置，不能直接记为当前 QUALITY 数字。它不是 Iris 补丁后的游戏绘制，结果不换算 FPS。
 
 选项登记、配置覆盖与条件分析共用 `shader_options.py`，支持带取值注释的 `#define` 和 `const float/int/bool` 声明。未标注取值的引擎常量不计入用户选项。配置覆盖会保留 const 的类型和分号，选项错误先于 JDK／库路径错误报告。`sunPathRotation` 的消费者单独登记为 Iris 天体／阴影矩阵，不要求它在 GLSL 中另有计算引用；其他 const 仍须有实际消费者。
+
+预设解析也共用 `shader_options.py`：按原 token 顺序递归展开 `profile.NAME`，后置选项或后置父档覆盖先前值；父档可以写在子档之后。缺少父档、继承循环及重复预设定义明确报错。展开后仍由各工具拒绝未知选项或不合法取值，不把继承引用送入 Iris 选项字典。
+
+`test_gate_sensitivity.py` 的 Bloom 声明锚点为活跃 `colortex2Format`，不再依赖移除的附件7。`render_end_design.py` 的 Bloom 预览采用生产高档13点圆盘、积分膝部及末地四级权重，并按预览几何区分天空与地形的接收强度；CPU mip 平均仅近似驱动生成，不声称与游戏逐像素相同。`verify_tonemap_chain.py` 为 Uchimura 登记两条精确替换：仅在对应权重非零时计算 T/S，其余函数正文继续与上游比较，未登记差异仍被拒绝。
 
 `underwater_light_probe.py`、`underwater_shaft_gate_probe.py`、`airside_water_probe.py`、`sc35_probe.py`、`bloom_lod_probe.py`、`block_reflect_probe.py`、`block_reflect_gates.py` 均已停用：旧水体接口已经变化，`noise.png` 输入及 `getBloomTile()` 已移除，`astra_rock_emission()` 与材质 12–15 的岩石发光类也已从包中删除，旧工具的解析表达式或自带片元不再适用于当前实现；shafts-only 入口原是旧水探针的关键字参数，停用后的 `main()` 不再接收它。这些同名入口只向标准错误说明停用原因与现行模块位置并返回 2；导入时不读取光影文件、不创建输出目录，也不加载旧 GPU／图像依赖。旧结果只对应历史实现，不能描述当前光束、波面透镜、吸收链、下界彩光或 Bloom 捕获。
 

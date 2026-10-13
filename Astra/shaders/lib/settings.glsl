@@ -4,7 +4,7 @@
 // ============================================================
 //  Astra v1 - lib/settings.glsl
 //  Single source of truth for ALL user options (design.md 3.3).
-//  Nested colour controls and 4 quality profiles (shaders.properties).
+//  Nested colour controls and inherited quality profiles (shaders.properties).
 //  Conventions (design.md 3.2):
 //    - macros UPPER_SNAKE_CASE
 //    - booleans use #ifdef (bare define = on, commented-out define = off)
@@ -66,18 +66,18 @@
 
 // --- SHADOWS ---
 #define SHADOW_FILTER_MODE 0 // [0 1]
-#define SHADOW_FILTER_QUALITY 1 // [0 1 2]
-// Native receivers: 0 = one footprint; 1 = centre + up to two on mixed edges;
-// 2 = four. Each footprint keeps four discrete comparisons. Water uses 1/2/4.
+#define SHADOW_FILTER_QUALITY 0 // [0 1 2]
+// Native overworld receivers: 0 = one footprint; 1/2 = four fixed footprints.
+// Each footprint keeps four discrete comparisons. Other receivers use their own tiers.
 // 0 = software depth comparisons; 1 = hardware comparison gathers.
 // Both comparison modes pair each corner with its individual caster tint.
 #define SHADOWS // [false true]
 // Master switch for shadow map
-#define SHADOW_RESOLUTION 2048 // [512 1024 1536 2048 3072 4096]
+#define SHADOW_RESOLUTION 1024 // [512 1024 1536 2048 3072 4096]
 // Shadow map resolution (square)
-#define SHADOW_DISTANCE 192 // [64 80 96 112 128 160 192 256]
+#define SHADOW_DISTANCE 96 // [64 80 96 112 128 160 192 256]
 // Shadow render distance, blocks
-#define ENTITY_SHADOW_DISTANCE 64 // [32 48 64 96 128]
+#define ENTITY_SHADOW_DISTANCE 32 // [32 48 64 96 128]
 // Entity shadow distance, blocks
 #define ENTITY_SHADOWS // [false true]
 // Renderer-level switch for entity, player and block-entity shadow casters.
@@ -90,8 +90,7 @@
 #define SSS_FOLIAGE // [false true]
 // Foliage translucency approximation
 #define SSS_STRENGTH 60 // [0 10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200]
-// Foliage SSS strength, % (60 = the BALANCED profile value; the raw defaults must stay
-// identical to that profile so "raw defaults = BALANCED" holds as a benchmark anchor)
+// Foliage SSS strength, % (60 = the BALANCED profile value).
 
 // --- SKY ---
 #define SKY_MODE 1 // [0 1]
@@ -102,7 +101,7 @@
 #define STAR_AMOUNT 2 // [0 1 2 3 4]
 // Celestial star catalogue: off / sparse / normal / dense / very dense.
 #define CLOUD_MODE 1 // [0 1 2]
-#define CLOUD_QUALITY 1 // [0 1 2]
+#define CLOUD_QUALITY 0 // [0 1 2]
 // Planar clouds: quarter/half/native grid, with 12/16/96 coarse-search limits.
 // Low/balanced refine the first occupied interval twice and approximate lighting.
 // Reflection clouds use 6/8 coarse samples and one refinement; high is unchanged.
@@ -135,6 +134,9 @@
 // --- WATER ---
 #define WATER_WAVES // [false true]
 // Animated water surface normals
+#define WATER_WAVE_QUALITY 0 // [0 1 2]
+// Analytic surface normal: 4/5/6 layers. Lower tiers omit fine ripples and
+// carry their mean slope into roughness; crest amplitude and motion stay unchanged.
 #define WATER_WAVE_HEIGHT 100 // [25 50 75 100 125 150 175 200]
 // 2026-09-11: briefly lowered to 62 for a "silkier" surface, then reverted - the user
 // confirmed the original waves were fine and that the below-water breakup is unrelated
@@ -142,11 +144,11 @@
 // Wave amplitude, %
 #define WATER_WAVE_SPEED 100 // [25 50 75 100 125 150 175 200]
 // Wave flow speed, %
-#define SCREENSPACE_REFLECTIONS // [false true]
+//#define SCREENSPACE_REFLECTIONS // [false true]
 //#define ROUGH_SKY_REFLECTIONS // [false true]
 // Optional mip-filtered overworld environment + normalized environment BRDF.
 // Off by default to retain the existing water/ice/puddle appearance.
-#define WATER_EFFECT_QUALITY 1 // [0 1 2]
+#define WATER_EFFECT_QUALITY 0 // [0 1 2]
 // Water SSR total depth-query budget: 12/20/40 (including 4/4/8 refinements).
 // Low/balanced rock reflections use a stable 2x2 receiver lattice with five
 // bilinear footprints; high retains the dense ray and 5x5 footprint filter.
@@ -168,7 +170,7 @@
 // Shared optical-wave focus cached in the water shadow records.
 //#define UNDERWATER_PARTICLES // [false true]
 // Optional underwater suspended particles.
-#define UNDERWATER_LIGHT_SHAFTS // [false true]
+//#define UNDERWATER_LIGHT_SHAFTS // [false true]
 // Shadowed underwater sunlight, independent of the air GODRAYS option.
 #define UNDERWATER_SHAFT_STRENGTH 100 // [0 25 50 75 100 125 150 175 200]
 // Underwater light shaft brightness, %.
@@ -195,7 +197,7 @@
 // Scales Complementary's distance fog; there is no additional plume layer.
 #define END_FOG_DENSITY 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // End void fog density, %
-#define NETHER_VOXEL_LIGHT // [false true]
+//#define NETHER_VOXEL_LIGHT // [false true]
 // Nether volumetric light: fire, soul fire and lava cast spatial coloured light through a
 // 64x64x64 voxel volume around the player (8 propagation steps, same frame, no history).
 // Bounded subset of the Solas voxel-light architecture, not a full 128+ volume. Needs
@@ -209,7 +211,7 @@
 // underwater keep their own media. Default off in every profile, independent of TAA.
 // Design and ownership: docs/archive/实现与取证.md#record-077.
 #define VOLUME_FOG_DENSITY 50 // [0 25 50 75 100 125 150 175 200]
-#define VOLUME_FOG_QUALITY 1 // [0 1 2]
+#define VOLUME_FOG_QUALITY 0 // [0 1 2]
 // Low: quarter grid / up to 12 steps; balanced: half / 24; high: half / 48.
 #define VOLUME_FOG_ADAPTIVE // [false true]
 // Fewer samples on short rays, quadratic near-camera distribution; fixed mode
@@ -235,9 +237,9 @@
 // Color grading: contrast (factory 104 per Refrax target; 2026-09-07 -> 102 弱化阴影对比)
 #define COLOR_TEMPERATURE 0 // [-50 -45 -40 -35 -30 -25 -20 -15 -10 -5 0 5 10 15 20 25 30 35 40 45 50]
 // Color grading: temperature shift (-cool / +warm)
-#define BLOOM // [false true]
-// Bloom (2-pass: composite1 capture + final composite)
-#define BLOOM_QUALITY 1 // [0 1 2]
+//#define BLOOM // [false true]
+// Optional Bloom: underwater composition/capture + display mip consumption.
+#define BLOOM_QUALITY 0 // [0 1 2]
 // Capture source reads: low 4, balanced 5, high 13; all keep threshold and knee.
 #define BLOOM_STRENGTH 100 // [0 10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200]
 // Bloom strength, %
@@ -331,9 +333,9 @@
 #define LOOK_HIGHS_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 
 // --- PERFORMANCE + ADVANCED ---
-#define OVERWORLD_BUDGET 1 // [0 1 2]
-// Main-world budget: 0 uses raw options; 1 is the approved 1080p priority budget;
-// 2 tightens shadows and water fading by manual choice. Active budgets also use
+#define OVERWORLD_BUDGET 2 // [0 1 2]
+// Main-world budget: 0 uses raw options; 1 caps shadows at 1536/112;
+// 2 is the default frame-rate budget (1024 ceiling, earlier water fading). Active budgets also use
 // per-corner software shadow comparison. Ceilings never raise lighter raw options or enable
 // effects. Colour is independent; Nether and End retain their own settings.
 #define WAVING_FOLIAGE // [false true]
@@ -387,7 +389,7 @@ const int   shadowMapResolution  = SHADOW_RESOLUTION;  // shadow map is square
 const float shadowDistance       = SHADOW_DISTANCE;    // blocks
 const float shadowDistanceRenderMul = 1.5;             // shadow frustum extent, x shadowDistance
 #else
-// Overworld ceilings: priority at most 1536/112, manually tightened at most 1024/112.
+// Overworld ceilings: priority at most 1536/112, tightened at most 1024/112.
 // Keep lighter raw selections. Preprocessor branches expose simple values to Iris's
 // directive reader, which cannot evaluate min() or arithmetic in these engine knobs.
 #ifdef ASTRA_OVERWORLD_OPTIMIZED

@@ -156,6 +156,20 @@ const float crestMagnitude[2] = float[](
 	WATER_CRESTS[0].weight / rippleTotalWeight,
 	WATER_CRESTS[1].weight / rippleTotalWeight);
 
+// WATER_WAVE_QUALITY selects how many ripple layers are evaluated per pixel:
+// 0 = 2 ripples + 2 crests, 1 = 3 ripples + 2 crests, 2 = the original 4 + 2.
+// Both crests stay in every tier. Magnitudes are not renormalized: the arrays
+// keep all six entries and the remaining layers divide by the same six-layer
+// total weight, so evaluated wave amplitude is identical across tiers. The
+// omitted fine ripples only contribute their fixed mean slope to roughness.
+#if defined WATER_WAVE_QUALITY && WATER_WAVE_QUALITY >= 2
+#define ASTRA_SURFACE_RIPPLE_LAYERS 4
+#elif defined WATER_WAVE_QUALITY && WATER_WAVE_QUALITY == 1
+#define ASTRA_SURFACE_RIPPLE_LAYERS 3
+#else
+#define ASTRA_SURFACE_RIPPLE_LAYERS 2
+#endif
+
 // Steadfast 的原始梯度档。上一轮抬到 0.20 后，近岸与掠射角出现黑白细条；
 // 回到 0.15 保留波脊形态，同时让 Nyquist 过滤前的法线摆幅与参考一致。
 const float SURFACE_GRADIENT_STRENGTH = 0.15;
@@ -180,15 +194,16 @@ float surface_antialias(vec2 ddxWorldPos, vec2 ddyWorldPos, vec3 stretch) {
 	return smoothstep(0.45, 0.55, max(maxes.x, maxes.y));
 }
 
-// Every parallax step and the final normal share the geometric footprint.
-// Compute its six layer weights once; animated sample positions remain separate.
+// The final normal shares one geometric footprint per layer. Only the layers
+// this tier evaluates get a Nyquist weight; the omitted fine ripples never
+// reach this function, so no footprint is computed for them.
 struct SurfaceFootprint {
-    float ripples[4];
+    float ripples[ASTRA_SURFACE_RIPPLE_LAYERS];
     float crests[2];
 };
 SurfaceFootprint surface_footprint(vec2 ddxWorldPos, vec2 ddyWorldPos) {
     SurfaceFootprint footprint;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < ASTRA_SURFACE_RIPPLE_LAYERS; ++i)
         footprint.ripples[i] = surface_antialias(ddxWorldPos, ddyWorldPos, rippleStretch[i]);
     for (int i = 0; i < 2; ++i)
         footprint.crests[i] = surface_antialias(ddxWorldPos, ddyWorldPos, crestStretch[i]);
@@ -200,11 +215,18 @@ SurfaceFootprint surface_footprint(vec2 ddxWorldPos, vec2 ddyWorldPos) {
 vec2 surface_gradient(vec2 worldPos, SurfaceFootprint footprint, float time, float distanceToCamera, out float unresolved) {
 	vec2 gradient = vec2(0.0);
 	unresolved = 0.0;
+	// Omitted fine ripples: same fixed mean-slope term the fully filtered
+	// branches below use, added straight into unresolved roughness. No noise
+	// fetch, no animated sample coordinate, no footprint. Constant trip count,
+	// and zero iterations at WATER_WAVE_QUALITY 2.
+	for (int i = ASTRA_SURFACE_RIPPLE_LAYERS; i < 4; ++i) {
+		unresolved += (0.43 * SURFACE_GRADIENT_STRENGTH * rippleMagnitude[i]) * length(rippleStretch[i]);
+	}
     // Astra extension of Steadfast's footprint filtering: progressively move
     // distant fine ripples into stable roughness before they become unresolved.
     // Near waves, crest motion and submerged-camera optics keep their old field.
+    #if ASTRA_SURFACE_RIPPLE_LAYERS > 2 && !defined DIMENSION_NETHER && !defined DIMENSION_END && WATER_EFFECT_QUALITY < 2
     vec2 fineVisibility = vec2(1.0);
-    #if !defined DIMENSION_NETHER && !defined DIMENSION_END && WATER_EFFECT_QUALITY < 2
     if (isEyeInWater == 0) {
         #if WATER_EFFECT_QUALITY == 0
         fineVisibility = vec2(1.0) - smoothstep(vec2(32.0, 20.0), vec2(72.0, 48.0), vec2(distanceToCamera));
@@ -218,13 +240,13 @@ vec2 surface_gradient(vec2 worldPos, SurfaceFootprint footprint, float time, flo
     }
     #endif
 
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < ASTRA_SURFACE_RIPPLE_LAYERS; i++) {
 		vec3 stretch = rippleStretch[i];
 		vec2 at = time * rippleScroll[i]
 			+ vec2(worldPos.x * stretch.x, dot(worldPos, stretch.zy));
 		float aa = footprint.ripples[i];
 		float fade = 1.0;
-		#if !defined DIMENSION_NETHER && !defined DIMENSION_END && WATER_EFFECT_QUALITY < 2
+		#if ASTRA_SURFACE_RIPPLE_LAYERS > 2 && !defined DIMENSION_NETHER && !defined DIMENSION_END && WATER_EFFECT_QUALITY < 2
 		if (i >= 2 && isEyeInWater == 0) {
             float visibility = fineVisibility[i - 2];
             if (visibility < 1.0) aa = 1.0 - (1.0 - aa) * visibility;
