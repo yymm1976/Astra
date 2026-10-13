@@ -22,7 +22,7 @@
 //   derived; the row remains in Astra/THIRD-PARTY.md because this module was Steadfast
 //   derived up to that date. The publish gate (design.md 9.3 + escalations.md SC-14) must be
 //   re-decided for the Complementary source before any publication — raised in
-//   docs/handoffs/terrain-foliage.md.
+//   docs/archive/实现与取证.md#record-089.
 //
 // Port basis — 照抄形状 (copy the shape), not 照抄每方块参数 (per-block parameters):
 // the reference waves every block class with its own call-site parameters inside DoWave()
@@ -46,7 +46,7 @@
 //     1.00 (common.glsl:229) and Astra's slider default is 100, so both agree at 100%.
 //
 // NOT ported (blocked by the frozen interface or Astra material classes; all recorded in
-// docs/handoffs/terrain-foliage.md):
+// docs/archive/实现与取证.md#record-089):
 //   - vine reduced amplitude 0.75 (wavingBlocks.glsl:150-152): Astra maps
 //     vine/pale_hanging_moss/pale_moss_carpet into the leaves class 10002, so this module
 //     cannot see vines.
@@ -88,12 +88,13 @@
 // known previous frame can place the same vertex at that historical time. It and its core
 // astra_wind_wave() read NO uniform — no frameTimeCounter / cameraPosition / rainStrength —
 // which is what makes a historical evaluation honest instead of silently re-reading the
-// current frame. wave_foliage() stays the current-frame wrapper (unchanged signature) and
+// current frame. wave_foliage() stays the current-frame wrapper and reports whether
+// a live wind path required the caller to rebuild its view position. It
 // feeds the live uniforms in; the reference-derived shape and every art constant are
 // untouched. Wiring is NOT done here: the undeformed position, the previous-frame time and
 // rain amount, and the TAA motion reconnection are the main task's; this module still
 // declares no history and adds no history uniform. See
-// docs/handoffs/2026-09-27-S4-foliage-time.md.
+// docs/archive/实现与取证.md#record-085.
 
 // GetRawWave, verbatim from wavingBlocks.glsl:5-16. `wind` is the reference's scalar wind
 // time (see wind_wave). The magnitude cycles [0, 0.08] with a positional phase; the three
@@ -227,25 +228,37 @@ vec3 astra_foliage_displacement(vec3 undeformedWorldPosition, float timeSeconds,
 // Current-frame wrapper. playerPos is camera-relative world space (Mellow convention, as in
 // lib/distort.glsl), so cameraPosition turns it back into the absolute world position the
 // explicit evaluator wants. frameTimeCounter is already in seconds; rainStrength and the
-// live strength option (percent converted once to a scale) are passed through. The signature is unchanged, so
-// program/lit.vsh:130 and program/shadow.vsh:110 need no edit and the visible model and its
-// shadow keep sharing one algorithm.
+// live strength option (percent converted once to a scale) are passed through. Both
+// visible geometry and shadow callers retain their original view position when
+// wind is zero or fully faded, and keep sharing one displacement algorithm.
 // Astra distance policy, inspired by Potato's far-wind gate. Keep nearby sway
 // intact, fade over 128..192 blocks, then skip the displacement evaluator.
 // Historical callers pass their PREVIOUS camera-relative undeformed position.
+// Both overworld budget tiers (ASTRA_OVERWORLD_OPTIMIZED: budget 1 and budget 2)
+// pull the whole fade window in to 64..96: full original amplitude and speed
+// inside 64 blocks, fully still beyond 96. Budget 0 and every other dimension
+// keep 128..192, and because lit.vsh, shadow.vsh and the historical re-evaluation
+// all come through this one function, the model, its shadow and its motion stay
+// in lockstep whichever window is active.
 float astra_foliage_wind_lod(vec3 cameraRelativePosition) {
 	float distanceSquared = dot(cameraRelativePosition, cameraRelativePosition);
+	#ifdef ASTRA_OVERWORLD_OPTIMIZED
+	return 1.0 - smoothstep(64.0 * 64.0, 96.0 * 96.0, distanceSquared);
+	#else
 	return 1.0 - smoothstep(128.0 * 128.0, 192.0 * 192.0, distanceSquared);
+	#endif
 }
 
-void wave_foliage(
+bool wave_foliage(
 	bool isLeaves,
 	bool isGroundFoliage,
 	bool topOfFoliage,
 	inout vec3 playerPos
 ) {
+	if (WAVING_FOLIAGE_STRENGTH == 0 || !(isLeaves || (isGroundFoliage && topOfFoliage)))
+		return false;
 	float distanceWeight = astra_foliage_wind_lod(playerPos);
-	if (distanceWeight <= 0.0) return;
+	if (distanceWeight <= 0.0) return false;
 	vec3 undeformedWorldPos = playerPos + cameraPosition;
 	playerPos += astra_foliage_displacement(
 		undeformedWorldPos,
@@ -257,6 +270,7 @@ void wave_foliage(
 		topOfFoliage,
 		astraFoliageWindPhases
 	);
+	return true;
 }
 
 #endif

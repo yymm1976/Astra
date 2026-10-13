@@ -1,4 +1,4 @@
 #version 400 compatibility
-// Astra v1 - composite1.fsh: root pass shell = dimension-neutral default (overworld and any
-// dimension without an override). Nether/End override in world-1/ world1/. design.md 2.2/3.1
-#include "/program/composite1.fsh"
+// Current water state -> ITT collision-flux field -> composite2 integration.
+// Nether and End provide their own composite1 overrides.
+#include "/program/itt_water_normal_cache.fsh"

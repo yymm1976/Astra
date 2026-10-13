@@ -1,5 +1,13 @@
 """Independent review counterexamples; does not modify the shader pack.
 
+HISTORICAL RECORD (2026-09-11). This file is the dated record of the counterexamples
+that review produced, not a description of the current pack and not a live measurement.
+The `stamp` expression and the 1.5 emission scale below reproduce the pre-fix behaviour
+of that date; they are NOT current GLSL. Astra/shaders/program/shadow.vsh:47-51 records
+that the volume now carries no frame stamp at all, and the current emission scale lives
+in Astra/shaders/program/nether_light.csh. Kept unchanged so the finding stays
+reproducible.
+
 The 1D volume is a cross-section of the six-neighbour GPU kernel with all other
 neighbours dark. Time-dependent fire gain is omitted; it cannot change zero/nonzero.
 """

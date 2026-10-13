@@ -6,21 +6,10 @@
 #include "/lib/water_interface_record.glsl"
 #include "/global/water/medium_state.glsl"
 #include "/global/water/absorption.glsl"
+#include "/lib/solas_water_frame.glsl"
 // Adapted from Solas V2.2b by Septonious: common.glsl, waterFog.glsl,
 // color/lightColor.glsl. Source supplied locally; see THIRD-PARTY.md.
 // Astra adapters: prefixed names, existing world sun, linear scene boundary.
-const vec3 solasWaterSqrt = astraWaterTintSqrt;
-const vec3 solasWeather = vec3(175.0, 185.0, 255.0) / 255.0 * 0.60;
-const vec3 solasMinLightSqrt = vec3(125.0, 130.0, 135.0) * (0.40 / 255.0);
-const vec3 solasMinLight = solasMinLightSqrt * solasMinLightSqrt * 0.1;
-uniform float wetness;
-uniform float astraSolasTimeBrightness;
-uniform float astraSolasShadowFade;
-uniform float astraSolasTimeAngle;
-
-float solas_sun_visibility() {
-    return clamp(worldSunVector.y + 0.1, 0.0, 0.25) * 4.0;
-}
 // Both palettes retain the original terrain/surface intensities and colour domain.
 uniform vec3 astraSolasTerrainAmbient;
 uniform vec3 astraSolasTerrainDirect;
@@ -30,6 +19,7 @@ void solas_water_lighting(out vec3 ambient, out vec3 direct, bool terrain) {
     ambient = terrain ? astraSolasTerrainAmbient : astraSolasSurfaceAmbient;
     direct = terrain ? astraSolasTerrainDirect : astraSolasSurfaceDirect;
 }
+// Retained reference helper with no active caller; Astra uses its shared sky.
 // Solas sky.glsl default daytime/nighttime scattering, evaluated in world axes.
 // Its return value is the reference interface's color domain (before composite5).
 vec3 solas_water_sky(vec3 direction) {
@@ -69,50 +59,72 @@ vec3 solas_water_sky(vec3 direction) {
     return atmosphere * (1.0 - clamp(blindness,0.0,1.0));
 }
 
-vec4 solas_water_fog(vec3 viewPos) {
-    // Screenshot feedback: the previous 12-block transition and 0.015/block
-    // extinction barely showed any haze. Keep only a short near-eye transition;
-    // build a visible cyan medium before the distant kelp loses its silhouette.
-    float waterDistance = length(viewPos);
-    float hazeDistance = waterDistance * (waterDistance / (waterDistance + 2.0));
-    float density = astra_water_haze_density();
-    float fogAmount = 1.0 - exp(-hazeDistance * density);
-    if (fogAmount <= 0.0) return vec4(0.0);
-    vec3 fog = mix(mix(solasWaterSqrt * solasWaterSqrt,
-                       normalize(fogColor + 0.00001) * 0.5, 0.10),
-                   solasWeather * 0.25, wetness * 0.25);
-    float eyeSky = clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0);
+// Distance medium in the frame's linear HDR domain. rgb is the medium radiance
+// and a is the scalar distance visibility: both are identity at the eye and at
+// density zero. ITT 3.2 composite1.fsh::WaterFog is the reference; ordinary
+// Astra water has no ice mask, so its ice terms are not faked. waterDistance is
+// the caller's real camera leg (hand-remapped, without the shaft distance cap), so
+// visibility and the caller's spectral absorption share one length.
+vec4 solas_water_fog(vec3 viewPos, float waterDistance) {
+    float visibility = astra_water_visibility(waterDistance);
+    vec3 medium;
+    #if defined ASTRA_OVERWORLD_OPTIMIZED && defined ASTRA_WATER_FOG_FRAME_READ && defined ASTRA_UNDERWATER_SHAFTS
+    // The shadowed volume owns the directional term, so this medium is a pure
+    // frame constant the vertex stage already prepared in linear.
+    medium = waterFogFrameMedium;
+    #else
+    vec3 fogBase;
+    vec2 response;
+    #if defined ASTRA_OVERWORLD_OPTIMIZED && defined ASTRA_WATER_FOG_FRAME_READ
+    fogBase = waterFogFrameBase;
+    response = waterFogFrameResponse;
+    #else
+    solas_water_fog_frame_parameters(fogBase, response);
+    #endif
     float glare = 0.0;
-    // Only the directional term uses these vectors; keep the isotropic fog at night.
-    if (astraSolasTimeBrightness > 0.0 && eyeSky > 0.0) {
+    #ifndef ASTRA_UNDERWATER_SHAFTS
+    // Skip the per-pixel angular peak when the shadowed shafts carry that light.
+    if (response.y > 0.0) {
         vec3 lightDir = astra_world_light_direction();
         vec3 ray = normalize(view_player(viewPos));
         glare = clamp(dot(ray, lightDir) * astraSolasShadowFade * 0.5 + 0.5, 0.0, 1.0);
         glare = 0.01 / (1.0 - 0.99 * glare) - 0.01;
     }
-    fog *= (0.1 + solas_sun_visibility() * 0.4)
-         * ((0.5 + 0.5 * eyeSky) + glare * 1.5 * astraSolasTimeBrightness * eyeSky);
-    fog *= 1.0 - clamp(blindness, 0.0, 1.0);
-    return vec4(fog, fogAmount);
+    #endif
+    medium = solas_water_medium_linear(fogBase, response.x + glare * response.y, wetness);
+    #endif
+    // ITT WaterFog's up/down response belongs to the medium, not to screen
+    // blur. The shadowed shaft pass continues to own directional sunlight.
+    vec3 worldRay = normalize(view_player(viewPos));
+    medium *= clamp(worldRay.y*0.4+0.6,0.2,1.0);
+    return vec4(medium, visibility);
 }
-// Solas stores the pre-composite scene in gamma 2.2, blends fog in sqrt space,
-// then adds VL before decoding to linear. Keep those operations in that domain.
-vec3 solas_water_composite(vec3 linearColor, vec3 viewPos, vec3 shafts, vec2 interfaceUV) {
-    if (water_is_thin_sheet()) {
+// ITT 3.2 composite1.fsh::WaterFog order in linear HDR: the scene behind the
+// camera leg is attenuated by the per-channel absorption curve, then mixed
+// toward the medium with the scalar distance visibility. This replaces the old
+// pow(C, 1.0/4.4) -> mix -> pow(4.4) gamma round trip. Shafts stay a linear add.
+vec3 solas_water_composite(vec3 linearColor, vec3 viewPos, float waterDistance, vec3 shafts,
+                           vec2 interfaceUV, bool thinSheet) {
+    if (thinSheet) {
         // Side interfaces have already transported the camera's short water
         // leg. Other rays (e.g. the floor below a waterfall) still need it once.
         if (water_interface_is_side(water_interface_at(interfaceUV))) return linearColor;
-        vec3 outdoor = astraAmbientPalette * ASTRA_TINT_AMBIENT * ASTRA_STYLE_AMBIENT
-                     * (SKYLIGHT_STRENGTH * 0.01);
-        float access = smoothstep(0.0, 0.40, float(eyeBrightnessSmooth.y) / 240.0);
-        vec3 incident = mix(MIN_AMBIENT_COLOR, outdoor, access);
+        // Same incident-light colour as astra_sky_ambient(): the shared natural-look
+        // gain (lib/color_controls.glsl) keeps the interface light on one hue. The
+        // water material tint, absorption, fog and curve stay untouched.
+        // Every input is a uniform, so the budgeted full-screen passes read the
+        // value their vertex stage already prepared instead of rebuilding it here.
+        #if defined ASTRA_OVERWORLD_OPTIMIZED && defined ASTRA_WATER_FOG_FRAME_READ
+        vec3 incident = waterInterfaceIncident;
+        #else
+        vec3 incident = solas_water_interface_incident();
+        #endif
         return water_surface_medium(linearColor, min(length(viewPos), 1.0), incident);
     }
-    vec3 color = pow(max(linearColor, vec3(0.0)), vec3(1.0 / 2.2));
-    vec4 fog = solas_water_fog(viewPos);
-    color = mix(sqrt(color), sqrt(max(fog.rgb, vec3(0.0))), fog.a);
-    color = color * color + shafts;
-    return pow(max(color, vec3(0.0)), vec3(2.2));
+    vec4 fog = solas_water_fog(viewPos, waterDistance);
+    vec3 absorbed = max(linearColor, vec3(0.0))
+                  * astra_water_absorption_transmission(waterDistance);
+    return mix(fog.rgb, absorbed, fog.a) + shafts;
 }
 // Solas composite14 and lib/post/tonemap defaults.
 vec3 solas_water_tonemap_curve(vec3 color) {

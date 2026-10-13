@@ -1,6 +1,6 @@
 # 第四批参考光影调研：20 款包的性能机制与 Astra 新颖借鉴点（SUMMARY-batch4）
 
-后续实施（2026-10-04）：已完成反射重复重建／深度读取复用，以及水下备用雾和天空窗口无贡献读取裁减。候选选择、当前源码与 Iris 默认值等纠正见[第四批性能选择](../docs/2026-10-04-batch4-selected-optimizations.md)。下文未实现判断与行号描述调研时源码，不等同于当前缺陷或执行要求。
+后续实施（2026-10-04）：已完成反射重复重建／深度读取复用，以及水下备用雾和天空窗口无贡献读取裁减。候选选择、当前源码与 Iris 默认值等纠正见[第四批性能选择](../docs/archive/实现与取证.md#record-028)。下文未实现判断与行号描述调研时源码，不等同于当前缺陷或执行要求。
 
 日期：2026-10-03。数据时点：Modrinth 下载量与最新版本按当日 API 实测（版本取自 `_analysis/batch4_selected.json`；下载量取自 `_analysis/batch4_top200_p1.json`/`p2.json` 两页抓取，各 100 条，本批 10 款在 p1、10 款在 p2）。
 执行方式：Modrinth 按下载量排序圈选 → 20 款 zip 下载并解压至 `reference_shaderpacks/<slug>/`（原件在 `reference_shaderpacks/zips/`）→ 10 个只读调研代理逐包深挖（每代理 2 包）→ 每条借鉴点先对 `Astra/shaders` grep 核实「未实现」才允许列入。

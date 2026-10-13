@@ -11,26 +11,34 @@ uniform sampler2D astraEndTransferMeta;
 mat3 end_kerr_basis() {
     return end_view_basis();
 }
-vec2 end_kerr_screen(vec3 ray) {
-    mat3 b=end_kerr_basis();
+vec2 end_kerr_screen(vec3 ray,mat3 b) {
     return vec2(dot(ray,b[0]),dot(ray,b[1]))
            /max(dot(ray,b[2])*END_SHADOW_TAN,0.00001);
+}
+vec2 end_kerr_screen(vec3 ray) {
+    return end_kerr_screen(ray,end_kerr_basis());
 }
 vec2 end_kerr_impact(vec2 q) {
     vec2 p=q-vec2(-0.055*END_KERR_SPIN,0.0);
     p.x*=1.0+0.025*END_KERR_SPIN*smoothstep(-0.3,0.8,p.x);
     return p;
 }
-float end_kerr_radius(vec2 q) { return length(end_kerr_impact(q)); }
+float end_kerr_impact_radius(vec2 p) { return length(p); }
+float end_kerr_radius(vec2 q) { return end_kerr_impact_radius(end_kerr_impact(q)); }
 vec2 end_decode_transfer(vec4 encoded) {
     return (vec2(dot(encoded.rg,vec2(65280.0,255.0)),
                  dot(encoded.ba,vec2(65280.0,255.0)))/65535.0-0.5)*64.0;
 }
-vec3 end_disc_transfer(vec2 q,float order,float imageFootprint,out float sourceFootprint) {
+// Impact coordinate -> atlas UV. The black-hole caller already holds one impact
+// coordinate for both disc orders, so the mapping and its smoothstep are not
+// rebuilt once per transfer/frame lookup.
+vec2 end_kerr_transfer_uv(vec2 p,float order) {
+    return vec2(p.x/12.0+0.5,p.y/12.0+0.25+order*0.5);
+}
+vec3 end_disc_transfer_impact(vec2 p,float order,float imageFootprint,out float sourceFootprint) {
     sourceFootprint=imageFootprint;
-    vec2 p=end_kerr_impact(q);
     if(abs(p.x)>5.99 || abs(p.y)>2.99) return vec3(32.0,32.0,0.0);
-    vec2 uv=vec2(p.x/12.0+0.5,p.y/12.0+0.25+order*0.5);
+    vec2 uv=end_kerr_transfer_uv(p,order);
     vec2 atlasSize=vec2(textureSize(astraEndTransfer,0));
     vec2 grid=uv*atlasSize-0.5;
     ivec2 cell=ivec2(floor(grid)); vec2 f=fract(grid);
@@ -44,9 +52,9 @@ vec3 end_disc_transfer(vec2 q,float order,float imageFootprint,out float sourceF
     bool anchorValid=max(abs(anchor.x),abs(anchor.y))<31.5;
     vec2 radialDirection=anchor/max(length(anchor),0.001);
     vec2 sum=vec2(0.0); float coordinateWeight=0.0;
-    float radialSpan=0.0;
     // Never interpolate a captured/missing ray into an emitting disc coordinate.
     // Four bilinear taps plus a branch anchor keep the shadow edge clean.
+    float radialSpan=0.0;
     for(int y=0;y<2;y++) for(int x=0;x<2;x++) {
         vec2 at=coordinates[x+2*y];
         float valid=1.0-step(31.5,max(abs(at.x),abs(at.y)));
@@ -67,23 +75,31 @@ vec3 end_disc_transfer(vec2 q,float order,float imageFootprint,out float sourceF
     sourceFootprint=max(imageFootprint,radialSpan*imageFootprint*(atlasSize.x/12.0));
     return coordinateWeight>0.00001 ? vec3(sum/coordinateWeight,coordinateWeight) : vec3(32.0,32.0,0.0);
 }
+vec3 end_disc_transfer(vec2 q,float order,float imageFootprint,out float sourceFootprint) {
+    return end_disc_transfer_impact(end_kerr_impact(q),order,imageFootprint,sourceFootprint);
+}
 vec3 end_disc_transfer(vec2 q,float order) {
     float unusedFootprint;
     return end_disc_transfer(q,order,0.0,unusedFootprint);
 }
-vec4 end_emission_frame(vec2 q,float order) {
-    vec2 p=end_kerr_impact(q);
-    vec2 uv=vec2(p.x/12.0+0.5,p.y/12.0+0.25+order*0.5);
+vec4 end_emission_frame_impact(vec2 p,float order) {
+    vec2 uv=end_kerr_transfer_uv(p,order);
     vec4 meta=textureLod(astraEndTransferMeta,clamp(uv,vec2(0.0005),vec2(0.9995)),0.0);
     vec3 direction=meta.xyz*2.0-1.0;
     direction/=max(length(direction),0.0001);
     return vec4(direction,meta.a>0.5 ? 1.0 : -1.0);
 }
+vec4 end_emission_frame(vec2 q,float order) {
+    return end_emission_frame_impact(end_kerr_impact(q),order);
+}
 // One full turn takes 155 s at the inner edge and 244 s at r=1.34. The previous 0.38
 // turned the inner disc over in 19 s, which reads as a blur rather than as flow.
 // The slow-down is uniform in r, so the differential shear keeps its inward sweep.
 float end_orbital_rate(float r) {
-    return 0.0475/(pow(max(r,END_DISC_INNER)/END_DISC_INNER,1.5)+0.18*END_KERR_SPIN);
+    // r is clamped to the inner edge before the 1.5 power, so the algebraic
+    // identity x*sqrt(x) replaces pow(x,1.5); rounding can differ.
+    float x=max(r,END_DISC_INNER)/END_DISC_INNER;
+    return 0.0475/(x*sqrt(x)+0.18*END_KERR_SPIN);
 }
 float end_frequency_shift(vec2 p,float radius,vec3 toward) {
     // Equatorial Kerr lapse, frame dragging and circular-orbit speed. The baked
@@ -96,7 +112,8 @@ float end_frequency_shift(vec2 p,float radius,vec3 toward) {
     float lapse=sqrt(max(delta*r*r/area,0.01));
     float circumference=sqrt(area)/r;
     float dragging=2.0*mass*a*r/area;
-    float omega=sqrt(mass)/(pow(r,1.5)+a*sqrt(mass));
+    // r >= END_DISC_INNER > 0 permits the algebraic r*sqrt(r) form.
+    float omega=sqrt(mass)/(r*sqrt(r)+a*sqrt(mass));
     float beta=clamp((omega-dragging)*circumference/lapse,0.0,0.82);
     vec2 tangent=vec2(p.y,-p.x)/r; // Same clockwise sense as flow/hotspot advection.
     float lineOfSight=dot(tangent,toward.xy);
@@ -110,7 +127,8 @@ float end_orbiting_hotspots(float r,float az,float footprint) {
         float width=i==0 ? 0.09 : 0.15;
         float lifetime=i==0 ? 60.0 : 90.0;
         float age=mod(frameTimeCounter+float(i)*23.0,lifetime)/lifetime;
-        float envelope=pow(sin(END_PI*age),2.0);
+        float envelopeWave=sin(END_PI*age);
+        float envelope=envelopeWave*envelopeWave;
         float phase=az+frameTimeCounter*end_orbital_rate(centre)+float(i)*2.4;
         // Differential shear stretches a patch into an arc over its finite lifetime.
         phase+=age*(r-centre)*3.5;
@@ -131,17 +149,27 @@ float end_flow_edge(float r,float footprint) {
     return smoothstep(END_DISC_INNER-aa,END_DISC_INNER+0.12+aa,r)
            *(1.0-smoothstep(END_DISC_OUTER-1.10-aa,END_DISC_OUTER+aa,r));
 }
-vec3 end_photon_radiance(vec2 q,float aa) {
-    float r=end_kerr_radius(q);
+// `radial` is the pre-stretch offset q - (-0.055*spin,0) that the warm/cool
+// balance is defined on, and `r` is the impact radius. Callers that already
+// hold both (the black-hole system and the crisp-ring mask) pass them in, so
+// the ring's early-out no longer pays for a second impact mapping and length.
+vec3 end_photon_radiance_precomputed(vec2 radial,float r,float aa) {
     // Fixed angular thickness, floored by the pixel footprint: the ring reads as
     // a resolved band instead of the one-pixel hairline a pixel-sized width gives.
     float width=max(0.0110,aa*1.60);
     float offset=(r-1.007)/width;
     if(abs(offset)>3.5) return vec3(0.0);
-    vec2 radial=q-vec2(-0.055*END_KERR_SPIN,0.0);
     float approach=clamp(radial.x/max(length(radial),0.0001)*0.5+0.5,0.0,1.0);
-    vec3 tint=mix(vec3(1.0,0.80,0.62),vec3(0.70,0.87,1.0),approach);
+    vec3 originalTint=mix(vec3(1.0,0.80,0.62),vec3(0.70,0.87,1.0),approach);
+    vec3 tint=mix(vec3(1.0,0.70,0.48),vec3(0.54,0.78,1.0),approach);
+    // Retain ring luminance while letting its warm/cool ends remain coloured.
+    const vec3 luminanceWeights=vec3(0.2126,0.7152,0.0722);
+    tint*=dot(originalTint,luminanceWeights)/dot(tint,luminanceWeights);
     return tint*exp(-offset*offset)*mix(1.7,6.0,approach);
+}
+vec3 end_photon_radiance(vec2 q,float aa) {
+    return end_photon_radiance_precomputed(q-vec2(-0.055*END_KERR_SPIN,0.0),
+                                           end_kerr_radius(q),aa);
 }
 // Main sky keeps the photon ring at native resolution. This cheap mask needs no
 // turbulence, and foreground shape queries run only on the narrow ring itself.
@@ -151,9 +179,14 @@ vec3 end_crisp_photon_ring(vec3 ray,float cone) {
     float aa=end_kerr_footprint(q,cone);
     vec3 ring=end_photon_radiance(q,aa);
     if(max(ring.r,max(ring.g,ring.b))<0.00001) return vec3(0.0);
-    vec3 point=end_disc_transfer(q,0.0);
+    // The disc lookup and the fade below previously derived this same impact
+    // coordinate twice; the ring term keeps its own unstretched radial because
+    // it deliberately uses the pre-impact offset.
+    vec2 impact=end_kerr_impact(q);
+    float unusedFootprint;
+    vec3 point=end_disc_transfer_impact(impact,0.0,0.0,unusedFootprint);
     float cover=end_flow_edge(length(point.xy),aa*2.0)*point.z;
-    if(point.y>0.0) cover*=smoothstep(1.025,1.065,end_kerr_radius(q));
+    if(point.y>0.0) cover*=smoothstep(1.025,1.065,end_kerr_impact_radius(impact));
     ring*=1.0-cover;
     if(max(ring.r,max(ring.g,ring.b))<0.00001) return vec3(0.0);
     for(int i=66;i<END_BODY_COUNT;i++) {
@@ -163,12 +196,8 @@ vec3 end_crisp_photon_ring(vec3 ray,float cone) {
     }
     return ring;
 }
-vec3 end_lensed_background(vec3 ray) {
-    float facing=dot(ray,end_light_direction());
-    if(facing<=0.04) return ray;
-    mat3 b=end_kerr_basis();
-    vec2 q=end_kerr_screen(ray);
-    float r=end_kerr_radius(q);
+// The black-hole caller already accepted the ray and computed these coordinates.
+vec3 end_lensed_background(vec3 ray,mat3 b,vec2 q,float r) {
     float influence=1.0-smoothstep(3.0,6.5,r);
     if(influence<=0.0) return ray;
     // Inverse image map: tangential stretching forms local galaxy/star arcs.
@@ -179,11 +208,17 @@ vec3 end_lensed_background(vec3 ray) {
     vec3 mapped=normalize(b[2]+(b[0]*warped.x+b[1]*warped.y)*END_SHADOW_TAN);
     return normalize(mix(ray,mapped,influence));
 }
-vec4 end_flow_mip(vec2 uv,float level) {
-    if(level<0.5) return textureLod(astraEndFlow,uv,0.0);
-    // Offline-generated periodic mip tiles, each with a one-texel wrap gutter.
-    // PNG custom textures have no hardware mip chain in this Iris data path.
-    float width=exp2(10.0-level);
+vec3 end_lensed_background(vec3 ray) {
+    if(dot(ray,end_light_direction())<=0.04) return ray;
+    mat3 b=end_kerr_basis();
+    vec2 q=end_kerr_screen(ray,b);
+    return end_lensed_background(ray,b,q,end_kerr_radius(q));
+}
+// Offline-generated periodic mip tiles, each with a one-texel wrap gutter.
+// PNG custom textures have no hardware mip chain in this Iris data path.
+// `width` is supplied because level+1 halves it; the interpolating lookup below
+// therefore needs one exp2 for both levels instead of one per level.
+vec4 end_flow_mip_level(vec2 uv,float level,float width) {
     float row=1024.0-2.0*width+2.0*(level-1.0);
     vec2 coord=(fract(uv)*width+vec2(1.0,row+1.0))
                /vec2(textureSize(astraEndFlowMips,0));
@@ -192,67 +227,43 @@ vec4 end_flow_mip(vec2 uv,float level) {
 vec4 end_flow_sample(vec2 uv,float footprint) {
     float lod=clamp(log2(max(footprint*1024.0,1.0)),0.0,10.0);
     float level=floor(lod);
-    vec4 lower=end_flow_mip(uv,level);
+    if(level<0.5) {
+        vec4 lower=textureLod(astraEndFlow,uv,0.0);
+        if(lod<0.001) return lower;
+        // Level 0 is the untiled base texture; level 1 is the first tiled row.
+        return mix(lower,end_flow_mip_level(uv,1.0,512.0),lod);
+    }
+    float width=exp2(10.0-level);
+    vec4 lower=end_flow_mip_level(uv,level,width);
     if(lod-level<0.001 || level>=10.0) return lower;
-    return mix(lower,end_flow_mip(uv,level+1.0),lod-level);
+    // exp2(10-(level+1)) is exactly half of this level's tile width.
+    return mix(lower,end_flow_mip_level(uv,level+1.0,width*0.5),lod-level);
 }
-// Adapted from Complementary nightNebula's cubic value noise and five-octave
-// half-amplitude fBm. Advected Cartesian cells and footprint filtering are Astra
-// adapters; the mild spatial swirl retains Solas' sqrt(radius) structure.
-float end_disc_noise(vec2 coord,float tileCells) {
-    vec2 cell=floor(coord), f=fract(coord);
-    f=f*f*(3.0-2.0*f);
-    float a=end_hash2(vec2(cell.x,mod(cell.y,tileCells))).x;
-    float b=end_hash2(vec2(cell.x+1.0,mod(cell.y,tileCells))).x;
-    float c=end_hash2(vec2(cell.x,mod(cell.y+1.0,tileCells))).x;
-    float d=end_hash2(vec2(cell.x+1.0,mod(cell.y+1.0,tileCells))).x;
-    return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
+vec2 end_flow_field(float r,float phase,float footprint) {
+    // Advect continuous emitting sheets in the disc plane. Both scales use
+    // Cartesian parcels; a polar stripe repeated around each annulus made
+    // scale-like bands. Keep a mild, bounded spatial twist without winding
+    // progressively narrower filaments as time passes.
+    float shear=phase+sqrt(r)*0.18;
+    vec2 parcel=vec2(cos(shear),sin(shear))*r;
+    vec4 body=end_flow_sample(parcel*0.30+vec2(0.13,0.47),footprint*0.37);
+    vec2 warp=(body.rg-0.5)*0.10;
+    // Explicit mip interpolation still follows the projected source footprint.
+    // No thresholded grain or second high-contrast procedural detail layer.
+    vec4 detail=end_flow_sample(parcel*1.4+warp+vec2(0.37,0.19),footprint*4.0);
+    return vec2(body.r,detail.g);
 }
-float end_disc_detail(float r,float phase,float footprint) {
-    float rootRadius=sqrt(r);
-    float span=footprint*20.0*(1.0+0.325*rootRadius);
-    // The existing octave loop converges to the mean when no layer is resolved.
-    if(span>=0.90) return smoothstep(0.28,0.72,0.5);
-    // Polar strips elongated the noise into coherent cotton-like ropes. Sample
-    // finer, nearly isotropic cells in the emitting plane, with a mild swirl.
-    float shear=phase+rootRadius*0.65;
-    vec2 coord=vec2(cos(shear),sin(shear))*r*20.0;
-    float cells=4096.0;
-    float value=0.0, amplitude=0.5, total=0.0;
-    for(int octave=0;octave<5;octave++) {
-        if(span>=0.90) {
-            // All remaining octaves are unresolved. Add their mean exactly,
-            // without spending hash evaluations on invisible fine structure.
-            float tail=amplitude*(2.0-exp2(-float(4-octave)));
-            value+=0.5*tail; total+=tail;
-            break;
-        }
-        float resolved=1.0-smoothstep(0.35,0.90,span);
-        // Unresolved octaves converge to their mean, not random subpixel dots.
-        value+=mix(0.5,end_disc_noise(coord,cells),resolved)*amplitude;
-        total+=amplitude;
-        coord*=2.0; cells*=2.0; span*=2.0; amplitude*=0.5;
-    }
-    return smoothstep(0.28,0.72,value/total);
-}
-vec3 end_flow_field(float r,float phase,float footprint) {
-    // Follow fluid parcels in the disc plane. Cartesian eddies avoid the long
-    // coherent bands produced by repeating a polar strip around every radius.
-    vec2 uv=vec2(r*0.34,phase/END_TAU);
-    vec4 body=end_flow_sample(uv,footprint*max(0.34,1.0/(END_TAU*r)));
-    vec2 parcel=vec2(cos(phase),sin(phase))*r*0.36;
-    vec2 warp=(body.rg-0.5)*0.24;
-    // Large eddies supply macro mass; resolved Cartesian fBm supplies detail.
-    // Each field lookup interpolates two explicit periodic mip levels.
-    // Warp derivatives are bounded conservatively alongside parcel scale.
-    vec4 strands=end_flow_sample(parcel*4.7+warp,footprint*2.0);
-    float grainWeight=1.0-smoothstep(0.010,0.055,footprint);
-    float grain=0.5;
-    if(grainWeight>0.0) {
-        float sampledGrain=end_flow_sample(parcel*4.2+warp*1.7,footprint*2.1).a;
-        grain=mix(0.5,sampledGrain,grainWeight);
-    }
-    return vec3(body.r*0.40+strands.r*0.60,strands.g,grain);
+vec3 end_disc_emission_color(float temperature) {
+    vec3 spectral=astra_blackbody_rgb(temperature);
+    float warm=1.0-smoothstep(3800.0,6500.0,temperature);
+    float cool=smoothstep(6500.0,9500.0,temperature);
+    // A restrained depiction accent, driven by observed emission temperature,
+    // not screen position. Preserve the original luminance and g^4 energy.
+    vec3 tinted=spectral*mix(vec3(1.0),vec3(1.10,0.84,0.70),warm)
+                        *mix(vec3(1.0),vec3(0.68,0.86,1.10),cool);
+    const vec3 luminanceWeights=vec3(0.2126,0.7152,0.0722);
+    return tinted*dot(spectral,luminanceWeights)
+                 /max(dot(tinted,luminanceWeights),0.00001);
 }
 vec4 end_flow_material(vec2 p,float footprint,vec4 frame) {
     float r=length(p);
@@ -264,12 +275,11 @@ vec4 end_flow_material(vec2 p,float footprint,vec4 frame) {
     // This bounded coherent advection avoids unbounded differential winding;
     // hotspots still follow their individual radius-dependent orbital rates.
     float phase=az+mod(frameTimeCounter*end_orbital_rate(1.34),END_TAU);
-    vec3 flow=end_flow_field(r,phase,footprint);
-    // Resolve short plasma features before the nonlinear emission shape.
-    float detail=pow(end_disc_detail(r,phase,footprint),2.0);
-    float patches=smoothstep(0.30,0.65,flow.x);
-    float sparks=pow(smoothstep(0.50,0.72,flow.z),4.0)*(0.25+patches);
-    float structure=0.14+0.10*patches+0.80*detail+sparks*0.30;
+    vec2 flow=end_flow_field(r,phase,footprint);
+    // Bounded, soft density modulation. Squared cells,
+    // hard patch thresholds and isolated bright grains produced mottled flakes.
+    // The radial profile supplies the large-scale contrast instead.
+    float structure=0.44+0.10*(flow.x-0.5)+0.16*(flow.y-0.5);
     // Material, hotspots and frequency shift share this same emitting point.
     float heating=1.0+2.5*end_orbiting_hotspots(r,az,footprint);
     float radialFlux=end_disc_flux(r);
@@ -280,14 +290,16 @@ vec4 end_flow_material(vec2 p,float footprint,vec4 frame) {
     // create a second, exaggerated red/blue boundary. See THIRD-PARTY.md.
     // The source-temperature scale is chosen for a visible-light depiction;
     // cooler outer annuli add colour on both sides without screen-space tinting.
-    float temperature=6500.0*pow(max(radialFlux*heating,0.0),0.25)*g;
+    // Fourth root of a non-negative base: sqrt(sqrt(x)) is exact here and avoids
+    // the transcendental pow(x,0.25). Rounding may differ.
+    float temperature=6500.0*sqrt(sqrt(max(radialFlux*heating,0.0)))*g;
     float slope=(end_disc_half_height(r+0.002)-end_disc_half_height(r-0.002))/0.004;
     vec3 normal=normalize(vec3(-slope*p/max(r,0.001),frame.w));
     float mu=clamp(dot(normal,frame.xyz),0.0,1.0);
     float limb=0.42+0.58*mu;
     // Integrated intensity transforms as g^4; g^3 belongs to spectral intensity.
-    vec3 spectral=astra_blackbody_rgb(temperature);
-    // Remove the old blue-temperature gain compensation as well.
+    vec3 spectral=end_disc_emission_color(temperature);
+    // Colour accents preserve the frequency-shift energy and angular limb.
     vec3 emission=spectral*flux*2.2*g*g*g*g*limb;
     // Inner photosphere stays opaque; the tenuous outer skirt opens between
     // dense turbulent patches and reveals the lensed star field beneath it.

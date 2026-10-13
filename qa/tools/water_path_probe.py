@@ -31,8 +31,10 @@ void main() {
         gl_FragColor = vec4(bloom_prefilter(vec3(uv.x * 2.0)), 1.0);
     } else if (probe == 2) {
         vec3 c;
+        // The probe is not an SSR path: pass the negative sentinel so the helper
+        // keeps its own paired depth lookup for the anchor.
         float valid = water_sample_path(uv + vec2(0.4/viewWidth,0), vec3(0,0,-2), vec3(0,0,1),
-                                       false, true, 0.0, 1.0, c);
+                                       false, true, 0.0, 1.0, -1.0, c);
         gl_FragColor = vec4(c, valid);
     } else if (probe == 4) {
         // This ray approaches the camera, then hits the visible floor. It starts
@@ -53,8 +55,9 @@ void main() {
         bool aboveEye = probe >= 14;
         float distance = (probe % 2) == 1 ? 2.0 : 40.0;
         vec3 pos = vec3(0.0, aboveEye ? 1.0 : -1.0, -distance);
+        // No screen-space footprint in a synthetic single-ray probe.
         gl_FragColor = vec4(astra_water(vec3(0.0), 1.0, pos, pos, vec3(0,1,0), 0.045,
-                                        1.0, true, false, vec3(0,1,0)).rgb, 1.0);
+                                        1.0, true, false, vec3(0,1,0), 0.0).rgb, 1.0);
     } else if (probe >= 9 && probe <= 12) {
         // A/B of the two sky-miss fallback expressions on identical geometry. x
         // sweeps the camera distance 1..49 blocks. The mode picks which side of the
@@ -102,7 +105,7 @@ void main() {
         float distance = 1.0 + uv.x * 48.0;
         vec3 faceNormal = topFace ? vec3(0,1,0) : vec3(0,0,1);
         vec3 point = topFace ? vec3(0.0, -distance, -20.0) : vec3(0.0, -1.0, -distance);
-        float depth = water_surface_absorption_depth(vec3(0.0), point, faceNormal);
+        float depth = water_surface_absorption_depth(vec3(0.0), point, faceNormal, topFace);
         gl_FragColor = vec4(vec3(depth / 48.0), depth);
     } else if (probe == 19 || probe == 20) {
         // Colour A/B of the side-face fix on identical wall geometry: 19 uses the
@@ -111,7 +114,8 @@ void main() {
         vec3 point = vec3(0.0, -1.0, -distance);
         vec3 faceNormal = vec3(0,0,1);
         float depth = (probe == 19) ? dot(vec3(0.0) - point, faceNormal)
-                                    : water_surface_absorption_depth(vec3(0.0), point, faceNormal);
+                                    : water_surface_absorption_depth(vec3(0.0), point, faceNormal,
+                                                                     false);
         gl_FragColor = vec4(water_surface_medium(vec3(0.5,0.5,0.45), depth,
                                                 astra_water_incident(1.0)), 1.0);
     } else {
@@ -123,7 +127,7 @@ void main() {
         vec3 pos = viewRay * (2.0 / viewRay.y);
         WaterSurface wave = water_surface(pos,vec3(0,1,0),frameTimeCounter,true);
         gl_FragColor = astra_water(vec3(0),1,pos,pos,-wave.normal,
-                                  wave.roughness,1.0,true,false,vec3(0,-1,0));
+                                  wave.roughness,1.0,true,false,vec3(0,-1,0),0.0);
     }
 }
 '''

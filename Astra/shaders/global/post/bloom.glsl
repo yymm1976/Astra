@@ -1,27 +1,12 @@
 #ifndef ASTRA_GLOBAL_POST_BLOOM_GLSL
 #define ASTRA_GLOBAL_POST_BLOOM_GLSL
 
-// Astra v1 — global/post/bloom.glsl
-// Two-pass bloom (design.md 4.4): composite1 captures a reduced-resolution, soft-knee
-// prefiltered image into colortex2 — the fraction is BLOOM_CAPTURE_SCALE below — with
-// mipmaps on, and the final chain reads four of its mip levels. The mip chain replaces the 6-pass downsample pyramid that Mellow
-// ships, which is where the four saved passes come from.
-//
-// PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - structure borrowed from
-//   lib/bloom.glsl (bloomPrefilter soft knee) and program/bloom_downsample.fsh.glsl
-//   (13-tap dual-filter downsample). REWRITE REQUIRED before distribution.
-//   Registered in THIRD-PARTY.md per design.md 9.2. Refrax builds a 6-level atlas and
-//   blurs each level with two extra passes; Astra instead lets the driver build the
-//   levels (colortex2MipmapEnabled) and spends its two passes on capture + composite.
-//
-// Uniforms: none (the source is passed in as a sampler parameter)
-// Consts:   BLOOM_STRENGTH (lib/settings.glsl) is applied by the caller in the final
-//           chain, not here - see bloom_composite's strength argument.
-// Owner: B5. Consumers: program/composite1.fsh (capture), program/final.fsh (composite,
-//           E1/C6's side of the chain).
-// SUMMARY small-budget/mip-bloom ideas (MakeUp/Mellow): low and balanced capture
-// kernels below are original Astra filters. High retains the existing 13-tap path
-// and its provenance; this change does not replace the prefilter's source.
+// Original Astra HDR bloom. General threshold/mip-pyramid ideas from Refrax,
+// MakeUp and Mellow: IDEA ONLY; no upstream filtering expression retained.
+// The former Refrax-derived quadratic knee and dual-filter stencil were replaced
+// on 2026-10-05 with the integrated activation and moment-matched disk below.
+// Thresholds, capture scale, mip weights and water gain stay local.
+// No upstream code was imported for this replacement; see THIRD-PARTY.md.
 
 // --- prefilter tuning (HDR, pre-tonemap; colortex0 is R11F_G11F_B10F) ---
 // Anything at or below white contributes nothing, which is what keeps bloom off the
@@ -33,73 +18,57 @@ const float BLOOM_THRESHOLD = 1.0;
 // Soft knee width, in the same units. Without it, pixels crossing the threshold pop
 // in and out as the sun or a light source moves, which is very visible without TAA.
 const float BLOOM_KNEE = 0.5;
-// Ceiling on how much a single pixel may contribute. Without TAA there is nothing to
-// average out a one-frame specular firefly, so clamping here is the anti-flicker
-// measure for the 0.5x capture (regression checklist item 18).
+// Ceiling on the emitted scalar excess, before preserving the source hue.
 const float BLOOM_SOURCE_CLAMP = 16.0;
 
-// Capture buffer scale. THIS MUST MATCH size.buffer.colortex2 IN shaders.properties.
-// It exists because the 13-tap offsets below are expressed in SOURCE texels, so the
-// filter's screen-space footprint is fixed only as long as the capture resolution is
-// fixed. Shrinking the capture buffer without widening the taps makes every output texel
-// gather from a footprint smaller than the screen area it represents, which under-samples
-// and lets bright pixels pop in and out between frames - exactly the flicker the
-// BLOOM_SOURCE_CLAMP above cannot catch.
+// Must match size.buffer.colortex2/7 in shaders.properties. Source-space offsets
+// widen with the reduction ratio, preserving the existing screen-space radius.
 const float BLOOM_CAPTURE_SCALE = 0.25;
 
-// 13-tap dual-filter downsample offsets / weights (sum = 1.0). The ring radii are
-// 1, 2 and 2*sqrt(2) texels, which is what lets a single pass drop resolution by
-// exactly 2x without either aliasing or over-blurring.
-const ivec2 BLOOM_TAP[13] = ivec2[13](
-	ivec2( 0,  0),
-	ivec2(-1, -1), ivec2( 1, -1), ivec2(-1,  1), ivec2( 1,  1),
-	ivec2(-2,  0), ivec2( 2,  0), ivec2( 0, -2), ivec2( 0,  2),
-	ivec2(-2, -2), ivec2( 2, -2), ivec2(-2,  2), ivec2( 2,  2));
+// Twelve equally weighted points at radius 2, starting at 15 degrees, plus a
+// centre of weight 1/4. Sum=1; per-axis second moment=(12/16)*4/2=1.5,
+// matching the existing glow radius without retaining the copied square stencil.
+const vec2 BLOOM_DISK[12] = vec2[12](
+    vec2( 1.93185165, 0.51763809), vec2( 1.41421356, 1.41421356),
+    vec2( 0.51763809, 1.93185165), vec2(-0.51763809, 1.93185165),
+    vec2(-1.41421356, 1.41421356), vec2(-1.93185165, 0.51763809),
+    vec2(-1.93185165,-0.51763809), vec2(-1.41421356,-1.41421356),
+    vec2(-0.51763809,-1.93185165), vec2( 0.51763809,-1.93185165),
+    vec2( 1.41421356,-1.41421356), vec2( 1.93185165,-0.51763809));
 
-const float BLOOM_TAP_WEIGHT[13] = float[13](
-	0.125,
-	0.125, 0.125, 0.125, 0.125,
-	0.0625, 0.0625, 0.0625, 0.0625,
-	0.03125, 0.03125, 0.03125, 0.03125);
-
-// Soft-knee brightness prefilter. Returns the part of `color` that is above the
-// threshold, scaled so that the transition across the knee is continuous in both value
-// and slope - that continuity is the whole reason for the knee's existence.
-//
-//   below threshold - knee  -> 0
-//   inside the knee         -> quadratic ramp (soft * soft / (4 * knee))
-//   above threshold + knee  -> color * (brightness - threshold) / brightness
+// Integrate a monotone activation 0.75*s + 0.25*smoothstep(0,1,s).
+// Its primitive is .375*s^2+.25*s^3-.125*s^4. At s=0 value/slope=0;
+// at s=1 value=.5 and slope=1, joining the full linear excess without a kink.
+// This independent curve differs slightly inside the transition, never below
+// the threshold or above its endpoint. All brightness controls are unchanged.
 vec3 bloom_prefilter(vec3 color) {
-	float brightness = max(color.r, max(color.g, color.b));
-	if (brightness <= BLOOM_THRESHOLD) {
-		return vec3(0.0);
-	}
-
-	// The knee starts at the threshold. The former +/- knee began at 0.5,
-    // making ordinary sand a bloom emitter and spreading a white fringe.
-    float soft = clamp(brightness - BLOOM_THRESHOLD, 0.0, 2.0 * BLOOM_KNEE);
-	soft = soft * soft / (4.0 * BLOOM_KNEE + 1e-4);
-
-	float excess = min(max(soft, brightness - BLOOM_THRESHOLD - BLOOM_KNEE), BLOOM_SOURCE_CLAMP);
-	return color * (excess / brightness);
+    float peak=max(color.r,max(color.g,color.b));
+    float above=peak-BLOOM_THRESHOLD;
+    if (!(above>0.0)) return vec3(0.0);
+    float width=2.0*BLOOM_KNEE;
+    float excess;
+    if (above<width) {
+        float s=above/width;
+        excess=width*s*s*(0.375+s*(0.25-0.125*s));
+    } else {
+        excess=above-BLOOM_KNEE;
+    }
+    return color*(min(excess,BLOOM_SOURCE_CLAMP)/peak);
 }
 
 // Stage 1 (program/composite1.fsh): prefiltered downsample of the HDR scene into the
-// bloom capture buffer. One pass, 4/9/13 source texture fetches, no colour output
+// bloom capture buffer. One pass, 4/5/13 source texture fetches, no colour output
 // dependency - the buffer Iris produces here is what gets mipmapped.
 //
 // src is colortex0 at render resolution; texCoord is the capture pass's own normalised
 // coordinate, which is also valid for sampling the full-res source.
-vec3 bloom_capture(sampler2D src, vec2 texCoord) {
+vec3 bloom_capture(sampler2D src, vec2 texCoord, bool sceneCapture) {
 	// Derived from the source rather than from viewWidth/viewHeight: the capture rate
 	// has to track whatever size colortex0 actually is, and Iris resizes it with the
 	// render scale.
 	vec2 srcTexel = 1.0 / vec2(textureSize(src, 0));
 
-	// How many source texels one capture texel spans. At the classic 0.5x capture this is
-	// exactly 2.0, which is the ratio the dual filter is designed around, so tapScale is
-	// 1.0 and the filter is unchanged. A smaller capture buffer widens the footprint and
-	// the taps scale with it, keeping the gather the same size in screen space.
+	// Keep the established footprint in source-texel coordinates at every view size.
 	float footprint = float(textureSize(src, 0).x)
 	                / max(float(viewWidth) * BLOOM_CAPTURE_SCALE, 1.0);
 	float tapScale = max(footprint * 0.5, 1.0);
@@ -107,35 +76,54 @@ vec3 bloom_capture(sampler2D src, vec2 texCoord) {
 	vec2 pad = 0.5 * srcTexel * tapScale;
 
 	vec3 acc = vec3(0.0);
-    #if BLOOM_QUALITY == 0
+    // Both overworld budget tiers use the four-tap capture below; every other
+    // case keeps its BLOOM_QUALITY stencil. Raw BLOOM_QUALITY 0 keeps its own
+    // tighter four-corner stencil; the budget never widens that choice.
+    #if defined ASTRA_OVERWORLD_OPTIMIZED || BLOOM_QUALITY == 0
     const int taps = 4;
     #elif BLOOM_QUALITY == 2
     const int taps = 13;
     #else
-    const int taps = 9;
+    const int taps = 5;
     #endif
 	for (int i = 0; i < taps; i++) {
         vec2 offset;
         float weight;
-        #if BLOOM_QUALITY == 0
-        // Four bilinear footprints cover the quarter-resolution texel's 4x4
-        // source footprint. Lower budgets may suppress isolated bright pixels.
+        #if defined ASTRA_OVERWORLD_OPTIMIZED && BLOOM_QUALITY > 0
+        // Budget-tier four-corner stencil: the same four reads and 0.25 weights as
+        // the raw BLOOM_QUALITY 0 stencil, but each axis offset is sqrt(1.5) so the
+        // per-axis second moment is 1.5 - the same 1.5 the balanced (5-tap, sqrt(6)
+        // arms) and high (13-tap disk) tiers carry - so the budget does not change
+        // the capture's per-axis footprint. Center of mass and weights are unchanged,
+        // and the caller's tapScale and prefilter are untouched. Not a claim about
+        // the on-screen radius: this only keeps the stencil's second moment in line
+        // with the other tiers.
+        offset = vec2((i & 1) == 0 ? -1.0 : 1.0,
+                      (i & 2) == 0 ? -1.0 : 1.0) * 1.224744871;
+        weight = 0.25;
+        #elif defined ASTRA_OVERWORLD_OPTIMIZED || BLOOM_QUALITY == 0
+        // Raw BLOOM_QUALITY 0 keeps its original tighter four-corner stencil at
+        // offset 0.5; the optimized tier also lands here when the raw option is 0
+        // (BLOOM_QUALITY > 0 is false), so the user's lighter/narrower choice is
+        // never widened.
         offset = vec2((i & 1) == 0 ? -1.0 : 1.0,
                       (i & 2) == 0 ? -1.0 : 1.0) * 0.5;
         weight = 0.25;
         #elif BLOOM_QUALITY == 2
-        offset = vec2(BLOOM_TAP[i]);
-        weight = BLOOM_TAP_WEIGHT[i];
+        offset = i == 0 ? vec2(0.0) : BLOOM_DISK[i-1];
+        weight = i == 0 ? 0.25 : 0.0625;
         #else
-        ivec2 node = ivec2(i % 3, i / 3) - 1;
-        // Separable binomial kernel, variance matched to the high kernel:
-        // 0.5 * sqrt(3)^2 = 1.5 source-texel units per axis, before tapScale.
-        offset = vec2(node) * 1.73205081;
-        weight = float((node.x == 0 ? 2 : 1) * (node.y == 0 ? 2 : 1)) / 16.0;
+        // Centre plus an axial cross. Sum=1 and per-axis second moment is
+        // 2*(1/8)*sqrt(6)^2=1.5, matching the old nine-tap radius with fewer
+        // reads. Diagonal isolated sparks may contribute less before mip blur.
+        offset = i == 0 ? vec2(0.0) : (i == 1 ? vec2(-1.0,0.0)
+               : (i == 2 ? vec2(1.0,0.0) : (i == 3 ? vec2(0.0,-1.0) : vec2(0.0,1.0)))) * 2.44948974;
+        weight = i == 0 ? 0.5 : 0.125;
         #endif
 		vec2 coord = clamp(texCoord + offset * srcTexel * tapScale,
 		                   pad, 1.0 - pad);
-        vec3 source = bloom_prefilter(max(textureLod(src,coord,0.0).rgb,vec3(0.0)));
+        vec3 source = max(textureLod(src,coord,0.0).rgb,vec3(0.0));
+        if (!sceneCapture) source = bloom_prefilter(source);
         #if defined DIMENSION_END && defined ASTRA_BLOOM_CAPTURE && END_STONE_GLOW > 0
         // With pore emission disabled, colortex3.a is identically zero.
         // Ordinary scene/sky bloom above remains independent of this option.
@@ -157,13 +145,20 @@ vec3 bloom_capture(sampler2D src, vec2 texCoord) {
 	return acc;
 }
 
-// Stage 2 (program/final.fsh, E1/C6): combine the mip levels of the capture into the
+vec3 bloom_capture(sampler2D src, vec2 texCoord) {
+    #ifdef ASTRA_WATER_SCENE_BLOOM
+    return bloom_capture(src, texCoord, true);
+    #else
+    return bloom_capture(src, texCoord, false);
+    #endif
+}
+
+// Stage 2 (program/display.fsh, E1/C6): combine the mip levels of the capture into the
 // bloom that gets added to the scene.
 //
 // Weights fall off with level on purpose - most of the energy stays in the tighter
 // levels, so the result reads as light spilling out of bright pixels rather than a
-// uniform veil. Additive, not a mix: mixing would lift the blacks and reintroduce
-// exactly the grey-haze look this is supposed to avoid (regression checklist item 18).
+// uniform veil. Only emitted excess is added; non-emitting midtones stay untouched.
 //
 //   color += bloom_composite(colortex2, texcoord, BLOOM_STRENGTH * 0.01);
 vec3 bloom_composite(sampler2D bloomTex, vec2 texCoord, float strength) {

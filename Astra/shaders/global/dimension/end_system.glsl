@@ -1,8 +1,12 @@
 #ifndef ASTRA_END_SYSTEM_GLSL
 #define ASTRA_END_SYSTEM_GLSL
+// cube()/square() chains for the literal-exponent star terms below. Guarded, so
+// the scene path that already includes this header pays nothing for the repeat.
+#include "/lib/pow.glsl"
 uniform sampler2D colortex8;
 #define ASTRA_END_BODY_CACHE
 #include "/global/dimension/end_geometry.glsl"
+#include "/lib/end_star_catalogue.glsl"
 float end_eclipse() {
     #ifdef ASTRA_END_BODY_CACHE
     vec4 illumination=texelFetch(colortex8,ivec2(0),0);
@@ -22,14 +26,21 @@ float end_star_profile(vec2 delta,float radius,vec3 covariance) {
     return exp(-metric)*radius*radius*inversesqrt(det);
 }
 vec3 end_starfield_filtered(vec3 direction,float cone,vec3 rayDx,vec3 rayDy) {
-    float rotation=radians(end_cycle_seconds(1296000.0)/3600.0);
-    vec3 dir=end_rotate_y(direction,rotation);
-    vec3 dirDx=end_rotate_y(rayDx,rotation), dirDy=end_rotate_y(rayDy,rotation);
+    // The frame rotation is baked into slot 315 by prepare, which runs ahead of every
+    // consumer of this cache. The offline translation units drop ASTRA_END_BODY_CACHE
+    // and rebuild the same angle from worldDay/worldTime.
+    #ifdef ASTRA_END_BODY_CACHE
+    vec2 starRotation=texelFetch(colortex8,ivec2(ASTRA_END_STAR_ROTATION_SLOT,0),0).xy;
+    #else
+    float starAngle=end_star_rotation();
+    vec2 starRotation=vec2(cos(starAngle),sin(starAngle));
+    #endif
+    vec3 dir=end_rotate_y(direction,starRotation);
+    vec3 dirDx=end_rotate_y(rayDx,starRotation), dirDy=end_rotate_y(rayDy,starRotation);
     // Spherical catalogue: latitude rows have circumference-proportional cell
     // counts. Equal angular cells avoid the cube chart's dense corners/face seams.
     // A different phase per row prevents aligned meridians from forming a grid.
-    const float rows=512.0;
-    const float equatorCells=1200.0;
+    const float rows=END_STAR_ROWS;
     const float chartScale=180.0;
     float latitude=acos(clamp(dir.y,-1.0,1.0));
     // Longitude has no unique value at a pole; avoid undefined atan(0,0).
@@ -39,6 +50,10 @@ vec3 end_starfield_filtered(vec3 direction,float cone,vec3 rayDx,vec3 rayDy) {
     vec3 tangent=vec3(-dir.z,0.0,dir.x);
     tangent=dot(tangent,tangent)>1e-10 ? normalize(tangent) : vec3(1.0,0.0,0.0);
     vec3 bitangent=cross(dir,tangent);
+    // dot(dir-center, axis) = dot(dir,axis) - dot(center,axis). The ray's own
+    // projections are the same for every catalogue cell this pixel visits, so
+    // they are evaluated once instead of once per star. Rounding may differ.
+    vec2 dirChart=vec2(dot(dir,tangent),dot(dir,bitangent));
     vec2 dx=chartScale*vec2(dot(dirDx,tangent),dot(dirDx,bitangent));
     vec2 dy=chartScale*vec2(dot(dirDy,tangent),dot(dirDy,bitangent));
     float extent=max(length(dx),length(dy));
@@ -52,23 +67,32 @@ vec3 end_starfield_filtered(vec3 direction,float cone,vec3 rayDx,vec3 rayDy) {
     for(int y=-1;y<=1;y++) {
         float row=latitudeCell+float(y);
         if(row<0.0 || row>=rows) continue;
-        float rowAngle=(row+0.5)*(END_PI/rows);
-        float columns=max(floor(equatorCells*sin(rowAngle)+0.5),1.0);
-        float rowPhase=end_hash(row+117.0);
+        vec3 rowData=end_star_row(row);
+        float columns=rowData.x;
+        float rowPhase=rowData.y;
         float column=floor(fract(longitude+rowPhase)*columns);
+        // Share the row's base angles and column limit. Each star keeps its
+        // own catalogue jitter and trigonometric direction evaluation.
+        float thetaBase=row*(END_PI/rows);
+        float phiBase=-rowPhase*END_TAU;
+        float rowColumnLimit=min(columns,3.0);
         for(int x=-1;x<=1;x++) {
             // Wrap the catalogue index, not just the sample coordinate. Stars
             // retain the same identity across the longitude seam.
-            if(float(x+1)>=columns) continue;
+            if(float(x+1)>=rowColumnLimit) continue;
             vec2 c=vec2(mod(column+float(x)+columns,columns),row);
-            vec2 h=end_hash2(c+401.0);
+            vec4 presence=end_star_presence(c.x,rowData.z);
+            vec2 h=presence.xy;
+            // Current spherical catalogue: 34% ordinary, 0.6% bright population.
+            // This is a denser distribution than the retired cube-face catalogue;
+            // it is retained here, not presented as an unchanged star population.
             if(h.x<0.34) {
                 vec2 jitter=0.15+0.7*end_hash2(c+456.0);
-                float theta=(row+jitter.y)*(END_PI/rows);
-                float phi=((c.x+jitter.x)/columns-rowPhase)*END_TAU;
+                float theta=thetaBase+jitter.y*(END_PI/rows);
+                float phi=(c.x+jitter.x)*(END_TAU/columns)+phiBase;
                 vec3 center=vec3(sin(theta)*cos(phi),cos(theta),sin(theta)*sin(phi));
-                vec2 delta=chartScale*vec2(dot(dir-center,tangent),dot(dir-center,bitangent));
-                float rank=pow(h.y,3.0);
+                vec2 delta=chartScale*(dirChart-vec2(dot(center,tangent),dot(center,bitangent)));
+                float rank=cube(h.y);
                 float radius=0.085+0.085*rank;
                 float flux=(0.010+0.085*rank)*(0.30+0.70*h.y);
                 float profile=end_star_profile(delta,radius,covariance)*resolved;
@@ -77,14 +101,14 @@ vec3 end_starfield_filtered(vec3 direction,float cone,vec3 rayDx,vec3 rayDy) {
                     stars+=astra_blackbody_rgb(temperature)*flux*profile;
                 }
             }
-            vec2 hb=end_hash2(c+1524.0);
+            vec2 hb=presence.zw;
             if(hb.x<0.006) {
                 vec2 jitter=0.15+0.7*end_hash2(c+714.0);
-                float theta=(row+jitter.y)*(END_PI/rows);
-                float phi=((c.x+jitter.x)/columns-rowPhase)*END_TAU;
+                float theta=thetaBase+jitter.y*(END_PI/rows);
+                float phi=(c.x+jitter.x)*(END_TAU/columns)+phiBase;
                 vec3 center=vec3(sin(theta)*cos(phi),cos(theta),sin(theta)*sin(phi));
-                vec2 delta=chartScale*vec2(dot(dir-center,tangent),dot(dir-center,bitangent));
-                float rank=pow(hb.y,3.0);
+                vec2 delta=chartScale*(dirChart-vec2(dot(center,tangent),dot(center,bitangent)));
+                float rank=cube(hb.y);
                 float radius=0.15+0.24*rank;
                 float flux=0.30*(0.30+0.70*rank);
                 float core=end_star_profile(delta,radius,covariance)*resolved;
@@ -107,7 +131,7 @@ vec3 end_starfield(vec3 direction,vec3 unusedLightDir,float cone) {
 }
 vec3 end_background(vec3 direction,float cone) {
     vec3 sky=vec3(0.000015,0.000025,0.00006);
-    #ifndef ASTRA_END_SKY_BUFFER
+    #if !defined ASTRA_END_SKY_BUFFER && !defined ASTRA_END_REFLECTION_CACHE_WRITE
     sky+=end_starfield(direction,end_light_direction(),cone);
     #endif
     return sky;

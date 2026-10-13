@@ -4,15 +4,14 @@
 #include "/lib/uniforms.glsl"
 uniform sampler2D colortex0;
 #if defined ASTRA_BLOOM && !defined DIMENSION_NETHER && !defined DIMENSION_END
-uniform sampler2D colortex4;
+uniform sampler2D colortex9;
 #endif
 in vec2 texcoord;
 #ifdef ASTRA_TAA
 #include "/lib/transforms.glsl"
-#include "/lib/taa_state.glsl"
 uniform sampler2D colortex15;
 uniform sampler2D colortex16;
-uniform sampler2D colortex17;
+flat in int taaFrameValid;
 uniform sampler2D colortex22;
 #ifndef RGBA16F
 const int RGBA16F = 0;
@@ -92,7 +91,7 @@ void main() {
     ivec2 pixel = clamp(ivec2(sceneUV * vec2(size)), ivec2(0), size - 1);
     #if defined ASTRA_BLOOM && !defined DIMENSION_NETHER && !defined DIMENSION_END
     vec3 current = isEyeInWater == 1
-        ? max(textureLod(colortex4, sceneUV, 0.0).rgb, vec3(0.0))
+        ? max(textureLod(colortex9, sceneUV, 0.0).rgb, vec3(0.0))
         : max(textureLod(colortex0, sceneUV, 0.0).rgb, vec3(0.0));
     #else
     vec3 current = max(textureLod(colortex0, sceneUV, 0.0).rgb, vec3(0.0));
@@ -108,6 +107,16 @@ void main() {
     bool sky = depth >= 0.999999;
     vec3 view = screen_view(vec3(sceneUV, depth));
     float storedDepth = sky ? 0.0 : log2(1.0 + max(-view.z, 0.0));
+    // Frame validity is identical at every quad vertex. With no usable frame,
+    // only the current result and its reactive/depth identity need to be stored.
+    // This draw-wide return precedes derivatives; accepted frames keep their
+    // complete derivative evaluation before any per-pixel history rejection.
+    if (taaFrameValid == 0) {
+        float reactive = taa_reactive_neighbourhood(pixel, size);
+        gl_FragData[0] = vec4(current, 1.0);
+        gl_FragData[1] = vec4(min(current, vec3(65000.0)), reactive >= 0.95 ? -1.0 : storedDepth);
+        return;
+    }
     vec3 world = sky ? view_player(view) : view_camera_relative(view);
     vec4 previousView = sky
         ? vec4(mat3(gbufferPreviousModelView) * world, 0.0)
@@ -128,8 +137,7 @@ void main() {
     float reactive = taa_reactive_neighbourhood(pixel, size);
     vec3 resolved = current;
     bool valid = reactive < 0.95 && clip.w > 0.00001
-        && all(greaterThanEqual(historyUV, edge)) && all(lessThanEqual(historyUV, 1.0 - edge))
-        && astra_taa_state_valid(colortex17);
+        && all(greaterThanEqual(historyUV, edge)) && all(lessThanEqual(historyUV, 1.0 - edge));
     if (valid) {
         vec4 h = taa_history(historyUV, expectedDepth, tolerance, size);
         if (h.a > 0.5) {

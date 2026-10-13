@@ -6,6 +6,7 @@ uniform mat4 gbufferPreviousModelView;
 uniform mat4 gbufferPreviousProjection;
 uniform vec3 previousCameraPosition;
 #endif
+#include "/lib/history_frame.glsl"
 uniform sampler2D colortex30;
 uniform float near;
 uniform float far;
@@ -16,20 +17,24 @@ const float astraEffectDimension = 23.0;
 #endif
 bool astra_effect_history_valid(out vec4 effects) {
     effects = vec4(0.0);
+    // Version 5 pairs an exact cyclic frame stamp with the existing time/viewport
+    // guards; a full frameCounter loses consecutive integer precision in FP32.
     // Current-frame rejection needs none of the three persistent state texels.
     if (astraTimeDiscontinuity != 0 || frameCounter <= 1
-        || length(cameraPosition-previousCameraPosition)>8.0) return false;
+        || !astra_history_frame_inputs_valid()) return false;
     vec4 viewport=texelFetch(colortex30,ivec2(0,0),0);
-    if (viewport.z != float(frameCounter-1)
+    if (any(isnan(viewport)) || any(isinf(viewport))
+        || viewport.z != float((frameCounter-1) % 4096)
         || any(notEqual(viewport.xy,vec2(viewWidth,viewHeight)))
         || viewport.w != float(isEyeInWater)) return false;
     effects=texelFetch(colortex30,ivec2(1,0),0);
-    if (abs(effects.x-blindness)>0.02 || abs(effects.y-darknessFactor)>0.02
+    if (any(isnan(effects)) || any(isinf(effects))
+        || abs(effects.x-blindness)>0.02 || abs(effects.y-darknessFactor)>0.02
+        || abs(effects.w-lightningBoltPosition.w)>0.01
         || frameTimeCounter<effects.z || frameTimeCounter-effects.z>0.25) return false;
     vec4 identity=texelFetch(colortex30,ivec2(2,0),0);
-    if (identity.x != astraEffectDimension || identity.w != 4.0) return false;
-    for(int i=0;i<4;i++)
-        if(any(greaterThan(abs(gbufferProjection[i]-gbufferPreviousProjection[i]),vec4(0.0001)))) return false;
+    if (any(isnan(identity)) || any(isinf(identity))
+        || identity.x != astraEffectDimension || identity.w != 5.0) return false;
     return true;
 }
 bool astra_effect_history_valid() {
@@ -39,7 +44,9 @@ bool astra_effect_history_valid() {
 vec3 astra_effect_previous_screen(vec3 cameraRelativePoint) {
     vec3 previousPoint=cameraRelativePoint+cameraPosition-previousCameraPosition;
     vec4 clip=gbufferPreviousProjection*gbufferPreviousModelView*vec4(previousPoint,1.0);
-    if(clip.w<=0.00001) return vec3(-1.0);
+    // Finite input matrices can still overflow while transforming an endpoint.
+    // Reject the clip payload before Inf/Inf or a finite/Inf divide hides it.
+    if(any(isnan(clip)) || any(isinf(clip)) || clip.w<=0.00001) return vec3(-1.0);
     vec3 uv=clip.xyz/clip.w*0.5+0.5;
     uv.xy+=astra_jitter_uv_for(frameCounter-1);
     return uv;

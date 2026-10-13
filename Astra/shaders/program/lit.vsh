@@ -1,5 +1,11 @@
-// Astra E1. Original integration; varying contract is frozen in design 3.2.
+// Original Astra integration for native geometry and water interfaces.
 #include "/lib/settings.glsl"
+#if defined ASTRA_WATER_PASS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+#define ASTRA_WATER_STATE_FRAME_WRITE
+#endif
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_WATER_PASS && !defined ASTRA_WEATHER
+#define ASTRA_SURFACE_SHADOW_PLANE
+#endif
 #include "/lib/uniforms.glsl"
 #include "/lib/encoding.glsl"
 #include "/lib/transforms.glsl"
@@ -19,26 +25,38 @@ in vec4 mc_Entity;
 in vec3 at_midBlock;
 #endif
 #ifdef ASTRA_WATER_PASS
+#if defined DIMENSION_NETHER || defined DIMENSION_END
 in vec4 at_tangent;
 out vec3 waterTangent;
 out vec3 waterBinormal;
 out vec3 waterViewVector;
 out float waterViewDistance;
+#else
+flat out vec3 waterSunCentre;
+#if SUN_MOON_MODE == SUN_MOON_VANILLA
+flat out vec3 waterSunRight;
+flat out vec3 waterSunVertical;
+#endif
+#endif
 #endif
 out vec2 texcoord;
 out vec2 lightcoord;
 out vec4 tint;
 out float vertexAO;
 out vec3 cameraRelativePosition;
-out vec3 surfaceShadowPosition;
+out vec3 surfaceShadowCoordinate;
+#ifdef ASTRA_SURFACE_SHADOW_PLANE
+flat out vec3 surfaceShadowPlaneNormal;
+#endif
 flat out uint faceData;
 uint astra_material(int id) {
+    if (id < 10001 || id > 10040) return 0u;
     if (id == 10033) return 0u; // non-emitting partial shapes; voxel identity is separate
     if (id >= 10001 && id <= 10007) return uint(id - 10000);
     if (id == 10010) return 8u;
     if (id == 10011) return 9u;
     if (id == 10012) return 11u;
-    // E3 2026-09-22. Emitter-driven gloss rock classes. The 4-bit material field has
+    // E3 2026-09-22. Rock classes for current AO eligibility, wetness and reflection response. The 4-bit material field has
     // values 0..11 in use (0 default, 1..7 block.properties classes, 8 glass, 9 ice,
     // 10 emissive, 11 end stone), so 12..15 are free and no bit extension is needed:
     // The octahedral normal keeps its 18-bit layout and no existing class changes
@@ -52,6 +70,14 @@ uint astra_material(int id) {
     return 0u;
 }
 void main() {
+    #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    // The fragment's rain opacity is uniformly zero at this factor. Clip the
+    // whole curtain before vertex work and rasterization; snow keeps its path.
+    if (temperature > 0.15 && astraRainFactor <= 0.0) {
+        gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+        return;
+    }
+    #endif
     texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
     lightcoord = (gl_TextureMatrix[1] * gl_MultiTexCoord1).xy;
     tint = gl_Color;
@@ -80,10 +106,22 @@ void main() {
         if (entityId == 1) material = 10u;
     #endif
     #if defined ASTRA_SSAO && defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT && defined SHADOWS && !defined ASTRA_UNLIT_TERRAIN
+    // Mutually exclusive with the early pre-multiply above; ASTRA_SSAO requires
+    // SHADOWS and an overworld receiver (settings.glsl).
     if (!astra_ao_receiver(material)) tint.rgb *= vertexAO;
     #endif
     vec3 normal = mat3(gbufferModelViewInverse) * (gl_NormalMatrix * gl_Normal);
     normal = dot(normal, normal) > 1e-8 ? normalize(normal) : vec3(0.0, 1.0, 0.0);
+    #ifdef ASTRA_SURFACE_SHADOW_PLANE
+    surfaceShadowPlaneNormal = vec3(0.0);
+    #if defined ASTRA_TERRAIN && defined SHADOWS
+    // Static block faces have an exact plane independent of screen orientation.
+    // Displaced plants retain the actual triangle's derivative reconstruction.
+    if (material != 2u && material != 4u && material != 5u && material != 6u)
+        surfaceShadowPlaneNormal = (mat3(shadowModelView) * normal)
+            / vec3(shadowProjection[0][0],shadowProjection[1][1],shadowProjection[2][2]);
+    #endif
+    #endif
     faceData = pack_octahedral(normal, 9) | (material << 18);
     #if defined DIMENSION_NETHER && defined ASTRA_TERRAIN
     // Preserve lava identity separately from the shared emissive category.
@@ -111,12 +149,21 @@ void main() {
     #endif
     #endif
     vec4 viewPos = gl_ModelViewMatrix * vertex;
-    #ifdef ASTRA_WATER_PASS
+    #if defined ASTRA_WATER_PASS && (defined DIMENSION_NETHER || defined DIMENSION_END)
         waterTangent = normalize(mat3(gbufferModelViewInverse) * (gl_NormalMatrix * at_tangent.xyz));
         waterBinormal = normalize(mat3(gbufferModelViewInverse) * (gl_NormalMatrix * cross(at_tangent.xyz, gl_Normal.xyz) * at_tangent.w));
         vec3 worldView = view_player(viewPos.xyz);
         waterViewVector = vec3(dot(waterTangent, worldView), dot(waterBinormal, worldView), dot(normal, worldView));
         waterViewDistance = length(viewPos.xyz);
+    #endif
+    #ifdef ASTRA_WATER_STATE_FRAME_WRITE
+    waterMaterialThinSheet = water_is_thin_sheet() ? 1 : 0;
+    waterSunCentre = normalize(worldSunVector);
+    #if SUN_MOON_MODE == SUN_MOON_VANILLA
+    vec3 orbitRight = vec3(0.0,sin(radians(sunPathRotation)),cos(radians(sunPathRotation)));
+    waterSunRight = normalize(orbitRight-waterSunCentre*dot(orbitRight,waterSunCentre));
+    waterSunVertical = cross(waterSunRight,waterSunCentre);
+    #endif
     #endif
     vec3 playerPos = view_camera_relative(viewPos.xyz);
     #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
@@ -135,13 +182,15 @@ void main() {
     const float ASTRA_RAIN_WIND_X = 0.24;
     const float ASTRA_RAIN_WIND_Z = 0.12;
     const float ASTRA_RAIN_DISTURBANCE = 0.05;
-    {
+    float weatherSkyAccess = clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0);
+    // Fully sheltered weather has no shear; retain the original view position.
+    if (weatherSkyAccess > 0.0) {
         vec3 weatherWorld = playerPos + cameraPosition;
         float shearAngle = dot(weatherWorld, vec3(3.0, 0.5, 3.0)) + frameTimeCounter * 0.2;
         vec2 shearRot = vec2(sin(shearAngle), cos(shearAngle));
         vec2 shear = (vec2(ASTRA_RAIN_WIND_X, ASTRA_RAIN_WIND_Z)
                       + shearRot * ASTRA_RAIN_DISTURBANCE) * playerPos.y;
-        playerPos.xz += clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0) * shear;
+        playerPos.xz += weatherSkyAccess * shear;
         viewPos.xyz = camera_relative_view(playerPos);
     }
     #endif
@@ -154,23 +203,32 @@ void main() {
     vec4 effects, windState;
     if(foliage && isEyeInWater==0 && astra_taa_state_valid(colortex17,effects,windState)) {
         vec3 previousRelative=playerPos+(cameraPosition-previousCameraPosition);
+        bool previousWindValid=true;
         #ifdef WAVING_FOLIAGE
         bool previousGround=material==4u || material==5u || material==6u;
         bool previousTop=material==6u || ((material==4u || material==5u) && at_midBlock.y<0.0);
-        float previousWindWeight=astra_foliage_wind_lod(previousRelative);
-        float previousStrength=windState.z*previousWindWeight;
+        float previousStrength=0.0;
+        if (windState.z != 0.0 && (material==2u || (previousGround && previousTop)))
+            previousStrength=windState.z*astra_foliage_wind_lod(previousRelative);
         // Anchored bases and fully faded wind keep the same previous position.
         // They still retain valid camera motion, without reading unused phases.
-        if (previousStrength != 0.0 && (material==2u || (previousGround && previousTop))) {
-            vec3 windPhases=texelFetch(colortex17,ivec2(3,0),0).xyz;
-            previousRelative+=astra_foliage_displacement(playerPos+cameraPosition,
-                effects.z,windState.y,previousStrength,material==2u,previousGround,previousTop,windPhases);
+        if (previousStrength != 0.0) {
+            vec4 windPhases=texelFetch(colortex17,ivec2(3,0),0);
+            // The fourth state texel has its own validity flag. Missing phases
+            // must keep moving foliage reactive, rather than invent old motion.
+            previousWindValid=windPhases.w==1.0
+                && !any(isnan(windPhases)) && !any(isinf(windPhases));
+            if (previousWindValid)
+                previousRelative+=astra_foliage_displacement(playerPos+cameraPosition,
+                    effects.z,windState.y,previousStrength,material==2u,previousGround,previousTop,windPhases.xyz);
         }
         #endif
-        vec4 previousView=gbufferPreviousModelView*vec4(previousRelative,1.0);
-        taaPreviousClip=gbufferPreviousProjection*previousView;
-        taaPreviousViewDepth=-previousView.z;
-        taaFoliageValid=1.0;
+        if (previousWindValid) {
+            vec4 previousView=gbufferPreviousModelView*vec4(previousRelative,1.0);
+            taaPreviousClip=gbufferPreviousProjection*previousView;
+            taaPreviousViewDepth=-previousView.z;
+            taaFoliageValid=1.0;
+        }
     }
     #endif
     #endif
@@ -179,13 +237,13 @@ void main() {
         bool top = material == 6u || ((material == 4u || material == 5u) && at_midBlock.y < 0.0);
         // Only displaced vertices need to rebuild the view-space position.
         if (material == 2u || (ground && top)) {
-            wave_foliage(material == 2u, ground, top, playerPos);
-            viewPos.xyz = camera_relative_view(playerPos);
+            if (wave_foliage(material == 2u, ground, top, playerPos))
+                viewPos.xyz = camera_relative_view(playerPos);
         }
     #endif
     cameraRelativePosition = playerPos;
-    // Match the shadow pass's interpolated triangle, including foliage motion.
-    // Reprojecting the interior after a nonlinear warp uses a different surface.
+    // Native receivers carry the undistorted coordinate. A warped quad is not
+    // planar, and its two possible diagonals must not change surface depth.
     #if defined SHADOWS && !defined DIMENSION_NETHER && !defined ASTRA_WEATHER
     float shadowNdotL = dot(normal, astra_shadow_light_direction());
     #if defined ASTRA_TERRAIN && !defined DIMENSION_END && !defined ASTRA_WATER_PASS
@@ -196,13 +254,13 @@ void main() {
     #endif
     // Flat native face normals cannot become lit after interpolation. The
     // margin also covers their fragment-side octahedral quantization.
-    surfaceShadowPosition = vec3(0.0);
+    surfaceShadowCoordinate = vec3(0.0);
     if (shadowReceiver)
     #endif
-        surfaceShadowPosition = shadow_map_position(playerPos, normal, shadowNdotL);
+        surfaceShadowCoordinate = shadow_map_position(playerPos, normal, shadowNdotL);
     #else
     // These lighting paths never consume a projected surface shadow coordinate.
-    surfaceShadowPosition = vec3(0.0);
+    surfaceShadowCoordinate = vec3(0.0);
     #endif
     gl_Position = astra_jitter_clip(gl_ProjectionMatrix * viewPos);
 }

@@ -2,14 +2,15 @@
 #define ASTRA_GLOBAL_WATER_TEMPORAL_GLSL
 // Astra v1 - global/water/temporal.glsl
 // RETIRED: no active include or ASTRA_WATER_TEMPORAL definition. Its historical
-// colortex28/29 slots now belong to Nether reflection metadata / underwater shafts.
+// colortex28 is dimension-specific entity / Nether reflection data; colortex29
+// is also retired and keeps only a minimal allocation.
 // Reusing this module requires new attachments and new producer/consumer wiring.
 // Written for Astra; no reference shader code was incorporated. The buffer-flip
 // read-previous-frame pattern follows the pack's own taa_resolve.fsh <-> colortex15
 // and cloud_screen.fsh <-> colortex24/25 precedents.
 //
 // R5/T3 - temporal history for ONE water sub-signal: the SSR HIT RADIANCE of the
-// above-water water surface. Handoff: docs/handoffs/2026-09-27-R5-water-temporal.md
+// above-water water surface. Handoff: docs/archive/实现与取证.md#record-080
 //
 // Scope. The final surface colour, the analytic sky-reflection fallback, the
 // refraction background and the underwater (solas_underwater_interface) interface

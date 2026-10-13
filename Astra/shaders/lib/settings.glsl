@@ -48,7 +48,7 @@
 #define SKYLIGHT_STRENGTH 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Directional ambient (skylight) strength, %
 #define MIN_AMBIENT 8 // [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20]
-// Cave floor minimum ambient, % (8 = 0.08; 2026-09-07 visual round: 5 -> 8 so shadow
+// Cave floor minimum ambient, per mille (8 = 0.008; 2026-09-07 visual round: 5 -> 8 so shadow
 // areas keep a soft blue floor instead of cutting to the material albedo)
 #define BLOCKLIGHT_STRENGTH 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Blocklight strength, %
@@ -67,14 +67,15 @@
 // --- SHADOWS ---
 #define SHADOW_FILTER_MODE 0 // [0 1]
 #define SHADOW_FILTER_QUALITY 1 // [0 1 2]
-// 0 = one footprint (4 corners); 1 = two (8); 2 = four (16).
+// Native receivers: 0 = one footprint; 1 = centre + up to two on mixed edges;
+// 2 = four. Each footprint keeps four discrete comparisons. Water uses 1/2/4.
 // 0 = software depth comparisons; 1 = hardware comparison gathers.
 // Both comparison modes pair each corner with its individual caster tint.
 #define SHADOWS // [false true]
 // Master switch for shadow map
 #define SHADOW_RESOLUTION 2048 // [512 1024 1536 2048 3072 4096]
 // Shadow map resolution (square)
-#define SHADOW_DISTANCE 256 // [64 80 96 112 128 160 192 256]
+#define SHADOW_DISTANCE 192 // [64 80 96 112 128 160 192 256]
 // Shadow render distance, blocks
 #define ENTITY_SHADOW_DISTANCE 64 // [32 48 64 96 128]
 // Entity shadow distance, blocks
@@ -102,7 +103,13 @@
 // Celestial star catalogue: off / sparse / normal / dense / very dense.
 #define CLOUD_MODE 1 // [0 1 2]
 #define CLOUD_QUALITY 1 // [0 1 2]
-// Planar clouds: quarter/half/native screen grid, with 32/64/96 march limits.
+// Planar clouds: quarter/half/native grid, with 12/16/96 coarse-search limits.
+// Low/balanced refine the first occupied interval twice and approximate lighting.
+// Reflection clouds use 6/8 coarse samples and one refinement; high is unchanged.
+// Smooth sky-base tables follow this tier at 65/129/257 square nodes.
+// These tier values apply with the budget off and in the other dimensions; the
+// overworld budget always uses quarter cloud targets, up to 12 coarse steps plus
+// 2 refinements, reflection clouds 6 plus 1, and the 65-square sky-base table.
 // 0 = vanilla clouds, 1 = planar wispy clouds, 2 = off
 #define CLOUD_COVERAGE 50 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
 // Planar cloud coverage, % (CLOUD_MODE=1 only)
@@ -115,13 +122,13 @@
 #define AIR_PERSPECTIVE // [false true]
 // View-angle-dependent horizon tinting at sunrise/sunset (Refrax style)
 #define BIOME_TINT // [false true]
-// Subtle fog/ambient tint by biome temperature/humidity
+// Subtle biome-colour tint in thin atmospheric haze, fading with distance
 #define BIOME_TINT_STRENGTH 50 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
 // Biome tint strength, %
 #define END_STONE_GLOW 0 // [0 25 50 75 100 125 150]
+// Optional end-stone pore emission; zero preserves the unlit pore texture.
 #define NETHERRACK_GLOW 100 // [0 25 50 75 100]
 #define DEBUG_VERTEX_AO 0 // [0 1]
-// End dimension: faint nebula layer (low intensity)
 #define END_PRECESSION_MINUTES 36 // [20 24 28 32 36 40 44 48 52 56 60]
 // End ring axis precession; body orbital periods remain independent.
 
@@ -140,10 +147,12 @@
 // Optional mip-filtered overworld environment + normalized environment BRDF.
 // Off by default to retain the existing water/ice/puddle appearance.
 #define WATER_EFFECT_QUALITY 1 // [0 1 2]
-// Water SSR total depth-query budget: 16/30/40 (including 4/6/8 refinements).
+// Water SSR total depth-query budget: 12/20/40 (including 4/4/8 refinements).
+// Low/balanced rock reflections use a stable 2x2 receiver lattice with five
+// bilinear footprints; high retains the dense ray and 5x5 footprint filter.
 // Reflection reconstruction uses 1/5/9 bilinear footprints. Refraction keeps
 // the same interface-side rejection and true optical path at every quality.
-// SSR on water/ice top faces (quality-dependent budget, sky fallback)
+// SSR on water top faces; ice uses the environment without a fluid march.
 // Water reflections use current-frame radiance. Geometry passes do not provide
 // the composite-stage ping-pong contract needed for a self-written history.
 #define SCREENSPACE_REFRACTION // [false true]
@@ -163,8 +172,10 @@
 // Shadowed underwater sunlight, independent of the air GODRAYS option.
 #define UNDERWATER_SHAFT_STRENGTH 100 // [0 25 50 75 100 125 150 175 200]
 // Underwater light shaft brightness, %.
+#define UNDERWATER_SHAFT_DISTANCE 1 // [0 1 2 3 4 6 8 10 12 16]
+// Nearby scattering reaches full strength at this distance; no emitter layout.
 #define UNDERWATER_SHAFT_SAMPLES 7 // [4 5 6 7 8 9 10]
-// Shadow samples along each water ray in the scattering target.
+// Maximum receiver-shadow intervals along the water ray in the scattering target.
 #define FANCY_TRANSLUCENTS // [false true]
 // Premultiplied alpha blending for translucents.
 
@@ -188,23 +199,23 @@
 // Nether volumetric light: fire, soul fire and lava cast spatial coloured light through a
 // 64x64x64 voxel volume around the player (8 propagation steps, same frame, no history).
 // Bounded subset of the Solas voxel-light architecture, not a full 128+ volume. Needs
-// OpenGL 4.3 compute and custom images; on hardware without them Iris drops the option
-// and the rest of the pack keeps working.
+// OpenGL 4.3 compute and custom images. No complete fallback is implemented
+// for hosts without those capabilities.
 //#define VOLUMETRIC_FOG // [false true]
 // Optional ray-marched overworld volumetric fog: height-based density, sun/moon phase
 // lobes, sky incident, shadow-map and cloud-shadow attenuation, composed as scene*T+S.
 // While enabled it REPLACES the atmospheric distance fog, the rain haze (rainy_air) and
 // the air GODRAYS over the same air segment; caves, blindness, lava, powder snow and
 // underwater keep their own media. Default off in every profile, independent of TAA.
-// Design and ownership: docs/handoffs/2026-09-27-R2-overworld-volume.md.
+// Design and ownership: docs/archive/实现与取证.md#record-077.
 #define VOLUME_FOG_DENSITY 50 // [0 25 50 75 100 125 150 175 200]
 #define VOLUME_FOG_QUALITY 1 // [0 1 2]
 // Low: quarter grid / up to 12 steps; balanced: half / 24; high: half / 48.
 #define VOLUME_FOG_ADAPTIVE // [false true]
 // Fewer samples on short rays, quadratic near-camera distribution; fixed mode
 // keeps the selected count and uniform segment lengths.
-// Volumetric fog density, % (sea-level extinction; 50 matches the default atmospheric
-// fog curve's optical depth at 200 blocks). High air keeps a bounded thin floor. The
+// Volumetric fog density, % (sea-level extinction; this integrated curve is not
+// calibrated as equivalent to the ordinary distance-fog curve). High air keeps a bounded thin floor. The
 // phase lobe's anisotropy is a bounded source constant (ASTRA_VOLUME_PHASE_G in
 // global/atmosphere/volume_fog.glsl).
 
@@ -227,7 +238,7 @@
 #define BLOOM // [false true]
 // Bloom (2-pass: composite1 capture + final composite)
 #define BLOOM_QUALITY 1 // [0 1 2]
-// Capture source reads: low 4, balanced 9, high 13; all keep threshold and knee.
+// Capture source reads: low 4, balanced 5, high 13; all keep threshold and knee.
 #define BLOOM_STRENGTH 100 // [0 10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200]
 // Bloom strength, %
 #define PURKINJE_STRENGTH 0 // [0 10 20 30 40 50 60 70 80 90 100]
@@ -247,6 +258,9 @@
 // Vignette (explicitly OFF by default, design 4.4)
 
 // --- COLOURS: independent of quality profiles ---
+#define OVERWORLD_LOOK 1 // [0 1]
+// 0 follows the existing palette; 1 adds the fresh natural overworld look.
+// Manual colour controls remain relative adjustments; quality profiles keep this choice.
 #define COLOR_STYLE 0 // [0 1 2 3]
 // 0 native; 1 warm natural; 2 cool clear; 3 soft. RGB gains stack on the style.
 #define TINT_SKY_DAY_TOP_R 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
@@ -317,6 +331,11 @@
 #define LOOK_HIGHS_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 
 // --- PERFORMANCE + ADVANCED ---
+#define OVERWORLD_BUDGET 1 // [0 1 2]
+// Main-world budget: 0 uses raw options; 1 is the approved 1080p priority budget;
+// 2 tightens shadows and water fading by manual choice. Active budgets also use
+// per-corner software shadow comparison. Ceilings never raise lighter raw options or enable
+// effects. Colour is independent; Nether and End retain their own settings.
 #define WAVING_FOLIAGE // [false true]
 // Vertex-animated foliage sway (wind params via custom uniforms)
 #define WAVING_FOLIAGE_STRENGTH 100 // [25 50 75 100 125 150 175 200]
@@ -326,17 +345,91 @@
 // Iris keeps this option only because lib/uniforms.glsl references it; the real
 // Voxy integration (voxy.json patch + Voxy programs) is still pending (owner C5).
 
+// Internal budget predicates. Defined before the engine knobs below because the
+// preprocessor is single-pass: ASTRA_OVERWORLD_OPTIMIZED only in the overworld with
+// OVERWORLD_BUDGET > 0, ASTRA_OVERWORLD_AGGRESSIVE only in the overworld at budget 2.
+// Other dimensions never define either macro.
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && OVERWORLD_BUDGET > 0
+#define ASTRA_OVERWORLD_OPTIMIZED
+#endif
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && OVERWORLD_BUDGET == 2
+#define ASTRA_OVERWORLD_AGGRESSIVE
+#endif
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && OVERWORLD_LOOK == 1
+#define ASTRA_OVERWORLD_NATURAL
+#endif
+// Plane-corrected surface corners have four different references. A raw gather
+// compares all four in one vector operation; hardware needs four separate
+// gathers. Volume/water retain the same compare-before-weight semantics.
+// Raw settings select the mode outside the active main-world budget.
+#ifdef ASTRA_OVERWORLD_OPTIMIZED
+#define ASTRA_SHADOW_FILTER_MODE SHADOW_FILTER_SOFTWARE
+#else
+#define ASTRA_SHADOW_FILTER_MODE SHADOW_FILTER_MODE
+#endif
+
 // ------------------------------------------------------------
 // ENGINE KNOBS (design.md 4.1 / 5) - the engine reads these const names, not macros.
 // "const = MACRO" is resolved by Iris at load time; OptiFine would need literals here,
 // which Astra does not support (design.md 1.2: Iris-only).
 // ------------------------------------------------------------
+#ifdef DIMENSION_NETHER
+// This pass captures the fixed 64^3 voxel volume and clips every raster
+// primitive. Its unused depth/color targets do not need the surface-shadow
+// resolution or hundreds of blocks of submitted terrain. A 48-block box
+// covers the +/-32 capture range, camera fraction and section-aligned margin.
+// Keep this bound paired with ASTRA_NETHER_VOXEL_SIZE if that volume changes.
+const int   shadowMapResolution = 64;
+const float shadowDistance = 48.0;
+const float shadowDistanceRenderMul = 1.0;
+#elif defined DIMENSION_END
 const int   shadowMapResolution  = SHADOW_RESOLUTION;  // shadow map is square
 const float shadowDistance       = SHADOW_DISTANCE;    // blocks
 const float shadowDistanceRenderMul = 1.5;             // shadow frustum extent, x shadowDistance
-// Smaller world-grid intervals reduce changes of the distortion origin at
-// cell boundaries; this does not change the shadow map's texel resolution.
+#else
+// Overworld ceilings: priority at most 1536/112, manually tightened at most 1024/112.
+// Keep lighter raw selections. Preprocessor branches expose simple values to Iris's
+// directive reader, which cannot evaluate min() or arithmetic in these engine knobs.
+#ifdef ASTRA_OVERWORLD_OPTIMIZED
+#ifdef ASTRA_OVERWORLD_AGGRESSIVE
+    #if SHADOW_RESOLUTION < 1024
+const int   shadowMapResolution = SHADOW_RESOLUTION;
+    #else
+const int   shadowMapResolution = 1024;
+    #endif
+#else
+    #if SHADOW_RESOLUTION < 1536
+const int   shadowMapResolution = SHADOW_RESOLUTION;
+    #else
+const int   shadowMapResolution = 1536;
+    #endif
+#endif
+#if SHADOW_DISTANCE < 112
+const float shadowDistance = SHADOW_DISTANCE;
+#else
+const float shadowDistance = 112.0;
+#endif
+const float shadowDistanceRenderMul = 1.125;
+#else
+const int   shadowMapResolution  = SHADOW_RESOLUTION;  // shadow map is square
+const float shadowDistance       = SHADOW_DISTANCE;    // blocks
+    #if SHADOW_FILTER_QUALITY < 2
+// Low/balanced trim the outer caster margin. Near geometry remains captured;
+// distant, low-angle shadows from beyond this margin may be approximated away.
+const float shadowDistanceRenderMul = 1.125;
+    #else
+const float shadowDistanceRenderMul = 1.5;             // shadow frustum extent, x shadowDistance
+    #endif
+#endif
+#endif
+// Iris's world-grid snap cannot align texels after radial distortion: crossing
+// a half-block cell moves the whole nonlinear map abruptly. Zero disables this
+// snap (ShadowMatrices explicitly returns), allowing continuous main-world motion.
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+const float shadowIntervalSize   = 0.0;
+#else
 const float shadowIntervalSize   = 0.5;
+#endif
 // Both Steadfast and Solas use this orbit; Iris applies it to sky and shadow matrices.
 const float sunPathRotation = -40.0; // [-60.0 -50.0 -40.0 -30.0 -20.0 -10.0 0.0 10.0 20.0 30.0 40.0 50.0 60.0]
 // noisetex/noise.png were removed: nothing sampled them (consolidated review E4).
@@ -347,7 +440,120 @@ const int   noiseTextureResolution = 256;              // engine default kept ex
 // Confirmed in Iris 1.11.2 ShadowRenderer: renderShadows multiplies the two
 // multipliers before createShadowFrustum applies the pack distance (qa/open-premises.md P-2).
 // Literal table for all advertised options: Iris's directive reader cannot
-// evaluate arithmetic. Render multiplier is 1.5 above; keep it paired here.
+// evaluate arithmetic. Pair the table with the selected 1.125 or 1.5 caster
+// multiplier, preserving each advertised entity distance. Nether uses a separate 48-block capture box; its entity
+// primitives are raster-clipped and do not populate the terrain voxel field.
+// The overworld budget caps entity casters at 32 blocks. Its literal ratios must
+// follow the capped shadow distance, including lighter raw distances below 112.
+#if defined ASTRA_OVERWORLD_OPTIMIZED
+#if SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.444444444;
+#elif SHADOW_DISTANCE == 80
+const float entityShadowDistanceMul = 0.355555556;
+#elif SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.296296296;
+#else
+const float entityShadowDistanceMul = 0.253968254;
+#endif
+#elif !defined DIMENSION_NETHER && !defined DIMENSION_END && SHADOW_FILTER_QUALITY < 2
+#if SHADOW_DISTANCE == 64
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.444444444;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.666666667;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.888888889;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 1.333333333;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 1.777777778;
+#endif
+#elif SHADOW_DISTANCE == 80
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.355555556;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.533333333;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.711111111;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 1.066666667;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 1.422222222;
+#endif
+#elif SHADOW_DISTANCE == 96
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.296296296;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.444444444;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.592592593;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.888888889;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 1.185185185;
+#endif
+#elif SHADOW_DISTANCE == 112
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.253968254;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.380952381;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.507936508;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.761904762;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 1.015873016;
+#endif
+#elif SHADOW_DISTANCE == 128
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.222222222;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.333333333;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.444444444;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.666666667;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 0.888888889;
+#endif
+#elif SHADOW_DISTANCE == 160
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.177777778;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.266666667;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.355555556;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.533333333;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 0.711111111;
+#endif
+#elif SHADOW_DISTANCE == 192
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.148148148;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.222222222;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.296296296;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.444444444;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 0.592592593;
+#endif
+#else // SHADOW_DISTANCE == 256
+#if ENTITY_SHADOW_DISTANCE == 32
+const float entityShadowDistanceMul = 0.111111111;
+#elif ENTITY_SHADOW_DISTANCE == 48
+const float entityShadowDistanceMul = 0.166666667;
+#elif ENTITY_SHADOW_DISTANCE == 64
+const float entityShadowDistanceMul = 0.222222222;
+#elif ENTITY_SHADOW_DISTANCE == 96
+const float entityShadowDistanceMul = 0.333333333;
+#else // ENTITY_SHADOW_DISTANCE == 128
+const float entityShadowDistanceMul = 0.444444444;
+#endif
+#endif
+#else
 #if SHADOW_DISTANCE == 64
 #if ENTITY_SHADOW_DISTANCE == 32
 const float entityShadowDistanceMul = 0.333333333;
@@ -446,9 +652,11 @@ const float entityShadowDistanceMul = 0.333333333;
 #endif
 #endif
 
+#endif
+
 // Both modes pair surface depth comparisons with each texel's caster colour.
 // Hardware mode retains bilinear comparison filtering for opaque volume queries.
-#if SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
+#if ASTRA_SHADOW_FILTER_MODE == SHADOW_FILTER_HARDWARE
 const bool shadowHardwareFiltering = true;
 const bool shadowHardwareFiltering0 = true;
 const bool shadowHardwareFiltering1 = true;
@@ -473,8 +681,11 @@ const bool shadowHardwareFiltering1 = false;
 #endif
 #endif
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END && DEBUG_VERTEX_AO == 0
+    // Zero sky intensity has no directional term or bent-normal sky swap.
     #ifdef DIRECTIONAL_SKYLIGHT
+    #if SKYLIGHT_STRENGTH > 0
         #define ASTRA_DIRECTIONAL_SKYLIGHT
+    #endif
     #endif
     #if defined SCREENSPACE_AO && defined SHADOWS && AO_STRENGTH > 0
         #define ASTRA_SSAO
@@ -482,7 +693,7 @@ const bool shadowHardwareFiltering1 = false;
 #endif
 // R2/H3: the volume march is overworld-only and does not depend on the AO debug
 // mode, TAA or shadows (without SHADOWS the sun term keeps cloud shadow only).
-#if !defined DIMENSION_NETHER && !defined DIMENSION_END && defined VOLUMETRIC_FOG
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && defined VOLUMETRIC_FOG && VOLUME_FOG_DENSITY > 0
     #define ASTRA_VOLUME_FOG
 #endif
 // R6/T3: the screen-cloud history is overworld-only (planar clouds are) and
@@ -493,6 +704,13 @@ const bool shadowHardwareFiltering1 = false;
     #ifdef CLOUD_TEMPORAL
     #define ASTRA_CLOUD_TEMPORAL
     #endif
+#endif
+// A same-frame low-frequency sky table reuses the raw cloud target only when
+// screen clouds do not own it. Celestial glare, stars and discs stay analytic.
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+#if (SKY_MODE == SKY_GRADIENT || CLOUD_MODE == CLOUD_PLANAR) && (CLOUD_MODE != CLOUD_PLANAR || defined CLOUD_TEMPORAL)
+    #define ASTRA_GRADIENT_SKY_CACHE
+#endif
 #endif
 // The AO diagnostic stays unjittered even when temporal AA is selected.
 #if ANTIALIASING == 2 && DEBUG_VERTEX_AO == 0
@@ -510,6 +728,11 @@ const bool shadowHardwareFiltering1 = false;
 // Water still scatters when absorption/reflection options are off. Its background
 // copy is part of the optical composition, independent of those optional effects.
 #define ASTRA_SCENE_COPY
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && CLOUD_MODE == CLOUD_PLANAR
+#if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG
+    #define ASTRA_GODRAYS_CLOUD_OCCLUSION
+#endif
+#endif
 // SC-23: clear colors must be 4-arg constructors with plain literal components
 // (Iris parses each argument with Float.parseFloat - no expressions, no 1-arg splat).
 const vec4 colortex0ClearColor = vec4(0.0, 0.0, 0.0, 0.0);

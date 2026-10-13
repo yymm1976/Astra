@@ -1,7 +1,7 @@
-// Astra underwater adapter to the existing HDR bloom prefilter/downsample.
-// Replaces the Solas whole-scene pyramid: its unthresholded, LDR input spreads
-// ordinary water fog across silhouettes. Borrowing is in global/post/bloom.glsl
-// (Refrax source); see THIRD-PARTY.md for current provenance.
+// ITT-style underwater scene softening uses the existing linear HDR pyramid.
+// The shared capture stencil stays unchanged; only this producer bypasses the
+// highlight threshold. Air and other dimensions keep their light-only capture.
+#define ASTRA_WATER_SCENE_BLOOM
 #include "/global/post/bloom.glsl"
 
 vec3 computeBloom(sampler2D scene, vec2 texCoord) {

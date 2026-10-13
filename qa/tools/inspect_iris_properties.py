@@ -112,7 +112,7 @@ public class IrisPropertyInspection {
   String[] dimensions = resolved(defaultOutput).getProperty("size.buffer.colortex6").split(" ");
   var scale = new net.irisshaders.iris.gl.texture.TextureScaleOverride(dimensions[0],dimensions[1]);
   System.out.println("Iris resolved colortex6: " + scale.getX(1920) + "x" + scale.getY(1080));
-  if(scale.getX(1920)!=1 || scale.getY(1080)!=1)throw new AssertionError("Water-state buffer must be one pixel");
+   if(scale.getX(1920)!=3 || scale.getY(1080)!=1)throw new AssertionError("Water-state buffer must be 3x1 (kind, viewport/frame, camera/time)");
  }
 }
 '''
@@ -169,13 +169,20 @@ def parse_output(stdout):
 
 
 def declared_options():
-    """lib/settings.glsl declarations: name -> 'bool' | 'str', as its value list says"""
+    """lib/settings.glsl declarations: name -> (kind, default token, commented out).
+
+    kind is 'bool' when the value list is exactly [false true]. The default token is
+    whatever the #define carries on the source line, so a numeric option's declaration
+    default can stand in for a profile that does not set it.
+    """
     out = {}
-    pattern = re.compile(r"^\s*(?://)?\s*#define\s+([A-Za-z_]\w*)\b.*//\s*\[(.*)\]\s*$")
+    pattern = re.compile(r"^\s*(?P<comment>//)?\s*#define\s+(?P<name>[A-Za-z_]\w*)\b"
+                         r"(?P<value>.*?)//\s*\[(?P<values>.*)\]\s*$")
     for line in (PACK / "lib/settings.glsl").read_text(encoding="utf-8").splitlines():
         m = pattern.match(line)
         if m:
-            out[m.group(1)] = "bool" if set(m.group(2).split()) == {"false", "true"} else "str"
+            kind = "bool" if set(m.group("values").split()) == {"false", "true"} else "str"
+            out[m.group("name")] = (kind, m.group("value").strip(), bool(m.group("comment")))
     return out
 
 
@@ -263,7 +270,7 @@ public class Iris {
 
     # 0. A #define with a value list is only an option if the loader found it.
     declared = declared_options()
-    inert = sorted(f"{name} ({kind})" for name, kind in declared.items()
+    inert = sorted(f"{name} ({kind})" for name, (kind, _, _) in declared.items()
                    if name not in known[kind])
     print(f"{len(declared)} option(s) declared in lib/settings.glsl, "
           f"{len(known['bool'])} boolean + {len(known['str'])} string discovered by Iris")
@@ -292,14 +299,45 @@ public class Iris {
     for key in ("shadow.enabled", "program.shadow.enabled", "program.world-1/shadow.enabled", "program.world1/shadow.enabled"):
         if gates["NO_SHADOWS"].get(key) != "false":
             failures.append(f"NO_SHADOWS must disable {key}")
+    # 1b. The Nether voxel-light chain is gated on three knobs at once. shaders.properties
+    #     writes the root stage plus shadowcomp1..8 under
+    #     "SHADOWS && NETHER_VOXEL_LIGHT && BLOCKLIGHT_STRENGTH > 0", so the schedule and
+    #     the resource gate have to agree. Resolve each tier's effective knobs from its
+    #     profile tokens, falling back to the declaration default for anything the profile
+    #     does not set; a knob that is neither set nor declared numeric is a clear failure,
+    #     not a value silently treated as true.
     voxel_gates = ["program.world-1/shadowcomp" + suffix + ".enabled"
-                   for suffix in ("", "A", "B", "C", "D", "E", "F", "G", "H")]
+                   for suffix in ("", "1", "2", "3", "4", "5", "6", "7", "8")]
+
+    def declared_default(name):
+        kind, token, commented = declared.get(name, (None, None, False))
+        if kind == "bool":
+            return not commented
+        return token if token else None
+
+    def tier_flag(tier, name):
+        if name in prof[tier]:
+            return prof[tier][name] == "true"
+        return bool(declared_default(name))
+
     for tier in ALL_PROFILES:
-        wanted = str(prof[tier].get("SHADOWS") == "true"
-                     and prof[tier].get("NETHER_VOXEL_LIGHT") == "true").lower()
+        raw = prof[tier].get("BLOCKLIGHT_STRENGTH", declared_default("BLOCKLIGHT_STRENGTH"))
+        try:
+            blocklight = float(raw)
+        except (TypeError, ValueError):
+            failures.append(f"{tier}: BLOCKLIGHT_STRENGTH={raw!r} is not a number, so the "
+                            f"voxel-light gate's 'BLOCKLIGHT_STRENGTH > 0' cannot be checked")
+            continue
+        active = (tier_flag(tier, "SHADOWS") and tier_flag(tier, "NETHER_VOXEL_LIGHT")
+                  and blocklight > 0.0)
+        wanted = str(active).lower()
         for key in voxel_gates:
             if gates[tier].get(key) != wanted:
-                failures.append(f"{tier}: {key} should resolve to {wanted}")
+                failures.append(
+                    f"{tier}: {key} should resolve to {wanted} with SHADOWS="
+                    f"{tier_flag(tier, 'SHADOWS')}, NETHER_VOXEL_LIGHT="
+                    f"{tier_flag(tier, 'NETHER_VOXEL_LIGHT')}, "
+                    f"BLOCKLIGHT_STRENGTH={blocklight:g}")
 
     # 2. The ladder must only add work, never swap features between tiers.
     for cheap, rich in zip(TIER_ORDER, TIER_ORDER[1:]):

@@ -28,15 +28,45 @@ uniform sampler2D colortex16;
 /* RENDERTARGETS: 0,4 */
 #endif
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    #if defined SCREENSPACE_REFLECTIONS && (WATER_EFFECT_QUALITY < 2 || defined ASTRA_OVERWORLD_OPTIMIZED)
+    #include "/global/water/raytrace.glsl"
+    #endif
 vec3 puddle_reflection_sky(vec3 ray, float noV) {
     return astra_reflection_sky(ray, 0.18) * smoothstep(-0.04, 0.04, ray.y)
          * astra_environment_reflection_gain(0.18, noV, 0.025);
 }
-vec3 puddle_reflection(vec3 playerPos, vec3 normal) {
-    vec3 incident = normalize(playerPos);
+vec3 puddle_reflection(vec3 playerPos, vec3 normal, vec3 incident, float noV) {
     vec3 ray = reflect(incident, normal);
-    float noV = max(dot(normal, -incident), 0.0);
-    #ifdef SCREENSPACE_REFLECTIONS
+    #if defined SCREENSPACE_REFLECTIONS && (WATER_EFFECT_QUALITY < 2 || defined ASTRA_OVERWORLD_OPTIMIZED)
+    // Wet-ground budget: only patches near the camera keep a fine object
+    // reflection. Past 64 blocks the tracer is skipped while the sky term, the
+    // wet darkening, the rough material and the rain ripples all stay; 48..64 is
+    // the same continuous collapse the water surface uses, so the handoff has no
+    // hard edge. The measure is the wet surface's own camera distance,
+    // length(playerPos), not the ray's travel length. Distance alone decides
+    // this: a reflection-radiance contribution threshold was not needed, so no
+    // weight threshold is raised for it.
+    float geometryFade = 1.0;
+    #ifdef ASTRA_OVERWORLD_OPTIMIZED
+    geometryFade = 1.0 - smoothstep(48.0, 64.0, length(playerPos));
+    #endif
+    if (geometryFade > 0.0) {
+        // Sparse wet patches do not need their own 96-step fine-pixel marcher.
+        // Use the bounded water tracer with the original 32-block puddle reach;
+        // the sky environment supplies distant or thin geometry it cannot resolve.
+        vec3 start = camera_relative_view(playerPos + normal * 0.025);
+        vec3 direction = player_view(ray);
+        vec4 hit = water_raytrace(depthtex0,start,direction,normalize(player_view(normal)),32.0);
+        if (hit.a > 0.0) {
+            vec3 reflected = astra_scene_highlights(textureLod(colortex0,hit.xy,0.0).rgb);
+            if (hit.a >= 1.0 && geometryFade >= 1.0) return reflected;
+            vec3 sky = puddle_reflection_sky(ray, noV);
+            vec3 geometric = hit.a >= 1.0 ? reflected : mix(sky,reflected,hit.a);
+            return mix(sky, geometric, geometryFade);
+        }
+    }
+    return puddle_reflection_sky(ray, noV);
+    #elif defined SCREENSPACE_REFLECTIONS
     vec3 start = camera_relative_view(playerPos + normal * 0.025);
     vec3 direction = player_view(ray);
     float reach = direction.z > 0.0 ? min(32.0, (-0.06-start.z)/direction.z) : 32.0;
@@ -106,7 +136,7 @@ vec3 puddle_reflection(vec3 playerPos, vec3 normal) {
     return puddle_reflection_sky(ray, noV);
 }
 vec3 rainy_air(vec3 endPoint) {
-    if(astraRainFactor < 0.01 || isEyeInWater != 0 || skyVisibilityDay <= 0.0
+    if(astraRainFactor < 0.01 || !(isEyeInWater == 0 || water_is_thin_sheet()) || skyVisibilityDay <= 0.0
             || blindness > 0.0001) return vec3(0.0);
     float access = smoothstep(0.35,0.85,float(eyeBrightnessSmooth.y)/240.0);
     if(access <= 0.0) return vec3(0.0);
@@ -119,27 +149,66 @@ vec3 rainy_air(vec3 endPoint) {
     float sum = 0.0;
     float stepLength = distanceToEye / 10.0;
     float attenuation = exp(-stepLength * 0.004);
-    float attenuationStep = exp(-stepLength * 0.008);
+    // Twice the optical depth uses the square of the same transmittance.
+    float attenuationStep = attenuation * attenuation;
     #ifdef SHADOWS
     // Project this ray once; each sample retains its homogeneous divide and
     // nonlinear distortion, including any shadow-projection translation.
     vec4 shadowOrigin = shadowProjection * (shadowModelView * vec4(0.0,0.0,0.0,1.0));
     vec4 shadowStep = shadowProjection * (shadowModelView * vec4(ray * stepLength,0.0));
     #endif
+    // Overworld budget only: the last two of the ten uniform midpoints reuse the
+    // previous midpoint's visibility instead of projecting the shadow map again.
+    // The handoff is a continuous distance weight, not a 32-block switch: it is
+    // 0 within 32 blocks (all ten original queries), 1 from 40 blocks on (i = 7
+    // and i = 9 take the previous paired value, eight real queries), and between
+    // 32 and 40 all ten queries still run with i = 7 and i = 9 blending their own
+    // result towards that previous value, so 40 is exactly the eight-query
+    // answer and the two sides meet without a step. Every integration position,
+    // its weight, stepLength, the fog/attenuation coefficients, the
+    // cloud-transmission plus opaque-occlusion pairing and the clear-sky early-out
+    // above stay exactly as they were. The reused taps are the two lightest of
+    // the descending attenuation-weighted sum (<=20% of an unblocked ray), and
+    // reusing the whole paired sample keeps its cloud term and its occlusion
+    // consistent, so uniformly lit or uniformly occluded air keeps its brightness.
+    #ifdef ASTRA_OVERWORLD_OPTIMIZED
+    float reuseWeight = smoothstep(32.0, 40.0, endpointLength);
+    float previousLit = 0.0;
+    #endif
     for(int i=0;i<10;++i) {
         float sampleIndex = float(i) + 0.5;
         float t = sampleIndex * stepLength;
         vec3 p = ray*t;
-        float lit = astra_cloud_transmission(p+cameraPosition,L);
-        #ifdef SHADOWS
-        if (lit > 0.0) {
-            vec4 clip = shadowOrigin + shadowStep * sampleIndex;
-            vec3 sp = distort(clip.xyz / clip.w) * 0.5 + 0.5;
-            sp.z -= 0.00002;
-            float coverage = shadow_coverage(p,sp);
-            if (coverage > 0.0)
-                lit *= mix(1.0,shadow_opaque_visibility(sp),coverage);
+        float lit;
+        #ifdef ASTRA_OVERWORLD_OPTIMIZED
+        // Past 40 blocks only these two taps skip their query: i = 7 takes i = 6,
+        // i = 9 takes the midpoint at i = 8, which is still a real query, so the
+        // reuse stays bounded to those two taps.
+        if (reuseWeight >= 1.0 && (i == 7 || i == 9)) {
+            lit = previousLit;
+        } else
+        #endif
+        {
+            lit = astra_cloud_transmission(p+cameraPosition,L);
+            #ifdef SHADOWS
+            if (lit > 0.0) {
+                vec4 clip = shadowOrigin + shadowStep * sampleIndex;
+                vec3 sp = distort(clip.xyz / clip.w) * 0.5 + 0.5;
+                sp.z -= 0.00002;
+                float coverage = shadow_coverage(p,sp);
+                if (coverage > 0.0)
+                    lit *= mix(1.0,shadow_opaque_visibility(sp),coverage);
+            }
+            #endif
+            #ifdef ASTRA_OVERWORLD_OPTIMIZED
+            // 32..40 only: the query still runs and slides from its own paired
+            // result towards the previous sample's, keeping the weight continuous.
+            if (reuseWeight > 0.0 && (i == 7 || i == 9))
+                lit = mix(lit, previousLit, reuseWeight);
+            #endif
         }
+        #ifdef ASTRA_OVERWORLD_OPTIMIZED
+        previousLit = lit;
         #endif
         sum += lit * attenuation;
         attenuation *= attenuationStep;
@@ -161,11 +230,17 @@ void main() {
     vec3 endStarRay=end_lensed_background(ray);
     vec3 endStarDx=dFdx(endStarRay), endStarDy=dFdy(endStarRay);
     #endif
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END && CLOUD_MODE == CLOUD_PLANAR
+    // Uniform control flow: local slab marches need the same angular filtering
+    // as the screen-cache producer, even at divergent terrain silhouettes.
+    vec3 cloudFootprintRay = normalize(view_player(screen_view(vec3(texcoord,1.0))));
+    float cloudAngularFootprint = max(length(dFdx(cloudFootprintRay)), length(dFdy(cloudFootprintRay)));
+    #endif
     vec3 source = texture(colortex0, texcoord).rgb;
     float depth = texture(depthtex0, texcoord).r;
     #ifdef ASTRA_TAA
     float reactive = texelFetch(colortex16, ivec2(gl_FragCoord.xy), 0).r;
-    #if !defined DIMENSION_END && CLOUD_MODE == CLOUD_VANILLA
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END && CLOUD_MODE == CLOUD_VANILLA
     if (depth >= 0.999999) reactive = 1.0;
     #endif
     #ifdef DIMENSION_NETHER
@@ -224,7 +299,7 @@ void main() {
         // (global/atmosphere/weather.glsl), so this sharpens the threshold rather than
         // adding information (consolidated review F-16).
         float standingWater = clamp(surface.a, 0.0, 1.0);
-        if (standingWater > 0.15 && isEyeInWater == 0 && (lightData & 128u) == 0u) {
+        if (standingWater > 0.15 && (isEyeInWater == 0 || water_is_thin_sheet()) && (lightData & 128u) == 0u) {
             vec3 n = decode_unit_vector(surface.gb*2.0-1.0);
             // Reflection only from a surface that can actually reflect sky: a wall
             // sheds the water, and a downward-facing quad reflects the ground.
@@ -233,16 +308,23 @@ void main() {
             // astra_rain_ripple wrote nothing (dry ground), so a 1/400 tilt in it is
             // already a fully formed ripple.
             float rippled = clamp((1.0 - n.y) * 400.0, 0.0, 1.0);
-            float fresnel = 0.025+0.975*pow5(1.0-max(dot(n,-normalize(playerPos)),0.0));
-            // Every factor gates the CALL, not just the mix weight: puddle_reflection
-            // costs up to 96 depth samples plus a refine, and GLSL evaluates mix
-            // arguments unconditionally. Water-surface, translucent and sky-clear
-            // pixels all reach this branch (colortex3 keeps its clear values there),
-            // so without the weight gate they each pay the march for a result whose
-            // upFacing is zero (consolidated review A3 / Qoder F-15 / F-42).
-            float weight = standingWater*upFacing*rippled*fresnel;
-            if (weight > 0.001)
-                source = mix(source,puddle_reflection(playerPos,n), weight);
+            // Fresnel is at most one. If this upper bound cannot reach the
+            // existing reflection threshold, no view direction or trace is needed.
+            float reflectionCoverage = standingWater * upFacing * rippled;
+            if (reflectionCoverage > 0.001) {
+                vec3 incident = normalize(playerPos);
+                float noV = max(dot(n, -incident), 0.0);
+                float fresnel = 0.025+0.975*pow5(1.0-noV);
+                // Every factor gates the CALL, not just the mix weight: puddle_reflection
+                // costs up to 96 depth samples plus a refine, and GLSL evaluates mix
+                // arguments unconditionally. Water-surface, translucent and sky-clear
+                // pixels all reach this branch (colortex3 keeps its clear values there),
+                // so without the weight gate they each pay the march for a result whose
+                // upFacing is zero (consolidated review A3 / Qoder F-15 / F-42).
+                float weight = reflectionCoverage*fresnel;
+                if (weight > 0.001)
+                    source = mix(source,puddle_reflection(playerPos,n,incident,noV), weight);
+            }
         }
         #endif
         // R2/H3: the buffered volume owns the ordinary overworld air segment. The
@@ -272,8 +354,11 @@ void main() {
                >= ASTRA_CLOUD_ALTITUDE - ASTRA_CLOUD_STRETCH - 1.0) {
             float cloudTerrainDistance = length(playerPos);
             vec3 cloudRay = normalize(view_player(viewPos));
-            vec4 sheet = astra_screen_cloud(texcoord, cloudRay, cloudTerrainDistance);
+            vec4 sheet = astra_screen_cloud(texcoord, cloudRay, cloudTerrainDistance, cloudAngularFootprint);
             displayed = displayed * (1.0 - sheet.a) + sheet.rgb;
+            // Carry the same cloud into the unmediated refractive background.
+            // Do not copy displayed: that would carry camera fog a second time.
+            source = source * (1.0 - sheet.a) + sheet.rgb;
             #ifdef ASTRA_TAA
             if (sheet.a > 0.001) reactive = 1.0;
             #endif
@@ -300,9 +385,10 @@ void main() {
         reactive = mix(0.10,1.0,smoothstep(0.02,0.40,sky.a));
         if(max(sky.r,max(sky.g,sky.b))>6.0) reactive=max(reactive,0.65);
         #endif
-        displayed += end_crisp_photon_ring(ray,cone)
-                   * ASTRA_TINT_END_SKY
-                   * (1.0-clamp(blindness,0.0,1.0)) * (1.0-0.18*end_eclipse());
+        if (blindness < 1.0)
+            displayed += end_crisp_photon_ring(ray,cone)
+                       * ASTRA_TINT_END_SKY
+                       * (1.0-clamp(blindness,0.0,1.0)) * (1.0-0.18*end_eclipse());
         if (starVisibility > 0.0)
             displayed += end_starfield_filtered(endStarRay, cone, endStarDx, endStarDy) * starVisibility
                        * ASTRA_TINT_END_SKY
@@ -322,12 +408,20 @@ void main() {
         // Do not build those layers only to multiply them by zero afterwards.
         if (cloud.a < 1.0) {
         #endif
+        #if CLOUD_MODE == CLOUD_PLANAR
+        vec3 skyRay = cloudFootprintRay;
+        #else
         vec3 skyRay = normalize(view_player(screen_view(vec3(texcoord,1.0))));
+        #endif
         // Sun/moon were drawn additively over black in skytextured. Their phase
         // is in source; current cloud transmission is applied at this composition.
         // Same composition as astra_overworld_sky, exposing the star contribution
         // to TAA without a second catalogue query or rejecting the entire sky.
         vec3 clearSky = astra_sky_radiance(skyRay);
+        #ifdef ASTRA_TAA
+        // source carries moving celestial sprites over the black sky-basic layer.
+        if (max(source.r, max(source.g, source.b)) > 0.0) reactive = 1.0;
+        #endif
         #ifdef STARS
             float pointStars;
             vec3 skyStars = astra_star_field(skyRay, pointStars);

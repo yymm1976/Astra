@@ -25,6 +25,8 @@ Usage:  python qa/tools/nether_voxel_model.py
 Exit code 0 = all invariants hold.
 """
 
+# Historical model retained; its constants no longer describe the current pack.
+
 from __future__ import annotations
 
 import sys

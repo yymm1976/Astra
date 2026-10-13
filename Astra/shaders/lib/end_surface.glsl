@@ -6,6 +6,7 @@
 // Shadow projection, diffuse and specular use the same world-space direction.
 const vec3 END_DISC_IRRADIANCE=vec3(0.56,0.78,1.10) * ASTRA_TINT_END_LIGHT;
 const vec3 END_DISC_AMBIENT=vec3(0.10,0.12,0.17) * ASTRA_TINT_END_AMBIENT;
+// Ambient deliberately preserves readability during eclipses; direct light dims.
 // End-stone emission is identity-gated in lib/surface_emission.glsl.
 vec3 end_surface_direct(vec3 normal,float visibility,float eclipse) {
     return END_DISC_IRRADIANCE*max(dot(normal,end_light_direction()),0.0)

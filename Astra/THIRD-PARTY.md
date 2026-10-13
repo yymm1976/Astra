@@ -1,38 +1,82 @@
 # Astra — 第三方出处台账（THIRD-PARTY.md）
 
+### 2026-10-12：针对水体、阴影、云与配色的优化
+
+普通水下的分色透射、标量距离可见度、介质色、湿天气灰化及上下视线响应改编本地IterationT 3.2.0 composite1.fsh::WaterFog；深度响应和线性场景混合参考Lib/Programs/Final.glsl。Astra将指数系数折为常量、复用真实光程，按自身照明单位标定介质，采用两级较窄柔化；没有新增纹理或整套体积雾。水上单足迹透射路径及主世界4/9的精度分离由Astra接线。Solas的帧光照、薄流水及显示曲线继续保留归属；旧四方向扩散已退出。ITT既有许可与素材归属适用，这些公式改编不登记为仅思路参考。
+
+主世界水面未消费切线的裁减、薄流水状态及太阳基底的顶点复用、折射回退同纹元格深度共享、实体深度延后解包，以及水上水平SSR四个计划查询的预取与保守顺序消费，由Astra编写；原Steadfast/Solas模块归属保持。主世界畸变核心与生效半径接线、原始NDC插值以保留平面导数精度及混合边缘固定对称过滤，由Astra编写；Steadfast径向投影的GPLv3及§7条款保持。云覆盖范围的稀疏探测、单调重建及颜色重新预乘由Astra编写，保留Complementary云体和既有历史实现归属。
+
+清新配色只参考Steadfast 0.8.0本地天空/显示分工与既有画面，不复制其色表或切换显示算子。现行机制与代价在[实现与限制](../docs/实现与限制.md)，实际完成程度在[当前工作](../docs/当前工作.md)；下方日期条目保存各轮来源，不替代现行说明。
+
+### 2026-10-07：下界轻量实现
+
+- `program/nether_light.csh` 新增工作组光源汇总、两字源区域位图和保守可达查询，由 Astra 编写；Solas 3.7b 的源配色与六邻格传播架构、现有许可归属保持。
+- `program/nether_reflection_resolve.fsh` 的五区域等能量／二阶矩核及 `global/dimension/nether.glsl` 的亮区颜色转换裁减为 Astra 自写。Complementary／EminGT 的接收面反射、颜色域照明及原许可保持；没有移植新的参考实现或素材。
+- 本轮没有新增代码级第三方复用，不新增 vendor 许可。具体来源边界、位图资源和画面取舍见[下界轻量实现](../docs/archive/实现与取证.md#record-057)。
+
+### 2026-10-07：天空与阴影轻量接续
+
+- `global/lighting/shadowmap.glsl` 与 `diffuse.glsl` 新增不透明影图优先顺序及全亮／全暗权重准备裁减，由 Astra 编写；既有 Steadfast 派生结构、GPLv3 与 §7 条款保持。
+- 现行主世界原生接收面的未畸变NDC传递、片元重投影、静态方块法线平面斜率、逐角逆投影与有限面参考深度限制，非水投射物保守深度修正，中高档固定四组过滤及世界宽度限制，以及Iris主世界原点连续更新接线由Astra编写；沿用原Steadfast径向投影和阴影模块归属。Solas与Photon的片元投影、均匀遮挡拒绝提供思路参考，未复制新的阴影代码或素材。水面、体积和其它维度的既有配对保持；现态以实现说明为准。
+- `lib/sky_gradient_cache.glsl` 的尺寸分档与配置映射，以及 `clouds_planar.glsl` 的环境专用搜索预算、`sky_reflection_cache.fsh` 的球面角度足迹接入，由 Astra 编写。原天空／云的 Complementary 来源及许可保持，没有新增移植代码或素材。
+- 本轮不新增 vendor 许可原文；范围、成本和观感取舍见[天空与阴影接续](../docs/archive/实现与取证.md#record-055)。
+
+### 2026-10-07：三项轻量水面实现
+
+现行水路来源：`lib/itt_water_waves.glsl` 直接改编本地IterationT 3.2.0 `Lib/IndividualFounctions/WaterWaves.glsl` 的三次平滑噪声、AlmostIdentity、六层结构、坐标变换与滚动（权重及空间展宽由Astra调整）。Astra对同一层合成求解析梯度并过滤未解析的方差，代替参考的完整高度差分；光束与水下水平界面共用这些法线。`textures/itt-water-noise.png` 及其 `.mcmeta` 复制自同一参考包的 `texture/noise.png`。法线碰撞偏移、光量立方、折射投影、有限距离、分颜色消光、距离权重及线性加光改编 `UnderwaterVolumetricFog.glsl` 与 `composite5.fsh`；阴影矩阵Z轴方向沿用 `Lib/Programs/CompositeVS.glsl`，Cornette–Shanks公式改编 `Lib/Utilities.glsl`。掠射距离、光量上限与角度响应由Astra适配。
+
+单张世界波面碰撞光量图、覆盖窗口、解析梯度接线、非线性光量先于mip过滤、按屏幕足迹读取mip、外层四点Gauss遮挡/消光与权重分段内八点光量积分、实际水位投影、逐点入口/接受点遮挡、近远衰减、真实眼点、手部排除和弱支持端点处理由Astra编写或适配。当前RG16F源图的普通像素R存光量，零号RG存窗口偏移；水平界面直接计算同一波场，不从源图读取斜率。入射/观察水路的独立消光、波长小幅展宽及碰撞响应调节为Astra调整。没有额外包络、固定圆形入口、格内发射点、四深度切片或反求光路。Solas `volumetrics.glsl` 的两影图入射透光与遮挡分离、有限距离与昼夜强度分工属于 **IDEA ONLY**；逐角深度差配对本包水面身份/水高由Astra编写，没有移植其显式发射几何或阴影颜色采样循环。无空气光柱时裁掉散射绘制、附件清零，以及水面齐次深度交点直解为Astra自写优化。主世界Bloom配置的水下合成颜色改用RGB16F，并在所有抗锯齿模式中直接显示此颜色以避免重复压缩，由Astra编写；保留原水雾和显示公式。Solas水雾/显示、光照颜色、侧面噪声及水底焦散素材，Steadfast空气水面波场和共用阴影模块归属保持。没有新增外部素材，现行机制见[实现与限制](../docs/实现与限制.md)，参考入口见[参考与取舍](../docs/参考与取舍.md)。下方历史条目中的旧通道及机制不作为当前实现说明。
+
+`program/water.glsl` 的单足迹配对、四角共享逆投影、水深/雾量范围判断、失败后的端点复用、仅在失败时构造端点记录、延后颜色读取与空气段选择，`global/water/refraction.glsl` 的已读四角深度传递及同纹理格查询复用/重新选取最邻近深度，`global/water/raytrace.glsl` 的标准透视窗口深度判定、完整可见投影段查询及预测位置重新确认，以及 `lib/water_entity_record.glsl` 的覆盖与打包均为Astra适配。Steadfast提供连续四角接受与单次颜色读取的组织参考，没有提供这些新增具体算法；原文件派生归属及GPLv3/§7条款继续适用。`global/water/surface.glsl` 的单步视差与预算由Astra接线，沿用Steadfast原有高度插值、解析梯度与波脊表达式。先前新增的四角高度缓存及周期格键已移除，现直接读取高度并在位移位置求法线；不改其波场归属。波面单步视差、未消费反射锥裁减、已退出的四方向深度约束场景柔化、闲置水下合成绘制裁减及 `lib/water_wave_lens.glsl` 的水底聚光由Astra编写或适配；不把它们当作ITT移植范围。同帧碰撞光量缓存、顶点窗口计算、水下连续倒影的介质范围共享和反射细化时的自身纹元交点由Astra适配。水下透射窗口的原版太阳读取游戏活动资源包原有贴图，没有复制进光影包；程序模式继续解析盘，光色与云遮挡沿用现行天空，反射强度、细焦散和浅青配色为本地调整。既有体积散射分工参考范围保持；现行水雾公式与深度泛光改编范围见本页2026-10-12条目，没有移植专用DOF代码。现行行为见[实现与限制](../docs/实现与限制.md)，实际完成程度见[当前工作](../docs/当前工作.md)。
+
+- `program/water.glsl` 连续足迹共享代表路径传输、硬件双线性颜色读取，参考 Steadfast 0.8.0 `environment/lighting/translucent.glsl:471–487`、`environment/water/refraction.glsl:168–177` 的组织思路。空间距离、界面侧、角点进入的渐退、原几何证据复用与共享系数接口由 Astra 编写；新增范围登记 **IDEA ONLY**。文件原有 Steadfast 派生结构及 GPLv3／§7 附加条款继续适用，不能将整个文件改记为自写。
+- `global/water/raytrace.glsl` 与调用侧参考 Mellow `shaders/global/water.glsl:68–100`（`:89` 按 Fresnel 分配细化）的工作量分配思想。Astra 自写连续重要度、粗尾缩短、分数末次查询覆盖与重载接口，保持原命中细化；没有移植来源追踪、取整或步进表达式，登记 **IDEA ONLY**。
+- `global/water/surface.glsl` 的两层细涟漪距离渐退及稳定粗糙度衔接，是在既有 Steadfast 派生波场上的 Astra 新增适配。`global/water/absorption.glsl` 将现行 Astra 连续水色拆出透射与散射系数，没有引入新参考色谱或公式。MakeUp `lib/water.glsl:213–238` 只用于佐证物体倒影／环境回填／独立太阳高光的分工，未新增移植其代码。
+- 水面读取优化没有新增参考素材或代码片段；现行ITT光束的代码与噪声复用范围已在上方明确登记。既有Steadfast、Solas与其他被修改模块的归属继续适用；不以旧条目的“仅思路借鉴”覆盖当前代码级改编。
+
+### 2026-10-06：整包轻量近似实现
+
+本轮云粗搜索／二次边界细化与单点照明近似、下界 2×2 稀疏反射及 3×3 连续重建、水／积水共享短射线、波面视差松弛系数、Bloom 五点矩匹配、FXAA 搜索预算、阴影提交系数及实体距离配表、末地粗糙反射缓存容差由 Astra 编写或选择。继续沿用云／下界的 Complementary 派生、波面视差的 Steadfast GPLv3 与 §7 附加条款、FXAA 的 Arc MIT 及既有 Solas 噪声资源归属。未从新参考包复制代码或素材，未引入新第三方许可证；既有 vendor 原文与发布约束继续适用。下界反射元数据 B 已从 `256+flags` 改为 `512+flags`，下方旧布局记载为历史。见[整包轻量实现审视](../docs/archive/实现与取证.md#record-045)。
+
+### 2026-10-06：末地连续流纹与温度描绘
+
+`global/dimension/end_kerr.glsl` 盘面改用两尺度连续 Cartesian 流场与有界线性密度，由 Astra 编写，沿用既有原创流纹和周期 mip 图集；旧 `end_disc_noise/end_disc_detail` 的 Complementary / flytrap 五层程序细纹已从活动源码移除。下方这些函数和平方细节的条目保留历史出处，不能再描述当前材质。弱 `sqrt(radius)` 旋绕仍沿用 Solas 的既有结构归属，新的 .18 系数、足迹与动画接线由 Astra 选择。
+
+盘面温度驱动暖红/冷蓝描绘、亮度归一及光子环冷暖标定由 Astra 编写，黑体辅助函数、频移强度、光路图集和遮挡保留。未新增第三方代码、素材或 vendor 许可；近期 GitHub 阅读仅为调研，没有移植 MakeUp / Luster 片段。参考精简未删除本包 vendor 的许可原文。见 [参考清理与末地盘面](../docs/archive/实现与取证.md#record-052) 和 [线上更新调研](../shader_research/2026-10-06-recent-online-shader-updates.md)。
+
 ### 2026-10-04：SUMMARY-batch4 水体反射重复工作裁减
 
-阅读本地 dercode `lib/Surface/ScreenSpaceReflections.glsl` 的水下路径后，选取减少当前反射开销的方向；没有复制其抖动、深度容差、方差查询、远距命中或细化代码。条件式 Z/W 重建复用、SSR 已知锚点深度传递、完整命中跳过备用水雾与天空分支跳过无贡献颜色读取均为 Astra 既有代码调整。`program/water.glsl` 的 Steadfast 衍生组合结构和 Solas／ITT 既有来源继续适用，没有新增第三方片段或素材；范围见[第四批性能选择](../docs/2026-10-04-batch4-selected-optimizations.md)。
+阅读本地 dercode `lib/Surface/ScreenSpaceReflections.glsl` 的水下路径后，选取减少当前反射开销的方向；没有复制其抖动、深度容差、方差查询、远距命中或细化代码。条件式 Z/W 重建复用、SSR 已知锚点深度传递、完整命中跳过备用水雾与天空分支跳过无贡献颜色读取均为 Astra 既有代码调整。`program/water.glsl` 的 Steadfast 衍生组合结构和 Solas／ITT 既有来源继续适用，没有新增第三方片段或素材；范围见[第四批性能选择](../docs/archive/实现与取证.md#record-028)。
 
 ### 2026-10-04：SUMMARY-nightsky 主世界群星选择优化
 
-参考本地 Photon `include/sky/stars.glsl` 与 Bliss `lib/stars.glsl` 的固定格点四邻域连续重建，以及 Photon 的逐星颜色／相位思路；没有复制其函数或黑体拟合代码。整数格点随机数、双球面区域的平滑交叠、有限冷暖色板、弱闪烁、五档密度及星光贡献接入既有 TAA 反应遮罩由 Astra 编写。天体坐标使用既有太阳世界方向与 `sunPathRotation`，本地 Complementary `lib/util/commonFunctions.glsl::GetSunVector` 的方向约定用于确认天轴符号；未复制其太阳时间曲线。原 `stars.glsl` 保留的球面投影、地平线／日月遮蔽与天气／晨昏可见性继续归属 Complementary r5.9；本轮没有新增素材，范围见[夜空选择优化](../docs/2026-10-04-nightsky-selected-optimizations.md)。
+参考本地 Photon `include/sky/stars.glsl` 与 Bliss `lib/stars.glsl` 的固定格点四邻域连续重建，以及 Photon 的逐星颜色／相位思路；没有复制其函数或黑体拟合代码。整数格点随机数、双球面区域的平滑交叠、有限冷暖色板、弱闪烁、五档密度及星光贡献接入既有 TAA 反应遮罩由 Astra 编写。天体坐标使用既有太阳世界方向与 `sunPathRotation`，本地 Complementary `lib/util/commonFunctions.glsl::GetSunVector` 的方向约定用于确认天轴符号；未复制其太阳时间曲线。原 `stars.glsl` 保留的球面投影、地平线／日月遮蔽与天气／晨昏可见性继续归属 Complementary r5.9；本轮没有新增素材，范围见[夜空选择优化](../docs/archive/实现与取证.md#record-035)。
 
 ### 2026-10-04：水下曝光与模块衔接审查
 
-普通水体曲线前曝光调整、薄水层在既有曝光／AO／体积雾／天空／FXAA／颗粒消费者中的判定衔接，以及水平水面投影入口的无贡献材质读取裁减，均为现有 Astra 模块调整。没有新增第三方代码片段或素材；被修改的 Solas、Steadfast、Complementary 及其他既有衍生模块继续保留原来源归属。范围见[全项目模块审查](../docs/2026-10-04-full-module-review.md)。
+普通水体曲线前曝光调整、薄水层在既有曝光／AO／体积雾／天空／FXAA／颗粒消费者中的判定衔接，以及水平水面投影入口的无贡献材质读取裁减，均为现有 Astra 模块调整。没有新增第三方代码片段或素材；被修改的 Solas、Steadfast、Complementary 及其他既有衍生模块继续保留原来源归属。范围见[全项目模块审查](../docs/archive/实现与取证.md#record-030)。
 
 ### 2026-10-03：SUMMARY-batch3 选择实施
 
-参考 Potato 的风场距离门控思路，Astra 自行编写 128–192 格平滑衰减，并将摄像机相对距离接入当前模型、既有投影与上一帧植物位移；没有复制其风场、天光调制或原样硬截止。参考 Bloop 的单通道邻域 gather 思路，Astra 自行编写两次 gather 加两个独立角点的完整 3×3 反应遮罩聚合及边界回退，没有复制参考包遗漏一个角点的函数。参考 Builder's QOL 的帧量上提思路，把既有云白天光色与环境色公式移至 CPU 求值；其原 Complementary 衍生公式来源与许可继续适用。本轮没有新增第三方实现片段或素材，范围与取舍见[第三批选择记录](../docs/2026-10-03-batch3-selected-optimizations.md)。
+参考 Potato 的风场距离门控思路，Astra 自行编写 128–192 格平滑衰减，并将摄像机相对距离接入当前模型、既有投影与上一帧植物位移；没有复制其风场、天光调制或原样硬截止。参考 Bloop 的单通道邻域 gather 思路，Astra 自行编写两次 gather 加两个独立角点的完整 3×3 反应遮罩聚合及边界回退，没有复制参考包遗漏一个角点的函数。参考 Builder's QOL 的帧量上提思路，把既有云白天光色与环境色公式移至 CPU 求值；其原 Complementary 衍生公式来源与许可继续适用。本轮没有新增第三方实现片段或素材，范围与取舍见[第三批选择记录](../docs/archive/实现与取证.md#record-019)。
 
 ### 2026-10-03：植物投影恢复与浅水／竖直水帘衔接
 
-`lib/water_interface_record.glsl` 的介面类型标识、既有一像素介质记录的薄层分类与消费，以及 `program/water.glsl::astra_vertical_water_interface` 的短水路和有界反光由 Astra 编写。浅段吸收与补色参数、薄层照明／显示／雾接线和投影入口对植物的恢复均为现有模块的调整，没有新增第三方片段或素材。水平窗口与普通水体继续沿用既有 ITT／Solas／Steadfast 来源；此轮未移植新的流体拓扑查询或追踪器。竖直水帘的反光为外观近似，识别边界、开销和画面确认状态见[花草投影与流水衔接](../docs/2026-10-03-plant-shadows-and-water-sheets.md)。
+`lib/water_interface_record.glsl` 的介面类型标识、既有一像素介质记录的薄层分类与消费，以及 `program/water.glsl::astra_vertical_water_interface` 的短水路和有界反光由 Astra 编写。浅段吸收与补色参数、薄层照明／显示／雾接线和投影入口对植物的恢复均为现有模块的调整，没有新增第三方片段或素材。水平窗口与普通水体继续沿用既有 ITT／Solas／Steadfast 来源；此轮未移植新的流体拓扑查询或追踪器。竖直水帘的反光为外观近似，识别边界、开销和画面确认状态见[花草投影与流水衔接](../docs/archive/实现与取证.md#record-021)。
 
 ### 2026-10-03：连续深度水色、弱浅水焦散与岸上开销裁减
 
-连续深度权重、浅水吸收参数、接收面水深驱动的中性聚光与标量峰值压缩，以及水记录的两通道 gather 路径均由 Astra 编写。`global/water/raytrace.glsl` 的齐次投影复用、界面平面判据和本射线深度读取复用也是 Astra 编写；没有新增第三方片段。`global/lighting/diffuse.glsl` 依据既有叶片包裹方程排除零直射贡献查询，`program/water.glsl` 复用反射滤波的中心颜色；原 Steadfast 衍生模块许可继续适用。下方光学波场、Solas 色彩合成和其他既有出处保持归属，现行表面焦散不再使用固定青色乘聚光并逐通道截断。范围与尚未确认的帧率目标见[连续水色与岸上开销](../docs/2026-10-03-shore-water-and-performance.md)。
+连续深度权重、浅水吸收参数、接收面水深驱动的中性聚光与标量峰值压缩，以及水记录的两通道 gather 路径均由 Astra 编写。`global/water/raytrace.glsl` 的齐次投影复用、界面平面判据和本射线深度读取复用也是 Astra 编写；没有新增第三方片段。`global/lighting/diffuse.glsl` 依据既有叶片包裹方程排除零直射贡献查询，`program/water.glsl` 复用反射滤波的中心颜色；原 Steadfast 衍生模块许可继续适用。下方光学波场、Solas 色彩合成和其他既有出处保持归属，现行表面焦散不再使用固定青色乘聚光并逐通道截断。范围与尚未确认的帧率目标见[连续水色与岸上开销](../docs/archive/实现与取证.md#record-022)。
 
 ### 2026-10-03：水下轻柔化、透明浅水与水下雨滴过滤
 
-`lib/water_diffusion.glsl` 的固定四点深度加权扩散、距离强度与窗口保留条件，以及 `global/water/absorption.glsl` 的透明浅水／青色中段／蓝色深段参数由 Astra 编写。朦胧观感参考用户提供的 ITT 3.2 画面，读取其 `composite1.fsh::WaterFog` 作为距离雾参考，没有移植新的模糊代码或素材。雨滴过滤移除摄像机在水外的限制，沿用下方已登记的 Photon／Hysteria 蓝色粒子识别机制。既有被修改模块的来源归属继续适用，具体范围见[水体三处调整](../docs/2026-10-03-water-final-polish.md)。
+现已退出的自写 `lib/water_diffusion.glsl` 固定四点深度加权扩散、距离强度与窗口保留条件，以及 `global/water/absorption.glsl` 的透明浅水／青色中段／蓝色深段参数由 Astra 编写。朦胧观感参考用户提供的 ITT 3.2 画面，读取其 `composite1.fsh::WaterFog` 作为距离雾参考，没有移植新的模糊代码或素材。雨滴过滤移除摄像机在水外的限制，沿用下方已登记的 Photon／Hysteria 蓝色粒子识别机制。既有被修改模块的来源归属继续适用，具体范围见[水体三处调整](../docs/archive/实现与取证.md#record-025)。
 
 ### 2026-10-03：光束逐步波面变化与水下全反射窗口
 
 参照本地 ITT 3.2.0 `Lib/IndividualFounctions/UnderwaterVolumetricFog.glsl`、`Lib/BasicFounctions/Sunlight_Shadow.glsl` 的波面法线场投影，由 Astra 编写现有水面阴影记录的斜率/聚光缓存、每个体积步的水面位置查询及局部折射投影；没有移植 ITT 的法线附件和多层波形素材。`light_shafts.glsl::water_shaft_phase` 按 ITT `Lib/Utilities.glsl::MiePhaseFunction` 的 Cornette–Shanks 结构改编，使用 Astra 的归一化、底光与峰值限制。
 
-`program/water.glsl` 根据 ITT `composite1.fsh` 的折射方向天空查询、全反射判断，以及 `composite2.fsh` 的反射组合组织，接入 Astra 已有介电方程和天空/云环境。菲涅尔计算、水路补全、缓存格式及主世界底面波场接线为 Astra 编写。Solas 的色彩合成域及侧面法线、Mellow 的 IGN、Steadfast 阴影和透明组合的既有出处继续适用。实现、数据格式和开销见[光束与菲涅尔环说明](../docs/2026-10-03-underwater-optical-motion-and-window.md)。下方各历史条目中的旧通道格式、旧相位和法线描述以本节及说明中的现行为准。
+`program/water.glsl` 根据 ITT `composite1.fsh` 的折射方向天空查询、全反射判断，以及 `composite2.fsh` 的反射组合组织，接入 Astra 已有介电方程和天空/云环境。菲涅尔计算、水路补全、缓存格式及主世界底面波场接线为 Astra 编写。Solas 的色彩合成域及侧面法线、Mellow 的 IGN、Steadfast 阴影和透明组合的既有出处继续适用。实现、数据格式和开销见[光束与菲涅尔环说明](../docs/archive/实现与取证.md#record-024)。下方各历史条目中的旧通道格式、旧相位和法线描述以本节及说明中的现行为准。
 
 ### 2026-10-03：根据三张水下截图调整水体、光束与焦散
 
@@ -45,21 +89,21 @@
 - `lib/water_palette.glsl` 的青色调与密度参数由 Astra 编写，颜色方向参考用户提供的 ITT 3.2 截图。`lib/solas_water.glsl` 保留 Solas V2.2b 的水雾合成域、天气/日夜响应与显示曲线，更新雾量及迎光系数；Solas 来源继续适用。
 - `global/water/light_shafts.glsl` 的短水段积分、折射光源相位、聚光的三次方对比及距离衰减，改编自本地 ITT 3.2.0 `Lib/IndividualFounctions/UnderwaterVolumetricFog.glsl` 的结构。Astra 采用现有成对阴影深度与水面类型数据、48 格上限、递推透射与有界 HG 相位；没有移植 ITT 法线缓存、Cornette–Shanks 相位公式或额外附件。Solas 的四次方根存储/解码与既有历史来源继续保留，重建改为四角读取。
 - `global/water/caustics.glsl` 的水下界面法线仍来自 Solas。新增聚光部分借鉴 ITT `Lib/BasicFounctions/Sunlight_Shadow.glsl::CalculateWaterCaustics` 的波面折射落点聚集思路，由 Astra 编写平滑值噪声的解析曲率、两个波层及落点面积倒数；没有复制其 3×3 落点循环或波形素材。现有 Solas 噪声素材来源继续适用。
-- `global/lighting/diffuse.glsl` 的深水环境光接线、既有水面状态消费、`shaft_history.glsl` 的积分窗口中点改动由 Astra 编写；上述被修改模块的既有 Steadfast、Solas 与其他来源归属继续适用。实现范围见[水下风格调整](../docs/2026-10-03-underwater-itt-style.md)。
+- `global/lighting/diffuse.glsl` 的深水环境光接线、既有水面状态消费、`shaft_history.glsl` 的积分窗口中点改动由 Astra 编写；上述被修改模块的既有 Steadfast、Solas 与其他来源归属继续适用。实现范围见[水下风格调整](../docs/archive/实现与取证.md#record-023)。
 
 ### 2026-10-03：轻量水下雾的距离响应
 
-`shaders/lib/solas_water.glsl` 继续沿用已登记的 Solas V2.2b 水雾颜色、迎光项及平方根域混合，Septonious 与既有来源归属继续适用。对照 IterationT 3.2.0 `shaders/composite1.fsh::WaterFog` 中距离雾、颜色衰减与方向性散射分别计算的组织，本轮由 Astra 编写 `d*d/(d+12)` 的近处平滑减雾曲线，并将默认档位 40 的远距离消光系数设为每格 0.015。没有移植 ITT 的光线步进、颜色吸收表达式或素材，也没有额外叠加一层 ITT 雾。具体范围见[轻雾调整说明](../docs/2026-10-03-underwater-light-haze.md)。
+`shaders/lib/solas_water.glsl` 继续沿用已登记的 Solas V2.2b 水雾颜色、迎光项及平方根域混合，Septonious 与既有来源归属继续适用。对照 IterationT 3.2.0 `shaders/composite1.fsh::WaterFog` 中距离雾、颜色衰减与方向性散射分别计算的组织，本轮由 Astra 编写 `d*d/(d+12)` 的近处平滑减雾曲线，并将默认档位 40 的远距离消光系数设为每格 0.015。没有移植 ITT 的光线步进、颜色吸收表达式或素材，也没有额外叠加一层 ITT 雾。具体范围见[轻雾调整说明](../docs/当前工作.md)。
 
 ### 2026-10-02：视频参考包性能机制与调色组织
 
-已下载的 14 款参考光影、版本、来源和逐包性能机制见 [研究记录](../docs/2026-10-02-shader-reference-performance.md)，本地档案见 `_analysis/video-2026-10-01/sources.json`。Derivative 为 DureXXX 团队维护的 main 分支 25.1.0，IterationT 3.2.0 为公开镜像。
+已下载的 14 款参考光影、版本、来源和逐包性能机制见 [研究记录](../docs/archive/参考调研.md#record-014)，本地档案见 `_analysis/video-2026-10-01/sources.json`。Derivative 为 DureXXX 团队维护的 main 分支 25.1.0，IterationT 3.2.0 为公开镜像。
 
 本轮新增的 `lib/color_controls.glsl`、分时天空通道、暗部 / 中间调 / 高光通道及菜单由 Astra 编写；配置组织借鉴 Mellow 的独立颜色方案、天空上下层与光源分组。阴影过滤预算、云 / 体积雾档位，以及 CPU 光源衰减为现有 Astra 模块的适配；依据参考包中的小采样核、降分辨率和帧不变量计算思路，没有新增参考 GLSL 或素材的直接移植。四种颜色方案的倍率为 Astra 自行设定。现有被修改模块的既有来源与许可归属继续适用。
 
 ### 2026-10-01：雨滴溅落粒子的颜色识别参考
 
-`shaders/lib/rain_particles.glsl` 参考 Photon（SixthSurge / Benjamin Stott）的 `program/gbuffers_all_solid.fsh` 与 Hysteria（nvb-uy）的 `program/gbuffer/solid.glsl`：两者在粒子程序中识别蓝色溅落粒子并舍弃。Astra 采用该识别机制，自行编写雨量与摄像机条件、颜色判别函数，以及不透明/透明粒子入口接线；没有移植参考程序主体或素材。Photon 副本许可为 Photon Shaders License Agreement，Hysteria 副本为 AGNYA License Rev 1.3；参考副本路径及识别限制见 [性能修复记录](../docs/2026-10-01-performance-review.md)。
+`shaders/lib/rain_particles.glsl` 参考 Photon（SixthSurge / Benjamin Stott）的 `program/gbuffers_all_solid.fsh` 与 Hysteria（nvb-uy）的 `program/gbuffer/solid.glsl`：两者在粒子程序中识别蓝色溅落粒子并舍弃。Astra 采用该识别机制，自行编写雨量与摄像机条件、颜色判别函数，以及不透明/透明粒子入口接线；没有移植参考程序主体或素材。Photon 副本许可为 Photon Shaders License Agreement，Hysteria 副本为 AGNYA License Rev 1.3；参考副本路径及识别限制见 [性能修复记录](../docs/archive/实现与取证.md#record-007)。
 
 > 本地参考副本不随仓库提供。Steadfast 0.8.0 的获取位置、目录布局及替代路径参数见 [工具配置](../qa/tools/README.md#参考副本)。
 
@@ -80,15 +124,19 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 
 ## 登记表
 
+2026-10-06 主世界天空共享与阴影链处理：`lib/sky_gradient_cache.glsl` 的双角度坐标、257×257 同帧表及 prepare 调度由 Astra 编写；表内计算调用现有 `sky_gradient.glsl` 的 Complementary 衍生天空方程，原出处与许可继续适用，不将这些方程改记为 IDEA ONLY。根目录 `shadow_solid.vsh/fsh` 入口、`program/shadow.fsh` 的不透明专用分支与 `global/lighting/{shadowmap,diffuse}.glsl` 的接收面共享准备为 Astra 编写，原 Steadfast 及既有片段来源继续适用。没有新增参考包代码或素材。范围与有限精度插值取舍见[主世界阴影与天空深度优化记录](../docs/archive/实现与取证.md#record-051)。
+
+2026-10-06 主世界云边缘与配色共享：`lib/cloud_sample_grid.glsl` 的子像素表复用 Astra 自有 `taa_jitter.glsl`，云网格偏移、历史坐标校准与消费滤波为 Astra 编写，没有新增上游代码或素材。`shaders.properties` 的云日夜／天气／亮度配色由现有 `clouds_planar.glsl` 中的 Complementary 衍生表达式移动而来，保持原出处与许可归属，不能因移到 CPU 求值而登记为 IDEA ONLY。实施范围见[主世界云与开销记录](../docs/archive/实现与取证.md#record-049)。
+
 2026-09-27 空间抗锯齿与云影缓存：
 
 - `shaders/global/post/fxaa.glsl` 改编自本地 Arc v0.15.2 `shaders/lib/fxaa_2.glsl` 的邻域边缘方向、双向端点搜索与亚像素偏移结构；根 `LICENSE` 的 MIT 全文及版权行存放在 `shaders/lib/vendor/arc/LICENSE.txt`，实际源码保留出处、SPDX 与许可路径。Astra 改用显示颜色 + alpha 亮度、限制边界坐标、只使用实际搜索到的端点、降低亚像素平滑权重，不移植 Arc 的 HDR/log 亮度或曝光恢复链。
 - `program/display.fsh` 是 Astra 原 `program/final.fsh` 的场景组装与显示部分移动，原有来源继续适用；新增 `composite6` 薄入口、开关与 final AA 接线为 Astra 编写。
 - `global/atmosphere/cloud_shadow_cache.glsl`、`program/cloud_shadow_cache.fsh`、根层 `prepare2` 借鉴 Refrax / Hysteria 预计算云影的思路，投影、网格锚点、边界过渡与 R16 存储均为 Astra 新写，没有复制它们的表达式。缓存的粗噪声场调用 Astra 已有 Complementary 派生云模块，来源声明沿用。
 
-2026-09-27 可见云降分辨率：`program/cloud_screen.fsh`、`global/atmosphere/clouds_screen.glsl`、根层 `prepare1.vsh/fsh` 为 Astra 新写。参考包全景调研中的低分辨率云只提供思路，没有新增上游表达式；云模型继续使用现有 Complementary 派生模块。`clouds_planar.glsl` 抽出原来的层区间求交供合成复用；屏幕图的预乘表示、地形局部步进选择及天空 / 日月接线为 Astra 实现。实际范围见 [实施记录「2. 前序已完成：A1–A3、B1–B3」一节（A3/B1 行）](../docs/2026-09-26-itt32-initial-implementation.md)。
+2026-09-27 可见云降分辨率：`program/cloud_screen.fsh`、`global/atmosphere/clouds_screen.glsl`、根层 `prepare1.vsh/fsh` 为 Astra 新写。参考包全景调研中的低分辨率云只提供思路，没有新增上游表达式；云模型继续使用现有 Complementary 派生模块。`clouds_planar.glsl` 抽出原来的层区间求交供合成复用；屏幕图的预乘表示、地形局部步进选择及天空 / 日月接线为 Astra 实现。实际范围见 [实施记录「2. 前序已完成：A1–A3、B1–B3」一节（A3/B1 行）](../docs/archive/实现与取证.md#record-001)。
 
-2026-09-26 首批 ITT 设计借鉴（详见 [落地方案](../docs/2026-09-26-itt32-initial-implementation.md)）：
+2026-09-26 首批 ITT 设计借鉴（详见 [落地方案](../docs/archive/实现与取证.md#record-001)）：
 
 - `shaders/lib/nether_fog_density.glsl`：借鉴 ITT 3.2 按群系区分雾密度的思路；Astra 自定五组倍率与权重不足时的过渡，接入既有距离雾和 Bliss 体积雾。没有复制 ITT 表达式。
 - `shaders/lib/wet_material.glsl`、`program/lit.vsh/fsh`、`block.properties`：借鉴材质湿润响应的分类思路；方块族、两位编码、暗化系数、有限直射光泽与积水分工均为 Astra 新写。
@@ -108,6 +156,8 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 | `shaders/lib/bayer.glsl` | 无参考（自写：教科书式 Bayer 递归构造，公共域模式） | 自写 | — | `// written for Astra` |
 | `shaders/lib/vendor/arc/` | Arc v0.15.2 | FXAA 来源与许可隔离目录；实际改写在 `global/post/fxaa.glsl` | MIT | 目录 README 记录原文件与 Astra 适配 |
 | `shaders/lib/vendor/arc/LICENSE.txt` | Arc v0.15.2 根 `LICENSE` | 保留 MIT 许可全文与 Copyright (c) 2022 Minecraft / Shaders | MIT | 许可正文集中存放，运行源码保留短出处 |
+| `shaders/lib/vendor/musk-rose/` | Musk Rose Shaders 4.1（作者 Rin） | 环境 BRDF 来源与许可隔离目录；实际改写在 `lib/environment_brdf.glsl`（标量改编），本目录只存许可正文 | CC0-1.0 | 目录 README 记录历史来源与 Astra 适配边界 |
+| `shaders/lib/vendor/musk-rose/LICENSE.txt` | Musk Rose Shaders 4.1 随附许可正文 | 保留 CC0 1.0 全文；该包许可本身不带要求保留的版权行 | CC0-1.0 | 许可正文集中存放，运行源码保留短出处 |
 | `shaders/shaders.properties` 的 `CUSTOM UNIFORMS` 段 | Steadfast 0.8.0（coderbot）；其中 9 条 `astraSolas*` 改写自 Solas V2.2b 时间/日相表达式 | 表达式级移植；当前 200 个名称（68 `uniform.*` + 132 `variable.*`）：verbatim=12 literal-suffix=2 rewritten=6 astra-only=180。包含后来移至 CPU 的天空、云、水体、体积与群星表达式；分类范围和方法见下节 | Steadfast 部分：GPLv3 + §7 两条附加条款；Solas 部分沿用其来源登记 | 段内保留 Steadfast 表达式级移植说明；astra-only 仅表示 Steadfast 无同名定义，不代表没有其他来源 |
 | `shaders/block.properties` 基础表（10001–10007、10021–10027） | Mellow v3.4（`block.properties` 现代分支） | 逐行移植（数据表；删除 floodfill 10020） | MIT | 文件头注明 |
 | `shaders/item.properties` | 沿用 Astra 的 `block.properties` 材质分类，其中基础成员表来自 Mellow v3.4（TheCMK）；玻璃、冰、末地石与黑曜石沿用 Astra 分类 | 按物品注册名整理；省略仅方块存在的 ID 及依赖激活状态的发光体 | Mellow 来源数据沿用 MIT | 文件头说明来源与整理范围 |
@@ -119,7 +169,7 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 | `shaders/global/atmosphere/fog.glsl` | Steadfast 0.8.0（`environment/fog.glsl` 的 FogV2） | **表达式级移植**（雾色改为参数而非 custom uniform——Astra 的 Z3 uniform 集冻结于 SC-14，雾色归 D2/C1；FOG_DENSITY/UNDERWATER_FOG_DENSITY/SKY_FOG_STRENGTH 在此接入；空气透视与 biome tint 为 Astra 自实现，Refrax 仅思路） | GPLv3 + §7 两条附加条款 | 文件头 GPL 声明 |
 | `shaders/global/lighting/wind.glsl` | **2026-09-10 换源：Complementary r5.9（`lib/materials/materialMethods/wavingBlocks.glsl` 的 GetRawWave:5-16 / GetWave:18-33 / DoWave_Leaves:52-67 / DoWave_Foliage:35-50）** — 换源前为 Steadfast 0.8.0（`environment/wind.glsl` 的 WindDisplacement + `program/world/lit.vsh` 的 WaveFoliage），现仅保留历史出处行，无 Steadfast 表达式残留 | **表达式级移植 / 形状级逐字**（两条波形、共享的 GetRawWave 与振幅链逐字照抄；材质无关化沿用 Astra 接线：materialID 判据改为调用方布尔参数；WAVING_FOLIAGE_STRENGTH 映射参考 WAVING_I、雨增益保留 Astra 自有 Steadfast 期响应） | **Complementary License 1.7（专有）** — 本文件已无 Steadfast 派生表达式，故不再适用 GPL 条款；文件头以「Historical provenance」段说明换源前后的关系 | 文件头含 Complementary r5.9 逐处 file:line 出处、`Historical provenance` 段与发布门提示 |
 | `shaders/global/post/godrays.glsl` + `shaders/program/composite.fsh`（pass 体） | Steadfast 0.8.0（`program/post/noisy_godrays.fsh`） | **表达式级移植**（起步抖动换 Astra 自写 lib/bayer.glsl；`windowToScreenGodrays`/`screenLightVector` 两个 CPU uniform 改为 composite.vsh 顶点级投影，避免动 Z3 冻结的 uniform 集） | GPLv3 + §7 两条附加条款 | 文件头 GPL 声明 |
-| `shaders/global/post/bloom.glsl` + `shaders/program/composite1.fsh`（pass 体） | Refrax v1.3.1（`lib/bloom.glsl` 的 bloomPrefilter 软阈值、`program/bloom_downsample.fsh.glsl` 的 13-tap 下采样） | **公式级移植**（Refrax 建 6 级图集再两级模糊；Astra 改为 mipmap 链 + 两 pass，多级合成权重与 additive 合成为 Astra 自定） | 专有（保留所有权利） | `// PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - REWRITE REQUIRED before distribution` |
+| `shaders/global/post/bloom.glsl` + `shaders/program/composite1.fsh`（pass 体） | 现行实现：Astra 自写；Refrax / MakeUp / Mellow 仅提供高亮筛选、低预算及 mip 组织思路（IDEA ONLY）。历史 Refrax 公式移植见下方 2026-09-05、10-01、10-02 记录，2026-10-05 已替换。 | 当前为自写积分激活曲线、中心加十二点圆盘高档核；既有自写低/均衡核、mip 加法权重及阶段接线保留。未移植 Ebin 或其他替代包代码。 | 当前代码随 Astra 主许可；历史 Refrax 专有归属保留追溯，原两处公式不再处于活动实现 | 文件头 `Original Astra HDR bloom` / `IDEA ONLY; no upstream filtering expression retained`，详见本文件 2026-10-05 增补 |
 | `shaders/program/scattering.fsh` 的 `godrays_sun_visibility()` 与 `shaders/program/final.fsh` 的读回 | LIGHT Shaders 1.8.0（Chocapic13' 谱系）。思路出处按 2026-09-20 调研记录（§2.11、§6 P1-6）：`composite.fsh:423-433` 角落像素的日面深度遮挡探测 → `:582` 写入 alpha 广播 → `final.fsh:329` 读回乘到光束强度上。**这三处 file:line 抄自该调研，本轮未在本地重验**（原包目录已清理，`_analysis/study-2026-09-20/` 现仅剩 ComplementaryUnbound_r5.9.3）；本轮结论只依赖「有这种架构」这一条，不依赖具体行号 | **仅思路（IDEA ONLY）**：只取「一个像素做日面窗口探测 + 用 alpha 广播给后续 pass」这一架构。全部具体决定为 Astra 自写：7×7 抽、±12 像素半窗、深度源取 **depthtex1**（只用不透明深度，玻璃与水面不得误杀光束）、越界抽点不计入分母（与在窗抽点归一，而非按 0 计）、无在窗抽点时失败开放返回 1.0、载体复用 `colortex1` 的 texel (0,0) alpha（不新增缓冲、不新增 pass）、消费点为阶段 2 的一次 `texelFetch`。选项 `GODRAYS_SUN_OCCLUSION` 默认关闭，待实机 A/B | Chocapic13 Sharing Agreement（只读思路，不得照搬表达式） | 函数头注释 `Idea from Chocapic13' LIGHT (Sharing Agreement)` |
 | `shaders/lib/settings.glsl` 的 ENGINE KNOBS 增补（entityShadowDistanceMul / shadowHardwareFiltering，SC-13） | Mellow v3.4（`lib/settings.glsl:268` 的 entityShadowDistanceMul 比例形式、`global/configurations.glsl:17` 的不带后缀 shadowHardwareFiltering） | 仅思路/形式参考（表达式为 Astra 写法；2026-09-20 起为 8×5 字面量表 `ENTITY/(SHADOW×1.5)`，见 lib/settings.glsl:230-326，规避 Iris 的算术解析限制） | MIT | 行内注释注明 |
 | `shaders/program/composite.vsh` 的 lightScreenPos 投影 | 无参考（自写：gbufferProjection * vec4(lightVector, 0)，W=0 方向投影） | 自写 | — | `// written for Astra` |
@@ -152,7 +202,7 @@ Steadfast 借用行例外——其分类计数由 `python qa/tools/provenance_st
 
 ## Steadfast 借用复核（机械可验证）
 
-水下光束当前来源以登记表和文件头为准：现实现改编自 Solas V2.2b，SC-33 自写版本与后来的 IterationT 版本均为历史实现，不再描述当前文件。
+水下光束当前来源以本文件“现行水路来源”及文件头为准；下方SC-33及后续旧格式条目为历史归属，不描述当前世界光场。
 
 - 复核命令：`python qa/tools/provenance_steadfast.py`（逐条比对 `Astra/shaders/shaders.properties`
   与 `_analysis/Steadfast-0.8.0/shaders/shaders.properties` 的 `uniform.*`/`variable.*` 定义；
@@ -521,7 +571,7 @@ WarpSpace、旋转矩阵、纹理噪声、FBM、pcurve、IGN 等未被当前渲�
 - 本轮参考 Steadfast 0.8.0 的 CPU / GPU 计算分工、紧凑 HDR 存储和效果预算思路，具体缓冲调度、AO 七位打包、质量配置与水反射五点过滤由 Astra 编写；未新增从该包直接复制的表达式或素材。Astra 既有 Steadfast 派生模块和来源登记继续适用。
 - `global/atmosphere/sky_gradient.glsl` 的帧内一致昼夜曲线、白天天空调色与眩光底色移至 `shaders.properties`。这些表达式继续沿用此前 Complementary r5.9 Reimagined 的来源、作者 EminGT 和既有许可，计算位置变更不改变出处；模块文件头列出的 Astra 输入映射与偏离仍适用。
 - `global/atmosphere/sky_minishita.glsl` 共用日月视线积分位置及密度，源方向与权重改由公共参数提供，属于 Astra 现有散射实现的重组。`lib/transforms.glsl` 的新增公共光源接口由 Astra 编写，既有 Mellow MIT 坐标变换归属不变。
-- `global/water/raytrace.glsl`、`global/water/surface.glsl`、`program/water.glsl` 的预算档位、无贡献反射跳过及掠射视差衰减为 Astra 适配；波形和水下界面继续沿用现有 Steadfast / Solas 归属。具体参数与精度取舍见[实施记录](../docs/2026-10-02-steadfast-optimizations.md)。
+- `global/water/raytrace.glsl`、`global/water/surface.glsl`、`program/water.glsl` 的预算档位、无贡献反射跳过及掠射视差衰减为 Astra 适配；波形和水下界面继续沿用现有 Steadfast / Solas 归属。具体参数与精度取舍见[实施记录](../docs/archive/实现与取证.md#record-015)。
 
 ### 2026-10-02：二十包 SUMMARY 的采用项
 
@@ -530,11 +580,55 @@ WarpSpace、旋转矩阵、纹理噪声、FBM、pcurve、IGN 等未被当前渲�
 - `global/atmosphere/volume_fog.glsl`：短射线少步的思想参考 Nostalgia / Kappa / Hysteria，近处加密的通用分段思想参考 Shrimple / Complementary / Solas；本轮次数公式、二次边界及分段积分接线由 Astra 编写。
 - `global/post/bloom.glsl`：低 / 均衡捕获核由 Astra 编写，参考 MakeUp / Mellow 的小预算与 mip 组织思路。高档的既有十三点核及 prefilter 沿用 Refrax 原登记；本轮没有将整个 Bloom 文件重新归属为原创。
 - `global/lighting/blocklight.glsl`：玩家光心、连续衰减及源头限幅的思想参考 Hysteria / Insanity / BSL 报告；新手持曲线由 Astra 编写，原文件的 Steadfast 与 Refrax 衍生登记继续适用。`program/taa_resolve.fsh` 的中心可信度思想参考 Photon / Kappa / Mellow，采用 Astra 自有权重及逐角点历史接口。
-- `global/post/grading.glsl` 的可选夜间蓝移由 Astra 编写，思想来源为 Mellow / Bliss / Photon / Nostalgia / Kappa。`program/display.fsh` 的无 Bloom 阶段合并、实体投影名单和零贡献阶段配置属于 Astra 接线；现有 Solas 水下合成公式未重新归属。参数及采用边界见[本轮实施记录](../docs/2026-10-02-summary-optimizations.md)。
+- `global/post/grading.glsl` 的可选夜间蓝移由 Astra 编写，思想来源为 Mellow / Bliss / Photon / Nostalgia / Kappa。`program/display.fsh` 的无 Bloom 阶段合并、实体投影名单和零贡献阶段配置属于 Astra 接线；现有 Solas 水下合成公式未重新归属。参数及采用边界见[本轮实施记录](../docs/archive/实现与取证.md#record-017)。
 
 ### 2026-10-02：批次二 SUMMARY 的采用项
 
 - `lib/environment_brdf.glsl` 的标量环境拟合改编自 Musk Rose Shaders 4.1（作者 Rin），本地出处 `reference_shaderpacks/musk-rose-shaders/shaders/programmes/utils/musk_rose_pbr.glsl::getEnvironmentBRDF`，包内许可 CC0-1.0。原来源的 UE4 mobile BRDF 链接保留在文件头；[许可全文](shaders/lib/vendor/musk-rose/LICENSE.txt) 随包保留。共享指数、零粗糙度归一化、0–1 限幅及水 / 冰 / 积水天空退路接线为 Astra 适配，原表面 Fresnel 不重复相乘。
 - `lib/sky_reflection_cache.glsl` 的可选粗糙度 LOD、逐层周期接缝插值及 `prepare2` mip 调度由 Astra 编写；仅参考 Glimmer / Musk Rose / Voyager 报告关于共享环境与粗糙度的组织方向，没有复制 Glimmer 或 Voyager 的代码。天空与云缓存内容继续沿用各模块既有来源，HDR 格式保持原设定。
 - `shaders.properties` 的周期时钟突变信号及 TAA、独立云、独立效果历史、曝光接入，以及 `global/atmosphere/volume_fog.glsl` 的原点 / 方向平行阴影空间射线，由 Astra 编写；仅参考 UShader 报告的方法，没有搬运 UShader 表达式。原坐标变换、光照、天气与积分模块的既有归属继续适用。
-- 本轮没有引入参考包贴图、静态 LUT、SSDO、Builderb0y 阴影实现或 dirtyLens 素材。具体适用条件、默认关闭的粗糙反射选项和开销见[实施记录](../docs/2026-10-02-batch2-implementation.md)。
+- 本轮没有引入参考包贴图、静态 LUT、SSDO、Builderb0y 阴影实现或 dirtyLens 素材。具体适用条件、默认关闭的粗糙反射选项和开销见[实施记录](../docs/archive/实现与取证.md#record-009)。
+
+### 2026-10-04：多报告处置增补（IDEA ONLY）
+
+- `program/shadow.vsh`：参考本地 `reference_shaderpacks/just-colored-lighting/shaders/shadow.vsh:81,94–96` 在体素采集后将非可见维度的投射顶点移出裁剪区的思路。Astra 仅在下界应用，沿用本包已有裁剪表达和输出初始化约定；没有复制参考源码、命名、素材或公式，登记为 **IDEA ONLY**。该包按保留所有权利处理，不将此记录视为代码复用授权。体素写入先执行，末地及主世界仍保留投射。对应四报告总表的下界阴影栅格工作条目。
+- 许可勘误以本地许可原文为准：renderpearl 是 MIT；aurora-fantasy / aurora-astral 是 LGPL-3.0；soft-voxels-lite 是 All Rights Reserved。这里只核正调研元数据，没有搬运这些包的源码或资产，故没有新增 vendor 许可文件。已有资产限制及历史待决项继续有效。
+- 现行下界反射没有体素灯光梯度高光；现行下界混光仍包含 `sqrt` 和双域 `min`。上方历史记录须结合后续接续记录阅读，不再作为现行代码的完整描述。旧探针已明确标为历史，不用于支持现行数值。
+
+### 2026-10-05：末地缓存、固定星表与 Bloom 自写替换
+
+- `lib/end_reflection_cache.glsl`、`program/end_reflection_cache.fsh`、`world1/prepare1.fsh/vsh`：Astra 自写生产/消费、周期接缝、邻点接受条件及精细区域保留；复用已登记的 Astra 球面映射组织（ITT 环境共享仅 IDEA ONLY），缓存内容由现有末地模块计算，各模块既有来源继续有效。
+- `lib/end_star_catalogue.glsl`、`program/end_star_rows.csh`、`program/end_star_catalogue.csh`、`world1/setup.csh`、`setup1.csh`、`setup2.csh`：Astra 自写紧凑布局、初始化与读取；原星格生成器、分布及 FP32 精度保留，没有引入外部星表、图片或替代生成公式。
+- `global/post/bloom.glsl`：当前软阈值是自行推导的积分激活曲线，高档是中心加十二点等角圆盘核，已替换历史 Refrax 二次膝区与方形十三点核。低/均衡滤波、mip 权重、捕获比例和阶段接线继续为 Astra 自写；Refrax / MakeUp / Mellow 只保留一般组织思路，登记为 **IDEA ONLY**。没有移植 Ebin 代码，故没有新增 vendor 许可。历史 09-05/10-01/10-02 关于旧公式的记录保留追溯，不能再当作当前活动 Bloom 的归属。
+- `global/water/bloom_capture.glsl` 共用上述自写 HDR 实现，当前出处注释已修准；水雾、光束和其他 Solas/ITT 来源不改归属。本轮只替换 Bloom 两处活动来源表达式，其他 Refrax/Solas/Complementary 等模块与素材的发布边界仍各自有效。
+- 专用水波/云图片的条件登记是 Astra 配置调整，未修改图片、图集分辨率或新增素材。完整实施、显存成本和观感差异见[后四项记录](../docs/archive/实现与取证.md#record-040)。
+
+## 2026-10-06 新增两报告处置：现行出处与契约更正
+
+历史条目保留，现行处置见 docs/2026-10-06-two-reports-disposition.md 与两份作者报告末尾。
+
+- K-M2：clouds_planar 的 ASTRA_CLOUD_STRETCH=9.0、ROUNDNESS=0.48 是现有 Astra 形状改编；引用的 Complementary reimaginedClouds.glsl:3-5 为4.2/0.125。保留现有数值，不能把它们称逐字参考值；原 Complementary 许可与出处不变。
+- K-M6：SSS 的0.7071在 diffuse.glsl 的 astra_lighting→direct_lighting 调用处唯一施加，shadow_mapping内没有该系数；上表历史“B1归一化”说法不能用于再加一次系数。
+- K-M8：地表云影主要读独立缓存 colortex14，边界外回 astra_cloud_transmission 原密度；地平线权重由 astraCloudShadowFade 的 CPU 表达式供给。旧weather每片元两次查询与GLSL smoothstep描述属于早期实现。BSL/Complementary仍是 IDEA ONLY；没有因此新复制其公式。
+- Z-M5：Nether既有五群系调色数值及密度系数仅迁到properties CPU表达式，保留 Complementary/ITT 历史归属；coverage不足时原调用的fallback仍在GLSL处理。Z-M21 TAA帧有效性迁到Astra专用顶点，判据不变。
+- 本轮没有采用42条借鉴候选的代码或新视觉算法，没有新增第三方代码级复用，因此无新增vendor许可原文。候选的接受方向/未实施理由不等于已移植登记；后续真正采用时必须重新按 IDEA ONLY 或代码级口径落实许可与台账。
+
+## 2026-10-06 主世界 / 下界开销与流水修正
+
+- `lib/nether_reflection_metadata.glsl` 的 RG 法线编码、B 标记及 flags 复用协议，以及反射恢复的齐次平面判据由 Astra 编写。现有追踪、历史和接收面反射结构继续沿用 Complementary / EminGT 的既有归属和许可；没有增加目标或复制新参考代码。
+- `global/post/fxaa.glsl` 保留 Arc / Minecraft / Shaders 的 MIT 算法及 `/lib/vendor/arc/LICENSE.txt`；本轮主世界/下界的 gather 邻域组织和角点复用由 Astra 编写，原边缘搜索、阈值与柔化参数保持。末地继续用原采样组织。
+- 下界暗处填充标定、体素捕获提交范围与未消费影图附件尺寸属于 Astra 的场景适配；Solas 彩光场、Complementary 光照的既有来源不变。主世界流水侧面稳定处理及浅层吸收标定由 Astra 编写，水平水面和水下窗口的 Steadfast / Solas / ITT 历史归属仍按原登记执行。
+- 本轮没有新增第三方代码或素材，不新增 vendor 许可。实际路径、数值及引擎依据见 [渲染开销与流水处理](../docs/archive/实现与取证.md#record-050)。
+
+## 2026-10-06 作者回复复核：颗粒参考范围勘误（Z-B25 / N081）
+
+上表 `shaders/global/water/particles.glsl` 的“无参考（四包均无屏幕空间悬浮颗粒实现）”与文件头 `:9-11` 的同类否定，不能用于概括当前参考资料：本地 `_analysis/Refrax_v1.3.1/shaders/lib/underwater.glsl:32-62` 确有 underwaterMotes，`:65-88` 有 underwaterBubbles，`lib/settings.glsl:374/:379` 均默认定义。motes 在 `:52-55` 查影图、`:57-61` 分别累积直射与环境；bubbles 的 `:86-87` 是视角瓣和天光，不具同样影图分层。旧记录的具体“四包”名单没有列明，本次不凭空补其历史检索范围；至少不能将上述否定用于排除现有 Refrax 源。
+
+本次只纠正参考范围与证据措辞，不因 Refrax 有相似功能便推断 Astra 复制它。当前 Astra 的原创声明保留，未新增 Refrax 表达式、结构移植或素材，也未将此候选假登记为已移植。颗粒的影图分层仍为独立候选；未来实施必须据实际复用程度登记 IDEA ONLY 或代码级归属及相应许可。本条是现行台账补正，源码旧注释未改，阅读其否定句时应以此补正为准。详见 [zcode B25 复核](../docs/archive/审查原文.md#record-041)。
+
+## 2026-10-07 整包审查：既有水路复用与注释落地
+
+- `program/water.glsl` 的水下命中反射改为调用 Astra 已有 `water_sample_path`，由各颜色贡献自己的深度与界面侧决定水中传输；备用折射颜色显式读取第零层。调用组织由 Astra 编写，沿用包内已有光学与吸收模块，没有搬入新的外部公式或素材。Steadfast、Solas、ITT 等既有模块归属及发布限制继续有效。
+- `program/scene.glsl` 的下界雾端点返回是对现有表达式的自行约分，部分雾混合方式不变；Mellow 编解码核心与 Astra 的 IEC 扩展归属保持。
+- 10-06 Z-B25 / N081 关于 Refrax `underwaterMotes`、`underwaterBubbles` 的勘误现已落实到 `global/water/particles.glsl` 文件头，原“源码旧注释未改”仅描述当日状态。此次未采用 Refrax 影图分层或其颗粒表达式；Astra 自写颗粒声明仍有效。晶格、消费者与候选退出比例的注释同时对齐实际代码。
+- 没有新增第三方代码级复用、资产或 vendor 许可；具体成本和保留边界见[整包源码审查](../docs/archive/审查原文.md#record-058)。

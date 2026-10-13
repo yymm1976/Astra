@@ -32,7 +32,11 @@ vec3 astra_sky_radiance(vec3 worldDir) {
 vec3 astra_sky_ambient() {
     // CPU evaluates the same day/night, twilight and rain palette once per frame.
     // C1 still applies SKYLIGHT_STRENGTH exactly once at the consuming surface.
-    return astraAmbientPalette * ASTRA_TINT_AMBIENT * ASTRA_STYLE_AMBIENT;
+    // The natural-look hue shift is one shared constant (lib/color_controls.glsl),
+    // also used by the water interface incident colour. Ambient strength, the dark
+    // floor, clouds and the reflection path all keep consuming this single value.
+    return astraAmbientPalette * ASTRA_TINT_AMBIENT * ASTRA_STYLE_AMBIENT
+         * ASTRA_OVERWORLD_AMBIENT_GAIN;
 }
 
 // Reflection deliberately omits sun/moon discs and the star field. Roughness raises the
@@ -55,6 +59,8 @@ vec3 astra_sky_reflection(vec3 worldDir, float roughness) {
     #else
         vec3 reflectedSky = astra_sky_radiance(safeDir);
     #endif
+    // The rough lobe retains its separately calibrated ambient twilight;
+    // it does not apply the reflected-sky tint a second time.
 	return mix(reflectedSky,
                astra_sky_ambient()+astra_twilight_sky(safeDir)*0.35, convergence);
 }

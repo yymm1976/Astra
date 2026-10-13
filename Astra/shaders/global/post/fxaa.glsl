@@ -10,7 +10,8 @@ vec4 astra_fxaa_sample(sampler2D source, vec2 uv, vec2 texel) {
     return textureLod(source,clamp(uv,0.5*texel,1.0-0.5*texel),0.0);
 }
 vec3 astra_fxaa(sampler2D source, vec2 uv, bool geometryOnly) {
-    vec2 texel = 1.0/vec2(textureSize(source,0));
+    ivec2 sourceSize = textureSize(source,0);
+    vec2 texel = 1.0/vec2(sourceSize);
     vec4 center = astra_fxaa_sample(source,uv,texel);
     if (geometryOnly) {
         // Underwater caustics and block texels are colour detail, not geometry
@@ -23,18 +24,38 @@ vec3 astra_fxaa(sampler2D source, vec2 uv, bool geometryOnly) {
         if (delta < max((1.0-depth)*0.08, 0.00001)) return center.rgb;
     }
     float m = center.a;
+    #ifndef DIMENSION_END
+    // Final and colortex13 share the native pixel grid. Two gathers at grid
+    // corners retain the four cardinal lumas and also return NE/SW for edges.
+    // Clamp-to-edge preserves the original border samples.
+    ivec2 pixel = clamp(ivec2(uv*vec2(sourceSize)),ivec2(0),sourceSize-1);
+    vec4 lowerLuma = textureGather(source,vec2(pixel)*texel,3);
+    vec4 upperLuma = textureGather(source,vec2(pixel+ivec2(1))*texel,3);
+    float n = upperLuma.x;
+    float s = lowerLuma.z;
+    float e = upperLuma.z;
+    float w = lowerLuma.x;
+    #else
     float n = astra_fxaa_sample(source,uv+vec2(0.0,texel.y),texel).a;
     float s = astra_fxaa_sample(source,uv-vec2(0.0,texel.y),texel).a;
     float e = astra_fxaa_sample(source,uv+vec2(texel.x,0.0),texel).a;
     float w = astra_fxaa_sample(source,uv-vec2(texel.x,0.0),texel).a;
+    #endif
     float low = min(m,min(min(n,s),min(e,w)));
     float high = max(m,max(max(n,s),max(e,w)));
     float contrast = high-low;
     if (contrast < max(0.0312,high*0.125)) return center.rgb;
+    #ifndef DIMENSION_END
+    float ne = upperLuma.y;
+    float nw = texelFetch(source,clamp(pixel+ivec2(-1,1),ivec2(0),sourceSize-1),0).a;
+    float se = texelFetch(source,clamp(pixel+ivec2(1,-1),ivec2(0),sourceSize-1),0).a;
+    float sw = lowerLuma.w;
+    #else
     float ne = astra_fxaa_sample(source,uv+texel,texel).a;
     float nw = astra_fxaa_sample(source,uv+texel*vec2(-1.0,1.0),texel).a;
     float se = astra_fxaa_sample(source,uv+texel*vec2(1.0,-1.0),texel).a;
     float sw = astra_fxaa_sample(source,uv-texel,texel).a;
+    #endif
     float horizontal = abs(nw+sw-2.0*w)+2.0*abs(n+s-2.0*m)+abs(ne+se-2.0*e);
     float vertical = abs(nw+ne-2.0*n)+2.0*abs(w+e-2.0*m)+abs(sw+se-2.0*s);
     bool alongX = horizontal >= vertical;
@@ -51,8 +72,9 @@ vec3 astra_fxaa(sampler2D source, vec2 uv, bool geometryOnly) {
     float distanceA = 1.0, distanceB = 1.0;
     float deltaA = 0.0, deltaB = 0.0;
     bool doneA = false, doneB = false;
-    // At most 24 luma reads. Never advance a distance after its final sampled point.
-    for (int i=0;i<12;i++) {
+    // Six increasingly spaced probes per side approximate the long edge search.
+    // Keep its local orientation/subpixel treatment and sampled-endpoint guard.
+    for (int i=0;i<6;i++) {
         if (!doneA) {
             deltaA = astra_fxaa_sample(source,edgeCenter-along*distanceA,texel).a-localAverage;
             doneA = abs(deltaA) >= gradient;
@@ -61,8 +83,8 @@ vec3 astra_fxaa(sampler2D source, vec2 uv, bool geometryOnly) {
             deltaB = astra_fxaa_sample(source,edgeCenter+along*distanceB,texel).a-localAverage;
             doneB = abs(deltaB) >= gradient;
         }
-        if ((doneA && doneB) || i==11) break;
-        float stride = i < 4 ? 1.0 : (i==4 ? 1.5 : (i<9 ? 2.0 : 4.0));
+        if ((doneA && doneB) || i==5) break;
+        float stride = i == 0 ? 1.5 : (i == 1 ? 2.0 : (i == 2 ? 3.0 : (i == 3 ? 5.0 : 8.0)));
         if (!doneA) distanceA += stride;
         if (!doneB) distanceB += stride;
     }
@@ -70,10 +92,15 @@ vec3 astra_fxaa(sampler2D source, vec2 uv, bool geometryOnly) {
     bool validEdge = (closerA ? doneA : doneB)
                   && (((closerA ? deltaA : deltaB) < 0.0) != (m < localAverage));
     float edgeOffset = validEdge ? 0.5-min(distanceA,distanceB)/(distanceA+distanceB) : 0.0;
-    float average = (2.0*(n+s+e+w)+ne+nw+se+sw)/12.0;
-    float subpixel = clamp(abs(average-m)/contrast,0.0,1.0);
-    subpixel = subpixel*subpixel*(3.0-2.0*subpixel);
-    float offset = geometryOnly ? edgeOffset : max(edgeOffset,subpixel*subpixel*0.5);
+    // Water uses depth silhouettes only; the subpixel statistics are consumed
+    // by the non-water arm exclusively, so keep them out of that draw.
+    float offset = edgeOffset;
+    if (!geometryOnly) {
+        float average = (2.0*(n+s+e+w)+ne+nw+se+sw)/12.0;
+        float subpixel = clamp(abs(average-m)/contrast,0.0,1.0);
+        subpixel = subpixel*subpixel*(3.0-2.0*subpixel);
+        offset = max(edgeOffset,subpixel*subpixel*0.5);
+    }
     if (offset <= 0.0) return center.rgb;
     return astra_fxaa_sample(source,uv+across*offset,texel).rgb;
 }

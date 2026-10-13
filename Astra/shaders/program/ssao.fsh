@@ -15,7 +15,10 @@ const int RGBA16F = 0;
 #endif
 const int colortex21Format = RGBA16F;
 #ifdef ASTRA_DIRECTIONAL_SKYLIGHT
-const int colortex26Format = RGBA16F;
+#ifndef RG16F
+const int RG16F = 0;
+#endif
+const int colortex26Format = RG16F;
 /* RENDERTARGETS: 21,26 */
 #else
 /* RENDERTARGETS: 21 */
@@ -55,7 +58,7 @@ void main() {
         // Farther candidates cannot replace the selected receiver.
         if (d >= depth) continue;
         vec4 n = texelFetch(colortex20,p,0);
-        if (n.a > 0.5 && d < depth) {
+        if (n.a > 0.5) {
             pixel=p; depth=d; encodedNormal=n.rgb;
         }
     }
@@ -70,12 +73,11 @@ void main() {
     screenRadius=min(screenRadius,vec2(0.125));
     float blocked=0.0;
     #ifdef ASTRA_DIRECTIONAL_SKYLIGHT
-    // Bent-normal estimator. visibleDir accumulates sum(v_i * dir_i) over the
-    // FORWARD hemisphere only; each contributing direction is the unit direction
-    // to a real scene sample weighted by that direction's own unoccluded
-    // fraction - never an unweighted depth difference.
-    vec3 visibleDir=vec3(0.0);
-    float visibleWeight=0.0;
+    // Approximate the visible hemisphere's first moment: start at its geometric
+    // normal and subtract measured occluder directions. Sky and coplanar taps
+    // do not reach the loop below; summing only their remaining neighbours as
+    // visible directions would bend toward a lone, almost-unoccluding obstacle.
+    vec3 visibleDir=normal;
     #endif
     for(int i=0;i<12;++i) {
         vec2 sampleUV=uv+ASTRA_AO_SAMPLE_DISK[i]*screenRadius;
@@ -83,45 +85,29 @@ void main() {
         ivec2 q=ivec2(sampleUV*vec2(size));
         // This exact receiver would reconstruct delta=0 and be rejected below.
         if (all(equal(q,pixel))) continue;
-        #ifdef ASTRA_DIRECTIONAL_SKYLIGHT
-        // Eligibility must precede the visible-direction accumulation below.
-        if(texelFetch(colortex20,q,0).a < 0.5) continue;
-        #endif
         float d=texelFetch(depthtex0,q,0).r;
         if(d >= 0.999999) continue;
         vec2 sampleCentre=(vec2(q)+0.5)/vec2(size);
         vec3 delta=screen_view(vec3(sampleCentre,d))-centre;
         float distanceSquared=dot(delta,delta);
         if(distanceSquared < 0.0001) continue;
+        if(distanceSquared >= radius*radius) continue;
+        // Both estimates use the same radius and existing world-space bias.
+        // Coplanar round-off must not tilt an otherwise unobstructed bent normal.
+        if(dot(normal,delta) <= 0.035) continue;
+        // Eligibility precedes accumulation, after all cheap geometric rejections.
+        if(texelFetch(colortex20,q,0).a < 0.5) continue;
         #ifdef ASTRA_DIRECTIONAL_SKYLIGHT
         vec3 direction=delta*inversesqrt(distanceSquared);
-        bool forward=dot(normal,direction) > 0.0;
-        if(distanceSquared >= radius*radius) {
-            // Beyond the kernel radius there is no occluder information; the
-            // scalar AO below also treats that as unoccluded, so the direction
-            // counts as fully visible (forward hemisphere only).
-            if (forward) { visibleDir+=direction; visibleWeight+=1.0; }
-            continue;
-        }
-        #else
-        if(distanceSquared >= radius*radius) continue;
-        // Scalar AO has no contribution below this existing angular bias.
-        // Bent-normal mode still needs those visible forward directions.
-        if(dot(normal,delta) <= 0.035) continue;
-        // Scalar AO has no contribution until all geometric rejections pass.
-        if(texelFetch(colortex20,q,0).a < 0.5) continue;
         #endif
         float angleWeight=max(dot(normal,delta)-0.035,0.0)*inversesqrt(distanceSquared);
         #ifdef ASTRA_DIRECTIONAL_SKYLIGHT
         float sampleBlocked=angleWeight*(1.0-distanceSquared/(radius*radius));
         blocked+=sampleBlocked;
-        if (forward) {
-            // Same (2.5/12)-scale convention as the scalar resolve: one sample
-            // spanning the kernel along a direction reaches v=0. AO_STRENGTH is
-            // deliberately excluded - the bent direction stays a geometric
-            // quantity independent of the strength slider.
-            float seen=1.0-min(sampleBlocked*2.5,1.0);
-            visibleDir+=direction*seen; visibleWeight+=seen;
+        {
+            // Use the scalar kernel's geometric occlusion scale, without the
+            // user's AO strength. Each obstacle removes its own direction.
+            visibleDir-=direction*(sampleBlocked*(2.5/12.0));
         }
         #else
         blocked+=angleWeight*(1.0-distanceSquared/(radius*radius));
@@ -131,13 +117,13 @@ void main() {
     gl_FragData[0]=vec4(visibility,log2(1.0+max(-centre.z,0.0)),
                         encode_unit_vector(worldNormal)*0.5+0.5);
     #ifdef ASTRA_DIRECTIONAL_SKYLIGHT
-    // Degenerate -> the selected texel's geometric normal: no substantially
-    // visible sample (enclosed corner), or no net direction (flat/symmetric
-    // ring where the weighted sum cancels). view_player is direction-only, so
+    // Degenerate or backward estimates retain the geometric normal.
+    // view_player is direction-only, so
     // the result is a player-relative world-space unit vector.
     vec3 bentWorld=worldNormal;
-    if (visibleWeight > 0.5 && length(visibleDir) > 0.25)
+    if (dot(visibleDir,normal) > 0.0 && length(visibleDir) > 0.25)
         bentWorld=normalize(view_player(visibleDir));
-    gl_FragData[1]=vec4(encode_unit_vector(bentWorld)*0.5+0.5,visibleWeight,1.0);
+    // Only the encoded direction is consumed; RG16F preserves both FP16 channels.
+    gl_FragData[1]=vec4(encode_unit_vector(bentWorld)*0.5+0.5,0.0,1.0);
     #endif
 }

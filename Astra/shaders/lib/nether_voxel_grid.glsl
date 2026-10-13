@@ -22,6 +22,12 @@
 //   program/nether_light.csh:
 //     layout(local_size_x=8,local_size_y=8,local_size_z=8) and workGroups ivec3(8,8,8)
 //     -> 8 * 8 = 64 texels per axis
+//   source activity (program/nether_light.csh, shaders.properties):
+//     4^3 tiles of 16^3 cells, encoded in two R32UI texels (2 x 1 image).
+//     The 8^3 workgroups align to these tiles; update both when resizing.
+//   lib/settings.glsl's Nether shadowDistance * shadowDistanceRenderMul:
+//     48 * 1 covers the half extent, camera fraction and section margin.
+//     Revisit that capture submission bound when enlarging this volume.
 // Changing the volume size therefore requires editing those literals too; this
 // header alone does not make the volume resizable. (B4 still owns format,
 // storage layout and propagation scheduling.)

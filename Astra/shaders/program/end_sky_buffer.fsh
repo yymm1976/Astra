@@ -1,4 +1,4 @@
-// Disc/galaxy/geometry. Native-resolution lensed stars and photon ring are
+// Disc/plasma/geometry. Native-resolution lensed stars and photon ring are
 // composed later; A stores the background transmission through this scene.
 #define ASTRA_END_SKY_BUFFER
 #include "/lib/settings.glsl"

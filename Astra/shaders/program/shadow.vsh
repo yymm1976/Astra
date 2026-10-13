@@ -17,6 +17,7 @@
 #include "/lib/settings.glsl"
 // Option reference for Iris: shaders.properties owns caster-list filtering,
 // which must happen before drawing rather than after entering this shader.
+// Keep the empty #ifdef: Iris discovers boolean options from GLSL references.
 #ifdef ENTITY_SHADOWS
 #endif
 #include "/lib/uniforms.glsl"
@@ -29,7 +30,12 @@ in vec3 at_midBlock;
 out vec2 texcoord;
 out vec4 tint;                  // vertex colour, feeds the coloured-shadow tint
 out float waterHeight;
+flat out int waterCasterKind;
 out vec3 waterCasterWorld;
+#if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+out vec3 shadowUndistortedPosition;
+flat out vec3 shadowCasterPlaneNormal;
+#endif
 
 // Nether voxel capture. Both guards are required: the option is global while the
 // uimage3D declaration and imageAtomicMax need GLSL 420+, so the overworld and
@@ -84,9 +90,24 @@ void astra_voxel_write() {
 }
 #endif
 void main() {
+    waterCasterKind = 0;
+    #if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    shadowCasterPlaneNormal = vec3(0.0);
+    #endif
 #if defined DIMENSION_NETHER && defined NETHER_VOXEL_LIGHT && defined SHADOWS && BLOCKLIGHT_STRENGTH > 0
     astra_voxel_write();
 #endif
+    #ifdef DIMENSION_NETHER
+    // IDEA ONLY: just-colored-lighting/shaders/shadow.vsh:94-96. The current
+    // Nether pipeline consumes occupancy, not the shadow raster attachments.
+    // Capture above must run before rejecting the primitive. See THIRD-PARTY.md.
+    gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+    texcoord = gl_MultiTexCoord0.xy;
+    tint = gl_Color;
+    waterHeight = WATER_HEIGHT_NONE;
+    waterCasterWorld = vec3(0.0);
+    return;
+    #endif
     bool isGroundFoliage = abs(mc_Entity.x - 10004.0) < 0.5
         || abs(mc_Entity.x - 10005.0) < 0.5
         || abs(mc_Entity.x - 10006.0) < 0.5;
@@ -101,6 +122,35 @@ void main() {
         waterCasterWorld = vec3(0.0);
         return;
     }
+    #ifdef ASTRA_OVERWORLD_OPTIMIZED
+    // Both overworld budget tiers (ASTRA_OVERWORLD_OPTIMIZED): cut the shadow
+    // projection of ground tall grass / tall flowers beyond 48 blocks. The material
+    // bound is deliberately narrow - 10005/10006 are exactly the double-plant
+    // halves, while 10004 mixes saplings and bamboo shoots in with the small
+    // plants and stays untouched, as do leaves (10002), mature tree geometry,
+    // glass, water, entities and the first-person pass (a different render stage).
+    // Rejecting the primitive leaves the visible model lit; it only stops the
+    // caster. The center comes from the undeformed vertex with at_midBlock, is
+    // read before wave_foliage() moves anything, and both halves of one plant
+    // resolve to the same lower-block center (the 10006 upper half drops one
+    // block), so the 48-block boundary can never split a plant into a shadowed
+    // and an unshadowed half.
+    if ((renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT
+         || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT_MIPPED)
+        && (abs(mc_Entity.x - 10005.0) < 0.5 || abs(mc_Entity.x - 10006.0) < 0.5)) {
+        vec3 plantCenter = (shadowModelViewInverse
+            * gl_ModelViewMatrix * vec4(gl_Vertex.xyz + at_midBlock/64.0, 1.0)).xyz;
+        if (abs(mc_Entity.x - 10006.0) < 0.5) plantCenter.y -= 1.0;
+        if (dot(plantCenter, plantCenter) > 48.0 * 48.0) {
+            gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+            texcoord = gl_MultiTexCoord0.xy;
+            tint = gl_Color;
+            waterHeight = WATER_HEIGHT_NONE;
+            waterCasterWorld = vec3(0.0);
+            return;
+        }
+    }
+    #endif
 	vec4 viewPos = gl_ModelViewMatrix * gl_Vertex;
 	// Sodium's region offset already subtracts cameraPosition. Undo only this
 	// pass's shadow view: the result is camera-relative, exactly as in lit.vsh.
@@ -133,6 +183,7 @@ void main() {
 		// here, retaining a horizontal-face gate for Astra's height anchor.
 		&& abs(gl_Normal.y) > 0.9
 	) {
+        waterCasterKind = 1;
 		waterHeight = encode_water_height(eyeRelativePos.y + cameraPosition.y);
 	} else {
 		waterHeight = WATER_HEIGHT_NONE;
@@ -141,22 +192,39 @@ void main() {
 #ifdef WAVING_FOLIAGE
     // Other casters already have their original shadow-view position.
     if (isLeaves || (isGroundFoliage && topOfFoliage)) {
-        wave_foliage(isLeaves, isGroundFoliage, topOfFoliage, eyeRelativePos);
-        viewPos = shadowModelView * vec4(eyeRelativePos, 1.0);
+        if (wave_foliage(isLeaves, isGroundFoliage, topOfFoliage, eyeRelativePos))
+            viewPos = shadowModelView * vec4(eyeRelativePos, 1.0);
     }
 #endif
 
 	waterCasterWorld = eyeRelativePos + cameraPosition;
 	texcoord = gl_MultiTexCoord0.xy;
 	tint = gl_Color;
+    #ifdef SHADOWS
+    // XHFPTerrainVertex packs separate AO in alpha; it is not caster opacity.
+    // Entity and block-entity colours retain their own alpha contract.
+    if (renderStage == MC_RENDER_STAGE_TERRAIN_SOLID
+        || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT
+        || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT_MIPPED
+        || renderStage == MC_RENDER_STAGE_TERRAIN_TRANSLUCENT) tint.a = 1.0;
+    #endif
 
     #ifdef DIMENSION_END
     gl_Position = vec4(end_shadow_ndc(eyeRelativePos),1.0);
     #else
 	gl_Position = gl_ProjectionMatrix * viewPos;
     #endif
-	// Use the rasterizer's triangle depth. Surface receivers interpolate this
-	// same vertex projection in lit.vsh; neither pass extrapolates a plane.
+#if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    shadowUndistortedPosition = gl_Position.xyz/gl_Position.w;
+    if (!isLeaves && !isGroundFoliage &&
+        (renderStage == MC_RENDER_STAGE_TERRAIN_SOLID
+         || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT
+         || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT_MIPPED))
+        shadowCasterPlaneNormal = (gl_NormalMatrix * gl_Normal)
+            / vec3(gl_ProjectionMatrix[0][0],gl_ProjectionMatrix[1][1],gl_ProjectionMatrix[2][2]);
+#endif
+	// Keep native XY coverage. Opaque fragment depth corrects the warped plane
+	// conservatively; water retains its original paired depth/height record.
 	gl_Position.xyz = distort(gl_Position.xyz / gl_Position.w) * gl_Position.w;
 
 }

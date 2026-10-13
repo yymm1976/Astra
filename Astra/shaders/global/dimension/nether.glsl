@@ -18,7 +18,7 @@
 struct NetherParams {
 	vec3  biomeFogColor;   // vanilla fogColor (sRGB-ish 0..1), per nether biome — E1 supplies
 	float nightVision;     // built-in (not frozen): 0..1, lifts the ambient floor only
-	float heldLightBase;   // CPU pow(heldBlockLightValue / 15, 4), 0..1 — see C1 blocklight.glsl
+	float heldLightBase;   // CPU heldBlockLightValue / 15, 0..1 — see C1 blocklight.glsl
 };
 
 const vec3  NETHER_LAVA_LIGHT_COLOR = vec3(0.15, 0.06, 0.01);
@@ -37,19 +37,14 @@ const float NETHER_PORTAL_SHIMMER    = 0.12;   // ±12% on the portal boost
 const float NETHER_PORTAL_SHIMMER_RATE = 1.7;  // rad/s
 
 vec3 nether_palette(vec3 fallback) {
-    float w = astraNetherWastes + astraNetherCrimson + astraNetherWarped + astraNetherBasalt + astraNetherSoul;
-    vec3 c = astraNetherWastes * vec3(0.4, 0.14, 0.06)
-           + astraNetherCrimson * vec3(0.36, 0.07, 0.05)
-           + astraNetherWarped * vec3(0.18, 0.1, 0.25)
-           + astraNetherBasalt * vec3(0.25, 0.235, 0.23)
-           + astraNetherSoul * vec3(0.1, 0.24, 0.24);
-    vec3 palette = c / max(w, 0.0001);
-    float coverage = clamp(w, 0.0, 1.0);
-    if (coverage >= 1.0) return palette;
-    return mix(fallback * 0.6 + 0.2 * normalize(fallback + 0.0001), palette, coverage);
+    if (astraNetherCoverage >= 1.0) return astraNetherPalette;
+    // Unknown/custom biomes retain the original per-call fallback colour.
+    return mix(fallback * 0.6 + 0.2 * normalize(fallback + 0.0001),
+               astraNetherPalette, astraNetherCoverage);
 }
 // Complementary fog is blended before scene decoding; convert at Astra boundary.
 vec3 nether_atmosphere_tint(vec3 biomeFogColor) {
+    if (astraNetherCoverage >= 1.0) return astraNetherPaletteLinear * ASTRA_TINT_NETHER;
     vec3 palette = nether_palette(biomeFogColor);
     return srgb_decode(palette) * ASTRA_TINT_NETHER;
 }
@@ -63,12 +58,21 @@ vec4 nether_fog(
 ) {
 	skyFogStrength = 0.0;
 	// These camera media replace the biome atmosphere completely.
-	if (blindness > 0.0001)
-		return vec4(vec3(0.0), max(0.85, 1.0 - exp(-pow(fragDistance * blindness * 0.5, 2.0))));
-	if (isEyeInWater == 2)
-		return vec4(vec3(0.40, 0.13, 0.025), max(0.85, 1.0 - exp(-pow(fragDistance * 0.5, 2.0))));
+    // scene.glsl blends blindness after the ordinary fog colour is assembled.
+	if (isEyeInWater == 2) {
+		float lavaFog=fragDistance*0.5;
+		return vec4(vec3(0.40, 0.13, 0.025), max(0.85, 1.0 - exp(-lavaFog*lavaFog)));
+	}
 	vec3 tint = nether_atmosphere_tint(params.biomeFogColor);
+	// The water branch replaces the border term entirely, so it is resolved
+	// before the biome density is read and before the border factor is built.
+	if (isEyeInWater == 1) {
+		float waterFog=fragDistance*0.02*(UNDERWATER_FOG_DENSITY*0.01);
+		return vec4(tint * NETHER_FOG_TINT, 1.0 - exp(-waterFog*waterFog));
+	}
 	float densityScale = NETHER_FOG_DENSITY * 0.01 * astra_nether_biome_density();
+    // fragDistance is Euclidean length, deliberately retaining Astra's distance
+    // convention rather than the reference max(horizontal, vertical) metric.
 
     float fogFactor = 0.0;
     #ifdef BORDER_FOG
@@ -76,14 +80,7 @@ vec4 nether_fog(
         fogFactor = clamp(fragDistance / farM * densityScale, 0.0, 1.0);
     #endif
 
-	vec3 fogColor = tint;
-	if (isEyeInWater == 1) {
-		fogFactor = 1.0 - exp(-pow(fragDistance * 0.02 * (UNDERWATER_FOG_DENSITY * 0.01), 2.0));
-		fogColor = tint * NETHER_FOG_TINT;
-		skyFogStrength = 0.0;
-	}
-
-	return vec4(fogColor, fogFactor);
+	return vec4(tint, fogFactor);
 }
 
 vec3 nether_sky(vec3 worldViewDir, vec3 tint) { return tint; }
@@ -91,9 +88,13 @@ vec3 nether_sky(vec3 worldViewDir, vec3 tint) { return tint; }
 // Complementary mainLighting: default XLIGHT_CURVE=1, blocklightColors palette.
 float nether_lightmap_intensity(float level) {
     if (level <= 0.0) return 0.0;
-    float steep = pow(level, 8.0) * (3.8 - 0.6 * NETHER_VS_BRIGHTNESS);
+    float steep = pow8(level) * (3.8 - 0.6 * NETHER_VS_BRIGHTNESS);
     float calm = level * (1.8 + 0.6 * NETHER_VS_BRIGHTNESS);
-    return pow(steep + calm, 2.25);
+    // Both terms are non-negative, so x^2.25 = x^2 * x^(1/4) is an exact identity
+    // here. Two hardware square roots replace the transcendental pow(), matching the
+    // pack's existing x^1.5 -> x*sqrt(x) substitution. Rounding may differ.
+    float base = steep + calm;
+    return base * base * sqrt(sqrt(base));
 }
 vec3 nether_block_lighting(float blockLight, float heldLight) {
     float blockIntensity = nether_lightmap_intensity(clamp(blockLight, 0.0, 1.0))
@@ -178,6 +179,8 @@ vec3 nether_lighting(
             float coverage = smoothstep(0.002, 0.04, max(voxel.r, max(voxel.g, voxel.b)));
             // The bounded voxel field is incomplete. Retain some lightmap support
             // on receivers instead of replacing 95% with a weak local estimate.
+            // Voxel emitters retain their species colours; tint/style controls
+            // currently apply to lightmap/held light rather than this field.
             blockLighting = mix(blockLighting, voxel * (BLOCKLIGHT_STRENGTH * 0.01), coverage * 0.75);
         }
     #endif
@@ -191,7 +194,7 @@ vec3 nether_lighting(
 
     // Complementary terrain AO lift, Nether exponent and residual floor.
     float vanillaAO = clamp(vertexAO + 0.08, 0.0, 1.0);
-	vanillaAO = pow(pow(vanillaAO, 1.5), 1.0 + max(NdotU, 0.0) * 0.5);
+	vanillaAO = pow(vanillaAO, 1.5 + max(NdotU, 0.0) * 0.75);
 	vanillaAO = vanillaAO * 0.9 + 0.1;
 
 	vec3 finalDiffuse = directionShade * directionShade * vanillaAO * vanillaAO
@@ -199,16 +202,22 @@ vec3 nether_lighting(
 	                  + emission * emission;
     // Preserve the reference colour-domain response and bound its hot edge.
     vec3 lightRoot = sqrt(max(finalDiffuse, vec3(0.0)));
-    vec3 referenceColor = srgb_decode(srgb_encode(surfaceColor) * lightRoot);
-    vec3 color = min(referenceColor, surfaceColor * lightRoot);
+    vec3 color = surfaceColor * lightRoot;
+    // Above unit illumination the IEC decode response grows at least linearly,
+    // so the existing min cap already chooses this linear branch. Bright lava,
+    // portals and fully lit surfaces need neither sRGB transfer here.
+    if (any(lessThan(lightRoot, vec3(1.0)))) {
+        vec3 referenceColor = srgb_decode(srgb_encode(surfaceColor) * lightRoot);
+        color = min(referenceColor, color);
+    }
     if (emissiveMask <= 0.0001 && portalMask <= 0.0001) {
         // Soft indirect illumination belongs to ordinary receivers only. Use
         // orientation and partial occlusion so cavities retain shape, and fade
         // it out in well-lit areas instead of lifting exposure or emitters.
         float dim = 1.0 - smoothstep(0.20, 0.90,
             dot(lightRoot, vec3(0.2126, 0.7152, 0.0722)));
-        float occlusion = 0.25 + 0.75 * vanillaAO;
-        color += surfaceColor * vec3(0.10, 0.115, 0.13)
+        float occlusion = 0.35 + 0.65 * vanillaAO;
+        color += surfaceColor * vec3(0.18, 0.195, 0.21)
                * directionShade * occlusion * dim
                * (0.7 + 0.3 * NETHER_VS_BRIGHTNESS);
     }

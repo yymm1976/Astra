@@ -9,7 +9,9 @@ uniform int probe;
 void main() {
     vec2 uv=gl_FragCoord.xy/256.0;
     // Include out-of-range coordinates to exercise clamped edge footprints.
-    gl_FragColor=vec4(shadow_lobe_light(uv*1.2-0.1,0.5),1);
+    // Third argument is the receiver world Y, which only feeds the water caustic
+    // gain; it is identical in both filter modes, so the paired comparison holds.
+    gl_FragColor=vec4(shadow_lobe_light(uv*1.2-0.1,0.5,64.0),1);
 }
 '''
 

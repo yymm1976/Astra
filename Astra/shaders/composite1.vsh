@@ -1,4 +1,3 @@
 #version 400 compatibility
-// Astra v1 - composite1.vsh: root pass shell = dimension-neutral default (overworld and any
-// dimension without an override). Nether/End override in world-1/ world1/. design.md 2.2/3.1
-#include "/program/composite1.vsh"
+// Nether and End provide their own composite1 overrides.
+#include "/program/itt_water_normal_cache.vsh"

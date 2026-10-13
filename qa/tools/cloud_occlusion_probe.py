@@ -36,11 +36,19 @@ def main():
     print(json.dumps({'scope':'live GLSL sample count, synthetic empty density; no frame-time claim',
                      'camera_y':64,'direction_y':0.1,'slab_entry':1190,'slab_exit':1370,
                      'read_ranges_before_inside_after_sky':[[float(x.min()),float(x.max())] for x in counts]},indent=2))
+    # The march's sample count is CLOUD_QUALITY-dependent, so the full schedule is
+    # read from the run instead of pinned at the historical twelve samples. What has
+    # to hold is the schedule's shape: an endpoint before the sheet reads nothing,
+    # an endpoint inside it keeps only the front samples, and an endpoint beyond the
+    # sheet is indistinguishable from infinite sky.
+    full=int(counts[2].max())
+    inside=int(counts[1].max())
     return require({
         'terrain before cloud entry performs no density read':bool((counts[0]==0).all()),
-        'terrain at 1220 keeps only two front samples':bool((counts[1]==2).all()),
-        'terrain beyond layer preserves all twelve samples':bool((counts[2]==12).all()),
-        'sky retains the original twelve-sample schedule':bool((counts[3]==12).all()),
+        'terrain at 1220 keeps only the front samples':bool(0<inside<full
+                                                           and (counts[1]==inside).all()),
+        'terrain beyond layer preserves the sky schedule':bool((counts[2]==counts[3]).all()),
+        'sky runs the full non-empty march schedule':bool(full>1 and (counts[3]==full).all()),
         'empty field remains transparent':bool((data[:,:,:,1]==0).all() and np.isfinite(data).all()),
     })
 

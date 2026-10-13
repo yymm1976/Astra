@@ -17,6 +17,12 @@ vec3 end_void_tint(float y) { return END_VOID_COLOR; }
 // The voidTint/time parameters were never consumed by the body and are gone
 // (consolidated review E5 / Qoder F-52).
 vec3 end_sky(vec3 dir) {
+    // Uniform camera state: the entire analytic sky is multiplied by zero here.
+    // Also clear its side-channel for the screen/reflection cache producers.
+    if (blindness >= 1.0) {
+        end_star_visibility = 0.0;
+        return vec3(0.0);
+    }
     vec3 sky=vec3(0);
     astra_end_blackhole(sky,normalize(dir),end_light_direction());
     // Darkness is applied to the assembled frame by program/display.fsh.

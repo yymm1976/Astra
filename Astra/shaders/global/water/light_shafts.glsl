@@ -1,197 +1,314 @@
-// Adapted from Solas V2.2b volumetricLight.glsl and composite3/5 by Septonious.
-// See THIRD-PARTY.md. Retains Solas compressed storage and coloured shadows.
-// Current march follows ITT 3.2's short water volume, refracted-light phase,
-// caustic contrast and distance attenuation, adapted to Astra's shadow carrier.
-// Independent volume history never accumulates scene colour.
+// Adapted from IterationT 3.2.0 UnderwaterVolumetricFog.glsl: water-entry
+// projection, wave-normal collision irradiance, colour extinction and phase.
+// Solas supplies incident/occluded light separation and distance/daylight roles.
+// Astra: one moving normal image, screen-footprint filtering, actual water
+// entry shadows and shared ITT normals at the submerged horizontal interface.
+// Solas keeps the water fog/display, not the additive volume's colour domain.
+// See THIRD-PARTY.md. Bed caustics remain on their separate surface path.
 #ifndef ASTRA_GLOBAL_WATER_LIGHT_SHAFTS_GLSL
 #define ASTRA_GLOBAL_WATER_LIGHT_SHAFTS_GLSL
 #include "/lib/transforms.glsl"
+#include "/global/water/shaft_layout.glsl"
 uniform sampler2D colortex3;
 const float WATER_SHAFT_MAX_DISTANCE = 128.0;
+// Sentinel for an unread material record; legal colortex3 flags are 0..255.
+const uint WATER_SCENE_FLAGS_UNSET = 256u;
 
-vec3 water_shafts_view(vec2 uv, out float rayLength) {
+// Four visibility samples per interval; each represents an integrated wave span.
+#if !defined ASTRA_OVERWORLD_OPTIMIZED || UNDERWATER_SHAFT_SAMPLES < 7
+    #define ASTRA_SHAFT_SAMPLES UNDERWATER_SHAFT_SAMPLES
+#else
+    #define ASTRA_SHAFT_SAMPLES 7
+#endif
+
+vec3 water_shafts_view_origin() {
+    // The runtime composes camera bobbing into the PROJECTION matrix, while
+    // model-view is its separate rotation. The perspective eye is the inverse
+    // projection of the homogeneous clip Z axis, not necessarily view (0,0,0).
+    // In a usual perspective projection this reduces exactly to that zero.
+    vec4 eye = gbufferProjectionInverse[2];
+    return abs(eye.w) > 0.000001 ? eye.xyz/eye.w : vec3(0.0);
+}
+
+vec3 water_shafts_view(vec2 uv, out float rayLength, out float sceneDepth,
+                       out uint sceneFlags, out float mediumDistance) {
     ivec2 size = textureSize(depthtex0, 0);
     ivec2 pixel = clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1);
     float depth = texelFetch(depthtex0, pixel, 0).r;
+    // Preserve raw scene depth separately from the hand-projection adjustment.
+    sceneDepth = depth;
+    // Sky pixels keep the sentinel: they read no material record here, and the
+    // consumer must not assume a value for them.
+    sceneFlags = WATER_SCENE_FLAGS_UNSET;
     if (depth < 0.999999) {
         uint flags = uint(round(texelFetch(colortex3, pixel, 0).r * 255.0));
+        sceneFlags = flags;
         if ((flags & 128u) != 0u && depth == texelFetch(depthtex1, pixel, 0).r)
             depth = ((depth * 2.0 - 1.0) / MC_HAND_DEPTH) * 0.5 + 0.5;
     }
     vec2 pixelUV = (vec2(pixel) + 0.5) / vec2(size);
     vec3 viewPos = screen_view(vec3(pixelUV, min(depth, 0.999999)));
-    rayLength = min(length(viewPos), WATER_SHAFT_MAX_DISTANCE);
+    mediumDistance = length(viewPos-water_shafts_view_origin());
+    rayLength = min(mediumDistance, WATER_SHAFT_MAX_DISTANCE);
     return viewPos;
+}
+vec3 water_shafts_view(vec2 uv, out float rayLength, out float sceneDepth, out uint sceneFlags) {
+    float unusedMediumDistance;
+    return water_shafts_view(uv,rayLength,sceneDepth,sceneFlags,unusedMediumDistance);
+}
+vec3 water_shafts_view(vec2 uv, out float rayLength, out float sceneDepth) {
+    uint unusedSceneFlags;
+    return water_shafts_view(uv, rayLength, sceneDepth, unusedSceneFlags);
+}
+vec3 water_shafts_view(vec2 uv, out float rayLength) {
+    float unusedSceneDepth;
+    return water_shafts_view(uv, rayLength, unusedSceneDepth);
 }
 
 #ifdef ASTRA_SHAFT_MARCH_PASS
-#include "/lib/dither.glsl"
-// Cornette-Shanks phase, following ITT 3.2 Utilities::MiePhaseFunction.
-// Expressed relative to isotropic scattering; the forward peak stays bounded.
+#include "/lib/itt_water_field.glsl"
+uniform sampler2D colortex29;
+// Iris generates the just-produced collision-flux mip chain before this draw.
+const bool colortex29MipmapEnabled = true;
+flat in vec4 waterShaftSource;
+flat in vec2 waterShaftSurface;
+flat in vec2 waterShaftFieldOrigin;
+flat in vec3 waterShaftIllumination;
+#if CLOUD_MODE == CLOUD_PLANAR && defined CLOUD_SHADOWS
+flat in vec3 waterShaftAirSource;
+#endif
 float water_shaft_phase(vec3 ray, vec3 source) {
-    float cosine = clamp(dot(ray, source), -1.0, 1.0);
-    float base = max(1.49-1.4*cosine, 0.09);
-    float phase = (1.5*0.51/2.49)*(1.0+cosine*cosine)/(base*sqrt(base));
-    return 0.20+0.80*min(phase, 2.5);
+    float cosine = clamp(dot(ray,source),-1.0,1.0);
+    const float g = 0.7;
+    float base = 1.0+g*g-2.0*g*cosine;
+    float directional = (0.1193662*(1.0-g*g)/(2.0+g*g))
+                      * (1.0+cosine*cosine)/(base*sqrt(base));
+    // ITT's forward lobe with a small side response for Astra's visibility goal.
+    return mix(0.07957747,directional,0.8);
+}
+bool water_shaft_wave_segment(vec2 entry, vec2 direction, inout float begin, inout float end) {
+    // World-space coverage only; no periodic wrapping of unrelated entries.
+    vec2 local = entry-waterShaftFieldOrigin;
+    for (int axis=0;axis<2;++axis) {
+        if (abs(direction[axis]) < 0.000001) {
+            if (local[axis] < 2.0 || local[axis] > ITT_WATER_FIELD_EXTENT-2.0) return false;
+        } else {
+            vec2 distances = (vec2(2.0,ITT_WATER_FIELD_EXTENT-2.0)-local[axis])/direction[axis];
+            begin = max(begin,min(distances.x,distances.y));
+            end = min(end,max(distances.x,distances.y));
+        }
+    }
+    return end > begin;
+}
+float water_shaft_path_visibility(vec3 point, vec3 entry,
+                                  vec4 surfaceClip, vec4 pointClip) {
+    // Look just BELOW the interface to distinguish passing through water from
+    // open air or glass. Pair each depth comparison with its OWN water caster.
+    vec3 insideEntry = entry-vec3(0.0,0.18,0.0);
+    vec3 surfaceShadow = distort(surfaceClip.xyz/surfaceClip.w)*0.5+0.5;
+    float coverage = shadow_coverage(insideEntry,surfaceShadow);
+    if (coverage <= 0.0) return 0.0;
+    vec4 opaque = shadow_gather_visibility_inside(shadowtex1,surfaceShadow.xy,surfaceShadow.z);
+    if (all(equal(opaque,vec4(0.0)))) return 0.0;
+    vec4 allCasters = shadow_gather_visibility_inside(shadowtex0,surfaceShadow.xy,surfaceShadow.z);
+    vec4 through = max(opaque-allCasters,vec4(0.0));
+    if (all(equal(through,vec4(0.0)))) return 0.0;
+    vec4 heights = textureGather(shadowcolor0,surfaceShadow.xy,0).wzxy;
+    vec4 water = vec4(lessThan(heights,vec4(WATER_HEIGHT_NONE)));
+    water *= vec4(lessThan(abs(decode_water_height(heights)
+                  -vec4(entry.y+cameraPosition.y)),vec4(0.75)));
+    vec2 location = surfaceShadow.xy*vec2(textureSize(shadowtex0,0))-0.5;
+    float incident = coverage*dot(through*water,shadow_corner_weights(fract(location)));
+    if (incident <= 0.0) return 0.0;
+    #if CLOUD_MODE == CLOUD_PLANAR && defined CLOUD_SHADOWS
+    incident *= astra_cloud_transmission(entry+cameraPosition,
+                    waterShaftAirSource);
+    if (incident <= 0.0) return 0.0;
+    #endif
+    vec3 pos = distort(pointClip.xyz/pointClip.w)*0.5+0.5;
+    float receiverCoverage = shadow_coverage(point,pos);
+    if (receiverCoverage <= 0.0) return 0.0;
+    return incident*receiverCoverage*shadow_opaque_visibility(pos);
+}
+float water_shaft_wave_span(vec2 localEntry, vec2 entryRay, float begin, float span,
+                            float angularFootprint) {
+    // The outer Gauss nodes lie on camera-centred shells. Evaluating the fine
+    // wave field ONLY there aliases it into curved bands, even with no shadows.
+    // Integrate along the ray inside the node's weight-sized cell instead.
+    // Average collision LIGHT, not slopes: averaging normals first erases the
+    // nonlinear wave response. No cross-ray blur, noise or history is involved.
+    const float nodes[8] = float[8](
+        0.0198550718,0.1016667613,0.2372337950,0.4082826788,
+        0.5917173212,0.7627662050,0.8983332387,0.9801449282);
+    const float weights[8] = float[8](
+        0.0506142681,0.1111905172,0.1568533229,0.1813418917,
+        0.1813418917,0.1568533229,0.1111905172,0.0506142681);
+    float end = begin+span;
+    // Every fine node is inside this span. Constant portions of the filters
+    // need neither eight repeated ramps nor eight repeated base-LOD logs.
+    bool nearFade = begin < WATER_SHAFT_NEAR_END;
+    bool farFade = end > WATER_SHAFT_FAR_START;
+    bool filtered = angularFootprint*end > ITT_WATER_FIELD_CELL;
+    vec2 localBegin = localEntry+entryRay*begin;
+    vec2 localEnd = localEntry+entryRay*end;
+    vec2 borderRange = min(min(localBegin,localEnd),
+                          ITT_WATER_FIELD_EXTENT-max(localBegin,localEnd));
+    bool borderFade = min(borderRange.x,borderRange.y) < 3.0;
+    float light = 0.0;
+    for (int i=0;i<8;++i) {
+        float distance = begin+nodes[i]*span;
+        vec2 local = localEntry+entryRay*distance;
+        float lod = 0.0;
+        if (filtered) {
+            float footprint = max(ITT_WATER_FIELD_CELL,angularFootprint*distance);
+            lod = clamp(log2(footprint/ITT_WATER_FIELD_CELL),0.0,4.0);
+        }
+        float irradiance = textureLod(colortex29,local/ITT_WATER_FIELD_EXTENT,lod).r;
+        if (borderFade) {
+            vec2 border = min(local,ITT_WATER_FIELD_EXTENT-local);
+            irradiance *= smoothstep(2.0,3.0,min(border.x,border.y));
+        }
+        if (nearFade)
+            irradiance *= smoothstep(WATER_SHAFT_NEAR_START,WATER_SHAFT_NEAR_END,distance);
+        if (farFade)
+            irradiance *= 1.0-smoothstep(WATER_SHAFT_FAR_START,WATER_SHAFT_FAR_END,distance);
+        light += weights[i]*irradiance;
+    }
+    return light;
 }
 vec4 water_shafts_march(vec2 uv, out vec3 viewPos, out float marchLength) {
-    float rayLength;
-    viewPos = water_shafts_view(uv, rayLength);
-    marchLength = min(rayLength, astraWaterShaftRange);
-    if (rayLength <= 0.001) return vec4(vec3(0.0), rayLength / 128.0);
-    float sourceStrength = mix(float(MOONLIGHT_STRENGTH), float(SUNLIGHT_STRENGTH), astraSunSource) * 0.01;
-    float visibility = astraSolasShadowFade * (1.0 - wetness*0.75) * sourceStrength;
-    // The display stage attenuates the complete scene for Darkness once.
-    visibility *= (1.0 - clamp(blindness, 0.0, 1.0));
-    if (visibility <= 0.0)
-        return vec4(vec3(0.0), rayLength / 128.0);
-    float viewDistance = length(viewPos);
-    float inverseViewDistance = 1.0/max(viewDistance,0.0001);
-    vec3 worldDelta = view_player(viewPos);
-    vec3 ray = normalize(worldDelta);
-    vec3 lightDir = astra_world_light_direction();
-    vec3 waterLightDir = -refract(-lightDir, vec3(0.0, 1.0, 0.0), 1.0/WATER_IOR);
-    vec2 flatSlope = waterLightDir.xz/max(waterLightDir.y, 0.35);
-    vec3 worldOrigin = gbufferModelViewInverse[3].xyz;
-    vec4 waterState = water_volume_state();
-    bool knownSurface = waterState.a > 0.5;
-    float surfaceY = cameraPosition.y+worldOrigin.y;
-    float originDepth = 0.0;
-    if (knownSurface) {
-        surfaceY = water_unpack_surface_height(waterState.rg);
-        originDepth = max(surfaceY-cameraPosition.y-worldOrigin.y, 0.0);
-        // An upward view can end in air. Stop at the known local interface,
-        // so refracted-light evaluation stays inside the water volume.
-        if (worldDelta.y > 0.0001)
-            marchLength = min(marchLength, originDepth*viewDistance/worldDelta.y);
-        if (marchLength <= 0.001) return vec4(vec3(0.0), rayLength/128.0);
-    }
+    float rayLength, sceneDepth;
+    uint sceneFlags;
+    viewPos = water_shafts_view(uv,rayLength,sceneDepth,sceneFlags);
+    vec3 viewOrigin = water_shafts_view_origin();
+    vec3 worldOrigin = view_camera_relative(viewOrigin);
+    vec3 ray = normalize(view_player(viewPos-viewOrigin));
+    // Derivatives must be evaluated before per-pixel hand/depth early returns.
+    vec3 rayDx = dFdx(ray), rayDy = dFdy(ray);
+    marchLength = min(rayLength,min(astraWaterShaftRange,WATER_SHAFT_FAR_END));
+    vec4 empty = vec4(vec3(0.0),rayLength/WATER_SHAFT_MAX_DISTANCE);
+    if (sceneFlags != WATER_SCENE_FLAGS_UNSET && (sceneFlags & 128u) != 0u) return empty;
+    #if !defined WATER_WAVES || WATER_WAVE_HEIGHT == 0
+    return empty;
+    #endif
+    if (waterShaftSource.w <= 0.0 || waterShaftSurface.y < 0.5) return empty;
+    vec3 source = waterShaftSource.xyz;
+    float depth = waterShaftSurface.x-worldOrigin.y;
+    if (ray.y > 0.0001) marchLength = min(marchLength,depth/ray.y);
+    float begin = WATER_SHAFT_NEAR_START, end = marchLength;
+    // ITT's projection onto the light-facing wave plane, referenced to the
+    // CURRENT real water height. Camera rotation only changes the observed ray.
+    vec3 entry = worldOrigin+source*(depth/source.y);
+    vec3 entryRay = ray-source*(ray.y/source.y);
+    vec2 absoluteEntry = cameraPosition.xz+entry.xz;
+    if (!water_shaft_wave_segment(absoluteEntry,entryRay.xz,begin,end)) return empty;
+    vec2 localEntry = absoluteEntry-waterShaftFieldOrigin;
+    // Both paths are straight in homogeneous shadow space. Project their
+    // origins and directions once; keep division, distortion and all shadow
+    // comparisons at each node's actual point. Direction W stays zero before
+    // projection, so translated and non-unit-W matrices remain supported.
     vec4 shadowOrigin = shadowProjection*(shadowModelView*vec4(worldOrigin,1.0));
-    vec4 shadowDelta = shadowProjection*vec4(mat3(shadowModelView)*worldDelta,0.0);
-    vec4 shadowBendX = shadowProjection*shadowModelView[0];
-    vec4 shadowBendZ = shadowProjection*shadowModelView[2];
-    vec4 entryOrigin = shadowOrigin, entryDelta = shadowDelta;
-    if (knownSurface) {
-        vec3 flatUp = vec3(flatSlope.x,1.0,flatSlope.y);
-        entryOrigin = shadowProjection*(shadowModelView*vec4(worldOrigin+flatUp*originDepth,1.0));
-        entryDelta = shadowProjection*vec4(mat3(shadowModelView)*(worldDelta-flatUp*worldDelta.y),0.0);
-    }
-
-    float count = float(UNDERWATER_SHAFT_SAMPLES);
-    // IGN distributes ray offsets across nearby pixels for spatial reconstruction.
-    // Independent history still advances the pattern when scene TAA is disabled.
-    float rayOffset = ign(gl_FragCoord.xy, true);
+    vec4 shadowRay = shadowProjection*(shadowModelView*vec4(ray,0.0));
+    vec4 shadowEntry = shadowProjection*(shadowModelView*vec4(entry-vec3(0.0,0.18,0.0),1.0));
+    vec4 shadowEntryRay = shadowProjection*(shadowModelView*vec4(entryRay,0.0));
+    // Blue previously lost almost no light (0.00016/block at density 40), so
+    // longer, deeper rays accumulated radiance without appreciable extinction.
+    // Incoming light and the camera leg have different lengths below. Retain
+    // spectral absorption, with neutral out-scattering in every channel.
+    vec3 incidentExtinction = water_absorption_coefficient()
+        + vec3(0.025)*(UNDERWATER_FOG_DENSITY*0.025);
+    vec3 viewExtinction = water_absorption_coefficient()
+        + vec3(0.012)*(UNDERWATER_FOG_DENSITY*0.025);
+    float incidentPath = depth/source.y;
+    float stepLength = min(astraWaterShaftRange,WATER_SHAFT_FAR_END)/float(ASTRA_SHAFT_SAMPLES);
+    const vec4 nodes = vec4(0.0694318442,0.3300094782,0.6699905218,0.9305681558);
+    const vec4 weights = vec4(0.1739274226,0.3260725774,0.3260725774,0.1739274226);
+    vec2 projectedDx = rayDx.xz-source.xz*(rayDx.y/source.y);
+    vec2 projectedDy = rayDy.xz-source.xz*(rayDy.y/source.y);
+    float angularFootprint = max(length(projectedDx),length(projectedDy));
+    float phase = water_shaft_phase(ray,source);
     vec3 integral = vec3(0.0);
-    // Evenly cover a short visible segment, like ITT's 40-block volume. The
-    // existing 4/7/10 sample budgets and independent history stay in use.
-    float stepLength = marchLength / count;
-    // Attenuate the additive shaft path, not the scene a second time. Red
-    // fades faster than green/blue; recurrent transport avoids per-step exp.
-    vec3 extinction = vec3(0.035, 0.012, 0.010) * (UNDERWATER_FOG_DENSITY / 40.0)
-                    + vec3(astra_water_haze_density()*0.5);
-    vec3 transmission = exp(-extinction * (rayOffset*stepLength));
-    vec3 stepTransmission = exp(-extinction * stepLength);
-    vec2 shadowSize = vec2(textureSize(shadowtex0, 0));
-    ivec2 lensSize = textureSize(shadowcolor0,0);
-    for (int i = 0; i < UNDERWATER_SHAFT_SAMPLES; ++i) {
-        float currentDist = (float(i) + rayOffset) * stepLength;
-        vec3 sampleTransmission = transmission;
-        transmission *= stepTransmission;
-        float fraction = currentDist * inverseViewDistance;
-        vec3 point = worldOrigin + worldDelta * fraction;
-        vec4 shadowClip = shadowOrigin + shadowDelta * fraction;
-        // ITT projects every volume sample along the refracted source to its
-        // animated wave-normal field. Reuse our water caster cache for that
-        // field, instead of rebuilding noise or sharing one normal for the ray.
-        vec4 entryClip = entryOrigin+entryDelta*fraction;
-        vec3 entryPos = distort(entryClip.xyz/entryClip.w)*0.5+0.5;
-        if (shadow_uv_coverage(entryPos) <= 0.0) continue;
-        vec2 lensLocation = entryPos.xy*vec2(lensSize)-0.5;
-        ivec2 lensBase = ivec2(floor(lensLocation));
-        vec4 lensWeights = shadow_corner_weights(fract(lensLocation));
-        vec2 waveSlope = vec2(0.0);
-        float focusedLight = 0.0, waterCoverage = 0.0, entryHeight = 0.0;
-        for (int corner = 0; corner < 4; ++corner) {
-            float weight = lensWeights[corner];
-            if (weight <= 0.0) continue;
-            ivec2 pixel = clamp(lensBase+ivec2(corner & 1,corner >> 1),ivec2(0),lensSize-1);
-            vec4 lens = texelFetch(shadowcolor0,pixel,0);
-            if (lens.r >= WATER_HEIGHT_NONE) continue;
-            waterCoverage += weight;
-            waveSlope += lens.gb*weight;
-            // The valid local interface already supplies the surface height.
-            // Caster height is needed only by the missing-interface fallback.
-            if (!knownSurface) entryHeight += decode_water_height(lens.r)*weight;
-            float focus = max(lens.a,0.0);
-            focusedLight += min(focus*focus*focus,4.0)*weight;
+    for (int interval=0;interval<ASTRA_SHAFT_SAMPLES;++interval) {
+        float segmentBegin = max(float(interval)*stepLength,begin);
+        float segmentEnd = min(float(interval+1)*stepLength,end);
+        if (segmentEnd <= segmentBegin) {
+            // Once the endpoint is behind this interval, every later interval
+            // is empty too. Earlier intervals outside the field still advance.
+            if (float(interval)*stepLength >= end) break;
+            continue;
         }
-        if (waterCoverage <= 0.0) continue;
-        waveSlope /= waterCoverage;
-        float localSurfaceY = knownSurface ? surfaceY : entryHeight/waterCoverage;
-        float waterDepth = max(localSurfaceY-cameraPosition.y-point.y,0.0);
-        vec3 waveNormal = normalize(vec3(-waveSlope.x,1.0,-waveSlope.y));
-        vec3 bentLightDir = -refract(-lightDir,waveNormal,1.0/WATER_IOR);
-        vec2 bend = bentLightDir.xz/max(bentLightDir.y,0.35)-flatSlope;
-        shadowClip += (shadowBendX*bend.x+shadowBendZ*bend.y)*waterDepth;
-        vec3 pos = distort(shadowClip.xyz / shadowClip.w) * 0.5 + 0.5;
-        float coverage = shadow_coverage(point, pos);
-        if (coverage <= 0.0) continue;
-        vec4 weights = shadow_corner_weights(fract(pos.xy * shadowSize - 0.5));
-        vec4 allVisibility = shadow_gather_visibility(shadowtex0, pos.xy, pos.z);
-        if (all(equal(allVisibility, vec4(1.0)))) continue;
-        vec4 opaqueVisibility = shadow_gather_visibility(shadowtex1, pos.xy, pos.z);
-        float shadowVisibility = dot(max(opaqueVisibility-allVisibility,vec4(0.0)),weights);
-        if (shadowVisibility <= 0.0) continue;
-        vec3 shadow = astraWaterTransmissionTint*focusedLight*shadowVisibility;
-        integral += shadow * sampleTransmission * coverage
-                  * (water_shaft_phase(ray,bentLightDir)*stepLength/max(3.0,currentDist*0.1));
+        float segmentLength = segmentEnd-segmentBegin;
+        float cellBegin = segmentBegin;
+        for (int node=0;node<4;++node) {
+                // Weight-sized cells tile the complete clipped interval once.
+                // Shadow and spectral transport retain their original Gauss
+                // locations; visibility is a constant approximation per cell.
+                float cellLength = weights[node]*segmentLength;
+                float waveBegin = cellBegin;
+                cellBegin += cellLength;
+                float distance = segmentBegin+nodes[node]*segmentLength;
+                float visibility = water_shaft_path_visibility(worldOrigin+ray*distance,entry+entryRay*distance,
+                    shadowEntry+shadowEntryRay*distance,shadowOrigin+shadowRay*distance);
+                if (visibility <= 0.0) continue;
+                float irradiance = water_shaft_wave_span(localEntry,entryRay.xz,
+                    waveBegin,cellLength,angularFootprint);
+                float lightPath=max(incidentPath-ray.y*distance/source.y,0.0);
+                vec3 transmission = exp(-incidentExtinction*lightPath-viewExtinction*distance);
+                // The complete integration is bounded to 26 blocks, so the
+                // original max(3.0,distance*0.1) is always exactly 3.0 here.
+                integral += transmission*(irradiance*visibility*cellLength);
+        }
     }
-    if (all(lessThanEqual(integral, vec3(0.0))))
-        return vec4(vec3(0.0), rayLength / 128.0);
-    vec3 ambientLight, directLight;
-    solas_water_lighting(ambientLight, directLight, false);
-    integral *= sqrt(max(directLight, vec3(0.0)))
-              * mix(astraWaterShaftTintSqrt, astraWaterShaftTintSqrt*solasWeather, wetness)
-              * (visibility * 0.04);
-    return vec4(pow(clamp(integral / 128.0, 0.0, 1.0), vec3(0.25)), rayLength / 128.0);
+    // One phase and normalization belong to the complete ray, rather than
+    // being multiplied into each of its up to 28 visibility-node weights.
+    integral *= waterShaftIllumination*(phase/3.0);
+    return vec4(max(integral,vec3(0.0)),rayLength/WATER_SHAFT_MAX_DISTANCE);
 }
-
 #else
-vec3 water_shafts_resolve(sampler2D shaftMap, vec2 uv, float rayLength) {
+vec3 water_shafts_resolve(sampler2D shaftMap, vec2 uv, float rayLength, uint sceneFlags) {
+    // Reject the full-resolution hand even if the coarse scattering footprint
+    // missed it. Material flags were already read with this endpoint's depth.
+    if (sceneFlags != WATER_SCENE_FLAGS_UNSET && (sceneFlags & 128u) != 0u)
+        return vec3(0.0);
     ivec2 size = textureSize(shaftMap, 0);
-    vec2 position = clamp(uv, 0.0, 1.0) * vec2(size) - 0.5;
-    // Continuous quadratic B-spline reconstruction: nine nearby volume texels
-    // suppress per-ray grain even at exact texel centres, where bilinear alone
-    // did no smoothing. Its compact footprint retains broad shaft contrast.
-    ivec2 centre = ivec2(floor(position+0.5));
-    vec2 fraction = position-vec2(centre);
-    vec2 left = 0.5*(0.5-fraction)*(0.5-fraction);
-    vec2 middle = vec2(0.75)-fraction*fraction;
-    vec2 right = 0.5*(0.5+fraction)*(0.5+fraction);
-    vec3 compressed = vec3(0.0);
-    float weights = 0.0;
+    vec2 edge = 0.5/vec2(size);
+    vec2 boundedUV = clamp(uv,edge,1.0-edge);
     float referenceLength = min(clamp(rayLength, 0.0, WATER_SHAFT_MAX_DISTANCE), astraWaterShaftRange);
-    // Reject distance mismatches per tap; scene colour is never filtered here.
-    for (int y = -1; y <= 1; ++y) for (int x = -1; x <= 1; ++x) {
-        float axisX = x < 0 ? left.x : (x == 0 ? middle.x : right.x);
-        float axisY = y < 0 ? left.y : (y == 0 ? middle.y : right.y);
-        float spatialWeight = axisX*axisY;
+    // A neighbouring long low-resolution ray cannot light an endpoint inside
+    // the same camera clearance used by the producer.
+    if (referenceLength <= WATER_SHAFT_NEAR_START) return vec3(0.0);
+#ifdef ASTRA_OVERWORLD_OPTIMIZED
+    // All producer alphas are capped to the exact 48/128 FP16 marker. A linear
+    // read can equal it only when every contributing texel covers the complete
+    // window (apart from zero-weight contributors). No nonlinear decode follows.
+    if (referenceLength >= astraWaterShaftRange) {
+        vec4 volumeSample = textureLod(shaftMap,boundedUV,0.0);
+        if (volumeSample.a == astraWaterShaftRange/WATER_SHAFT_MAX_DISTANCE)
+            return max(volumeSample.rgb,vec3(0.0));
+    }
+#endif
+    vec2 position = boundedUV*vec2(size)-0.5;
+    ivec2 base = ivec2(floor(position));
+    vec2 fraction = fract(position);
+    vec3 radiance = vec3(0.0);
+    float weights = 0.0;
+    // Radiance uses a bilinear footprint. Keep each corner's own endpoint to
+    // reject geometry discontinuities before combining the volume.
+    for (int y=0;y<2;++y) for (int x=0;x<2;++x) {
+        vec2 axis = mix(1.0-fraction,fraction,bvec2(x==1,y==1));
+        float spatialWeight = axis.x*axis.y;
         if (spatialWeight <= 0.0) continue;
-        vec4 tap = texelFetch(shaftMap, clamp(centre+ivec2(x,y), ivec2(0), size-1), 0);
-        // Geometry beyond the integration window cannot occlude this volume.
-        // Comparing its full endpoint distance isolated noisy far-field rays.
-        float delta = abs(min(clamp(tap.a, 0.0, 1.0) * WATER_SHAFT_MAX_DISTANCE, astraWaterShaftRange)
-                          - referenceLength);
-        float weight = spatialWeight * exp(-delta * 0.25);
-        compressed += tap.rgb * weight;
+        vec4 tap = texelFetch(shaftMap,clamp(base+ivec2(x,y),ivec2(0),size-1),0);
+        float delta = abs(min(tap.a*WATER_SHAFT_MAX_DISTANCE,astraWaterShaftRange)-referenceLength);
+        float depthWeight = max(1.0-delta*0.25,0.0);
+        float weight = spatialWeight*depthWeight*depthWeight;
+        radiance += tap.rgb*weight;
         weights += weight;
     }
-    // Solas filters fourth-root storage BEFORE expanding it. Decoding isolated
-    // caustic peaks first turned sparse march samples into conspicuous speckles.
-    // Only the additive volume is filtered; scene colour stays full resolution.
-    compressed /= max(weights, 1e-30);
-    vec3 squared = compressed * compressed;
-    return squared * squared * 128.0;
+    // Very weak endpoint support must fade out rather than amplify a single
+    // almost-rejected bright tap back to full intensity on a moving silhouette.
+    return max(radiance/max(weights,0.25),vec3(0.0))
+         * smoothstep(WATER_SHAFT_NEAR_START,WATER_SHAFT_NEAR_END,referenceLength);
 }
 #endif
 #endif

@@ -28,6 +28,9 @@
     // analytic footprint; the full-screen End producer supplies its derivatives.
     #define ASTRA_END_REFLECTION_FOOTPRINT
     #include "/global/dimension/end.glsl"
+    #ifndef ASTRA_END_REFLECTION_CACHE_WRITE
+    #include "/lib/end_reflection_cache.glsl"
+    #endif
 #else
     #include "/global/atmosphere/sky_minishita.glsl"
     #include "/global/atmosphere/sky_gradient.glsl"
@@ -63,7 +66,17 @@ vec3 astra_reflection_sky(vec3 worldDir, float roughness) {
     #if defined DIMENSION_NETHER
         return nether_sky(worldDir, nether_atmosphere_tint(fogColor));
     #elif defined DIMENSION_END
-        vec3 sky=end_sky(normalize(worldDir));
+        // Fully rough queries discard the directional sky completely.
+        if (roughness * roughness >= 1.0) return END_SKY_LIGHT_COLOR * 0.002;
+        if (blindness >= 1.0)
+            return END_SKY_LIGHT_COLOR * 0.002 * clamp(roughness * roughness, 0.0, 1.0);
+        vec3 direction=normalize(worldDir);
+        vec3 sky;
+        #ifdef ASTRA_END_REFLECTION_CACHE_WRITE
+        sky=end_sky(direction);
+        #else
+        if (!end_reflection_cache_read(direction,roughness,sky)) sky=end_sky(direction);
+        #endif
         return mix(sky,END_SKY_LIGHT_COLOR*0.002,clamp(roughness*roughness,0.0,1.0));
     #else
         return astra_sky_reflection(worldDir, roughness);
@@ -100,12 +113,19 @@ vec3 astra_water_segment(vec3 radiance, vec3 start, vec3 finish, float skylight)
     vec3 result = water_medium(radiance, distanceInWater, astra_water_incident(skylight));
     return result;
 }
-vec4 astra_fog(vec3 playerPos, float skylight) {
+// The distance/direction and the endpoint's world height are separate inputs:
+// secondary air legs start at a reflective/refractive interface, not at the eye.
+vec4 astra_fog_path_ordinary(vec3 playerPos, float skylight, float fragWorldY, bool airLeg) {
     float distanceToCamera = length(playerPos);
     vec3 direction = playerPos / max(distanceToCamera, 1e-5);
+    #ifdef DIMENSION_END
+    bool ordinaryFog = blindness <= 0.0001;
+    #else
+    const bool ordinaryFog = true;
+    #endif
     // Powder snow is a camera medium in every dimension. Use the engine's
     // medium colour; ordinary atmosphere settings must not remove its occlusion.
-    if (isEyeInWater == 3 && blindness <= 0.0001)
+    if (!airLeg && isEyeInWater == 3 && ordinaryFog)
         return vec4(srgb_decode(max(fogColor, vec3(0.0))),
                     smoothstep(0.0, 2.0, distanceToCamera));
     #ifdef ASTRA_VOLUME_FOG
@@ -114,18 +134,18 @@ vec4 astra_fog(vec3 playerPos, float skylight) {
     // AIR_PERSPECTIVE and BIOME_TINT are REPLACED, not stacked on top of it. This
     // entry re-integrates the shared density model for the caller's own endpoint -
     // the buffered half-resolution march is consumed only by the deferred compose.
-    // Blindness, lava, powder snow (above) and water legs keep their own paths.
-    if ((isEyeInWater == 0 || water_is_thin_sheet()) && blindness <= 0.0001) {
-        vec4 volume = astra_volume_border(astra_volume_prefix_medium(playerPos), distanceToCamera);
+    // The wrapper owns blindness; lava, powder snow and water keep their paths.
+    // A secondary leg's actual origin belongs to water_scene_path_transfer;
+    // this camera-prefix facade must never integrate it from the eye instead.
+    if (!airLeg && (isEyeInWater == 0 || water_is_thin_sheet()) && ordinaryFog) {
+        vec4 volume = astra_volume_border(astra_volume_prefix_medium(playerPos, distanceToCamera), distanceToCamera);
         // This facade returns a straight fog colour for mix(scene, colour, opacity).
         // The volume stores integrated scattering, already weighted by extinction.
         float opacity = clamp(1.0 - volume.a, 0.0, 1.0);
         return vec4(max(volume.rgb, vec3(0.0)) / max(opacity, 0.000001), opacity);
     }
     #endif
-    // Absolute world height of the fragment: the valley mist lives in the world, not
-    // in camera space, so it must not move when the camera does.
-    float fragWorldY = cameraPosition.y + playerPos.y;
+    // The caller supplies absolute endpoint height, including an interface origin.
     float skyStrength;
     vec4 fog;
     #if defined DIMENSION_NETHER
@@ -135,15 +155,16 @@ vec4 astra_fog(vec3 playerPos, float skylight) {
         fog = end_fog(skyStrength, distanceToCamera, distanceToCamera, playerPos);
     #else
         vec3 underwaterFog = vec3(0.0);
-        if (isEyeInWater == 1 && !water_is_thin_sheet() && blindness <= 0.0001)
+        if (!airLeg && isEyeInWater == 1 && !water_is_thin_sheet() && ordinaryFog)
             underwaterFog = astra_underwater_color(direction);
         FogParams params = FogParams(MIN_AMBIENT_COLOR, underwaterFog,
                                      clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0));
-        fog = fog_v2(skyStrength, params, distanceToCamera, distanceToCamera, skylight,
-                     fragWorldY);
+        float fogValleyMist;
+        fog = fog_v2(skyStrength, fogValleyMist, params, distanceToCamera, distanceToCamera, skylight,
+                     fragWorldY,airLeg);
     #endif
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-        if ((isEyeInWater == 0 || water_is_thin_sheet()) && blindness <= 0.0001) {
+        if ((airLeg || isEyeInWater == 0 || water_is_thin_sheet()) && ordinaryFog) {
             #ifdef CAVE_FOG
                 float eyeSky = clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0);
                 float outdoorWeight = smoothstep(0.0, 0.25, max(skylight, eyeSky));
@@ -159,7 +180,7 @@ vec4 astra_fog(vec3 playerPos, float skylight) {
             // cannot disagree about where the low air is. End points are unchanged:
             // 0.62 at the valley floor, 0.22 above Y=150.
             if (morning > 0.0 && distanceToCamera > 24.0) {
-                float fogAirWeight=fog_morning_air_weight(fragWorldY);
+                float fogAirWeight=fog_morning_air_weight_from_mist(fogValleyMist);
                 float morningFog=(1.0-exp(-pow((distanceToCamera-24.0)*0.003,1.4)))
                                 *morning*fogAirWeight;
                 fog.a=1.0-(1.0-fog.a)*(1.0-morningFog);
@@ -206,13 +227,54 @@ vec4 astra_fog(vec3 playerPos, float skylight) {
     #endif
     // Overworld fog_v2 already returns the identical underwater colour.
     #if defined DIMENSION_NETHER || defined DIMENSION_END
-    if (isEyeInWater == 1 && blindness <= 0.0001) {
+    if (!airLeg && isEyeInWater == 1 && ordinaryFog) {
         fog.rgb = astra_underwater_color(direction);
         // Directional scattering is integrated after translucent geometry (SC-33).
         // This function supplies only the background medium, once per optical path.
     }
     #endif
     return vec4(max(fog.rgb, vec3(0.0)), clamp(fog.a, 0.0, 1.0));
+}
+vec4 astra_fog_path(vec3 playerPos, float skylight, float fragWorldY, bool airLeg) {
+    #ifdef DIMENSION_END
+    return astra_fog_path_ordinary(playerPos, skylight, fragWorldY, airLeg);
+    #else
+    float strength = clamp(blindness, 0.0, 1.0);
+    float blindOpacity = 0.0;
+    if (strength > 0.0001) {
+        float darkness = length(playerPos) * strength * 0.5;
+        blindOpacity = max(0.85, 1.0 - exp(-darkness * darkness));
+        #if defined BORDER_FOG && !defined DIMENSION_NETHER
+        blindOpacity = min(blindOpacity + smoothstep(borderFogDistance - 8.0,
+                                borderFogDistance, length(playerPos)), 1.0);
+        #endif
+        // Preserve the full-strength replacement and its inexpensive early exit.
+        if (strength >= 1.0) return vec4(vec3(0.0), blindOpacity);
+    }
+    vec4 fog = astra_fog_path_ordinary(playerPos, skylight, fragWorldY, airLeg);
+    if (strength > 0.0001) {
+        // Blend premultiplied fog contributions so both the black coverage and
+        // the ordinary atmosphere restore continuously, including the horizon.
+        float opacity = mix(fog.a, blindOpacity, strength);
+        fog.rgb *= fog.a * (1.0 - strength) / max(opacity, 0.000001);
+        fog.a = opacity;
+    }
+    return fog;
+    #endif
+}
+vec4 astra_fog(vec3 playerPos, float skylight, float fragWorldY) {
+    return astra_fog_path(playerPos,skylight,fragWorldY,false);
+}
+vec4 astra_air_fog(vec3 playerPos, float skylight, float fragWorldY) {
+    #if defined DIMENSION_NETHER || defined DIMENSION_END
+    return astra_fog(playerPos,skylight,fragWorldY);
+    #else
+    if (isEyeInWater == 1 && blindness > 0.0001) return vec4(0.0);
+    return astra_fog_path(playerPos,skylight,fragWorldY,true);
+    #endif
+}
+vec4 astra_fog(vec3 playerPos, float skylight) {
+    return astra_fog(playerPos, skylight, cameraPosition.y + playerPos.y);
 }
 vec3 astra_apply_medium(vec3 color, vec3 playerPos, float skylight) {
     if (isEyeInWater == 1 && !water_is_thin_sheet()) {
@@ -227,6 +289,11 @@ vec3 astra_apply_medium(vec3 color, vec3 playerPos, float skylight) {
     }
     vec4 fog = astra_fog(playerPos, skylight);
     #ifdef DIMENSION_NETHER
+    // At either opacity endpoint the gamma-domain blend has only one source.
+    // Avoid converting both colours and decoding an unchanged endpoint.
+    // The interior interval retains the original Nether blend convention.
+    if (fog.a <= 0.0) return max(color, vec3(0.0));
+    if (fog.a >= 1.0) return fog.rgb;
     vec3 result = srgb_decode(mix(srgb_encode(max(color, vec3(0.0))),
                                   srgb_encode(fog.rgb), fog.a));
     #else
@@ -257,10 +324,20 @@ vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
         LightParams params = LightParams(astra_sky_ambient(), astra_direct_light(),
             nightVision, astraBlocklightSuppression, astraHeldLightBase,
             astraHeldLightSuppression, lightningBoltPosition);
+        bool sss = material >= 2u && material <= 6u;
+        #ifndef SSS_FOLIAGE
+            sss = false;
+        #endif
+        // Cloud visibility only modulates the direct source. weather.glsl folds every
+        // non-planar cloud mode to a transmission of exactly 1.0, so the planar gate
+        // below removes the whole modulation - including its material-facing gate -
+        // instead of preparing it on every fragment. Inside the planar mode the cheap
+        // contribution switch runs first; the shared facing gate and the cache /
+        // out-of-grid query are prepared only where the source can really change.
         // The bed receives the same incident daylight as the bank. A second
         // reference palette made daytime transmission blue while torchlight
         // stayed cyan. Interface absorption owns the water colour, once.
-
+        #if CLOUD_MODE == CLOUD_PLANAR
         #ifdef CLOUD_SHADOWS
             // PROVENANCE: BSL (lib/lighting/shadows.glsl:295-374, All Rights Reserved) +
             //   Complementary Reimagined r5.9 (lib/lighting/cloudShadows.glsl:60, License
@@ -274,22 +351,30 @@ vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
             // roofed or underground surface never catches a cloud shadow. The source
             // elevation fade now belongs to the shared cache and field fallback,
             // rather than being evaluated again for every surface fragment.
-            vec3 cloudLightDir = astra_world_light_direction();
             float cloudWeight = 0.75 * static_shadow(skylight);
-            if ((isEyeInWater == 0 || water_is_thin_sheet()) && cloudWeight > 0.0 && astraCloudShadowFade > 0.0) {
+            bool cloudPossible = cloudWeight > 0.0 && astraCloudShadowFade > 0.0;
+        #else
+            bool cloudPossible = astraRainFactor > 0.01;
+        #endif
+        if (cloudPossible) {
+            bool cloudReceiver = (isEyeInWater == 0 || water_is_thin_sheet())
+                && any(greaterThan(params.directLightSurface, vec3(0.0)))
+                && !astra_direct_facing_away(dot(normal, astra_world_light_direction()),
+                                             sss, material == 2u, material == 8u, false);
+            #ifdef CLOUD_SHADOWS
+            vec3 cloudLightDir = astra_world_light_direction();
+            if (cloudReceiver) {
                 params.directLightSurface *= mix(1.0,
                     astra_cloud_transmission(playerPos + cameraPosition, cloudLightDir),
                     cloudWeight);
             }
-        #else
-        if ((isEyeInWater == 0 || water_is_thin_sheet()) && astraRainFactor > 0.01) {
-            float cloudLight = astra_cloud_transmission(playerPos + cameraPosition, astra_world_light_direction());
-            params.directLightSurface *= mix(1.0, cloudLight, astraRainFactor * 0.75);
+            #else
+            if (cloudReceiver) {
+                float cloudLight = astra_cloud_transmission(playerPos + cameraPosition, astra_world_light_direction());
+                params.directLightSurface *= mix(1.0, cloudLight, astraRainFactor * 0.75);
+            }
+            #endif
         }
-        #endif
-        bool sss = material >= 2u && material <= 6u;
-        #ifndef SSS_FOLIAGE
-            sss = false;
         #endif
         vec3 color = diffuse_lighting(albedo, normal, playerPos, shadowPos,
                          skylight, blocklight, sss, material == 2u, material == 8u, params, directRadiance, ambientRadiance, skyResponse);

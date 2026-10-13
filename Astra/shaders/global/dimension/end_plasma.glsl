@@ -12,7 +12,11 @@ void end_plasma_layers(vec2 q,float sourceZ,float outside,
         vec3 p=vec3(q.x,q.y*END_DISC_INCLINATION-z*cosIncl,
                     q.y*cosIncl+z*END_DISC_INCLINATION);
         float radius=length(p.xy), height=abs(p.z);
-        float corona=exp(-pow((radius-1.35)/0.70,2.0)-pow(height/0.48,2.0))
+        // radius and height are nonnegative, but (radius-1.35) is negative
+        // inside the corona peak where pow() would be undefined.
+        float coronaRadial=(radius-1.35)/0.70;
+        float coronaHeight=height/0.48;
+        float corona=exp(-coronaRadial*coronaRadial-coronaHeight*coronaHeight)
                      *smoothstep(0.80,1.12,radius)*0.11;
         // Streamlines open gradually away from launch radii in the outer disc;
         // angular advection slows with height while material drifts outward.
@@ -58,15 +62,18 @@ vec3 end_polar_jet(vec2 q,float aa,float outside) {
     float coreWidth=0.006+0.002*h;
     float spine=exp(-q.x*q.x/(coreWidth*coreWidth+aa*aa));
     float sheathWidth=0.006+0.003*h;
-    float sheath=exp(-pow(abs(q.x)-opening,2.0)/(sheathWidth*sheathWidth+aa*aa));
-    float root=exp(-pow((h-1.22)/0.23,2.0));
+    float sheathOffset=abs(q.x)-opening;
+    float sheath=exp(-sheathOffset*sheathOffset/(sheathWidth*sheathWidth+aa*aa));
+    float rootOffset=(h-1.22)/0.23;
+    float root=exp(-rootOffset*rootOffset);
     // Standing recollimation features plus two fading outward-moving shocks.
-    float knots=0.38*exp(-pow((h-2.20)/0.13,2.0))
-                +0.24*exp(-pow((h-3.65)/0.19,2.0));
+    float knotA=(h-2.20)/0.13, knotB=(h-3.65)/0.19;
+    float knots=0.38*exp(-knotA*knotA)+0.24*exp(-knotB*knotB);
     for(int i=0;i<2;i++) {
         float travel=mod(frameTimeCounter*0.085+float(i)*2.45,4.9);
         float envelope=smoothstep(0.0,0.4,travel)*(1.0-smoothstep(4.1,4.9,travel));
-        knots+=0.52*envelope*exp(-pow((h-1.30-travel)/0.10,2.0));
+        float shock=(h-1.30-travel)/0.10;
+        knots+=0.52*envelope*exp(-shock*shock);
     }
     float fade=exp(-max(h-1.0,0.0)*0.47)*(1.0-smoothstep(5.6,6.5,h));
     float side=q.y>0.0 ? 1.0 : 0.40;

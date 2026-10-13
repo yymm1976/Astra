@@ -2,9 +2,8 @@
 #define ASTRA_LIB_DITHER_GLSL
 
 // From Mellow v3.4 (MIT) by TheCMK - lib/noise.glsl (ign / dither)
-// Mechanical port. Astra has no TAA (design.md 2.4), so dither() is static IGN -
-// Mellow's own note: static interleaved gradient noise is the visually pleasing
-// choice without TAA. License: MIT - see THIRD-PARTY.md.
+// Mechanical port. Output dither follows optional scene TAA and stays outside
+// HDR history, so static IGN is intentional. License: MIT - see THIRD-PARTY.md.
 // Uniforms: frameCounter (only when ign() is called with animate = true)
 
 float ign(vec2 pos, const bool animate) {

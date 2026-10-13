@@ -1,2 +1,2 @@
 #version 400 compatibility
-#include "/program/composite.vsh"
+#include "/program/water_composite.vsh"

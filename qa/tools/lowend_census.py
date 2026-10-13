@@ -56,7 +56,8 @@ def census(name, rel):
     fmt = set(re.findall(r'colortex(\d+)Format\s*=\s*([A-Za-z0-9_]+)', alltext))
     sized = set(re.findall(r'size\.buffer\.(\S+?)\s*=\s*([0-9.]+ [0-9.]+)', props))
     # downsampled distinct buffers
-    # A fixed 294x1 LUT is not a fractional-resolution render target.
+    # A fixed 316x1 End LUT is not a fractional-resolution render target; its texels
+    # are per-consumer records (slot 0 alone runs the disc sampling), not a scaled grid.
     ds = {b for b, s in sized if all(0.0 < float(x) < 1.0 for x in s.split())}
     enabled = re.findall(r'^program\.(\S+?)\.enabled\s*=\s*(.+)$', props, re.M)
     tiers = re.findall(r'^profile\.(\S+?)=', props, re.M)

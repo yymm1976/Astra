@@ -27,7 +27,6 @@ vec4 astra_procedural_moon(vec3 worldDir, vec3 centre, float angularRadius, vec3
 	float cosineAngle = dot(worldDir, c);
 	float edge = max(fwidth(cosineAngle), 2.0e-6);
 	float disc = smoothstep(cosineRadius - edge, cosineRadius + edge, cosineAngle);
-	if (disc <= 0.0) return vec4(0.0);
 
 	// Horizontal offset inside the disc, in disc radii (-1..1). Across half a degree the
 	// terminator's curvature is not resolvable, so a straight edge is used rather than
@@ -36,7 +35,11 @@ vec4 astra_procedural_moon(vec3 worldDir, vec3 centre, float angularRadius, vec3
 	vec3 right = cross(c, up);
 	float x = dot(worldDir, right) / max(sin(angularRadius), 1e-6);
 
-	float phaseMask = step(1.0 - 2.0 * astraMoonIllumination, x * astraMoonLimbSign);
+	float phaseCoordinate = x * astraMoonLimbSign;
+	float phaseEdge = max(fwidth(phaseCoordinate), 1e-6);
+	if (disc <= 0.0) return vec4(0.0);
+	float threshold = 1.0 - 2.0 * astraMoonIllumination;
+	float phaseMask = smoothstep(threshold - phaseEdge, threshold + phaseEdge, phaseCoordinate);
 	// A new moon keeps a faint earthshine disc so the sky is never missing its object.
 	float shown = mix(0.045, 1.0, phaseMask);
 
@@ -97,6 +100,8 @@ void main() {
                 // ceiling as the multiplier rises. Peak after compression: 3.14 day,
                 // 2.61 twilight - above the tonemapper's knee, which is what keeps a
                 // sun-staring frame bright, but no longer 6.7x above it.
+                // The 0.028 sun / 0.0096 moon radii are existing artistic choices,
+                // rather than a claim of equal apparent astronomical diameters.
                 vec3 disc = mix(vec3(8.0,7.0,5.2),vec3(6.2,4.2,1.8),astra_twilight_strength());
                 gl_FragData[0] = astra_procedural_disc(
 					worldDir, worldSunVector, 0.028,

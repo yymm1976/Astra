@@ -1,5 +1,6 @@
 #ifndef ASTRA_WET_MATERIAL_GLSL
 #define ASTRA_WET_MATERIAL_GLSL
+#include "/lib/pow.glsl"
 
 // ITT 3.2 material-dependent wetness: idea only, original Astra implementation.
 // faceData: normal 0..17, material 18..21, End obsidian 22, wet class 23..24.
@@ -8,7 +9,7 @@ uint astra_wet_class(int blockId) {
     if (blockId == 10031) return 1u; // wood
     if (blockId == 10032) return 2u; // soil / loose mineral surfaces
     if (blockId == 10014 || blockId == 10015 || blockId == 10017) return 3u;
-    return 0u;
+    return 0u; // ordinary stone/default: the fourth wet class, not missing data
 }
 
 // x: damp darkening; y: maximum direct-light gloss gain; z: highlight exponent.
@@ -24,6 +25,12 @@ float astra_wet_gloss(vec3 normal, vec3 viewDir, vec3 lightDir, vec3 response) {
     vec3 halfVector = viewDir + lightDir;
     halfVector *= inversesqrt(max(dot(halfVector, halfVector), 1e-6));
     float facing = clamp(dot(normal, halfVector), 0.0, 1.0);
+    // The material table uses integer lobes. Literal multiply chains retain
+    // those curves without the runtime exponent's log/exp path.
+    if (response.z == 10.0) return response.y * pow5(square(facing));
+    if (response.z == 16.0) return response.y * pow4(pow4(facing));
+    if (response.z == 24.0) return response.y * pow6(pow4(facing));
+    if (response.z == 32.0) return response.y * pow8(pow4(facing));
     return response.y * pow(facing, response.z);
 }
 #endif

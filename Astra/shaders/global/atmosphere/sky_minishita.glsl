@@ -23,7 +23,7 @@
 //   overrides). Porting it needs four extra CPU-side uniforms
 //   (rayleighStrengthSun/Moon, mieStrengthSun/Moon, day/nightSkyOverridePremultiplied,
 //   ambientSkyColor), which live in shaders.properties - the integration task's boundary.
-//   Raised in docs/handoffs/sky-clouds.md.
+//   Raised in docs/archive/实现与取证.md#record-088.
 
 const float ASTRA_PI = 3.14159265359;
 const float ASTRA_PLANET_RADIUS = 1.0;

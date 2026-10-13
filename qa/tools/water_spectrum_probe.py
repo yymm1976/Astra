@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """A1 probe: above-water shallow-to-deep water colour chain, Astra vs Steadfast 0.8.0.
 
-Reproduces, in double precision, the exact expressions Astra ships:
+2026-09-21/22 FIXED HISTORICAL SNAPSHOT. This file reproduces, in double precision, the
+expressions Astra carried on those dates. The list below is where those formulas lived
+then - it records that snapshot, and its line numbers are not maintained against later
+edits:
 
   water_surface_absorption()   global/water/absorption.glsl:16-34   (per character)
   appearanceDepth              global/water/absorption.glsl:74      (depth + 1, clamp 24)
@@ -25,14 +28,24 @@ live read, and two of them no longer match the shader): the CHARACTERS table bel
 predates the 2026-09-21 absorption re-order (the shipped default branch is
 (1.000, 0.0500, 0.0900) / (1.000, 0.3000, 0.0500)), and WATER_BODY_COLOR is the deep
 end only - water_body_color() now blends a cyan shallow end into that navy by
-appearanceDepth. The live measurements, read from the sources at run time, are in
-qa/tools/airside_water_probe.py section 1 and qa/tools/underwater_light_probe.py
-section [3] (the gate).
+appearanceDepth.
+
+Every number this script prints is a historical snapshot of the 2026-09-21/22 chain. It
+does not read the shader sources at run time and does not describe the current
+implementation. The two entry points it used to name as the live measurement,
+qa/tools/airside_water_probe.py and qa/tools/underwater_light_probe.py, are retired: both
+now only print a retirement notice to stderr and return 2, so neither can supply numbers
+any more. The current rendering this file does not re-derive lives in
+global/water/absorption.glsl (spectrum and water_body_color), global/water/optics.glsl
+(fresnel / IOR), program/water.glsl (per-surface depth and the water path) and
+global/water/caustics.glsl (caustics); those source locations, not this script, are the
+only current basis. Rebuilding a live measurement here is out of scope.
 """
 
 import math
 
-# --- Astra, as shipped (settings.glsl defaults: WATER_ABSORPTION=100, MIN_AMBIENT=8) ---
+# --- Astra as of the 2026-09-21/22 snapshot (settings.glsl defaults then:
+# WATER_ABSORPTION=100, MIN_AMBIENT=8); historical values, not current ones ---
 WATER_ABSORPTION = 100.0
 SKYLIGHT_STRENGTH = 100.0
 MIN_AMBIENT = 8.0
@@ -281,7 +294,7 @@ def main():
                          col[2] / max(col[1], 1e-9), label(h, col)))
 
     print()
-    print("Reading guide for the in-game pass:")
+    print("Historical reading guide for the 2026-09-21/22 snapshot (not the current in-game pass):")
     print("  * the transmission's own hue is BLUE-leaning at every depth (g/b < 1) because")
     print("    green is absorbed faster than blue; that is the 2026-09-20 C1 re-ordering.")
     print("  * 'cyan' in the composed image therefore comes from the BED, not from the")

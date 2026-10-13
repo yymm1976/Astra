@@ -14,7 +14,10 @@ const float END_DISC_OUTER = 5.20;
 const float END_DISC_INCLINATION = 0.16;
 float end_disc_half_height(float r) {
     float taper=smoothstep(END_DISC_INNER,END_DISC_INNER+0.18,r);
-    float innerSupport=0.070*exp(-pow((r-1.40)/0.65,2.0));
+    // (r-1.40) is negative below the support peak, and GLSL pow() is undefined
+    // for a negative base. The explicit square keeps the Gaussian defined.
+    float innerRadial=(r-1.40)/0.65;
+    float innerSupport=0.070*exp(-innerRadial*innerRadial);
     return taper*(r*(0.023+0.018*smoothstep(1.8,5.2,r))+innerSupport);
 }
 // Zero-stress thin-disc shape. The maximum lies at 49/36 of the chosen inner

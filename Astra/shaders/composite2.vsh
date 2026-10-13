@@ -1,2 +1,3 @@
 #version 400 compatibility
-#include "/program/composite.vsh"
+#include "/lib/settings.glsl"
+#include "/program/scattering.vsh"

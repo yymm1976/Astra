@@ -1,9 +1,14 @@
 #ifndef ASTRA_END_GEOMETRY_GLSL
 #define ASTRA_END_GEOMETRY_GLSL
+#include "/lib/pow.glsl"
 #include "/lib/end_light.glsl"
 #include "/global/dimension/end_disc_profile.glsl"
 // Original Astra geometry. All lengths are virtual sky units, never world blocks.
 // The observer is always (0,0,0), including on the outer islands and in reflections.
+// Retained research: bodies 0..65 and end_solid_hit/end_solid_hit_subset belong
+// to the retired ring catalogue. Active sky/occlusion callers use IDs 66..72.
+// END_LENS_RADIUS, END_HORIZON, end_noise3 and end_window are also retained
+// research symbols, with no active callers. They do not schedule GPU work.
 const float END_PI = 3.14159265359;
 const float END_TAU = 6.28318530718;
 const float END_FAR = 10000.0;
@@ -19,11 +24,31 @@ const int END_BODY_COUNT = 73;
 uniform int worldDay;
 uniform int worldTime;
 
+// colortex8 layout (RGBA32F, width 316 in shaders.properties). program/end_illumination.fsh
+// writes every texel each frame, so the pre-existing 0..293 addresses are unchanged:
+//   0        End eclipse quadrature (eclipse, blocked, 1-blocked, 1)
+//   1..73    body records (id + 1): vec4(true centre, model scale)
+//   74       ring axis
+//   75..293  cached body bases keyed by id (3 texels each); ids 0..65 are
+//            zero-filled, 66..72 carry the active basis
+//   294..314 cached ID-only island shape params for ids 66..72 (3 texels each:
+//            towerHeight, towerZ, vec4(shardZ, filler))
+//   315      star-field rotation vec4(cos(a), sin(a), 0, 1)
+#define ASTRA_END_BODY_FIRST_ID 66
+#define ASTRA_END_SHAPE_SLOT_BASE 294
+#define ASTRA_END_STAR_ROTATION_SLOT 315
+
 // Reduce days before adding ticks: old saves must not lose the small orbital steps.
 float end_cycle_seconds(float period) {
     float days = mod(float(worldDay / 1024) * mod(1228800.0,period),period);
     return mod(days + mod(float(worldDay % 1024)*1200.0,period)
                     + float(worldTime)*0.05,period);
+}
+// One star-field rotation for the whole frame. Still the worldDay/worldTime-only
+// formula; never frameTimeCounter or a host clock. The cache producer bakes the
+// cos/sin pair of this angle into colortex8 slot 315.
+float end_star_rotation() {
+    return radians(end_cycle_seconds(1296000.0)/3600.0);
 }
 float end_orbit_phase(float period,float phase) {
     return END_TAU*end_cycle_seconds(period)/period+phase;
@@ -56,6 +81,11 @@ mat3 end_disc_basis() {
 }
 vec3 end_rotate_y(vec3 p,float a) {
     return vec3(cos(a)*p.x+sin(a)*p.z,p.y,-sin(a)*p.x+cos(a)*p.z);
+}
+// Same rotation with a precomputed (cos a, sin a) pair: identical arithmetic, used
+// where the angle is already known so cos/sin are not re-evaluated per vector.
+vec3 end_rotate_y(vec3 p,vec2 cosSin) {
+    return vec3(cosSin.x*p.x+cosSin.y*p.z,p.y,-cosSin.y*p.x+cosSin.x*p.z);
 }
 mat3 end_body_basis(vec3 center,int id) {
     #ifdef ASTRA_END_BODY_CACHE
@@ -105,7 +135,7 @@ vec4 end_body(int id) {
         if(id>57) u=mix(0.84,0.99,end_hash(f+23.0));
         float phase=end_orbit_phase(3600.0/mix(1.0,0.62,u),f*2.39996323);
         center=end_orbit_position(b,u,phase);
-        diameter=id<4 ? mix(2.0,4.0,end_hash(f+19.0)) : mix(0.08,0.75,pow(end_hash(f+11.0),3.0));
+        diameter=id<4 ? mix(2.0,4.0,end_hash(f+19.0)) : mix(0.08,0.75,cube(end_hash(f+11.0)));
     } else if(id<66) {
         int moon=id-64;
         center=end_orbit_position(b,end_shepherd_radius(moon),end_shepherd_phase(moon));
@@ -136,7 +166,18 @@ struct EndBodyShapeParams {
 EndBodyShapeParams end_body_shape_params(int id) {
     EndBodyShapeParams params;
     params.towerHeight=vec4(0.0); params.towerZ=vec4(0.0); params.shardZ=vec3(0.0);
-    if(id>=66) {
+    #ifdef ASTRA_END_BODY_CACHE
+    // Only ids 66..72 are active islands. Their shape data depends on the ID alone,
+    // so the cache producer bakes it once per frame next to the cached bases.
+    if(id>=ASTRA_END_BODY_FIRST_ID && id<END_BODY_COUNT) {
+        int slot=ASTRA_END_SHAPE_SLOT_BASE+(id-ASTRA_END_BODY_FIRST_ID)*3;
+        params.towerHeight=texelFetch(colortex8,ivec2(slot,0),0);
+        params.towerZ=texelFetch(colortex8,ivec2(slot+1,0),0);
+        params.shardZ=texelFetch(colortex8,ivec2(slot+2,0),0).xyz;
+        return params;
+    }
+    #endif
+    if(id>=ASTRA_END_BODY_FIRST_ID) {
         float seed=float(id)+31.0;
         for(int j=0;j<4;j++) {
             float f=float(j);
@@ -196,16 +237,21 @@ float end_body_shape(vec3 p,int id) {
 bool end_body_hit(vec3 origin,vec3 ray,float limit,vec4 body,int id,float cone,
                   out float hit,out vec3 localHit,out float epsilon) {
     vec3 offset=origin-body.xyz;
-    float along=dot(offset,ray), radius=body.w*1.65;
-    float discriminant=along*along-dot(offset,offset)+radius*radius;
     hit=END_FAR; localHit=vec3(0.0); epsilon=0.0;
+    // Reuse the same offset and discriminant root for the entry and exit.
+    float along=dot(offset,ray), radius=body.w*1.65;
+    float offsetSquared=dot(offset,offset);
+    float discriminant=along*along-offsetSquared+radius*radius;
     if(discriminant<0.0) return false;
-    float start=max(0.0,-along-sqrt(discriminant));
-    float finish=min(limit,-along+sqrt(discriminant));
+    float root=sqrt(discriminant);
+    float start=max(0.0,-along-root);
+    float finish=min(limit,-along+root);
     if(start>=finish) return false;
     mat3 basis=end_body_basis(body.xyz,id);
-    vec3 p=transpose(basis)*(origin-body.xyz)/body.w;
-    vec3 direction=transpose(basis)*ray;
+    mat3 inverseBasis=transpose(basis);
+    // `offset` already holds origin-body.xyz; the previous expression rebuilt it.
+    vec3 p=inverseBasis*offset/body.w;
+    vec3 direction=inverseBasis*ray;
     float t=start/body.w, endT=finish/body.w;
     epsilon=clamp(cone*max(start,0.1)/body.w*0.35,0.0003,0.015);
     float closest=END_FAR, closestT=t;

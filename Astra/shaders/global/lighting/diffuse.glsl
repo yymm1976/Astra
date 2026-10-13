@@ -76,7 +76,7 @@
 //                           for D2/E1 — flagged in the handoff, not a C1 defect.)
 //   nightVision           — built-in (not frozen): 0..1, boosts ambient sky only.
 //   blocklightSuppression — CPU (Steadfast blocklightSuppression), 0..1; see blocklight.glsl.
-//   heldLightBase         — CPU pow(heldBlockLightValue/15, 4), 0..1; see blocklight.glsl.
+//   heldLightBase         — CPU heldBlockLightValue/15, 0..1; see blocklight.glsl.
 //   heldLightSuppression  — CPU smooth(eyeBrightness.y/240, .4, .4), 0..1; see blocklight.glsl.
 //   lightningBolt         — lightningBoltPosition (vec4), xyz + w gate; see blocklight.glsl.
 struct LightParams {
@@ -118,7 +118,7 @@ vec3 ambient_sky_lighting(float skyLightStrength, float ambientStrength, vec3 sk
 //   - the plain-Lambert branch early-outs before the (costly) shadow sample when the face
 //     is turned away; foliage samples while its wrap contributes, and glass
 //     samples for its fixed top-lit response.
-//   - the in-shadow SSS factor (0.7071) lives INSIDE shadow_mapping (B1) — this function
+//   - the in-shadow SSS factor (0.7071) is applied once by astra_lighting when calling direct_lighting — this function
 //     supplies only the out-of-shadow wrap via sss_wrap(), so the two are never doubled.
 vec3 direct_lighting(
 	vec3  worldNormal,
@@ -219,7 +219,7 @@ vec3 direct_lighting(
 //   - the effect is scaled by sky exposure, so caves, interiors and the dark keep
 //     their material colour - Steadfast's skyLight factor, which is also what keeps
 //     this off the Nether and off anything the End lights by its own palette.
-//   - local light removes it (local_light_attenuation, the same division of labour
+//   - local light removes it (1.0-clamp(localIntensity,0.0,1.0), the same division of labour
 //     Steadfast's max(blockLight, heldLight) performs), so a torch's pool keeps the
 //     warm albedo that identifies it as firelight. It touches lit colour only, so
 //     emissive blocks and portals are untouched by construction.
@@ -258,6 +258,22 @@ vec3 desaturate_surface(vec3 color, float amount) {
 }
 
 // Resolve transparent tint and occlusion from paired depths at the same texel.
+//
+// Native main-world receivers use four fixed plane-corrected footprints in Q1/Q2.
+// A uniform centre alone cannot certify the expanded kernel. Spread is bounded
+// in world space below. The legacy water path retains its
+// Overworld budget (ASTRA_OVERWORLD_OPTIMIZED, lib/settings.glsl): the footprint
+// count is graded by receiver distance instead of by the global SHADOW_FILTER_QUALITY
+// tier - two four-corner footprints up to 32 blocks, one beyond. The two near
+// offsets converge onto the center across 24..32 blocks, so crossing the threshold
+// keeps the result continuous and reduces the two near groups to the one the far side
+// already uses; no third footprint is ever introduced. The near spread caps the
+// softness basis at 2 (1.0 texel) and keeps a lower raw SHADOW_SOFTNESS instead of
+// rounding it up, so the budget never inherits a softer footprint than the raw
+// option asked for. Raw SHADOW_FILTER_QUALITY 0 keeps its own single-footprint
+// branch and is never raised to two groups by the budget. Other dimensions and
+// OVERWORLD_BUDGET 0 keep the original SHADOW_FILTER_QUALITY branch and its
+// SHADOW_SOFTNESS untouched.
 vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
     #ifdef STATIC_SHADOW_FALLBACK
         float fallback = static_shadow(skyLight);
@@ -270,10 +286,77 @@ vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
     #ifdef SHADOWS
         float coverage = shadow_coverage(playerPos, shadowPos);
         if (coverage <= 0.0) return vec3(fallback);
-        #if SHADOW_FILTER_QUALITY == 0
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        ivec2 shadowSize = textureSize(shadowtex0, 0);
+        float receiverWorldY = cameraPosition.y + playerPos.y;
+        // Low skylight predicts opaque shade. Full skylight and submerged views
+        // keep the existing all-caster-first transmission fast paths.
+        bool opaqueFirst = skyLight <= 13.5 / 15.0 && isEyeInWater == 0;
+        #endif
+        #if defined ASTRA_SURFACE_SHADOW_FRAGMENT && SHADOW_FILTER_QUALITY > 0
+        // Retain a stable footprint at every receiver distance. The old
+        // 24..32-block collapse made far silhouettes lose edge coverage.
+        vec3 filtered = vec3(0.0);
+        const int lobeCount = 4;
+        #ifdef ASTRA_OVERWORLD_OPTIMIZED
+        float spread = min(float(SHADOW_SOFTNESS),2.0)*0.5;
+        #else
+        float spread = float(SHADOW_SOFTNESS)*0.5;
+        #endif
+        // A fixed texture radius covers metres at the radial map's rim. Limit
+        // the kernel to a small world radius or the receiver pixel's
+        // footprint; bilinear corners and receiver/caster projection remain.
+        // This is continuous in map density, without the old 32-block cutoff.
+        float mapRim = max(1.0-length(shadowPos.xy*2.0-1.0),0.0001);
+        float worldTexel = (2.0*shadowDistance*SHADOW_DISTORT_FACTOR)
+                         / (float(shadowMapResolution)*mapRim*mapRim);
+        float softRadius=max(0.22,0.75*sqrt(astraSurfaceShadowPixelWorldSquared));
+        spread = min(spread,softRadius/max(worldTexel,0.0001));
+        if (spread<=0.0) {
+            filtered=shadow_lobe_light_inside(shadowPos.xy,shadowPos.z,
+                receiverWorldY,shadowSize,opaqueFirst);
+            return mix(vec3(fallback),filtered,coverage);
+        }
+        for (int lobe=0;lobe<lobeCount;++lobe) {
+            #if SHADOW_FILTER_QUALITY == 1
+            // Fixed radius/weights across texel boundaries. Gating extra lobes
+            // on centre visibility clipped their support and made stair bumps.
+            vec2 offset=vec2((lobe & 1)==0 ? -1.0 : 1.0,
+                             (lobe & 2)==0 ? -1.0 : 1.0)*(0.70710678*spread);
+            #else
+            vec2 offset = vec2((lobe & 1) == 0 ? -1.0 : 1.0,
+                               (lobe & 2) == 0 ? -1.0 : 1.0)*spread;
+            #endif
+            filtered += shadow_lobe_light_inside(shadowPos.xy+offset/float(shadowMapResolution),
+                shadowPos.z,receiverWorldY,shadowSize,opaqueFirst)
+                /float(lobeCount);
+        }
+        #elif defined ASTRA_OVERWORLD_OPTIMIZED && SHADOW_FILTER_QUALITY > 0
+        // Distance-graded budget: two footprints near, one far. The far branch
+        // stays a full four-corner footprint (1/2/4 lobes are what the whole
+        // caster-pairing path is built around; a single texel leaks light).
+        // Softness basis capped at 2 (1.0 texel) and never raised above the raw
+        // SHADOW_SOFTNESS, shrinking to 0 across 24..32 blocks.
+        float budgetNear = 1.0 - smoothstep(24.0, 32.0, length(playerPos));
+        vec3 filtered = vec3(0.0);
+        if (budgetNear > 0.0) {
+            float budgetSpread = min(float(SHADOW_SOFTNESS), 2.0) * 0.5 * budgetNear;
+            for (int lobe = 0; lobe < 2; ++lobe) {
+                vec2 offset = vec2(lobe == 0 ? -1.0 : 1.0) * budgetSpread;
+                vec2 uv = shadowPos.xy + offset / float(shadowMapResolution);
+                filtered += shadow_lobe_light_inside(uv, shadowPos.z, receiverWorldY, shadowSize, opaqueFirst) * 0.5;
+            }
+        } else {
+            filtered = shadow_lobe_light_inside(shadowPos.xy, shadowPos.z, receiverWorldY, shadowSize, opaqueFirst);
+        }
+        #elif SHADOW_FILTER_QUALITY == 0
         // Keep individual depth/caster pairs; a stable bilinear footprint needs
         // neither a rotating sample pattern nor temporal antialiasing.
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        vec3 filtered = shadow_lobe_light_inside(shadowPos.xy, shadowPos.z, receiverWorldY, shadowSize, opaqueFirst);
+        #else
         vec3 filtered = shadow_lobe_light(shadowPos.xy, shadowPos.z, cameraPosition.y + playerPos.y);
+        #endif
         #else
         vec3 filtered = vec3(0.0);
         #if SHADOW_FILTER_QUALITY == 1
@@ -289,13 +372,27 @@ vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
                                (lobe & 2) == 0 ? -1.0 : 1.0) * (float(SHADOW_SOFTNESS)*0.5);
             #endif
             vec2 uv = shadowPos.xy + offset / float(shadowMapResolution);
+            #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+            filtered += shadow_lobe_light_inside(uv, shadowPos.z, receiverWorldY, shadowSize, opaqueFirst) / float(lobeCount);
+            #else
             filtered += shadow_lobe_light(uv, shadowPos.z, cameraPosition.y + playerPos.y) / float(lobeCount);
+            #endif
         }
         #endif
         return mix(vec3(fallback), filtered, coverage);
     #else
         return vec3(fallback);
     #endif
+}
+
+// Shared zero-response gate for surface shadows and the caller's cloud visibility.
+// Ground foliage retains its positive wrap; glass keeps its fixed top response.
+bool astra_direct_facing_away(float ndotl, bool subsurfaceScatter, bool isLeaves,
+                             bool isGlass, bool volumeWater) {
+    if (volumeWater) return ndotl <= (0.01 / 1.01);
+    return !isGlass && (subsurfaceScatter
+        ? (isLeaves && ndotl <= -(0.35 / 0.65))
+        : ndotl <= -0.05);
 }
 
 // The composer. Returns surfaceColor * (ambient + local + direct), linear HDR.
@@ -334,8 +431,9 @@ vec3 diffuse_lighting(
     // Steadfast's rule, applied one step earlier than the copy inside direct_lighting():
     // that function already returns black once the facing term collapses
     // (smoothstep(-0.05, 0.05, ndotl) < 1e-4), but by then the caller has already paid for
-    // the shadow fetch - surface_shadow_light is four taps across shadowtex0, shadowtex1
-    // and shadowcolor0. Evaluating the facing here lets those pixels skip the fetch
+    // the shadow fetch - surface_shadow_light resolves paired depths/caster data.
+    // Native Q1 adds edge footprints, Q2 uses four; water retains distance grading.
+    // Evaluating the facing here lets those pixels skip the fetch
     // outright, and in a normal scene about half the visible faces point away from the
     // light. The skip is only valid where the facing term really is the gate:
     // Foliage retains its wrap until that response reaches zero; ground plants
@@ -348,11 +446,8 @@ vec3 diffuse_lighting(
     // Leaves have a finite wrap too: below -0.35/0.65 both Lambert and wrap
     // are zero. Their transmission only remixes visibility, so it cannot make
     // this zero direct response contribute light. Skip those canopy queries.
-    bool facingAway = !isGlass && (subsurfaceScatter
-        ? (isLeaves && facingNdotL <= -(0.35 / 0.65))
-        : facingNdotL <= -0.05);
-    // The submerged lighting branch uses positive Lambert for every material.
-    if (volumeWater) facingAway = facingNdotL <= (0.01 / 1.01);
+    bool facingAway = astra_direct_facing_away(facingNdotL, subsurfaceScatter,
+                                              isLeaves, isGlass, volumeWater);
     vec3 visibility = facingAway
         ? vec3(1.0)
         : surface_shadow_light(playerPos, shadowPos, skyLight);
@@ -411,7 +506,8 @@ vec3 diffuse_lighting(
 
     // Air-only terms: the underwater branch supplies its own ambient response.
     // Only foliage transmission consumes the view direction.
-    vec3 viewDir = subsurfaceScatter && SSS_STRENGTH > 0 && skyLight > 0.20
+    bool directContributes = !facingAway && any(notEqual(params.directLightSurface, vec3(0.0)));
+    vec3 viewDir = directContributes && subsurfaceScatter && SSS_STRENGTH > 0 && skyLight > 0.20
         ? normalize(-playerPos) : vec3(0.0);
 	float ambientStr = ambient_strength(subsurfaceScatter ? 0.7071 : worldNormal.y);
 	vec3 lighting = ambient_sky_lighting(max(skyLight, params.nightVision), ambientStr, params.skyAmbient);
@@ -448,6 +544,12 @@ vec3 diffuse_lighting(
     // that face away from it. Night vision keeps the old forgiving value.
     float night = (1.0-smoothstep(-0.12,0.02,worldSunVector.y))
                 * (1.0-clamp(params.nightVision,0.0,1.0));
+    float twilightFill=astra_twilight_strength()*skyLight*skyLight
+        *(1.0-clamp(params.nightVision,0.0,1.0));
+    // The two distance responses overlap at twilight and share one length.
+    float ambientDistance=0.0;
+    if (night > 0.0 || (twilightFill > 0.0 && SKYLIGHT_STRENGTH > 0))
+        ambientDistance=length(playerPos);
     // 2026-09-23: 0.40 -> 0.85. The old floor traded only 40% of the cast shadow for
     // ambient fill, which left the grass/foliage shadows on open ground as distinct
     // dark speckles. The skyLight^2 gate is kept (not widened to skyLight) on purpose:
@@ -458,7 +560,7 @@ vec3 diffuse_lighting(
     // At zero night weight these distance curves are the identity. Keep their
     // entire nonzero path, including the directional ambient coefficient.
     if (night > 0.0) {
-        float moonDistance=smoothstep(12.0,128.0,length(playerPos));
+        float moonDistance=smoothstep(12.0,128.0,ambientDistance);
         visibility = mix(visibility,vec3(1.0),
                          night*0.85*skyLight*skyLight*(1.0-0.50*moonDistance));
         vec3 caveFloor=ambientStr*MIN_AMBIENT_COLOR;
@@ -468,14 +570,12 @@ vec3 diffuse_lighting(
     }
     // Outdoor horizon fill is independent of shadow visibility, so long
     // shadows keep their shape while shaded terrain retains cool detail.
-    float twilightFill=astra_twilight_strength()*skyLight*skyLight
-        *(1.0-clamp(params.nightVision,0.0,1.0));
     if (twilightFill > 0.0 && SKYLIGHT_STRENGTH > 0)
         lighting += vec3(0.025,0.024,0.030)*twilightFill*ambientStr
-            *mix(1.0,0.65,smoothstep(32.0,160.0,length(playerPos)))
+            *mix(1.0,0.65,smoothstep(32.0,160.0,ambientDistance))
             *(SKYLIGHT_STRENGTH*0.01);
     #endif
-	// 2. Local light: block light + handheld (held is purely camera-distance based).
+	// 2. Local light: block light + handheld (held uses the player-centred light source).
     vec3 ambientLighting = lighting;
 	float heldLight = held_light_strength(params.heldLightBase, playerPos);
 	float localIntensity = local_light_intensity(
@@ -492,16 +592,17 @@ vec3 diffuse_lighting(
 	#endif
 
 	// 4. Direct sun/moon, shadow-mapped.
-	vec3 direct = direct_lighting(
+    // The same facing gate already rejected shadow queries. A zero direct
+    // response needs neither the SSS view lobe nor the directional solve.
+	vec3 direct = directContributes ? direct_lighting(
 		worldNormal, worldLightVector, playerPos, shadowPos,
 		skyLight, subsurfaceScatter, isLeaves, isGlass,
 		visibility * (subsurfaceScatter ? 0.7071 : 1.0),
-		viewDir);
+		viewDir) : vec3(0.0);
 	// The ambient term above already carries the whole night distance ramp
 	// (moonDistance); scaling the direct term by it as well darkened exactly the
 	// faces the moon was lighting, which is where the missing texture came from.
 	// Water tint/caustics are already part of each visibility tap.
-	directRadiance = surfaceColor * direct * params.directLightSurface;
 
 	// Night is carried by colour, not by removing light: see night_desaturation().
 	// Applied to the albedo, so it reaches ambient, local and direct light alike
@@ -514,6 +615,7 @@ vec3 diffuse_lighting(
 	// visibility must not read as "fully moonlit" here (consolidated review D3).
 	surfaceColor = desaturate_surface(
 		surfaceColor, facingAway ? 0.0 : night_desaturation(skyLight, localAttenuation, visibility));
+	directRadiance = surfaceColor * direct * params.directLightSurface;
 
     ambientRadiance = surfaceColor * ambientLighting;
     // Same desaturated surfaceColor that multiplies ambientLighting, so the

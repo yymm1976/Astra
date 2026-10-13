@@ -24,8 +24,9 @@
 //   vec3 apply_auto_exposure(vec3 linearHDR)
 //       LINEAR / scene-referred, and the FIRST thing the chain does. A measured scene
 //       gain, so it has to be outside the tone curve and outside the user's slider.
-//       final calls it on the air arm only (design.md SC-41): the underwater display
-//       curve and the nether/end dimensions keep the manual exposure.
+//       display.vsh reads the gain per quad vertex; display.fsh multiplies it on
+//       the air arm only (SC-41). This helper retains the same direct-use API.
+//       The underwater display curve and nether/end keep the manual exposure.
 //
 //   vec3 apply_exposure(vec3 linearHDR)
 //       LINEAR / scene-referred. Must run BEFORE the tonemap: exposure is a
@@ -190,9 +191,26 @@ vec3 apply_tonal_balance(vec3 color) {
 
 vec3 apply_grading(vec3 displayColor) {
 	vec3 color = apply_color_temperature(displayColor);
+	#if VIBRANCE != 100
 	color = apply_vibrance(color, VIBRANCE * 0.01);
+	#endif
+	#ifdef ASTRA_OVERWORLD_NATURAL
+	// Fresh overworld look. The preset base (saturation 103, contrast 100) is
+	// applied as a scale on the user's sliders, so manual values still move
+	// relative to the preset. This branch is compiled in even at the factory
+	// SATURATION == 100, where the #if below would otherwise skip the 103% base.
+	// Contrast is only evaluated when it differs from the preset's 100%, i.e.
+	// CONTRAST != 102; the default path stays free of the per-pixel pow.
+	color = apply_saturation(color, SATURATION * 0.0103);
+	#if CONTRAST != 102
+	color = apply_contrast(color, CONTRAST * 0.01 * (100.0 / 102.0));
+	#endif
+	#else
+	#if SATURATION != 100
 	color = apply_saturation(color, SATURATION * 0.01);
+	#endif
 	color = apply_contrast(color, CONTRAST * 0.01);
+	#endif
     color = apply_tonal_balance(color);
 	return clamp(color, vec3(0.0), vec3(1.0));
 }
@@ -235,17 +253,23 @@ vec3 apply_output_dither(vec2 screenPos, vec3 displayColor) {
 	// #ifdef, not #if defined: Iris only treats #ifdef/#ifndef lines as an option reference,
 	// so the other spelling left DITHERING out of the option set - no GUI row, and the
 	// profile tokens could not change it.
+	#if defined DITHERING || defined DIMENSION_END
+	// The End's void-preservation offset is additive over the user's dither and
+	// reuses the same IGN value; one evaluation covers both consumers.
+	float ditherValue = dither(screenPos) - 0.5;
+	#endif
 	#ifdef DITHERING
-		// Static IGN: lib/dither.glsl is fixed to animate = false because Astra has
-		// no TAA to average temporal noise (design 2.4). The user's option now applies
-		// in the End as well (consolidated review D5 / Qoder F-27).
-		displayColor += (dither(screenPos) - 0.5) * GRADING_DITHER_STRENGTH;
+		// Static IGN: lib/dither.glsl is fixed to animate = false. The output sits
+		// outside optional TAA's HDR history and is not accumulated there, so it must
+		// not assume temporal averaging. The user's option applies in the End as well
+		// (consolidated review D5 / Qoder F-27).
+		displayColor += ditherValue * GRADING_DITHER_STRENGTH;
 	#endif
 	#if defined DIMENSION_END
 		// End-only void preservation: half an 8-bit code each way, attenuated at
 		// black, additive over the option above.
 		float darkGate=smoothstep(0.0,0.025,max(displayColor.r,max(displayColor.g,displayColor.b)));
-		displayColor+=(dither(screenPos)-0.5)*(1.0/255.0)*darkGate;
+		displayColor+=ditherValue*(1.0/255.0)*darkGate;
 	#endif
 	return displayColor;
 }

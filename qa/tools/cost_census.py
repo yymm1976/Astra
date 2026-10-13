@@ -53,9 +53,11 @@ def main():
     print("End lens: precomputed paths, two disc layers; no runtime geodesic march.")
     print("End plasma: four bounded samples shared by corona and disc wind.")
     print("Empty bounds and early exits reduce actual work; no branch probability assumed.")
-    print("End illumination: only slot 0 runs 32 disc samples, not all 294 slots.")
-    print("Puddle SSR: up to 96 steps on tagged puddle pixels.")
-    print("End sky geometry: 0.75 x 0.75 buffer; stars at full size.")
+    print("End illumination: only slot 0 runs the 32 disc samples; every other slot only "
+          "writes its record.")
+    print("Puddle SSR: 12/20/40 step budgets by WATER_EFFECT_QUALITY "
+          "(global/water/raytrace.glsl).")
+    print("End sky geometry: colortex9 shares depthtex0's native grid; stars at full size.")
     return 0
 
 if __name__ == "__main__":

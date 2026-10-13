@@ -6,13 +6,14 @@
 //
 // 水下悬浮颗粒（design.md §4.3 水下氛围行：水下雾 / 悬浮颗粒 / 雾色随深度渐变——本模块
 // 补齐三项中的"悬浮颗粒"）。观感对标 **Solas 水下**（SC-24 口径）：少量、柔和、缓慢漂移
-// 的白色微尘，随天光可见度变化，近处清晰、远处被水色吸收吞掉。四个参考包都没有屏幕空间
-// 悬浮颗粒实现（检索命中的 `particle` 全是原版粒子 sprite 的 gbuffers 路径），故本模块为
-// Astra 自写——发布闸门（SC-14）不受影响，无需 REWRITE 标记。
+// 的白色微尘，随天光可见度变化，近处清晰、远处被水色吸收吞掉。本模块为 Astra 自写，
+// 没有移植参考包表达式。2026-10-06 Z-B25 / N081 复核已更正旧“四包均无”说法：本地
+// Refrax v1.3.1 lib/underwater.glsl:32-62 有 underwaterMotes（含影图分层光照），65-88 有
+// underwaterBubbles；相似功能的存在不构成 Astra 复用其代码的证据，见 THIRD-PARTY.md。
 //
 // 算法（解析 motes，非 raymarch）：
 //   相机水下时，沿视线方向取 3 个固定距离的"壳层"（3/6/12 格，exp2 阶梯）。每层把壳层上的
-//   世界位置量化进 3D 晶格（cell = 2 格），整型 hash 决定该 cell 是否有 mote、其在 cell
+//   世界位置量化进 3D 晶格（cell = 2.6 格），整型 hash 决定该 cell 是否有 mote、其在 cell
 //   内的偏移、亮度与闪烁相位；径向 smoothstep 得到柔和圆点。比 screen-space 粒子便宜得多
 //   （无纹理采样）。壳层仅用于稀疏近似，晶格固定在世界坐标中，相机平移时有相对运动。
 //
@@ -31,16 +32,16 @@
 //                     壳层距离 >= sceneDistance 时该层（及更远层）被几何遮挡，逐层 break。
 //     skylight      — 相机处的平滑天光（0..1；微尘位于眼前水体中）。
 //     time          — frameTimeCounter。
-//   返回**加性** HDR 光（在 final 中叠加；不进 colortex4 的 SSR 背景副本——反射背景不应
+//   返回**加性** HDR 光（在 display 中叠加；不进 colortex4 的 SSR 背景副本——反射背景不应
 //   含雾中微尘）。
 //
 // Uniforms: isEyeInWater, cameraPosition, blindness, dayUnderwaterFogFade；time 由参数提供。
 // Requires（program-ordered，SC-10 同层不互相 include）：
 //     lib/settings.glsl（UNDERWATER_PARTICLES）、lib/uniforms.glsl（isEyeInWater）、
-//     global/water/absorption.glsl（water_absorption，距离衰减）必须先于本文件被 include
-//     ——final.fsh 保证 absorption 在闭包内。
+//     global/water/absorption.glsl（water_transmission，距离衰减）必须先于本文件被 include
+//     ——display.fsh 保证 absorption 在闭包内。
 // Owner: C2（UNDERWATER_PARTICLES 选项的接线方，SC-28 台账登记的归属）。
-// Consumer: program/final.fsh（半透明完成后、tonemap 前；SC-32）。
+// Consumer: program/display.fsh（FXAA 时由 composite8 调用，否则由 final 调用；tonemap 前）。
 // 选项门控沿用 caustics.glsl 的既有模式：函数恒有定义（关闭时为 0 向量的早退），
 // #ifndef/#else 分流同时满足 SC-28 的注册规则（Iris 只认 #ifdef/#ifndef 引用）。
 
@@ -90,7 +91,7 @@ float particles_shell(vec3 pos, uvec3 seed, float time) {
 	vec3 cell = floor(pos / PARTICLE_CELL);
 	uvec3 id = uvec3(ivec3(cell)) + seed;
 
-	// 存在性：先拒后算（~65% cell 直接归零，hash 只跑一次）。
+	// 存在性：先拒后算（当前密度 0.055 下约 94.5% cell 直接归零，hash 只跑一次）。
 	float present = particles_hash1(id);
 	if (present > PARTICLE_DENSITY) { return 0.0; }
 

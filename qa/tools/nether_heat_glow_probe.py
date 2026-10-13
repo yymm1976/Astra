@@ -24,6 +24,12 @@ Species colours are nether_light.csh:19-31 scaled by the A5 multiplier 3.5.
 Pinned measurement, not a gate. Re-run: python qa/tools/nether_heat_glow_probe.py
 """
 
+# Historical model retained; its constants no longer describe the current pack.
+
+if __name__ == "__main__":
+    print("Retired: this historical Nether model no longer describes the current shader. See docs/archive/审查原文.md#record-029.")
+    raise SystemExit(2)
+
 import math
 
 # nether_light.csh species bases; the volume averages neighbours, so the values a

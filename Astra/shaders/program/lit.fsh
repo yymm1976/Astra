@@ -1,5 +1,12 @@
 // Astra E1/E2. Single lit fragment entry for native geometry.
 #include "/lib/settings.glsl"
+#if defined ASTRA_WATER_PASS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+#define ASTRA_WATER_STATE_FRAME_READ
+#endif
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_WATER_PASS && !defined ASTRA_WEATHER
+#define ASTRA_SURFACE_SHADOW_PLANE
+#define ASTRA_SURFACE_SHADOW_FRAGMENT
+#endif
 #include "/lib/uniforms.glsl"
 #include "/program/scene.glsl"
 #include "/lib/surface_emission.glsl"
@@ -8,15 +15,35 @@
 #include "/lib/taa_reactive.glsl"
 #include "/lib/surface_buffers.glsl"
 #include "/lib/ao_material.glsl"
-#include "/lib/rain_particles.glsl"
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+#if defined ASTRA_WATER_PASS || defined ASTRA_ENTITY
+// Entity draws can outlive deferred's snapshot. Reuse the Nether receiver
+// attachment for opaque body and feature radiance paired with linear view Z.
+#ifndef RG32F
+const int RG32F = 0;
+#endif
+const int colortex28Format = RG32F;
+const bool colortex28Clear = true;
+const vec4 colortex28ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
+#endif
+#ifdef ASTRA_ENTITY
+#define ASTRA_LATE_ENTITY_SOURCE
+#include "/lib/water_entity_record.glsl"
+#endif
+#endif
 #ifdef ASTRA_WATER_PASS
     #include "/lib/water_interface_record.glsl"
     #include "/program/water.glsl"
     #include "/global/water/caustics.glsl"
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    #include "/lib/itt_water_waves.glsl"
+    #endif
+    #if defined DIMENSION_NETHER || defined DIMENSION_END
     in vec3 waterTangent;
     in vec3 waterBinormal;
     in vec3 waterViewVector;
     in float waterViewDistance;
+    #endif
 #endif
 in vec2 texcoord;
 in vec2 lightcoord;
@@ -35,10 +62,58 @@ flat in float taaFoliageValid;
     /* RENDERTARGETS: 0,5 */
     #endif
 #elif defined ASTRA_TRANSLUCENT
+    #ifdef ASTRA_LATE_ENTITY_SOURCE
+        #ifdef ASTRA_TAA
+        /* RENDERTARGETS: 0,16,28 */
+        #define ASTRA_LATE_ENTITY_SLOT 2
+        #else
+        /* RENDERTARGETS: 0,28 */
+        #define ASTRA_LATE_ENTITY_SLOT 1
+        #endif
+    #else
     #ifdef ASTRA_TAA
     /* RENDERTARGETS: 0,16 */
     #else
     /* RENDERTARGETS: 0 */
+    #endif
+    #endif
+#elif defined ASTRA_LATE_ENTITY_SOURCE
+    #ifdef ASTRA_TAA
+        #ifdef ASTRA_SSAO
+            #ifdef ASTRA_DIRECTIONAL_SKYLIGHT
+            /* RENDERTARGETS: 0,3,16,22,19,20,27,28 */
+            #define ASTRA_AMBIENT_SLOT 4
+            #define ASTRA_NORMAL_SLOT 5
+            #define ASTRA_SKY_RESPONSE_SLOT 6
+            #define ASTRA_LATE_ENTITY_SLOT 7
+            #else
+            /* RENDERTARGETS: 0,3,16,22,19,20,28 */
+            #define ASTRA_AMBIENT_SLOT 4
+            #define ASTRA_NORMAL_SLOT 5
+            #define ASTRA_LATE_ENTITY_SLOT 6
+            #endif
+        #else
+        /* RENDERTARGETS: 0,3,16,22,28 */
+        #define ASTRA_LATE_ENTITY_SLOT 4
+        #endif
+    #else
+        #ifdef ASTRA_SSAO
+            #ifdef ASTRA_DIRECTIONAL_SKYLIGHT
+            /* RENDERTARGETS: 0,3,19,20,27,28 */
+            #define ASTRA_AMBIENT_SLOT 2
+            #define ASTRA_NORMAL_SLOT 3
+            #define ASTRA_SKY_RESPONSE_SLOT 4
+            #define ASTRA_LATE_ENTITY_SLOT 5
+            #else
+            /* RENDERTARGETS: 0,3,19,20,28 */
+            #define ASTRA_AMBIENT_SLOT 2
+            #define ASTRA_NORMAL_SLOT 3
+            #define ASTRA_LATE_ENTITY_SLOT 4
+            #endif
+        #else
+        /* RENDERTARGETS: 0,3,28 */
+        #define ASTRA_LATE_ENTITY_SLOT 2
+        #endif
     #endif
 #else
     #ifdef ASTRA_TAA
@@ -75,7 +150,10 @@ flat in float taaFoliageValid;
 #endif
 
 in vec3 cameraRelativePosition;
-in vec3 surfaceShadowPosition;
+in vec3 surfaceShadowCoordinate;
+#ifdef ASTRA_SURFACE_SHADOW_FRAGMENT
+flat in vec3 surfaceShadowPlaneNormal;
+#endif
 
 #ifdef ASTRA_WEATHER
 // Keep translucent rain alpha; clipping is explicitly handled before lighting.
@@ -88,6 +166,14 @@ layout(location = 1) out vec4 weatherReactive;
 #define ASTRA_LIT_COLOR gl_FragData[0]
 #endif
 void main() {
+    vec3 surfaceShadowPosition = surfaceShadowCoordinate;
+    #if defined ASTRA_SURFACE_SHADOW_FRAGMENT && defined SHADOWS
+    // Derivatives precede alpha discard and every material/lighting branch.
+    astra_surface_shadow_set_plane(surfaceShadowCoordinate,cameraRelativePosition,surfaceShadowPlaneNormal);
+    surfaceShadowPosition.xy = astraSurfaceShadowOrigin;
+    surfaceShadowPosition.z = surfaceShadowCoordinate.z*0.25+0.5-0.00003;
+    #endif
+    bool airCamera = isEyeInWater == 0 || water_is_thin_sheet();
     #if defined ASTRA_WEATHER && (defined DIMENSION_NETHER || defined DIMENSION_END)
     // These dimensions have no precipitation; reject before material sampling.
     discard;
@@ -103,7 +189,7 @@ void main() {
     #if (defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT) || defined ASTRA_WATER_PASS
     // Weather and camera medium are uniform across the draw; derivatives still
     // precede alpha rejection and every material-dependent branch.
-    if (astraRainFactor > 0.001 && isEyeInWater == 0) {
+    if (astraRainFactor > 0.001 && airCamera) {
         vec2 rippleCoord = playerPos.xz / ASTRA_RIPPLE_TILE;
         rippleFootprint = max(length(dFdx(rippleCoord)), length(dFdy(rippleCoord)));
     }
@@ -122,31 +208,36 @@ void main() {
     #ifdef ASTRA_WATER_PASS
         vec2 waveCoord=playerPos.xz-playerPos.y*0.2;
         float wavePixel=max(length(dFdx(waveCoord)),length(dFdy(waveCoord)));
-        float noiseSize=float(textureSize(solasWaterNoise,0).x);
-        vec2 waveFootprint=wavePixel*noiseSize/vec2(256.0,48.0);
         // Evaluate derivatives before alpha rejection or divergent material flow.
         // The air interface keeps its filtered waves. The submerged horizontal
-        // interface shares the optical lens field with caustics and shafts.
+        // interface shares ITT's moving normal field with the volume's entry
+        // optics. Bed caustics keep their independent surface-only field.
         WaterSurface waves = water_surface(playerPos + cameraPosition, normal,
-                                           frameTimeCounter, water && isEyeInWater != 1);
+                                           frameTimeCounter, water && isEyeInWater == 0);
         if (water) {
             normal = waves.normal;
             #ifdef WATER_WAVES
             if (isEyeInWater == 1) {
                 #if !defined DIMENSION_NETHER && !defined DIMENSION_END
                 if (abs(faceNormal.y) > 0.9) {
-                    vec2 waveSlope;
-                    mat2 curvature;
-                    astra_water_wave_lens(playerPos.xz+cameraPosition.xz,wavePixel,waveSlope,curvature);
-                    normal = normalize(vec3(-waveSlope.x,1.0,-waveSlope.y));
+                    normal = itt_water_wave_normal(playerPos.xz+cameraPosition.xz,max(wavePixel,0.0625));
                     if (dot(normal,faceNormal) < 0.0) normal = -normal;
-                } else
-                #endif
+                } else {
+                    // A vertical fluid boundary is a wall of a thin stream,
+                    // not the horizontal wave field above a submerged camera.
+                    // Keep its transmitted background stable in every direction.
+                    normal = faceNormal;
+                }
+                #else
                 {
+                    // Only this dimension branch consumes the noise-texture footprint.
+                    float noiseSize=float(textureSize(solasWaterNoise,0).x);
+                    vec2 waveFootprint=wavePixel*noiseSize/vec2(256.0,48.0);
                     float fresnel = clamp(1.0 + dot(faceNormal, normalize(playerPos)), 0.0, 1.0);
                     normal = solas_water_normal(playerPos + cameraPosition, faceNormal,
                         waterTangent, waterBinormal, waterViewVector, waterViewDistance, fresnel,waveFootprint);
                 }
+                #endif
             }
             #endif
         }
@@ -160,7 +251,7 @@ void main() {
             if (dot(normal, geometricNormal) < 0.0) normal = -normal;
         }
         #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-        if (water && isEyeInWater == 0 && geometricNormal.y > 0.9 && astraRainFactor > 0.01) {
+        if (water && airCamera && geometricNormal.y > 0.9 && astraRainFactor > 0.01) {
             float exposure = astra_rain_exposure(lightLevel.y);
             float waterGraze = abs(dot(geometricNormal, normalize(playerPos)));
             vec2 ripple = astra_rain_ripple(playerPos + cameraPosition, exposure,
@@ -171,18 +262,21 @@ void main() {
         // Every invocation supplies the footprint before alpha rejection and
         // the water/ice branch, including the rain perturbation above.
         // astra_water must not take derivatives there.
-        vec3 footprintRay = reflect(normalize(viewPos), normalize(player_view(normal)));
-        float reflectionAngularFootprint = max(length(dFdx(footprintRay)), length(dFdy(footprintRay)));
+        float reflectionAngularFootprint = 0.0;
+        #ifdef ASTRA_OVERWORLD_OPTIMIZED
+        // Air-side budget reflections use one fixed footprint, so no angular
+        // cone is consumed there. Submerged sky-window magnification still
+        // needs its derivative; this camera-medium branch is draw-uniform.
+        if (isEyeInWater == 1) {
+        #endif
+            vec3 footprintRay = reflect(normalize(viewPos), normalize(player_view(normal)));
+            reflectionAngularFootprint = max(length(dFdx(footprintRay)), length(dFdy(footprintRay)));
+        #ifdef ASTRA_OVERWORLD_OPTIMIZED
+        }
+        #endif
     #endif
     vec4 textureColor = texture(gtexture, texcoord);
     vec4 albedo = textureColor * tint;
-    #if defined DIMENSION_NETHER || defined DIMENSION_END
-    float rockSmoothness = astra_rock_smoothness(material, textureColor.rgb);
-    #endif
-    #if defined ASTRA_PARTICLE && !defined DIMENSION_NETHER && !defined DIMENSION_END
-    // Before sRGB decoding and lighting; both Iris particle layers use this path.
-    if (astra_hide_rain_splash(albedo.rgb, tint.rgb)) discard;
-    #endif
 #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
     if (temperature > 0.15) {
         // Keep only stronger texture streaks, then lower their opacity and tint.
@@ -198,6 +292,14 @@ void main() {
     }
     #else
     if (albedo.a < alphaTestRef) discard;
+    #endif
+    #ifdef ASTRA_WEATHER
+    // The near-camera fade can erase rain entirely. An invisible fragment
+    // must neither prepare lighting nor overwrite the background's TAA mask.
+    if (albedo.a <= 0.0) discard;
+    #endif
+    #if defined DIMENSION_NETHER || defined DIMENSION_END
+    float rockSmoothness = astra_rock_smoothness(material, textureColor.rgb);
     #endif
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
     if (water && isEyeInWater == 1) {
@@ -215,7 +317,8 @@ void main() {
     }
     #endif
     #ifdef ASTRA_ENTITY
-        albedo.rgb = mix(albedo.rgb, srgb_decode(max(entityColor.rgb, vec3(0.0))), entityColor.a);
+        if (entityColor.a != 0.0)
+            albedo.rgb = mix(albedo.rgb, srgb_decode(max(entityColor.rgb, vec3(0.0))), entityColor.a);
     #endif
     // Damp ground and standing water are separate signals (global/atmosphere/weather.glsl):
     //   surfaceWet  - how damp, drives darkening and gloss only.
@@ -227,13 +330,13 @@ void main() {
     // must never invoke the expensive deferred reflection trace.
     float puddle = 0.0;
     float surfaceWet = 0.0;
-    vec3 wetResponse = astra_wet_material((faceData >> 23) & 3u);
     vec3 puddleNormal = geometricNormal;
     #if defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    vec3 wetResponse = astra_wet_material((faceData >> 23) & 3u);
     // Rock material classes retain the same wet-ground behaviour as generic
     // terrain. Their dry-surface response is independent of rain and puddles.
     if ((material == 0u || (material >= 12u && material <= 15u))
-            && isEyeInWater == 0 && astraRainFactor > 0.001) {
+            && airCamera && astraRainFactor > 0.001) {
         surfaceWet = astra_wet_ground(geometricNormal, lightLevel.y);
         vec3 wetWorldPos = playerPos + cameraPosition;
         // Standing water: unchanged coverage. The sky-exposure gate is applied inside
@@ -264,6 +367,8 @@ void main() {
     #if defined ASTRA_WEATHER && !defined DIMENSION_NETHER && !defined DIMENSION_END
     // Precipitation uses diffuse sky and block light directly. Surface lighting
     // (including shadow/SH queries) would be overwritten by this same result.
+    // Weather retains its existing independent sky response (no terrain
+    // SKYLIGHT_STRENGTH multiplier); changing that option scope needs a decision.
     color = albedo.rgb * (astra_sky_ambient() * lightLevel.y
           + block_lighting(lightLevel.y, lightLevel.x, 0.0,
                            astraBlocklightSuppression, astraHeldLightSuppression));
@@ -320,7 +425,7 @@ void main() {
     #endif
     #endif
     #if defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT && !defined DIMENSION_NETHER && !defined DIMENSION_END
-    if (surfaceWet > 0.001) {
+    if (surfaceWet > 0.001 && any(notEqual(directRadiance, vec3(0.0)))) {
         // Reuse the existing shadowed direct term, including its albedo and weather
         // attenuation. This bounded gloss adds no environment or SSR samples.
         float gloss = astra_wet_gloss(geometricNormal, -normalize(playerPos),
@@ -341,8 +446,17 @@ void main() {
     #endif
     #if defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT
     #ifdef DIMENSION_END
-    color += astra_end_stone_emission(material,albedo.rgb);
+    vec3 endStoneEmission = astra_end_stone_emission(material,albedo.rgb);
+    color += endStoneEmission;
     #endif
+    #endif
+    #ifdef ASTRA_LATE_ENTITY_SOURCE
+    // Opaque body and skin-feature texels remain visible through later water.
+    // Keep raw colour and linear view depth at half precision in RG32F. The
+    // separate output alpha is 0/1 coverage, not depth: fractional-alpha draws
+    // preserve prior opaque records through the per-buffer blend override.
+    gl_FragData[ASTRA_LATE_ENTITY_SLOT] = albedo.a >= 0.999 && -viewPos.z < 65504.0
+        ? water_entity_record(color,max(-viewPos.z,0.0)) : vec4(0.0);
     #endif
     #ifdef ASTRA_WATER_PASS
         if (water || iceTop) {
@@ -374,6 +488,10 @@ void main() {
             color = mix(color, environment, f);
         }
         #if defined ASTRA_TRANSLUCENT || !defined ASTRA_SCENE_COPY
+            // Deferred runs BEFORE translucent draws. Its fogged background is
+            // not the input to this operation: color is this surface's radiance.
+            // Alpha blending combines a*fog(surface)+(1-a)*fog(background),
+            // rather than applying fog a second time to the blended background.
             color = astra_apply_medium(color, playerPos, lightLevel.y);
         #endif
     #endif
@@ -446,9 +564,10 @@ void main() {
     #ifdef ASTRA_WATER_PASS
         gl_FragData[1] = vec4(0.0);
         if (water) {
+            float sideDistance = length(viewPos);
             gl_FragData[1] = abs(geometricNormal.y) > 0.9
                 ? vec4(water_pack_surface_height(playerPos.y + cameraPosition.y), lightLevel.y, 1.0)
-                : vec4(1.0, 1.0, lightLevel.y, 1.0);
+                : vec4(1.0, sideDistance / (1.0 + sideDistance), lightLevel.y, 1.0);
         }
     #endif
     #ifndef ASTRA_TRANSLUCENT
@@ -474,7 +593,7 @@ void main() {
             * (material == 12u ? NETHERRACK_GLOW * 0.01 : 1.0);
         #endif
         #if defined DIMENSION_END && defined ASTRA_TERRAIN
-        gl_FragData[1].a = astra_end_stone_emission(material,albedo.rgb).g;
+        gl_FragData[1].a = endStoneEmission.g;
         #endif
     #endif
 }

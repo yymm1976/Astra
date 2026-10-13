@@ -36,7 +36,7 @@ float astra_ao_visibility(vec2 uv, float viewDepth, vec3 normal, out vec3 bentNo
         vec3 sampleNormal=decode_unit_vector(ao.ba*2.0-1.0);
         float agreement=max(dot(normal,sampleNormal),0.0);
         if(agreement < 0.85) continue;
-        float weight=spatialWeight*exp2(-64.0*depthDifference)*pow(agreement,8.0);
+        float weight=spatialWeight*exp2(-64.0*depthDifference)*pow8(agreement);
         sum+=ao.r*weight; weightSum+=weight;
         #ifdef ASTRA_DIRECTIONAL_SKYLIGHT
         vec3 sampleBent=decode_unit_vector(texelFetch(colortex26,p,0).rg*2.0-1.0);
@@ -58,6 +58,11 @@ vec3 astra_apply_ambient_ao(vec3 scene, vec2 uv, float viewDepth, vec3 skyPalett
     if(normal.a < 0.5 || (isEyeInWater != 0 && !water_is_thin_sheet())) return scene;
     float vertexAO=clamp((round(normal.a*255.0)-128.0)/127.0,0.0,1.0);
     if(vertexAO <= 0.0) return scene;
+    #ifndef ASTRA_DIRECTIONAL_SKYLIGHT
+    // ssao.fsh bounds visibility to [0.25,1]; its positive resolve weights
+    // preserve that range. min(vertexAO,visibility) is already vertexAO here.
+    if(vertexAO <= 0.25) return max(scene,vec3(0.0));
+    #endif
     vec3 geometryNormal=normalize(normal.rgb*2.0-1.0);
     vec3 bentNormal;
     float visibility=astra_ao_visibility(uv,viewDepth,geometryNormal,bentNormal);
@@ -71,8 +76,12 @@ vec3 astra_apply_ambient_ao(vec3 scene, vec2 uv, float viewDepth, vec3 skyPalett
     // The palette matches LightParams.skyAmbient (same astra_sky_ambient() the
     // lit pass used) and the geometric normal comes from the full-resolution
     // colortex20, so S_SH(geo) here equals the term that was rendered.
-    vec3 response=texelFetch(colortex27,p,0).rgb;
-    if(response.r+response.g+response.b > 0.0 && any(notEqual(bentNormal,geometryNormal))) {
+    // A failed or skipped reconstruction keeps bentNormal == geometryNormal,
+    // where the swapped SH term is identically zero. Skip that fetch too.
+    vec3 response=vec3(0.0);
+    if (any(notEqual(bentNormal,geometryNormal)))
+        response=texelFetch(colortex27,p,0).rgb;
+    if(response.r+response.g+response.b > 0.0) {
         vec3 coefficients[9];
         for(int i=0;i<9;++i) coefficients[i]=texelFetch(colortex18,ivec2(i,0),0).rgb;
         vec3 skyGeometry=astra_directional_sky_coeffs(coefficients,geometryNormal,skyPalette);

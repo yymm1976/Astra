@@ -14,7 +14,7 @@
 //     License: "Complementary License Agreement 1.7" (_analysis/Complementary r5.9/
 //     Reimagined/License.txt), proprietary — NOT the Steadfast GPL line below. Publish
 //     gate (design.md 9.3 + escalations.md SC-14) must be re-decided for this source;
-//     raised in docs/handoffs/terrain-foliage.md.
+//     raised in docs/archive/实现与取证.md#record-089.
 //   GROUND-FOLIAGE wrap + the strength-mix design — from Steadfast 0.8.0 (GPLv3 + Section 7
 //     additional terms) by coderbot:
 //       source: _analysis/Steadfast-0.8.0/shaders/environment/lighting/diffuse.glsl
@@ -23,7 +23,7 @@
 //     General Public License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
 //     _analysis/Steadfast-0.8.0/LICENSE.md.
 //
-// Reference parts NOT ported before this round (recorded in docs/handoffs/terrain-foliage.md):
+// Reference parts NOT ported before this round (recorded in docs/archive/实现与取证.md#record-089):
 //   - :241-254  subsurfaceHighlight = pow(max(dot(-viewDir, lightVec), 0.0), 10.0)
 //               * 0.6 (leaves) / 0.8 (other foliage) — the sun-through-the-leaf glow.
 //               THIS is what sss_transmission() below now supplies. It needed the
@@ -40,7 +40,7 @@
 //   "The forward-scatter boost on top of this is C1's global/lighting/sss.glsl, scaled
 //    by SSS_STRENGTH."
 // B1 already applies the *in-shadow* factor (foliage in shadow reads as if turned ~45°
-// away: cos(pi/4) ~= 0.7071) inside shadow_mapping(). C1 supplies only the *out-of-shadow*
+// away: cos(pi/4) ~= 0.7071) at the astra_lighting -> direct_lighting call. C1 supplies only the *out-of-shadow*
 // wrap: raw NdotL is remapped so back-facing leaves still catch light, which is what makes
 // a canopy glow instead of going flat-black on the underside. The two are complementary and
 // must NOT be double-applied — diffuse.glsl multiplies sss_wrap() by shadow_mapping()'s

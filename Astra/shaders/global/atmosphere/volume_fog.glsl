@@ -18,7 +18,7 @@
 // prepares per-segment source and extinction.
 //
 // Ownership table and the deferred/deferred1/deferred2 scheduling live in
-// docs/handoffs/2026-09-27-R2-overworld-volume.md. Blindness, lava, powder snow, the
+// docs/archive/实现与取证.md#record-077. Blindness, lava, powder snow, the
 // underwater camera leg and the water volume itself are NOT owned here.
 //
 // Requires (included by program/scene.glsl before this file): transforms, pow,
@@ -91,15 +91,28 @@ vec3 astra_volume_light(vec3 playerPos, vec3 lightDirWorld, vec3 direct,
 	if (all(lessThanEqual(direct, vec3(0.0)))) return incident;
 	vec3 light = direct * astra_cloud_transmission(playerPos + cameraPosition, lightDirWorld);
 #ifdef SHADOWS
-	if (shadowMap) {
+	float mapFade = shadowMap ? shadow_map_fade(playerPos) : 0.0;
+	if (mapFade > 0.0) {
 		vec3 sp = distort(shadowClip.xyz / shadowClip.w) * 0.5 + 0.5;
 		sp.z -= 0.00002;
-		float coverage = shadow_coverage(playerPos, sp);
+		float coverage = mapFade * shadow_uv_coverage(sp);
 		if (coverage > 0.0)
 			light *= mix(1.0, shadow_opaque_visibility(sp), coverage);
 	}
 #endif
 	return light + incident;
+}
+
+// This march's source is incident radiance multiplied by the SAME extinction
+// sigma used by the segment. Cancel sigma analytically for the ordinary branch;
+// preserve volume_integral.glsl's cancellation-free small-optical-depth series.
+vec4 astra_volume_incident_segment(vec3 incident, float extinction, float distanceBlocks) {
+    float tau = max(extinction, 0.0) * max(distanceBlocks, 0.0);
+    float transmission = exp(-tau);
+    float scatter = tau < 1e-3
+        ? tau * (1.0 - tau * (0.5 - tau * (1.0 / 6.0)))
+        : 1.0 - transmission;
+    return vec4(incident * scatter, transmission);
 }
 
 // Integrate the camera ray out to distanceBlocks. Segments are composed near-first
@@ -138,10 +151,11 @@ vec4 astra_volume_march_from(vec3 origin, vec3 rayWorld, float distanceBlocks,
     sampleCount = min(steps, max(4, int(ceil(float(steps) * marchLength / ASTRA_VOLUME_MAX_DISTANCE))));
     #endif
 	float jitter = bayer8(gl_FragCoord.xy);
+    float inverseSampleCount = 1.0 / float(sampleCount);
 	for (int i = 0; i < sampleCount; ++i) {
         if (volume.a < 0.002) break;
-        float left = float(i) / float(sampleCount);
-        float right = float(i + 1) / float(sampleCount);
+        float left = float(i) * inverseSampleCount;
+        float right = i + 1 == sampleCount ? 1.0 : float(i + 1) * inverseSampleCount;
         #ifdef VOLUME_FOG_ADAPTIVE
         // Quadratic boundaries favour near-camera detail. Each actual segment
         // length enters extinction and scattering, retaining the full ray length.
@@ -152,18 +166,21 @@ vec4 astra_volume_march_from(vec3 origin, vec3 rayWorld, float distanceBlocks,
 		float t = mix(left, right, jitter) * marchLength;
 		vec3 p = origin + rayWorld * t;
 		float sigma = astra_volume_extinction(cameraPosition.y + p.y,density);
-		vec4 shadowClip = shadowOrigin + shadowRay * t;
+		vec4 shadowClip = vec4(0.0);
+        #ifdef SHADOWS
+        if (traceShadows) shadowClip = shadowOrigin + shadowRay * t;
+        #endif
 		vec3 source = astra_volume_light(p, lightDirWorld, direct, incident,
-                                       shadowClip, traceShadows) * sigma;
-		volume = astra_volume_compose(volume, astra_volume_segment(source, sigma, stepLength));
+                                       shadowClip, traceShadows);
+		volume = astra_volume_compose(volume, astra_volume_incident_segment(source, sigma, stepLength));
 	}
 	if (distanceBlocks > marchLength) {
 		vec3 p = origin + rayWorld * marchLength;
 		float sigma = astra_volume_extinction(cameraPosition.y + p.y,density);
 		vec3 source = astra_volume_light(p, lightDirWorld, direct, incident,
-                                       vec4(0.0), false) * sigma;
+                                       vec4(0.0), false);
 		volume = astra_volume_compose(volume,
-			astra_volume_segment(source, sigma, distanceBlocks - marchLength));
+			astra_volume_incident_segment(source, sigma, distanceBlocks - marchLength));
 	}
 	return volume;
 }
@@ -186,10 +203,12 @@ vec4 astra_volume_path_medium(vec3 start, vec3 finish) {
 // samples). It re-integrates the shared density model instead of guessing from the
 // background's total transmittance; the cheap mode trades the shadow map for cloud
 // shadow only, which the handoff documents as the first-version approximation.
-vec4 astra_volume_prefix_medium(vec3 playerPos) {
-	float distanceBlocks = length(playerPos);
+vec4 astra_volume_prefix_medium(vec3 playerPos, float distanceBlocks) {
 	return astra_volume_march(playerPos / max(distanceBlocks, 1e-5), distanceBlocks,
 	                          false, ASTRA_VOLUME_PREFIX_STEPS);
+}
+vec4 astra_volume_prefix_medium(vec3 playerPos) {
+    return astra_volume_prefix_medium(playerPos, length(playerPos));
 }
 
 // Compose the render-distance fade as an additional far medium, preserving
@@ -207,7 +226,7 @@ vec4 astra_volume_border(vec4 volume, float distanceBlocks) {
     return volume;
 }
 
-// Edge-aware upsample of the half-resolution S/T buffer to a full-resolution pixel.
+// Edge-aware upsample of the reduced-resolution S/T buffer to a full-resolution pixel.
 // A tap is dropped when its own geometry (depthtex0 at the tap centre) does not
 // belong to this pixel's surface, so silhouettes do not inherit a march that ended
 // on background terrain; sky taps carry no medium and never dilute geometry. If no
@@ -224,6 +243,8 @@ vec4 astra_volume_resolve(sampler2D volumeBuffer, sampler2D surfaceData,
 	vec2 f = center - base;
 	vec4 sum = vec4(0.0);
 	float weights = 0.0;
+	ivec2 surfaceSize = textureSize(surfaceData, 0);
+	ivec2 depthSize = textureSize(depthtex0, 0);
 	for (int y = 0; y < 2; ++y) {
 		for (int x = 0; x < 2; ++x) {
 			vec2 offset = vec2(float(x), float(y));
@@ -232,20 +253,23 @@ vec4 astra_volume_resolve(sampler2D volumeBuffer, sampler2D surfaceData,
 			vec2 bilinear = mix(vec2(1.0) - f, f, offset);
 			float weight = bilinear.x * bilinear.y;
 			if (weight <= 0.0) continue;
-			float tapDepth = textureLod(depthtex0, tapUV, 0.0).r;
+			ivec2 depthPixel = clamp(ivec2(tapUV * vec2(depthSize)), ivec2(0), depthSize - 1);
+			float tapDepth = texelFetch(depthtex0, depthPixel, 0).r;
 			if (tapDepth >= 0.999999 || referenceZ <= 0.0) continue;
 			// A depth mismatch cannot contribute even if its material is eligible.
 			// Reject it before fetching the separate hand/material record.
-			float tapZ = -screen_view(vec3(tapUV, tapDepth)).z;
+			// Match volume_main's point-fetched depth and its exact receiver ray.
+			vec2 receiverUV = (vec2(depthPixel) + 0.5) / vec2(depthSize);
+			float tapZ = -screen_view(vec3(receiverUV, tapDepth)).z;
 			float band = 1.0 - smoothstep(0.02, 0.06,
 				abs(tapZ - referenceZ) / max(referenceZ, 1e-3));
 			weight *= band;
 			if (weight <= 0.0) continue;
-			ivec2 surfacePixel = clamp(ivec2(tapUV * vec2(textureSize(surfaceData, 0))),
-			                           ivec2(0), textureSize(surfaceData, 0) - 1);
+			ivec2 surfacePixel = clamp(ivec2(receiverUV * vec2(surfaceSize)),
+			                           ivec2(0), surfaceSize - 1);
 			uint flags = uint(round(texelFetch(surfaceData, surfacePixel, 0).r * 255.0));
 			if ((flags & 128u) != 0u) continue;
-			sum += textureLod(volumeBuffer, tapUV, 0.0) * weight;
+			sum += texelFetch(volumeBuffer, ivec2(tap), 0) * weight;
 			weights += weight;
 		}
 	}

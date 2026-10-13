@@ -3,7 +3,10 @@
 // Shared astronomical envelope for the sky, cloud palette and diffuse terrain.
 float astra_twilight_strength() {
     // Pre-dawn from -9 to -4 degrees; warm light fades from +4 to +14.
-    // Same smoothstep polynomial, evaluated once per frame in shaders.properties.
+    // shaders.properties evaluates the shared envelope once per frame on those
+    // same ends and midpoints, but with a flatter, slower integral-easing curve
+    // (peak slope 4/3 instead of smoothstep's 3/2) so the sunrise/sunset change
+    // is gentler without moving any sun angle. Every consumer reads this factor.
     // Unlike sunrise, this factor must stay active for underwater sky rays too.
     return astraTwilightFactor;
 }

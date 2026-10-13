@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """B1 probe: is the occlusion arm really on a different density scale from the visible cloud?
 
+Historical offline formula model; it does not read GLSL source at runtime.
+Current source anchors are clouds_planar.glsl:107-130 (shared gates and unused
+reference formula) and :280-290 (active coarse-gated march). Weather occlusion
+and reflection now use the coarse field. The older line references and numeric
+conclusions below describe the earlier full-noise paths, not the current pipeline.
+
 Ticket 11.E-9 claims: "the occlusion threshold is always L + 0.04 above the visible
 cloud's lower edge" (start offset) and "the shadow edge is ~4.4x harder than the cloud
 it comes from" (the 0.05 window against 0.22). Both claims are tested here against the

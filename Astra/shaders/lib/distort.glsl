@@ -6,15 +6,21 @@
 // and THIRD-PARTY.md. Keep this projection paired with shadow_map_position.
 #include "/lib/settings.glsl"
 
-// k = this constant * SHADOW_DISTANCE is the block radius that lands at half
+// k = this constant * the effective shadowDistance is the block radius at half
 // the map edge, and it sets the whole detail profile: blocks/texel =
 // 2 * (r + k) ^ 2 / (R * k). Steadfast shipped the plain 0.20 for its own
 // 160-block map (k = 32); reusing it at Astra's shipping 256 gives k = 51.2 and
 // halves near-field density. Anchoring on blocks keeps detail fixed while
-// SHADOW_DISTANCE changes only reach - the cost is a wider rim beyond the
+// the selected distance changes only reach - the cost is a wider rim beyond the
 // receiver edge, which shadowDistanceRenderMul = 1.5 partly fills upstream.
 const float SHADOW_DISTORT_CORE = 25.6;
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+// Iris constructs the projection from shadowDistance after the budget cap,
+// not the raw option. Producer, inverse and texel-width conversion share this.
+const float SHADOW_DISTORT_FACTOR = SHADOW_DISTORT_CORE / shadowDistance;
+#else
 const float SHADOW_DISTORT_FACTOR = SHADOW_DISTORT_CORE / float(SHADOW_DISTANCE);
+#endif
 
 float get_distort_factor(vec2 pos) {
     return length(pos) + SHADOW_DISTORT_FACTOR;

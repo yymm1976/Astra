@@ -57,8 +57,8 @@ def s0_baseline(dst):
 
 def s1_block_comment_format(dst):
     patch(dst, f"{SHADERS}/lib/water_buffer_formats.glsl",
-          "const int colortex7Format = RGBA16;",
-          "/* const int colortex7Format = RGBA16; */")
+          "const int colortex7Format = R11F_G11F_B10F;",
+          "/* const int colortex7Format = R11F_G11F_B10F; */")
     return ("14", "colortex7Format")
 
 
@@ -70,6 +70,17 @@ def s2_line_comment_clear(dst):
 
 
 def s3_phantom_buffer(dst):
+    # All 32 slots now have users. Reserve 11 in this copied fixture only:
+    # remove its engine directives and rename existing reads before injecting
+    # one unused declaration. Otherwise this is a duplicate-format scenario.
+    for path in (dst / SHADERS).rglob("*"):
+        if not path.is_file() or path.suffix not in {".glsl", ".fsh", ".vsh", ".gsh", ".csh"}:
+            continue
+        text = path.read_text(encoding="utf-8")
+        changed = re.sub(r"\bconst\s+\w+\s+colortex11(?:Format|Clear\w*|MipmapEnabled)\s*=[^;]+;", "", text)
+        changed = re.sub(r"\bcolortex11\b", "sensitivityReservedReflection", changed)
+        if changed != text:
+            path.write_text(changed, encoding="utf-8")
     patch(dst, f"{SHADERS}/lib/water_buffer_formats.glsl",
           "const int colortex0Format = R11F_G11F_B10F;",
           "const int colortex0Format = R11F_G11F_B10F;\n"
@@ -106,8 +117,8 @@ def s7_licence_text_outside_vendor(dst):
 def s8_prose_buffer_mention(dst):
     # control: naming a buffer in a comment is normal and must stay clean
     patch(dst, f"{SHADERS}/lib/water_buffer_formats.glsl",
-          "const int colortex7Format = RGBA16;",
-          "const int colortex7Format = RGBA16;\n"
+          "const int colortex7Format = R11F_G11F_B10F;",
+          "const int colortex7Format = R11F_G11F_B10F;\n"
           "// colortex12Format would be RGBA16F if anything ever wrote that buffer.")
     return None
 
@@ -124,7 +135,7 @@ def s10_root_gate_without_folder_mirror(dst):
 
 def s11_gate_hidden_by_own_ifdef(dst):
     # the shape the pack shipped before P2-18: the gate only exists once the option is on
-    patch(dst, PROPS, "program.world-1/shadowcomp.enabled=SHADOWS && NETHER_VOXEL_LIGHT",
+    patch(dst, PROPS, "program.world-1/shadowcomp.enabled=false",
           "#ifdef NETHER_VOXEL_LIGHT\n"
           "program.world-1/shadowcomp.enabled=SHADOWS && NETHER_VOXEL_LIGHT\n"
           "#endif")

@@ -76,8 +76,11 @@ float fog_valley_mist(float worldY) {
 // actually build) is graded rather than switched at a threshold. The previous form
 // had the two endpoints swapped: valleys came out 0.22 and hilltops 0.62, so morning
 // fog stacked on ridges and drained from valleys (consolidated review D2 / Qoder F-09).
+float fog_morning_air_weight_from_mist(float valleyMist) {
+	return mix(0.22, 0.62, clamp((valleyMist - 0.96) / 0.32, 0.0, 1.0));
+}
 float fog_morning_air_weight(float worldY) {
-	return mix(0.22, 0.62, clamp((fog_valley_mist(worldY) - 0.96) / 0.32, 0.0, 1.0));
+    return fog_morning_air_weight_from_mist(fog_valley_mist(worldY));
 }
 
 // FogV2 (Steadfast): atmospheric pow(d,3) fog + render-distance border fog + a
@@ -100,11 +103,13 @@ float fog_morning_air_weight(float worldY) {
 //                       the mist layer with the camera (see fog_valley_mist).
 vec4 fog_v2(
 	out float skyFogStrength,
+    out float fogValleyMist,
 	FogParams params,
 	float fragDistance,
 	float borderFragDistance,
 	float skyLightStrength,
-	float fragWorldY
+	float fragWorldY,
+    bool airLeg
 ) {
 	#ifdef BORDER_FOG
 		float borderFog = smoothstep(
@@ -118,16 +123,14 @@ vec4 fog_v2(
 	// These media replace every ordinary atmosphere term. Keep border fog and
 	// the original priority, but do not evaluate valley/cave/rain terms first.
 	skyFogStrength = 0.0;
-	if (blindness > 0.0001) {
-		float opacity = max(0.85, 1.0 - exp(-square(fragDistance * blindness * 0.5)));
-		return vec4(0.0, 0.0, 0.0, min(borderFog + opacity, 1.0));
-	}
-	if (isEyeInWater == 1 && !water_is_thin_sheet()) {
+    fogValleyMist = 1.0;
+    // scene.glsl blends blindness after the ordinary fog colour is assembled.
+	if (!airLeg && isEyeInWater == 1 && !water_is_thin_sheet()) {
 		// Solas getWaterFog: retain the linear exponent and underwater palette.
 		float opacity = 1.0 - exp(-fragDistance * 0.06 * (UNDERWATER_FOG_DENSITY * 0.01));
 		return vec4(params.underwaterColor, min(borderFog + opacity, 1.0));
 	}
-	if (isEyeInWater == 2) {
+	if (!airLeg && isEyeInWater == 2) {
 		float opacity = max(0.85, 1.0 - exp(-square(fragDistance * 0.5)));
 		return vec4(1.0, 0.05, 0.0, min(borderFog + opacity, 1.0));
 	}
@@ -141,7 +144,7 @@ vec4 fog_v2(
 	// the C-FOG_DENSITY default is unchanged. It is evaluated for the fragment's own
 	// world height, so two points at the same distance but different altitude get
 	// different haze - which is the whole point of the term.
-	float fogValleyMist = fog_valley_mist(fragWorldY);
+	fogValleyMist = fog_valley_mist(fragWorldY);
 	float atmosphereFog = cube(fragDistance)
 		* atmosphereFogCoefficient
 		* (FOG_DENSITY * 0.01)
@@ -160,9 +163,11 @@ vec4 fog_v2(
 	#endif
 
 	// Rain thickens outdoor air; cave and underwater fog keep their own medium.
-	if (isEyeInWater == 0 || water_is_thin_sheet()) {
+	if (airLeg || isEyeInWater == 0 || water_is_thin_sheet()) {
         atmosphereFog *= 1.10 + 2.2 * astraRainFactor * caveFogTransition;
-        atmosphereFog += (1.0-exp(-fragDistance*0.0055*astraRainFactor))*caveFogTransition;
+        // Clear weather and fully sheltered receivers add exactly zero here.
+        if (astraRainFactor > 0.0 && caveFogTransition > 0.0)
+            atmosphereFog += (1.0-exp(-fragDistance*0.0055*astraRainFactor))*caveFogTransition;
     }
 	skyFogStrength = caveFogTransition * mix(SKY_FOG_STRENGTH * 0.01, 0.65, astraRainFactor);
 	vec3 fogColor = (1.0 - caveFogTransition) * params.caveColor;
@@ -206,9 +211,16 @@ vec3 fog_air_perspective(vec3 fogColor, vec3 viewDir, vec3 sunGlowColor) {
 	// tint, so no second twilight palette is introduced. It is scaled down because
 	// the term is already calibrated for the sky's own brightness.
 	float away = clamp(-dot(viewDir.xz, normalize(worldSunVector.xz + vec2(1e-5))), 0.0, 1.0);
-	float level = 1.0 - min(abs(viewDir.y) * 2.2, 1.0);   // strongest along the horizon
-	vec3 cool = astra_twilight_sky(viewDir) * 0.35;
-	result = mix(result, result + cool * level, away * horizon * 0.50);
+	// `away` is the horizontal facing weight. Rays on the sun's side and exactly
+	// vertical rays have zero blend weight; near-vertical rays may still contribute.
+	// astra_twilight_sky is the expensive part here (two high-exponent pow() calls
+	// plus its own horizon exp), so evaluate it only on the side that consumes it.
+	// The mix is the identity at weight zero, so the skipped case is unchanged.
+	if (away > 0.0) {
+		float level = 1.0 - min(abs(viewDir.y) * 2.2, 1.0);   // strongest along the horizon
+		vec3 cool = astra_twilight_sky(viewDir) * 0.35;
+		result = mix(result, result + cool * level, away * horizon * 0.50);
+	}
 	return result;
 }
 #endif

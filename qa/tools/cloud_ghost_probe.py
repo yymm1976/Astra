@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """F1 probe: how much of the visible cloud sheet is decided by the detail octave alone.
 
-Reproduces, offline and in the same arithmetic order as the shader:
+Historical offline formula model; it does not read GLSL source at runtime.
+Current source anchors are clouds_planar.glsl:123-130 (unused reference formula)
+and :280-290 (active march, which gates the coarse octave before fetching detail).
+The observations below describe the earlier full-noise gate, not the current march.
+The older line references in the historical model description are retained below.
+
+Reproduces the earlier formula offline:
 
   astra_rounded_cloud_coord  clouds_planar.glsl:69-77   (roundness 0.48, /256)
   astra_2d_cloud_sample      clouds_planar.glsl:90-94   textureLod(complementaryCloudNoise, ...).b

@@ -267,7 +267,6 @@ def check_lang(opts):
         if extra:
             c.fail(f"{name}: {len(extra)} key(s) with no matching option: "
                    + ", ".join(sorted(extra)))
-        n_com = sum(1 for line in read(p).splitlines() if line.strip().endswith("=默认"))
         c.note(f"{name}: {len(titles)} titles, {len(comments)} comments")
     if len(langs) == 2:
         if langs["zh_CN.lang"] != langs["en_US.lang"]:
@@ -353,7 +352,7 @@ PENDING_CONSUMERS = {
                                   "2026-09-28 (a geometry pass has no composite ping-pong "
                                   "contract); kept as the research record for a future "
                                   "composite-stage producer, see "
-                                  "docs/2026-09-28-water-material-lighting.md",
+                                  "docs/archive/实现与取证.md#record-003",
     "global/lighting/shadowmap.glsl": "B1",
     "global/lighting/diffuse.glsl": "C1",
     "global/lighting/blocklight.glsl": "C1",
@@ -639,7 +638,7 @@ def check_provenance():
     header_paths = {}
     for p in walk_shader_files():
         head = read(p)[:4000]
-        m = re.search(r"(?://|/\*)\s*From\s+([^\n]+)", head)
+        m = re.search(r"(?://|/\*)\s*(?:Adapted\s+)?From\s+([^\n]+)", head, re.IGNORECASE)
         if m:
             header_paths[rel(p)] = m.group(1).strip()
     ledger_norm = text.replace("`", "")
@@ -849,7 +848,7 @@ def check_iris_parser_contracts():
     # misdiagnosis. Bliss, Complementary Reimagined and Complementary Unbound all
     # declare "const int colortex<N>Format = <token>;" and load on Iris 1.11.2, so the
     # contract is: recognised buffer name, integer literal or upper-case token value,
-    # and exactly one declaration per buffer.
+    # and exactly one declaration per buffer within each dimension's include graph.
     format_decls = {}
     for p in shader_files:
         body = strip_comments(read(p))
@@ -857,10 +856,36 @@ def check_iris_parser_contracts():
                 r"\bconst\s+int\s+((?:colortex|shadowcolor|depthtex)\d+Format)\s*=\s*([^;]+);", body):
             name, value = m.group(1), m.group(2).strip()
             format_decls.setdefault(name, []).append((pk(p), value))
+    # Iris builds separate ProgramSets, selecting world-folder overrides before
+    # root fallbacks. Shared helpers count wherever an entry includes them; this
+    # is conservative across option branches and does not waive shared conflicts.
+    entry_extensions = {".vsh", ".fsh", ".gsh", ".csh"}
+    root_entries = {p.name: p for p in PACK.iterdir()
+                    if p.is_file() and p.suffix in entry_extensions}
+    dimension_sources = {}
+    for dimension in ("overworld", "world-1", "world1"):
+        entries = dict(root_entries)
+        folder = PACK / dimension
+        if dimension != "overworld" and folder.is_dir():
+            entries.update({p.name: p for p in folder.iterdir()
+                            if p.is_file() and p.suffix in entry_extensions})
+        pending = list(entries.values())
+        seen = set()
+        while pending:
+            path = pending.pop()
+            if path in seen or not path.is_file():
+                continue
+            seen.add(path)
+            for include in re.findall(r'#\s*include\s+"(/[^"\n]+)"',
+                                      strip_comments(read(path))):
+                pending.append(PACK / include.lstrip("/"))
+        dimension_sources[dimension] = {pk(path) for path in seen}
     for name, decls in sorted(format_decls.items()):
-        if len(decls) > 1:
-            c.fail(f"{name} declared {len(decls)} times: "
-                   + ", ".join(f"{where}={value}" for where, value in decls))
+        for dimension, sources in dimension_sources.items():
+            reachable = [(where, value) for where, value in decls if where in sources]
+            if len(reachable) > 1:
+                c.fail(f"{dimension}: {name} declared {len(reachable)} times: "
+                       + ", ".join(f"{where}={value}" for where, value in reachable))
         for where, value in decls:
             if not re.fullmatch(r"\d+|[A-Z][A-Z0-9_]*", value):
                 c.fail(f"{where}: {name} must be an integer literal or an upper-case "
@@ -1025,14 +1050,15 @@ def check_iris_parser_contracts():
             if not users:
                 c.warn(f"image.{name}: sampler '{sampler}' is declared but never referenced by a shader")
 
-    # SC-30: compute shaders live at <stage>/<name>.csh; Iris reads the ShadowComposite,
-    # Setup and Final stages, so a stray .csh is dead weight no compile step would catch.
+    # SC-30: ProgramSet loads numbered setup/array stages (bare, 1..99).
+    # readComputeArray also loads lowercase _a.._z auxiliary dispatches for
+    # raster program stages. Uppercase suffixes are never loaded (Iris 1.11.2).
     # Include-only helpers (program/*.csh) are fine when a stage file includes them.
     # A stage with no program.<name>.enabled condition cannot be switched off from
     # shaders.properties, so it always burns GPU time. The name Iris compares carries the
     # world folder for a dimension stage; "compute.<stage>.<name>.enabled" is not parsed by
     # any Iris handler at all (P2-18), so gating through it does nothing.
-    compute_dir = {"shadowcomp", "setup", "final"}
+    compute_dir = {"shadowcomp", "setup", "begin", "prepare", "deferred", "composite", "final"}
     compute_files = sorted(PACK.rglob("*.csh"))
     gated_programs = set()
     for line in logical_lines(properties_text):
@@ -1045,10 +1071,14 @@ def check_iris_parser_contracts():
         parts = path.relative_to(PACK).parts
         stem = path.stem
         base = re.match(r"([a-z]+)", stem)
-        if base and base.group(1) in compute_dir and not re.fullmatch(
-                re.escape(base.group(1)) + r"[A-Z]?", stem):
-            c.fail(f"{pk(path)}: compute stages are '<name>' plus '<name>A'..'<name>Z'; "
-                   f"'{stem}' is never loaded by Iris (upper-case single letter suffix)")
+        if base and base.group(1) in compute_dir:
+            family = base.group(1)
+            suffix = "" if family == "final" else r"(?:[1-9][0-9]?)?"
+            if family != "setup":
+                suffix += r"(?:_[a-z])?"
+            if not re.fullmatch(re.escape(family) + suffix, stem):
+                c.fail(f"{pk(path)}: '{stem}' is not an Iris numbered stage "
+                       "or lowercase _a.._z auxiliary dispatch")
         if len(parts) >= 2 and parts[-2] in ("program", "lib", "global"):
             # Include-only module (e.g. program/nether_light.csh pulled in by the
             # world-1/shadowcompN.csh wrappers); only require that something includes it.
@@ -1065,8 +1095,10 @@ def check_iris_parser_contracts():
             c.fail(f"{pk(path)}: '{stem}' is not a compute stage Iris loads "
                    f"(expected {', '.join(sorted(compute_dir))})")
             continue
-        stage_key = stem if len(parts) == 1 else f"{parts[0]}/{stem}"
-        if stage_key not in gated_programs:
+        program_stem = re.sub(r"_[a-z]$", "", stem)
+        stage_key = program_stem if len(parts) == 1 else f"{parts[0]}/{program_stem}"
+        # setup initializes immutable data once, unlike recurring frame dispatches.
+        if base.group(1) != "setup" and stage_key not in gated_programs:
             c.warn(f"{pk(path)}: no program.{stage_key}.enabled condition; the whole stage "
                    f"is built and dispatched unconditionally")
     if compute_files and "COMPUTE_SHADERS" not in set(feature_required) | set(feature_optional):
@@ -1107,6 +1139,7 @@ TIER_MONOTONE_UP = {
     "SHADOW_RESOLUTION", "SHADOW_DISTANCE", "ENTITY_SHADOW_DISTANCE", "SHADOW_SOFTNESS",
     "UNDERWATER_SHAFT_SAMPLES", "CLOUD_MODE", "SUN_MOON_MODE", "ANTIALIASING",
     "SHADOW_FILTER_QUALITY", "CLOUD_QUALITY", "VOLUME_FOG_QUALITY",
+    "BLOOM_QUALITY", "WATER_EFFECT_QUALITY",
 }
 # Knobs where the smaller number is the richer implementation, so the value must not
 # step up: SKY_MODE 0 = Minishita physical atmosphere, 1 = gradient
@@ -1240,7 +1273,7 @@ GUARD_SYMBOL_SOURCES = {
                             "global/water/temporal.glsl (2026-09-28). The branch is false "
                             "by design until a composite-stage producer task lands; the "
                             "module is registered in PENDING_CONSUMERS, see "
-                            "docs/2026-09-28-water-material-lighting.md",
+                            "docs/archive/实现与取证.md#record-003",
 }
 
 # settings.glsl enum tokens that name the arm no branch ever tests: the code checks one

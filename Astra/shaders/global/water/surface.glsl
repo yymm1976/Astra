@@ -12,7 +12,8 @@
 // license including Steadfast's Section 7 additional terms.
 // Publish gate: design.md 9.3 + escalations.md SC-14 (⏸ pending user decision).
 //
-// Reference wave parameters, Nyquist filter and four-step parallax.
+// Reference wave parameters and Nyquist filter. Surface parallax displacement
+// was cancelled: the analytic normal is always evaluated at the geometric XZ.
 // The dedicated 64x64 texture reproduces this Iris runtime's default noise at
 // Steadfast's requested resolution without altering Astra's other noise users.
 // Names and option adapters are local; fixed loops keep screen derivatives valid.
@@ -37,20 +38,15 @@ vec2 surface_grad_fade(vec2 t) {
 	return 30.0 * t * t * (t * (t - 2.0) + 1.0);
 }
 
-// Coherent value noise，`at` 以格为单位（+1.0 = 移动一格 = 一个纹素），返回 [0, 1]。
-float surface_noise(vec2 at) {
-	vec2 corner = floor(at);
-	at = surface_fade(at - corner) + corner;
-	// 格空间 → 纹素空间，并偏移半个纹素使格心落在 4 纹素中心（Steadfast 对齐，单次 fma）。
-	at = at * (1.0 / float(steadfastNoiseResolution))
-		+ (0.5 / float(steadfastNoiseResolution));
-	// Parallax has divergent iteration counts; implicit derivatives are undefined there.
-	return textureLod(steadfastWaterNoise, at, 0.0).x;
-}
-
 // 值噪声的解析梯度：一次 textureGather 取格点四角的 H 值，用 fade 导数加权差分。
 // 比中心差分（3 次采样）省一半 ALU，这正是 Steadfast 选解析导数的原因。
-// Crest height and gradient share the same four level-zero texels.
+// Crest gradient uses the same four level-zero texels.
+vec2 surface_noise_gradient_corners(vec4 corners, vec2 offset, out float height) {
+    vec2 fade = surface_fade(offset);
+    vec4 mixes = mix(corners.xwzw, corners.yzyx, fade.xxyy);
+    height = mix(mixes.y, mixes.x, fade.y);
+    return (mixes.zx - mixes.wy) * surface_grad_fade(offset);
+}
 vec2 surface_noise_gradient(vec2 at, out float height) {
 	vec2 corner = floor(at);
 	vec2 center = corner * (1.0 / float(steadfastNoiseResolution))
@@ -59,10 +55,7 @@ vec2 surface_noise_gradient(vec2 at, out float height) {
 
 	// textureGather(steadfastWaterNoise, P) = vec4(H(x, y+1), H(x+1, y+1), H(x+1, y), H(x, y))
 	vec4 corners = textureGather(steadfastWaterNoise, center);
-	vec2 fade = surface_fade(offset);
-	vec4 mixes = mix(corners.xwzw, corners.yzyx, fade.xxyy);
-	height = mix(mixes.y, mixes.x, fade.y);
-	return (mixes.zx - mixes.wy) * surface_grad_fade(offset);
+    return surface_noise_gradient_corners(corners,offset,height);
 }
 vec2 surface_noise_gradient(vec2 at) {
 	float unusedHeight;
@@ -168,11 +161,6 @@ const float crestMagnitude[2] = float[](
 const float SURFACE_GRADIENT_STRENGTH = 0.15;
 
 // 把平滑的层间过渡重铸成可见的"脊"：绝大部分区域平坦，网格跃变处起脊（0.5-0.5cos）。
-float surface_crest(float h) {
-	const float PI = 3.14159265359;
-	return (-0.5 * cos(h * (PI * 2.0))) + 0.5;
-}
-
 // d(Crest)/dh，链式法则求梯度时用（mul -> sin -> mul）。
 float surface_crest_derivative(float h) {
 	const float PI = 3.14159265359;
@@ -207,45 +195,28 @@ SurfaceFootprint surface_footprint(vec2 ddxWorldPos, vec2 ddyWorldPos) {
     return footprint;
 }
 
-// 水面高度（0..1），视差步进用。approximate = true 时只算贡献最大的前两条涟漪
-// （Steadfast NUM_BIG_RIPPLES = 2），4 步视差里省一半采样。
-float surface_height(vec2 worldPos, SurfaceFootprint footprint, float time, bool approximate, float distanceToCamera) {
-	float height = 0.0;
-	int ripples = approximate ? 2 : 4;
-	// The reference approximation omits the two fine ripple layers.
-
-
-	for (int i = 0; i < ripples; i++) {
-		vec3 stretch = rippleStretch[i];
-		vec2 at = time * rippleScroll[i]
-			+ vec2(worldPos.x * stretch.x, dot(worldPos, stretch.zy));
-		float aa = footprint.ripples[i];
-		float fade = 1.0;
-		float filteredHeight = aa >= 1.0 ? 0.5 : mix(surface_noise(at), 0.5, aa);
-		// Removing a layer means fading its variation, not its DC component. A
-		// distance-dependent mean shift otherwise moves the parallax intersection.
-		height += rippleMagnitude[i] * mix(0.5, filteredHeight, fade);
-	}
-
-	for (int i = 0; i < 2; i++) {
-		vec3 stretch = crestStretch[i];
-		vec2 at = time * crestScroll[i]
-			+ vec2(worldPos.x * stretch.x, dot(worldPos, stretch.zy));
-		float aa = footprint.crests[i];
-		float fade = 1.0;
-		// Reference order: antialias the height before the crest remap.
-		float filteredCrest = surface_crest(aa >= 1.0 ? 0.5 : mix(surface_noise(at), 0.5, aa));
-		height += crestMagnitude[i] * mix(0.5, filteredCrest, fade);
-	}
-
-	return height;
-}
-
 // 负梯度（-∇H），解析导数版（Steadfast WaterNGradientAnalytic）。
 // `unresolved` 顺带累计被 Nyquist 滤掉的坡度能量，供 Astra 的 roughness 使用。
 vec2 surface_gradient(vec2 worldPos, SurfaceFootprint footprint, float time, float distanceToCamera, out float unresolved) {
 	vec2 gradient = vec2(0.0);
 	unresolved = 0.0;
+    // Astra extension of Steadfast's footprint filtering: progressively move
+    // distant fine ripples into stable roughness before they become unresolved.
+    // Near waves, crest motion and submerged-camera optics keep their old field.
+    vec2 fineVisibility = vec2(1.0);
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END && WATER_EFFECT_QUALITY < 2
+    if (isEyeInWater == 0) {
+        #if WATER_EFFECT_QUALITY == 0
+        fineVisibility = vec2(1.0) - smoothstep(vec2(32.0, 20.0), vec2(72.0, 48.0), vec2(distanceToCamera));
+        #else
+        // Tested an earlier fade (40/23→80/52): interleaved GPU timing on shore
+        // and far-wall scenes showed no measurable gain (within ±0.05 ms run
+        // noise) while losing fine-wave detail from 40 blocks. The original
+        // window stays.
+        fineVisibility = vec2(1.0) - smoothstep(vec2(48.0, 28.0), vec2(96.0, 64.0), vec2(distanceToCamera));
+        #endif
+    }
+    #endif
 
 	for (int i = 0; i < 4; i++) {
 		vec3 stretch = rippleStretch[i];
@@ -253,6 +224,12 @@ vec2 surface_gradient(vec2 worldPos, SurfaceFootprint footprint, float time, flo
 			+ vec2(worldPos.x * stretch.x, dot(worldPos, stretch.zy));
 		float aa = footprint.ripples[i];
 		float fade = 1.0;
+		#if !defined DIMENSION_NETHER && !defined DIMENSION_END && WATER_EFFECT_QUALITY < 2
+		if (i >= 2 && isEyeInWater == 0) {
+            float visibility = fineVisibility[i - 2];
+            if (visibility < 1.0) aa = 1.0 - (1.0 - aa) * visibility;
+        }
+		#endif
 
         if (aa >= 1.0) {
             // Fully filtered variation is exactly zero. Keep its unresolved
@@ -260,8 +237,8 @@ vec2 surface_gradient(vec2 worldPos, SurfaceFootprint footprint, float time, flo
             unresolved += (0.43 * SURFACE_GRADIENT_STRENGTH * rippleMagnitude[i]) * length(stretch);
             continue;
         }
-		vec2 waveGradient = (SURFACE_GRADIENT_STRENGTH * rippleMagnitude[i])
-			* surface_noise_gradient(at);
+        vec2 noiseGradient = surface_noise_gradient(at);
+		vec2 waveGradient = (SURFACE_GRADIENT_STRENGTH * rippleMagnitude[i]) * noiseGradient;
 
 		// 拉伸把 X 混进了噪声 Y，故 X 方向是方向导数 = dot(方向, 梯度)（Steadfast 注释）。
 		vec2 scaled = vec2(dot(stretch.xz, waveGradient), waveGradient.y * stretch.y);
@@ -299,27 +276,10 @@ vec2 surface_gradient(vec2 worldPos, SurfaceFootprint footprint, float time, flo
 	return gradient;
 }
 
-// 4 步自适应视差（Steadfast WaterSurfaceParallaxMapping）：每步的步长按"当前高度与
-// 表面高度之差"缩放 —— 越接近水面走得越慢，因此 4 步就够（常规视差要 8-32 步）。
-//   tangentView: 切线空间视线向量，Z 为负 = 射入表面（见文件头的坐标约定说明）。
-vec2 surface_parallax(vec2 worldPos, SurfaceFootprint footprint, float time, vec3 tangentView, float distanceToCamera) {
-	const float ITERATIONS = 4;
-	float currentHeight = 1.0;
-	// 把视线按 Z 归一到 -1 后即可丢掉 Z；夹一个下界避免掠射时横向步子爆炸。
-	vec2 posStep = tangentView.xy / max(abs(tangentView.z), 0.0001);
-
-	for (int i = 0; i < 4; i++) {
-		float sampleHeight = surface_height(worldPos, footprint, time, true, distanceToCamera);
-		float stepLength = (1.0 / ITERATIONS) * max(currentHeight - sampleHeight, 0.0);
-		// Height lookups use explicit LOD and the already computed footprint.
-		// At convergence another iteration cannot change this position.
-		if (stepLength <= 0.0) break;
-		worldPos = (posStep * stepLength) + worldPos;
-		currentHeight -= stepLength;
-	}
-
-	return worldPos;
-}
+// Adaptive height displacement has been removed: every tier reads the wave
+// field at its geometric position and keeps only the analytic normal.
+// The old tangent-space relaxation kept the same total displacement
+// (1-(1-0.25)^4 = 0.68359375) that the budget path used to apply per pixel.
 
 WaterSurface water_surface(vec3 worldPos, vec3 baseNormal, float time, bool active) {
 	WaterSurface surface;
@@ -339,26 +299,15 @@ WaterSurface water_surface(vec3 worldPos, vec3 baseNormal, float time, bool acti
 	float heightScale = WATER_WAVE_HEIGHT * 0.01;
 	float waveTime = time * (WATER_WAVE_SPEED * 0.01);
 
-	// 切线空间视线：X/Z = 世界水平，Z（高度轴）= -|Δy|，使上/下表面都满足
-	// Steadfast 的"Z 为负 = 射入表面"约定。worldPos 是绝对世界坐标（lit.fsh
-	// 传入 playerPos + cameraPosition，SC-35 起 playerPos 为真相机相对位置）。
 	vec3 toSurface = worldPos - cameraPosition;
 	float distanceToCamera = length(toSurface);
-	vec3 tangentView = vec3(toSurface.x, toSurface.z, -abs(toSurface.y))
-		/ max(distanceToCamera, 1e-5);
 
-    float parallaxStrength = clamp((48.0 - distanceToCamera) / 24.0, 0.0, float(abs(faceNormal.y) > 0.999));
-    // A denominator floor alone still permits huge shifts near the horizon.
-    parallaxStrength *= smoothstep(0.02, 0.12, abs(tangentView.z));
-    vec2 position=worldPos.xz;
-    if (parallaxStrength > 0.0) {
-        vec2 offsetPosition=surface_parallax(position,footprint,waveTime,tangentView,distanceToCamera);
-        position=mix(position,offsetPosition,parallaxStrength);
-    }
-
-	float unresolved;
+    // Surface parallax is cancelled in every tier: the wave normal is always
+    // evaluated at the fragment's geometric XZ. The analytic gradient no
+    // longer needs a height fetch for a shifted sample position.
+    float unresolved;
 	// The reference reuses the geometric footprint for the final normal.
-	vec2 minusGradient = surface_gradient(position, footprint, waveTime, distanceToCamera, unresolved);
+	vec2 minusGradient = surface_gradient(worldPos.xz, footprint, waveTime, distanceToCamera, unresolved);
     #if !defined DIMENSION_END && !defined DIMENSION_NETHER
     if (isEyeInWater==0) {
         // Far ripples should not split the warm sky into bright parallel ribbons.
@@ -380,12 +329,6 @@ WaterSurface water_surface(vec3 worldPos, vec3 baseNormal, float time, bool acti
     #endif
 #endif
 
-    // Select sideways geometry after all derivatives, including parallax and
-    // roughness. A material/face branch before dFdx makes shoreline quads undefined.
-    if (abs(faceNormal.y) <= 0.999) {
-        surface.normal = faceNormal;
-        surface.roughness = 0.045;
-    }
 	return surface;
 }
 

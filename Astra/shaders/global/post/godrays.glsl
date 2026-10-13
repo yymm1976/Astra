@@ -29,11 +29,13 @@ const float SKY_DEPTH = 1.0;
 
 // Depth comparison done by hand: Iris gives us depthtex0 as a plain sampler, so we
 // reproduce GL_LEQUAL against the stored depth instead of using a shadow sampler.
+// Bounds and ray exits diverge across pixels; explicit level zero avoids implicit
+// texture derivatives in those branches and keeps the native depth footprint.
 float depth_compare_sample(vec3 texCoord) {
 	if (any(lessThan(texCoord.xy, vec2(0.0))) || any(greaterThan(texCoord.xy, vec2(1.0)))) {
 		return 0.0;
 	}
-	return float(texCoord.z <= texture(depthtex0, texCoord.xy).r);
+	return float(texCoord.z <= textureLod(depthtex0, texCoord.xy, 0.0).r);
 }
 
 // Screen-space light shafts after GPU Gems 3, "Volumetric Light Scattering as a
@@ -50,6 +52,8 @@ float depth_compare_sample(vec3 texCoord) {
 // screenCoord is normalised coordinates of the HALF-RESOLUTION godrays buffer;
 // lightScreenPos is the shadow light's position in the same space (0..1, may be
 // off-screen - the CPU-side offscreen fade in godraysExposure handles that).
+// scattering.fsh owns the air-volume exclusion. Retain the guard below for
+// independent callers: it must never duplicate volume-owned air scattering.
 float godrays_density(vec2 screenCoord, vec2 lightScreenPos) {
 	#ifdef ASTRA_VOLUME_FOG
 	// R2/H3: with the optional overworld volume on, the ray march owns this air
@@ -77,7 +81,19 @@ float godrays_density(vec2 screenCoord, vec2 lightScreenPos) {
 
 	for (uint i = uint(0); i < uint(NUM_SAMPLES); i++) {
 		texCoord -= deltaTexCoord;
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        // After the first jittered sample the ray moves monotonically from its
+        // on-screen origin towards the light. Once it leaves the convex screen
+        // rectangle it cannot re-enter; every remaining depth comparison is zero.
+        // Sample zero may start just outside and then enter, so retain that case.
+        bool outside = any(lessThan(texCoord, vec2(0.0)))
+                    || any(greaterThan(texCoord, vec2(1.0)));
+        if (outside && i > uint(0)) break;
+        float depthSample = outside ? 0.0
+            : float(SKY_DEPTH <= textureLod(depthtex0, texCoord, 0.0).r);
+        #else
 		float depthSample = depth_compare_sample(vec3(texCoord, SKY_DEPTH));
+        #endif
 		depthSample *= illuminationDecay;
 		accumulated += depthSample;
 		illuminationDecay *= DECAY;

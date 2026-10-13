@@ -1,4 +1,4 @@
 #version 400 compatibility
 #define DIMENSION_NETHER
 
-#include "/program/composite.vsh"
+#include "/program/effect_history.vsh"

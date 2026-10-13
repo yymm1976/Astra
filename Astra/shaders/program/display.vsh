@@ -1,0 +1,58 @@
+// Display inputs that are constant across the full-screen draw.
+#include "/lib/settings.glsl"
+#include "/lib/uniforms.glsl"
+#if defined ASTRA_OVERWORLD_OPTIMIZED && !defined ASTRA_BLOOM
+#define ASTRA_WATER_FOG_FRAME_WRITE
+#include "/lib/solas_water_frame.glsl"
+#endif
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+#include "/global/water/medium_state.glsl"
+flat out int displayOrdinaryWater;
+#if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG && (defined GODRAYS_SUN_OCCLUSION || defined ASTRA_GODRAYS_CLOUD_OCCLUSION)
+uniform sampler2D colortex1;
+flat out float displayGodraysVisibility;
+#endif
+#ifdef AUTO_EXPOSURE
+#include "/global/post/exposure.glsl"
+flat out float displayExposureGain;
+#endif
+#endif
+out vec2 texcoord;
+void main() {
+    gl_Position = ftransform();
+    texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
+    #if defined ASTRA_OVERWORLD_OPTIMIZED && !defined ASTRA_BLOOM
+    waterFogFrameBase = vec3(0.0);
+    waterFogFrameResponse = vec2(0.0);
+    waterInterfaceIncident = vec3(0.0);
+    #if DEBUG_VERTEX_AO == 0 && (!defined ASTRA_DISPLAY_FINAL || ANTIALIASING != 1)
+    if (isEyeInWater == 1) {
+        solas_water_fog_frame_parameters(waterFogFrameBase, waterFogFrameResponse);
+        waterInterfaceIncident = solas_water_interface_incident();
+    }
+    #endif
+    #ifdef ASTRA_UNDERWATER_SHAFTS
+    waterFogFrameMedium = solas_water_medium_linear(waterFogFrameBase, waterFogFrameResponse.x, wetness);
+    #endif
+    #endif
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    displayOrdinaryWater = int(isEyeInWater == 1 && !water_is_thin_sheet());
+    #if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG && (defined GODRAYS_SUN_OCCLUSION || defined ASTRA_GODRAYS_CLOUD_OCCLUSION)
+    displayGodraysVisibility = 1.0;
+    #if DEBUG_VERTEX_AO == 0 && (!defined ASTRA_DISPLAY_FINAL || ANTIALIASING != 1)
+    // Scattering has already written this draw-wide source visibility.
+    // Ordinary water uses the same texel's alpha as distance, so never read it here.
+    if ((isEyeInWater == 0 || (isEyeInWater == 1 && displayOrdinaryWater == 0))
+        && godraysExposure > 0.0 && blindness <= 0.0001)
+        displayGodraysVisibility = texelFetch(colortex1, ivec2(0), 0).a;
+    #endif
+    #endif
+    #ifdef AUTO_EXPOSURE
+    displayExposureGain = 1.0;
+    // FXAA's final draw consumes the display prepared by composite8 already.
+    #if DEBUG_VERTEX_AO == 0 && (!defined ASTRA_DISPLAY_FINAL || ANTIALIASING != 1)
+    if (displayOrdinaryWater == 0) displayExposureGain = astra_ae_gain();
+    #endif
+    #endif
+    #endif
+}

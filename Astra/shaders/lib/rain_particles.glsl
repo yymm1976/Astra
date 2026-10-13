@@ -4,7 +4,8 @@
 // their blue texture*tint colour in the particle program. Mechanism reference:
 // Photon program/gbuffers_all_solid.fsh; Hysteria program/gbuffer/solid.glsl,
 // both in their PROGRAM_GBUFFERS_PARTICLES branch.
-// Astra limits the filter to rainy Overworld particle entries, with its own gate.
+// Unused reference helper: no active Astra program includes or calls this filter.
+// Particle entries retain their ordinary alpha rejection without colour-based removal.
 // Iris has no per-particle type ID here; matching blue particles can also be hidden.
 #if defined ASTRA_PARTICLE && !defined DIMENSION_NETHER && !defined DIMENSION_END
 bool astra_splash_blue(vec3 gammaColour) {

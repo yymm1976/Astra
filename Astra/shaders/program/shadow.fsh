@@ -1,4 +1,4 @@
-// Astra v1 - program/shadow.fsh (shadow pass: caster tint / cached water lens)
+// Astra v1 - program/shadow.fsh (shadow pass: caster tint / cached caustic focus)
 // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
 //   source: _analysis/Steadfast-0.8.0/shaders/program/shadow/shadow.fsh
 // This file is a derivative of Steadfast and is licensed under the GNU General Public
@@ -14,18 +14,33 @@
 //
 // Uniforms: none beyond built-ins (alphaTestRef, gtexture)
 // design.md 3.2 layer 2: program/* is the only lib entry
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && defined GL_ARB_conservative_depth
+#extension GL_ARB_conservative_depth : enable
+#endif
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
 // srgb_decode: texture colour is sRGB, the tint must be linear
+#if !defined ASTRA_SOLID_SHADOW || defined DIMENSION_NETHER || defined DIMENSION_END
 #include "/lib/encoding.glsl"
+#endif
 #include "/global/lighting/shadowmap.glsl"
 in vec2 texcoord;
 in vec4 tint;
 in float waterHeight;
+flat in int waterCasterKind;
 in vec3 waterCasterWorld;
+#if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+in vec3 shadowUndistortedPosition;
+flat in vec3 shadowCasterPlaneNormal;
+#ifdef GL_ARB_conservative_depth
+// Corrected depth never approaches the light, so occluded fragments can still
+// be rejected against the original raster depth before running this shader.
+layout(depth_greater) out float gl_FragDepth;
+#endif
+#endif
 #include "/global/water/caustics.glsl"
 
-// Optical slope is signed and caustic focus can exceed one; retain both in FP16.
+// Caustic focus can exceed one; retain it in FP16.
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END
 #ifndef RGBA16F
 const int RGBA16F = 0;
@@ -34,28 +49,82 @@ const int shadowcolor0Format = RGBA16F;
 #endif
 
 /* RENDERTARGETS: 0 */
-// GBA stores caster transmission or water slope/focus; A is data, not coverage.
+// GBA stores a non-water caster's transmission. A water caster's GB has no
+// reader; its A holds the caustic focus. A is data, not coverage.
 // Iris adds an output-alpha discard to legacy gl_FragData[0] writes. Use an
 // explicit data output so only the source-albedo cutout below clips geometry;
 // keep alphaTestRef supplied by Iris (including the terrain cutout threshold).
 layout(location = 0) out vec4 shadowData;
 
 void main() {
+#if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    // Derivatives must precede the material/alpha branches. All three original
+    // coordinates lie on the actual caster plane, independent of the diagonal.
+    vec3 shadowDx=dFdx(shadowUndistortedPosition);
+    vec3 shadowDy=dFdy(shadowUndistortedPosition);
+    float shadowDet=shadowDx.x*shadowDy.y-shadowDx.y*shadowDy.x;
+    gl_FragDepth=gl_FragCoord.z;
+    bool analyticPlane = abs(shadowCasterPlaneNormal.z)>1e-6;
+    if (waterCasterKind==0 && (analyticPlane || abs(shadowDet)>1e-20)) {
+        vec2 plane=analyticPlane ? -shadowCasterPlaneNormal.xy/shadowCasterPlaneNormal.z
+            : vec2(shadowDy.y*shadowDx.z-shadowDx.y*shadowDy.z,
+                   shadowDx.x*shadowDy.z-shadowDy.x*shadowDx.z)/shadowDet;
+        vec2 ray=undistort(vec3(gl_FragCoord.xy*(2.0/float(shadowMapResolution))-1.0,0.0)).xy;
+        float planeDepth=(shadowUndistortedPosition.z
+            +dot(ray-shadowUndistortedPosition.xy,plane))*0.25+0.5;
+        gl_FragDepth=max(gl_FragCoord.z,planeDepth);
+    }
+#endif
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-    // Derivatives must be evaluated before the per-caster water branch.
-    float waterFootprint = max(length(dFdx(waterCasterWorld.xz)),
-                               length(dFdy(waterCasterWorld.xz)));
-    // Horizontal water stores its optical record, independent of texture alpha
-    // and tint. It needs no material texture sample or caster-tint preparation.
-    if (waterHeight < WATER_HEIGHT_NONE) {
-        vec3 lens = vec3(0.0, 0.0, 1.0);
-        #if defined WATER_CAUSTICS || (defined WATER_WAVES && defined ASTRA_UNDERWATER_SHAFTS)
-        lens = astra_water_caustic_lens(waterCasterWorld, waterFootprint);
-        #endif
-        shadowData = vec4(waterHeight, lens);
+    #ifdef ASTRA_SOLID_SHADOW
+    // The dedicated solid program has OFF alpha in Iris and no pack override.
+    // Non-water stores only its category marker; there is no material sample or
+    // potential discard anywhere in this compiled fragment program. A mod or
+    // resource can still place an actual water model in SOLID, so keep its record.
+    if (waterCasterKind == 0) {
+        shadowData = vec4(WATER_HEIGHT_NONE, 1.0, 1.0, 1.0);
+        return;
+    }
+    #else
+    // Iris 1.11.2 uses AlphaTests.OFF (reference 0) for Sodium's solid
+    // shadow terrain. These casters are copied into BOTH shadow depths before
+    // translucent terrain: their per-corner transparent weight is always zero.
+    // Only the neutral non-water marker can be consumed from their colour record.
+    // Keep the reference guard for engines/overrides that still clip this stage;
+    // cutout foliage, entities and horizontal water retain their complete path.
+    if (renderStage == MC_RENDER_STAGE_TERRAIN_SOLID && alphaTestRef <= 0.0
+        && waterCasterKind == 0) {
+        shadowData = vec4(WATER_HEIGHT_NONE, 1.0, 1.0, 1.0);
         return;
     }
     #endif
+    // Derivatives must be evaluated before the per-caster water branch. They feed
+    // only the caustic focus now, so a caustics-off build never pays for them.
+    #ifdef WATER_CAUSTICS
+    float waterFootprint = max(length(dFdx(waterCasterWorld.xz)),
+                               length(dFdy(waterCasterWorld.xz)));
+    #endif
+    // Horizontal water stores its optical record, independent of texture alpha
+    // and tint. It needs no material texture sample or caster-tint preparation.
+    if (waterCasterKind == 1) {
+        // An unrepresentable custom-world height stays neutral water, never tint.
+        if (waterHeight >= WATER_HEIGHT_NONE) {
+            shadowData = vec4(WATER_HEIGHT_NONE, 1.0, 1.0, 1.0);
+            return;
+        }
+        // Volume beams evaluate their own optical wave entries, so a caster's
+        // GB has no reader. Build the focus in A only for surface caustics.
+        float focus = 1.0;
+        #ifdef WATER_CAUSTICS
+        focus = astra_water_caustic_focus(waterCasterWorld, waterFootprint);
+        #endif
+        shadowData = vec4(waterHeight, 1.0, 1.0, focus);
+        return;
+    }
+    #endif
+    #if defined ASTRA_SOLID_SHADOW && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    shadowData = vec4(WATER_HEIGHT_NONE, 1.0, 1.0, 1.0);
+    #else
 	vec4 albedo = texture(gtexture, texcoord) * tint;
 
 	if (waterHeight >= WATER_HEIGHT_NONE && albedo.a < alphaTestRef) {
@@ -79,4 +148,5 @@ void main() {
 #endif
 
     shadowData = vec4(waterHeight, shadowTint);
+    #endif
 }

@@ -99,6 +99,11 @@ vec3 astra_star_field(vec3 worldDir, out float pointStars) {
         vec3 celestial = vec3(dot(nDir, astraStarTangent),
                               dot(nDir, astraSunDirection),
                               dot(nDir, astraStarAxis));
+        // The disc exclusion multiplies both the catalogue and the galactic band.
+        // Rays with exactly zero visibility need neither hashes nor noise fetches.
+        float discExclusion = max0(1.0 - pow100(abs(celestial.y) * 1.002));
+        float visibility = min1(nDir.y * 3.0) * discExclusion * astraStarVisibility;
+        if (visibility <= 0.0) return vec3(0.0);
         float radial = length(celestial.xy);
         // The old upper-only projection is singular when rotated below its
         // equator. Two spherical charts overlap smoothly across a fixed band.
@@ -115,8 +120,8 @@ vec3 astra_star_field(vec3 worldDir, out float pointStars) {
         vec3 galaxy = astra_milky_way(celestial);
         if (pointStars <= 0.0 && max(galaxy.r, max(galaxy.g, galaxy.b)) <= 0.0)
             return vec3(0.0);
-        float discExclusion = max0(1.0 - pow100(abs(celestial.y) * 1.002));
-        return (stars + galaxy) * (min1(nDir.y * 3.0) * discExclusion * astraStarVisibility);
+        pointStars *= visibility;
+        return (stars + galaxy) * visibility;
     #endif
 }
 

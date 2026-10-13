@@ -25,7 +25,7 @@
 //                                                                      -> astra_sky_dither()
 //    program/composite.glsl:30-36              SdotU / sunFactor / sunVisibility / shadowTime
 //    lib/common.glsl:740-746                   noonFactor / nightFactor / rainFactor2 /
-//                                              invNoonFactor / invNoonFactor2 / invRainFactor
+//                                              invNoonFactor / invRainFactor (historical invNoonFactor2 is no longer consumed)
 //    program/gbuffers_skybasic.glsl:83         sky call uses (doGlare = true, doGround = false)
 //
 //  ASTRA MAPPING - reference factors mapped to Astra inputs. Frame-wide values
@@ -101,12 +101,13 @@ struct AstraSkyFactors {
 	float sunVisibility2;
 	float noonFactor;      // 0 at the horizon, 1 at noon
 	float invNoonFactor;
-	float invNoonFactor2;
 	float nightFactor;     // 0 during the day, 1 at midnight
 	float rainFactor;
 	float rainFactor2;
 	float invRainFactor;
-	float shadowTime;      // 1 while the sun is the shadow light, 0 at night
+	// 0 through the sun/moon handoff (sun within ~0.0625 of the horizon, both
+	// signs), 1 clear of it - so it is 1 by day AND at night, not a day flag.
+	float shadowTime;
 };
 
 AstraSkyFactors astra_sky_factors() {
@@ -117,7 +118,6 @@ AstraSkyFactors astra_sky_factors() {
 	f.sunVisibility2 = astraSkyFactorsSun.z;
 	f.noonFactor = astraSkyFactorsSun.w;
 	f.invNoonFactor = astraSkyFactorsTime.x;
-	f.invNoonFactor2 = astraSkyFactorsTime.y;
 	f.nightFactor = astraSkyFactorsTime.z;
 	f.shadowTime = astraSkyFactorsTime.w;
 	f.rainFactor = astraRainFactor;
@@ -139,7 +139,7 @@ struct AstraSkyPalette {
 	vec3 nightDown;      // nightDownSkyColor  (:54)
 };
 
-AstraSkyPalette astra_sky_palette(AstraSkyFactors f) {
+AstraSkyPalette astra_sky_palette() {
 	AstraSkyPalette p;
 	// Final view-independent palette now comes from the CPU expression graph.
 	p.up = astraSkyDayUp;
@@ -156,15 +156,15 @@ AstraSkyPalette astra_sky_palette(AstraSkyFactors f) {
 // GetSky - lib/atmospherics/sky.glsl:11-99 (verbatim, minus the two
 // branches documented in the file header)
 // ------------------------------------------------------------
-vec3 astra_get_sky(float VdotU, float VdotS, float dither, bool doGlare, bool doGround,
-                   AstraSkyFactors f, AstraSkyPalette p) {
+// Smooth angular base is shared across visible sky, clouds and fog. The table
+// producer evaluates this original equation; the consumer adds the sharp layers.
+vec3 astra_get_sky_base(float VdotU, float VdotS, AstraSkyFactors f, AstraSkyPalette p) {
 	// :13-21
 	float nightFactorSqrt2 = astraSkyFactorsWeather.z;
 	float nightFactorM = astraSkyFactorsWeather.w;
 	float VdotSM1 = pow2(max(VdotS, 0.0));
 	float VdotSM2 = pow2(VdotSM1);
 	float VdotSM3 = pow2(pow2(max(-VdotS, 0.0)));
-	float VdotSML = f.sunVisibility > 0.5 ? VdotS : -VdotS;
 
 	float VdotUmax0 = max(VdotU, 0.0);
 	float VdotUmax0M = 1.0 - pow2(VdotUmax0);
@@ -194,6 +194,19 @@ vec3 astra_get_sky(float VdotU, float VdotS, float dither, bool doGlare, bool do
 	vec3 scatteredGroundMixer = vec3(VdotUM3 * VdotUM3, sqrt1(VdotUM3), sqrt3(VdotUM3));
 	     scatteredGroundMixer = mix(vec3(VdotUM3), scatteredGroundMixer, 0.75 - 0.5 * f.rainFactor);
 	finalSky = mix(finalSky, downColor, scatteredGroundMixer);
+	return finalSky;
+}
+
+#ifdef ASTRA_GRADIENT_SKY_CACHE
+#include "/lib/sky_gradient_cache.glsl"
+#endif
+vec3 astra_get_sky(float VdotU, float VdotS, float dither, bool doGlare, bool doGround,
+                   AstraSkyFactors f, AstraSkyPalette p) {
+    #if defined ASTRA_GRADIENT_SKY_CACHE && !defined ASTRA_GRADIENT_SKY_WRITE
+    vec3 finalSky = astra_gradient_sky_cached(VdotU, VdotS);
+    #else
+    vec3 finalSky = astra_get_sky_base(VdotU, VdotS, f, p);
+    #endif
 
 	// :50-51
 	if (doGround)
@@ -201,11 +214,22 @@ vec3 astra_get_sky(float VdotU, float VdotS, float dither, bool doGlare, bool do
 
 	// :58-88 - sun / moon glare
 	if (doGlare && f.shadowTime > 0.0) {
+		float VdotSML = f.sunVisibility > 0.5 ? VdotS : -VdotS;
 		if (0.0 < VdotSML) {
 			float glareScatter = 3.0 * (2.0 - clamp01(VdotS * 1000.0));
 			// SUN_MOON_DURING_RAIN is on at the reference default, so the
 			// `#ifndef SUN_MOON_DURING_RAIN` line at :61-63 does not apply.
-			float VdotSM4 = pow(abs(VdotS), glareScatter);
+			// Outside the tiny 0..0.001 transition, the original exponent is
+			// exactly 3 (sun-facing) or 6 (moon-facing). Keep the transition
+			// analytic, but avoid a general power for the rest of the dome.
+			float VdotSM4;
+			if (VdotS <= 0.0 || VdotS >= 0.001) {
+				float alignment = abs(VdotS);
+				float cubed = alignment * alignment * alignment;
+				VdotSM4 = VdotS <= 0.0 ? cubed * cubed : cubed;
+			} else {
+				VdotSM4 = pow(abs(VdotS), glareScatter);
+			}
 
 			float visfactor = 0.075;
 			float glare = visfactor / (1.0 - (1.0 - visfactor) * VdotSM4) - visfactor;
@@ -218,7 +242,8 @@ vec3 astra_get_sky(float VdotU, float VdotS, float dither, bool doGlare, bool do
             // The CPU palette adds an equal-channel underwater glare boost.
             // A thin sheet uses the surrounding air sky; remove that boost
             // here, where the interface classification is available.
-            if (water_is_thin_sheet()) glareColor -= vec3(7.0 * f.sunVisibility);
+            // Geometry/prepare/deferred observe the previous composite water classification.
+	if (water_is_thin_sheet()) glareColor -= vec3(7.0 * f.sunVisibility);
 			finalSky += max(glareColor, vec3(0.0)) * glare * f.shadowTime;
 		}
 	}
@@ -237,7 +262,7 @@ vec3 astra_get_sky(float VdotU, float VdotS, float dither, bool doGlare, bool do
 vec3 astra_gradient_sky(vec3 worldDir) {
 	vec3 nDir = normalize(worldDir);
 	AstraSkyFactors f = astra_sky_factors();
-	AstraSkyPalette p = astra_sky_palette(f);
+	AstraSkyPalette p = astra_sky_palette();
 	return astra_get_sky(nDir.y, dot(nDir, astraSunDirection),
 	                     astra_sky_dither(), true, false, f, p);
 }

@@ -1,6 +1,6 @@
 # 第三批参考光影调研：20 款知名包的性能优化机制与 Astra 新颖借鉴点（SUMMARY-batch3）
 
-接续状态（2026-10-03）：已根据当前源码选择并实现远处植被风场、完整 TAA 遮罩邻域 gather、云白天调色 CPU 化。本文下方保留调研原始结论；其“未实现”判断及 Bloop 三次 gather 的覆盖说明有部分误判，当前纠正与暂缓理由见[选择与实现](../docs/2026-10-03-batch3-selected-optimizations.md)。
+接续状态（2026-10-03）：已根据当前源码选择并实现远处植被风场、完整 TAA 遮罩邻域 gather、云白天调色 CPU 化。本文下方保留调研原始结论；其“未实现”判断及 Bloop 三次 gather 的覆盖说明有部分误判，当前纠正与暂缓理由见[选择与实现](../docs/archive/实现与取证.md#record-019)。
 
 日期：2026-10-03。数据时点：Modrinth 下载量与最新版本按当日 API 实测。
 执行方式：Modrinth API 按下载量排序圈选 → 20 款 zip 下载并解压至 `reference_shaderpacks/<slug>/`（原件在 `reference_shaderpacks/zips/`）→ 10 个只读调研代理逐包深挖 → 每条借鉴点先对 `Astra/shaders` grep 核实「未实现」才允许列入。

@@ -11,36 +11,39 @@
 //   - colortex1 holds the raw accumulated density in [0, 1], deliberately unscaled so
 //     the buffer's full precision is used (Steadfast's note: scaling here and
 //     unscaling later is pure precision loss, since the value gets smoothed anyway);
-//     RGBA16F preserves compressed water-volume values and ray lengths (air uses R);
+//     RGBA16F preserves additive water radiance and ray lengths (air uses R);
 //   - godraysExposure (view-angle x offscreen x time-of-day, all CPU-side per
 //     design.md 4.4) is already folded into the exposure, NOT into this value;
 //   - GODRAYS_STRENGTH is likewise NOT applied here - it belongs to the stage-2
 //     composite, so that changing the slider does not require re-running this pass;
-//   - with GODRAYS_SUN_OCCLUSION on, texel (0,0)'s alpha carries the sun-disc
-//     visibility scalar for the whole frame instead of the density broadcast. Stage 2
+//   - with GODRAYS_SUN_OCCLUSION or planar clouds, texel (0,0)'s alpha carries
+//     source visibility for the whole frame instead of the density broadcast. Stage 2
 //     reads it back with texelFetch; the other texels of alpha are written but read by
 //     nobody, air or water.
-// Water output: RGB = fourth-root(gamma-domain VL / 128), A = ray length / 128.
-// water_composite reconstructs a compact nine-texel footprint with per-texel distance
-// rejection, then decodes its compressed average in the retained Solas domain.
-// Both channels are consumed: water_shafts_resolve takes ITS ray length from depthtex0
-// (light_shafts.glsl's water_shafts_view) and reads each of the nine taps' own distance
-// from the stored alpha, so both use the same 128-block endpoint identity.
-// The integrated source is separately bounded to a 48-block visible segment.
+// Water output: RGB = refracted additive linear VL, A = min(ray length,48) / 128
+// in the overworld budget (otherwise the full endpoint / 128). The consumer
+// interpolates radiance directly and rejects mismatched corner distances.
+// The same-frame world optical field is independent of temporal radiance history.
 // design.md 3.2 layer 2: program files provide the lib entry.
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
+#include "/global/water/medium_state.glsl"
 #include "/global/post/godrays.glsl"
+#if defined ASTRA_UNDERWATER_SHAFTS || defined ASTRA_GODRAYS_CLOUD_OCCLUSION
+    #include "/program/scene.glsl"
+#endif
+#ifdef ASTRA_GODRAYS_CLOUD_OCCLUSION
+    #include "/global/atmosphere/clouds_screen.glsl"
+#endif
 #ifdef UNDERWATER_LIGHT_SHAFTS
 #ifdef ASTRA_UNDERWATER_SHAFTS
-    #include "/program/scene.glsl"
     #define ASTRA_SHAFT_MARCH_PASS
     #include "/global/water/light_shafts.glsl"
-    #include "/global/water/shaft_history.glsl"
 #endif
 #endif
 in vec2 texcoord;
 in vec2 lightScreenPos;
+flat in int scatteringThinSheet;
 
 #ifdef GODRAYS_SUN_OCCLUSION
 // How much of the solar disc is still open sky, measured once per frame in a window
@@ -66,7 +69,7 @@ float godrays_sun_visibility(vec2 lightPos) {
 				continue;
 			}
 			probed += 1.0;
-			clear += float(texture(depthtex1, tapUV).r >= SKY_DEPTH);
+			clear += float(textureLod(depthtex1, tapUV, 0.0).r >= SKY_DEPTH);
 		}
 	}
 	// No tap on screen means no information, so attenuate nothing.
@@ -78,42 +81,35 @@ float godrays_sun_visibility(vec2 lightPos) {
 const int RGBA16F=0;
 #endif
 const int colortex1Format=RGBA16F;
-#ifdef ASTRA_UNDERWATER_SHAFTS
-const int colortex29Format=RGBA16F;
-const bool colortex29Clear=false;
-const vec4 colortex29ClearColor=vec4(0.0,0.0,0.0,0.0);
-/* RENDERTARGETS: 1,29 */
-#else
+const bool colortex1Clear = true;
+const vec4 colortex1ClearColor = vec4(0.0,0.0,0.0,0.0);
 /* RENDERTARGETS: 1 */
-#endif
 
 void main() {
-    #ifdef ASTRA_UNDERWATER_SHAFTS
-    gl_FragData[1]=vec4(0.0);
-    #endif
-	if (isEyeInWater != 0) {
+	if (isEyeInWater != 0 && scatteringThinSheet == 0) {
 		#ifdef ASTRA_UNDERWATER_SHAFTS
 			if (isEyeInWater == 1) {
-                // A one-block falling sheet has no long submerged light volume.
-                // Do not accumulate a previous ocean's shaft history into it.
-                if (water_is_thin_sheet()) {
-                    gl_FragData[0] = vec4(0.0);
-                    return;
-                }
-                // History uses the same endpoint as the march; reconstruct it once.
+                // Thin sheets take the air path above. Integrate the bounded
+                // water interval once; no scene colour enters this attachment.
                 vec3 endpoint;
                 float marchLength;
                 vec4 volume=water_shafts_march(texcoord,endpoint,marchLength);
-                volume=water_shafts_history(volume,texcoord,endpoint,marchLength);
+                // Composition compares distances inside the integration window;
+                // cap alpha to the exact marker used by the one-read far path.
+#ifdef ASTRA_OVERWORLD_OPTIMIZED
+                volume.a = min(volume.a * WATER_SHAFT_MAX_DISTANCE, astraWaterShaftRange)
+                         / WATER_SHAFT_MAX_DISTANCE;
+#endif
                 gl_FragData[0] = volume;
-                gl_FragData[1] = volume;
 				return;
 			}
 		#endif
 		gl_FragData[0] = vec4(0.0);
 		return;
 	}
-	#ifndef GODRAYS
+	#if !defined GODRAYS || defined ASTRA_VOLUME_FOG
+		// The volume owns air scattering. This pass can still be scheduled for
+		// underwater shafts, but air pixels must not march unused screen godrays.
 		gl_FragData[0] = vec4(0.0);
 		return;
 	#endif
@@ -130,13 +126,27 @@ void main() {
 	// value via gl_FragCoord.xy * windowToScreenGodrays and a custom uniform.
 	float density = godrays_density(texcoord, lightScreenPos);
 	gl_FragData[0] = vec4(density);
-	#ifdef GODRAYS_SUN_OCCLUSION
+	#if defined GODRAYS_SUN_OCCLUSION || defined ASTRA_GODRAYS_CLOUD_OCCLUSION
 		// Texel (0,0) carries the frame's sun visibility. gl_FragCoord and program/
 		// final.fsh's texelFetch share the buffer origin, so neither side needs the
 		// buffer extent or a UV-flip assumption, and that holds at both
 		// size.buffer.colortex1 scales.
 		if (all(lessThan(gl_FragCoord.xy, vec2(1.0)))) {
-			gl_FragData[0].a = godrays_sun_visibility(lightScreenPos);
+            float sourceVisibility = 1.0;
+            #ifdef GODRAYS_SUN_OCCLUSION
+            sourceVisibility = godrays_sun_visibility(lightScreenPos);
+            #endif
+            #ifdef ASTRA_GODRAYS_CLOUD_OCCLUSION
+            // Reuse the SAME resolved coverage that attenuates the visible disc.
+            // Four filtered reads once per frame, not a new cloud march per beam.
+            // Outside the viewport there is no screen-cloud information: the
+            // existing CPU offscreen fade still owns that case.
+            if (sourceVisibility > 0.0
+                && all(greaterThanEqual(lightScreenPos, vec2(0.0)))
+                && all(lessThanEqual(lightScreenPos, vec2(1.0))))
+                sourceVisibility *= 1.0 - clamp(astra_screen_cloud_sample(lightScreenPos).a, 0.0, 1.0);
+            #endif
+			gl_FragData[0].a = sourceVisibility;
 		}
 	#endif
 }

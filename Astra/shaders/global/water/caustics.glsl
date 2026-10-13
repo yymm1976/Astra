@@ -2,8 +2,8 @@
 #define ASTRA_GLOBAL_WATER_CAUSTICS_GLSL
 // Adapted from Solas V2.2b waterNormals.glsl / waterCaustics.glsl by Septonious.
 // Solas bump, offsets and noise scales remain for side faces/other dimensions.
-// The overworld underside and caustics share Astra's optical wave-lens model,
-// inspired by ITT 3.2's animated normals and refracted ray landing.
+// Bed caustics retain Astra's optical wave-lens model. The submerged interface
+// and the volume use the ITT wave-normal implementation in itt_water_waves.glsl.
 #include "/lib/water_palette.glsl"
 #include "/lib/water_wave_lens.glsl"
 // Surface-only band limit.
@@ -42,24 +42,21 @@ vec3 solas_water_normal(vec3 worldPos, vec3 face, vec3 tangent, vec3 binormal,
     float y = (solas_water_surface_height_resolved(worldPos,vec2(0.0,-0.5),resolved) - solas_water_surface_height_resolved(worldPos,vec2(0.0,0.5),resolved)) / 0.5;
     return normalize(tangent * x + binormal * y + face * (1.0 - x*x - y*y - fresnel * 0.5));
 }
-// Water shadow records cache optical slope X/Z and scalar focus. This lets
-// volume samples follow the animated wave field without rebuilding noise there.
-vec3 astra_water_caustic_lens(vec3 worldPos, float footprint) {
+// Water shadow records cache only the bed's scalar caustic focus. Volume beams
+// build a separate water-entry optical cache, so a caster's GB has no reader.
+// The unused slope lets the compiler omit gradient-only work
+// when this surface helper builds the cached focus.
+float astra_water_caustic_focus(vec3 worldPos, float footprint) {
+    #ifndef WATER_CAUSTICS
+    return 1.0;
+    #else
     vec2 slope;
     mat2 curvature;
     astra_water_wave_lens(worldPos.xz, footprint, slope, curvature);
-    // A wave's slope moves the refracted landing point; its curvature changes
-    // the area of that mapping. Bounded reciprocal area makes broad moving
-    // ridges and dim gaps, rather than independent high-frequency bright dots.
-    float focus = 1.0;
-    #ifdef WATER_CAUSTICS
-    mat2 landing = mat2(1.0) + curvature * 2.0;
-    float area = landing[0][0]*landing[1][1] - landing[0][1]*landing[1][0];
-    focus = 0.30 + 0.70*clamp(1.0 / max(abs(area), 0.25), 0.25, 4.0);
+    // A wave's curvature changes the area of the refracted mapping. Bounded
+    // reciprocal area makes broad moving ridges and dim gaps, rather than
+    // independent high-frequency bright dots.
+    return astra_water_wave_focus(curvature);
     #endif
-    #ifndef WATER_WAVES
-    slope = vec2(0.0);
-    #endif
-    return vec3(slope, focus);
 }
 #endif

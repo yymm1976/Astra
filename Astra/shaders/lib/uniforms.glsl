@@ -27,6 +27,8 @@ uniform vec3  astraSkyNightMiddle;
 uniform vec3  astraCloudNoonAmbient;    // pow(max(skyColor,0), 0.75) * 0.85
 uniform vec3  astraCloudDayLight;       // clear-day cloud light, before weather/tint
 uniform vec3  astraCloudDayAmbient;     // clear-day cloud ambient, before weather/tint
+uniform vec3  astraCloudAmbientPalette; // weather/brightness, before twilight/tint
+uniform vec3  astraCloudLightPalette;
 uniform vec3  astraAmbientPalette;     // rain/twilight-adjusted overworld ambient
 uniform vec3  astraSunPalette;         // twilight-adjusted sun; strength applied in GLSL
 uniform vec3  astraMoonPalette;        // moon progress; phase/strength applied in GLSL
@@ -39,7 +41,7 @@ uniform vec2 astraStarTwinkle;          // time-only sin/cos, positions follow t
 uniform float astraStarVisibility;     // existing dusk/rain envelope, evaluated once per frame
 uniform vec3 astraWorldLightDirection;  // normalized actual shadow source, CPU-side
 uniform vec4 astraSkyFactorsSun;        // sun factor, visibility, visibility squared, noon
-uniform vec4 astraSkyFactorsTime;       // inverse noon, squared inverse noon, night, shadow time
+uniform vec4 astraSkyFactorsTime;       // inverse noon, squared inverse noon, night, source-horizon handoff (1 by day/night)
 uniform vec4 astraSkyFactorsWeather;    // rain squared, dry factor, two night curve values
 uniform vec3 astraSkyDayUp;
 uniform vec3 astraSkyDayMiddle;
@@ -117,6 +119,10 @@ uniform float astraNetherCrimson;
 uniform float astraNetherWarped;
 uniform float astraNetherBasalt;
 uniform float astraNetherSoul;
+uniform float astraNetherCoverage;
+uniform vec3 astraNetherPalette;
+uniform vec3 astraNetherPaletteLinear;
+uniform float astraNetherDensityMul;
 
 uniform float nightVision;
 uniform ivec2 eyeBrightnessSmooth;

@@ -1,2 +1,3 @@
 #version 400 compatibility
-#include "/program/composite.vsh"
+// Both air highlights and underwater HDR are captured by this draw.
+#include "/program/composite1.vsh"

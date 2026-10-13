@@ -108,35 +108,6 @@ vec3 block_lighting(float skyLight, float blockLight, float heldLight,
 }
 
 // ---------------------------------------------------------------------------
-// Local-light attenuation field, 0..1 = "no local light here".
-//
-// Night desaturation needs exactly the quantity block_lighting() already has to
-// build before it can tint: how much local light this fragment actually receives.
-// Returning it as a separate scalar lets diffuse.glsl desaturate the moonlight
-// response by how much torch light is present, without evaluating the block light
-// a second time and without splitting the emission the two sources are fused into
-// (the min(1, a+b) form above is what removes the seam between torch and held
-// light, so it must stay the only place they are combined).
-//
-// This is Steadfast's `1.0 - blockLight` term of NightDesaturation (its
-// environment/lighting/diffuse.glsl), generalised from the raw lightmap value to
-// Astra's two sources. Steadfast compares max(blockLight, heldLight) directly on
-// the lightmap because its lighting model has no suppression and no fourth-power
-// falloff; measured before those, a torch would fail to protect the ground it is
-// standing on.
-// ---------------------------------------------------------------------------
-float local_light_attenuation(
-	float skyLight,
-	float blockLight,
-	float heldLight,
-	float blocklightSuppression,
-	float heldLightSuppression
-) {
-	return 1.0 - clamp(local_light_intensity(skyLight, blockLight, heldLight,
-                         blocklightSuppression, heldLightSuppression), 0.0, 1.0);
-}
-
-// ---------------------------------------------------------------------------
 // Lightning flash point light (Refrax thunderLight, formula-level port).
 //
 // A short-lived cool point light lifted above the strike (lightning comes from the sky,

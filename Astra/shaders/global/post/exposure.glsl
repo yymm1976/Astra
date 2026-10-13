@@ -21,8 +21,8 @@
 // ============================================================
 
 // The history texel. colortex10 is a 1x1 buffer (shaders.properties size.buffer), so
-// the metering pass reads and writes the same texel every frame; global/water/
-// medium_state.glsl already relies on that for colortex6.
+// the metering pass reads and writes the same texel every frame. Water state uses
+// the same persistent-record pattern in texel 0 of its metadata-bearing colortex6.
 uniform sampler2D colortex10;
 // Retain the previous frame and enough precision for small adaptation steps.
 // An RGBA8 history rounds those steps away long before the target is reached.
@@ -38,9 +38,10 @@ const int   AE_GRID           = 8;
 // to be one number per frame, and 64 taps already averages away the difference between
 // two neighbouring blocks.
 const float AE_WEIGHT_FALLOFF = 2.1;
-// Gaussian-ish centre weight, chosen so a corner tap weighs exp(-0.5 * 2.1) = 0.35 of
-// the centre tap: what the player is aiming at matters about three times as much as
-// what is at the edge of the screen, and the frame still does not ignore the sky.
+// Gaussian-ish centre weight, stated on the 8x8 cell centres this pass samples: the
+// outermost tap sits 7/16 of the way out from the frame centre (d^2 = 0.3828), the
+// nearest-to-centre tap 1/16 out (d^2 = 0.0078). The d^2 difference is 0.375, so a corner
+// tap weighs exp(-0.375 * 2.1) = 0.455 of the central tap, i.e. about 2.2x for the centre.
 const float AE_KEY            = 0.18;
 // Middle grey on Astra's scale, where apply_exposure's factory value is 1.0 and the
 // tonemap reads 1.0 as "the white of the scene". UNVERIFIED: needs an in-game check
@@ -76,6 +77,13 @@ float astra_ae_decode(float code) {
 	return exp2(AE_LOG_MIN + clamp(code, 0.0, 1.0) * AE_LOG_SPAN);
 }
 
+bool astra_ae_history_valid(vec4 history) {
+    // Only the encoded gain and validity are consumed. These ordered ranges
+    // reject NaN/Inf as well as unwritten records without trusting their clamp.
+    return history.a > 0.5 && history.a <= 1.0
+        && history.r >= 0.0 && history.r <= 1.0;
+}
+
 // Geometric mean of the tap luminances, i.e. their average taken in the log domain.
 // A mean of light values would be dominated by the brightest tap in the lattice -
 // the log domain is where exposure arithmetic belongs, which is also why the tap is
@@ -97,7 +105,7 @@ float astra_ae_meter(sampler2D scene) {
 	float avgLum = exp2(logSum / max(weightSum, 1e-4));
 	// A NaN anywhere in the tapped pixels reaches here. Neutral beats a plausible
 	// number that happens to be garbage: the display chain then equals the manual slider.
-	if (isnan(avgLum)) return 1.0;
+	if (isnan(avgLum) || isinf(avgLum)) return 1.0;
 	return clamp(AE_KEY / max(avgLum, AE_FLOOR), AE_MIN_GAIN, AE_MAX_GAIN);
 }
 
@@ -112,14 +120,15 @@ vec4 astra_ae_frame(sampler2D scene, float deltaTime) {
     // Bodies of water keep their own display curve. Thin sheets use the air
     // curve, so their exposure must continue adapting with the surrounding scene.
     if (isEyeInWater != 0 && !water_is_thin_sheet()) {
-        float code = history.a > 0.5 && !isnan(history.r)
+        float code = astra_ae_history_valid(history)
             ? history.r : astra_ae_encode(1.0);
         return vec4(code, 0.0, 0.0, 1.0);
     }
     float target = astra_ae_meter(scene);
-	float current = history.a > 0.5 && astraTimeDiscontinuity == 0
+	float current = astra_ae_history_valid(history) && astraTimeDiscontinuity == 0
         ? astra_ae_decode(history.r) : target;
-	if (isnan(current)) current = target;
+    if (isnan(deltaTime) || isinf(deltaTime))
+        return vec4(astra_ae_encode(target), 0.0, 0.0, 1.0);
 
 	// Air and thin sheets share the same adaptive display path.
 	float currentLog = log2(max(current, AE_FLOOR));
@@ -142,7 +151,7 @@ vec4 astra_ae_frame(sampler2D scene, float deltaTime) {
 // history, which is also the state of every dimension whose metering pass is disabled.
 float astra_ae_gain() {
 	vec4 history = texelFetch(colortex10, ivec2(0), 0);
-	if (history.a < 0.5 || isnan(history.r)) return 1.0;
+	if (!astra_ae_history_valid(history)) return 1.0;
 	return astra_ae_decode(history.r);
 }
 

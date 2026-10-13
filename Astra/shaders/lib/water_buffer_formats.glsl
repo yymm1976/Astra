@@ -13,6 +13,8 @@ const int colortex0Format = R11F_G11F_B10F;
 // Bloom prefilter carries HDR energy. Packed RGB float uses the same 32 bits
 // per texel as default RGBA8, while preserving radiance above one.
 const int colortex2Format = R11F_G11F_B10F;
+// Geometry/refraction snapshot stays 32-bit in air. Underwater HDR composition
+// has its own colortex9 carrier, so its precision does not tax every water tap.
 const int colortex4Format = R11F_G11F_B10F;
 // The current underwater capture stores the same linear HDR prefilter as 2.
 // Normalized RGBA16 would clamp every bloom peak above one; no alpha is used.

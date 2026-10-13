@@ -1,11 +1,15 @@
 #ifndef ASTRA_WATER_INTERFACE_RECORD_GLSL
 #define ASTRA_WATER_INTERFACE_RECORD_GLSL
 // Existing interface target: RG packed world Y, B skylight, A validity.
-// Reserve RG=(1,1) for a vertical sheet, outside Minecraft's surface-height
-// range. Side records carry no horizontal plane and must never anchor a volume.
+// R=1 reserves a vertical sheet; G stores its OWN d/(1+d) distance. Horizontal
+// height packing never uses high byte 255. Side records carry no horizontal plane.
 uniform sampler2D colortex5;
 bool water_interface_is_side(vec4 record) {
-    return record.a > 0.5 && all(greaterThanEqual(record.rg, vec2(0.999)));
+    return record.a > 0.5 && record.r >= 0.999;
+}
+float water_interface_side_distance(vec4 record) {
+    // A saturated far side remains far, rather than aliasing a nearby sheet.
+    return record.g >= 1.0 ? 1e20 : record.g / max(1.0 - record.g, 1e-5);
 }
 bool water_interface_is_horizontal(vec4 record) {
     return record.a > 0.5 && !water_interface_is_side(record);

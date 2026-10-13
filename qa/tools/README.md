@@ -15,13 +15,17 @@
 
 自动查找遇到多个实例或多个 Iris jar 会要求明确选择，不会按文件名猜测版本。编译工具及其 GPU 辅助脚本仍依赖 Windows 的 LWJGL 3.3.3；取消固定路径不表示已完成跨平台驱动适配。
 
-`inspect_iris_properties.py` 读取四档配置，用安装版本的 Iris 解析选项和布尔条件。三个画质档参与递增比较，NO_SHADOWS 单独要求关闭阴影。它读取调度配置，不测游戏帧率。
+`inspect_iris_properties.py` 读取四档配置，用安装版本的 Iris 解析选项和布尔条件。三个画质档参与递增比较，NO_SHADOWS 单独要求关闭阴影。它读取调度配置，不测游戏帧率。下界体素光门按现行 `program.world-1/shadowcomp` 加数字 `1..8` 的命名核对，并要求每档与 `shaders.properties` 里的资源门 `SHADOWS && NETHER_VOXEL_LIGHT && BLOCKLIGHT_STRENGTH > 0` 一致；某档没有覆盖到的选项取 `lib/settings.glsl` 的声明默认值，数值无法解析时明确报错，不会当成通过。
 
 `compile_glsl.py` 不带 `--profiles` 时仍只选择 PERFORMANCE、BALANCED、ULTRA。需要四档时明确指定 `--profiles PERFORMANCE NO_SHADOWS BALANCED ULTRA`；历史 270 次链接记录不能因此改称四档。
 
+`water_ssr_cost.py` 复用完整 `gbuffers_water` 入口做独立 GL_TIME_ELAPSED 计量（RTX4050、1080p、BALANCED），读取当前生产源码：`native` 为现态，`native_floor20`/`native_full_coarse`/`native_refraction_old` 只恢复对应改动前的渐入窗口、粗查询密度或冗余读取作对照，另有 `native_no_ssr`/`native_no_refraction`/`native_sequential` 分量开关与 `full/waves/trace/transmit` 隔离函数体；`--scene shore|canopy|wall60`、`--pitch` 选择场景与视向，`--image` 输出渲染帧用于逐位比较。它不是 Iris 补丁后的游戏绘制，结果不换算 FPS。
+
 选项登记、配置覆盖与条件分析共用 `shader_options.py`，支持带取值注释的 `#define` 和 `const float/int/bool` 声明。未标注取值的引擎常量不计入用户选项。配置覆盖会保留 const 的类型和分号，选项错误先于 JDK／库路径错误报告。`sunPathRotation` 的消费者单独登记为 Iris 天体／阴影矩阵，不要求它在 GLSL 中另有计算引用；其他 const 仍须有实际消费者。
 
-`underwater_light_probe.py` 已停用，直接提示旧介质接口已移除并返回 2。旧结果对应历史实现，不能描述当前光束、波面透镜或吸收链。
+`underwater_light_probe.py`、`underwater_shaft_gate_probe.py`、`airside_water_probe.py`、`sc35_probe.py`、`bloom_lod_probe.py`、`block_reflect_probe.py`、`block_reflect_gates.py` 均已停用：旧水体接口已经变化，`noise.png` 输入及 `getBloomTile()` 已移除，`astra_rock_emission()` 与材质 12–15 的岩石发光类也已从包中删除，旧工具的解析表达式或自带片元不再适用于当前实现；shafts-only 入口原是旧水探针的关键字参数，停用后的 `main()` 不再接收它。这些同名入口只向标准错误说明停用原因与现行模块位置并返回 2；导入时不读取光影文件、不创建输出目录，也不加载旧 GPU／图像依赖。旧结果只对应历史实现，不能描述当前光束、波面透镜、吸收链、下界彩光或 Bloom 捕获。
+
+`nether_light_probe.py` 与 `nether_heat_glow_probe.py` 按 2026-10-04 处置停用 CLI（输出停用说明并返回 2）；`nether_voxel_model.py` 保留为记录历史常量的离线模型，其顶部 “shipping” 用词不代表当前参数（10-08 审核 F6）。`validate_shadow_water.py` 是明确标注的旧模型，其红并不代表当前回归。
 
 ## 参考副本
 

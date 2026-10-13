@@ -32,7 +32,13 @@ fire, lava"; block.properties:10021-10027 is the R/O/Y/L/T/B/P emissive grouping
 Pinned measurement, not a gate. Re-run: python qa/tools/nether_light_probe.py
 """
 
+# Historical model retained; its constants no longer describe the current pack.
+
 # Astra emission() table, nether_light.csh:19-31 (id -> base colour)
+if __name__ == "__main__":
+    print("Retired: this historical Nether model no longer describes the current shader. See docs/archive/审查原文.md#record-029.")
+    raise SystemExit(2)
+
 ASTRA_EMISSION = {
     "2 red (redstone torch)": (1.0, 0.04, 0.01),
     "3 orange (torch, magma, campfire...)": (1.0, 0.30, 0.045),

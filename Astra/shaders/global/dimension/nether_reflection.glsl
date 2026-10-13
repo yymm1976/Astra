@@ -4,6 +4,7 @@
 // materialMethods/reflections.glsl, deferred1.glsl and composite1.glsl.
 // Uses Astra current-frame colour/depth and normal packing. See THIRD-PARTY.md.
 #include "/lib/nether_fog_density.glsl"
+#include "/lib/pow.glsl"
 float nether_rock_fresnel(float fresnel, float viewDistance, float smoothness) {
     // Complementary SSR-only uses 0.7 to hide incomplete screen-space coverage.
     // Astra widens the useful oblique angles to 0.35 at the user's request.
@@ -30,7 +31,7 @@ vec4 nether_rock_trace(vec3 viewPos, vec3 viewDirection, float viewDistance,
     vec3 travel = vector;
     vec3 refPos = vec3(0.0);
     vec3 scenePos = vec3(0.0);
-    float error = 1e10;
+    float errorSquared = 1e20;
     float depth = 1.0;
     int refinement = 0;
     for (int i = 0; i < 30; ++i) {
@@ -40,8 +41,11 @@ vec4 nether_rock_trace(vec3 viewPos, vec3 viewDirection, float viewDistance,
             return vec4(0.0);
         depth = textureLod(depthtex1, refPos.xy, 0.0).r;
         scenePos = screen_view(vec3(refPos.xy, depth));
-        error = length(point - scenePos);
-        if (error * 0.33333 < length(vector)) {
+        vec3 residual = point - scenePos;
+        errorSquared = dot(residual, residual);
+        // Both sides are nonnegative. Keep the original crossing tolerance
+        // while avoiding two square roots at every ray step.
+        if (errorSquared * (0.33333 * 0.33333) < dot(vector, vector)) {
             refinement++;
             if (refinement >= 6) break;
             travel -= vector;
@@ -53,11 +57,20 @@ vec4 nether_rock_trace(vec3 viewPos, vec3 viewDirection, float viewDistance,
     }
     if (depth >= 0.999999) return vec4(0.0);
     float sceneDistance = length(scenePos);
-    if (error * (1.0 - fresnel) >= 1.0 + sceneDistance * 0.2) return vec4(0.0);
+    float errorLimit = 1.0 + sceneDistance * 0.2;
+    float errorScale = 1.0 - fresnel;
+    if (errorSquared * errorScale * errorScale >= errorLimit * errorLimit) return vec4(0.0);
     // The reference tolerates off-screen projection; Astra's buffers clamp at
     // the viewport, so fade inside it instead of accepting repeated edge texels.
     vec2 edge = abs(refPos.xy - 0.5) * 2.0;
-    float confidence = clamp(1.0 - pow(max(edge.x, edge.y), 50.0), 0.0, 1.0);
+    // x^50 = x^32 * x^16 * x^2 on a literal exponent. Same curve as the previous
+    // pow(edge,50.0), expressed as the multiply chain lib/pow.glsl exists for.
+    float edgeMax = max(edge.x, edge.y);
+    float edge2 = edgeMax * edgeMax;
+    float edge4 = edge2 * edge2;
+    float edge8 = edge4 * edge4;
+    float edge16 = edge8 * edge8;
+    float confidence = clamp(1.0 - pow32(edgeMax) * edge16 * edge2, 0.0, 1.0);
     float receiverCoverage = clamp(sceneDistance-lViewPos+3.0,0.0,1.0);
     refDist=length(start-scenePos);
     // Keep the virtual-image distance even when this hit contributes no colour.
@@ -68,8 +81,8 @@ vec4 nether_rock_trace(vec3 viewPos, vec3 viewDirection, float viewDistance,
     vec3 reflected = textureLod(colortex0,refPos.xy,lod).rgb;
     // Complementary confidence suppresses bright edge streaks and hits in front
     // of the receiver. Its SSR-only background in the Nether is black.
-    vec2 border = 1.0 - pow(edge / vec2(1.2,1.1), vec2(8.0));
-    border.x = 1.0 - pow(edge.x / 1.2,16.0);
+    float borderX = pow8(edge.x/1.2);
+    vec2 border = vec2(1.0-borderX*borderX,1.0-pow8(edge.y/1.1));
     float luminance = dot(srgb_encode(max(reflected,vec3(0.0))),vec3(0.2126,0.7152,0.0722));
     confidence *= pow(clamp(border.x*border.y,0.0,1.0),2.0+3.0*luminance);
     confidence *= receiverCoverage;

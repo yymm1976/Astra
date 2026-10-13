@@ -1,6 +1,6 @@
 # `lib/vendor/` — 第三方文件物理隔离目录
 
-依据 `Astra/design.md` §9.2 与 `docs/2026-09-20-shader-pack-design-survey.md` P2-10 建立。
+依据 `.specs/astra-shader/design.md` §9.2 与借鉴调研 P2-10 建立。
 本目录是全包**唯一**存放第三方原始文件与许可证原文的地方。机械检查见 `python qa/tools/check_pack.py` 第 15 项。
 
 ## 目录形状

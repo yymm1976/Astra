@@ -7,6 +7,8 @@
 // prepared once in shaders.properties; other frame indices retain this table.
 vec2 astra_jitter_uv_for(int frame) {
     #ifdef ASTRA_TAA
+    // The scene resolve rejects history in every non-air camera medium.
+    if (isEyeInWater != 0) return vec2(0.0);
     if (frame == frameCounter) return astraJitterCurrent;
     if (frame == frameCounter - 1) return astraJitterPrevious;
     const vec2 offsets[8] = vec2[8](
@@ -23,6 +25,7 @@ vec2 astra_jitter_uv_for(int frame) {
 }
 vec2 astra_jitter_uv() {
     #ifdef ASTRA_TAA
+    if (isEyeInWater != 0) return vec2(0.0);
     return astraJitterCurrent;
     #else
     return vec2(0.0);

@@ -3,28 +3,88 @@
 // Adapted from Steadfast 0.8.0 environment/water/refraction.glsl, coderbot.
 // GPL-3.0-or-later with Section 7 terms; see Astra/LICENSE and THIRD-PARTY.md.
 // SUMMARY efficiency idea: avoid depth queries when refraction has no displacement.
-vec2 water_depth_range(sampler2D depthBuffer, vec2 uv) {
-    vec4 depths = textureGather(depthBuffer, clamp(uv, vec2(0.0), vec2(1.0)));
-    return vec2(min(min(depths.x, depths.y), min(depths.z, depths.w)),
-                max(max(depths.x, depths.y), max(depths.z, depths.w)));
+vec3 water_depth_footprint_values(vec4 footprint, vec2 uv, ivec2 size) {
+    vec2 location = clamp(uv,vec2(0.0),vec2(1.0))*vec2(size);
+    ivec2 nearestCorner = ivec2(floor(location) - floor(location - 0.5));
+    // Cached corners are already (00,10,01,11). Reusing their range never
+    // reuses the old nearest corner: the new UV selects its OWN raw depth.
+    float nearestDepth = footprint[nearestCorner.x+2*nearestCorner.y];
+    return vec3(min(min(footprint.x,footprint.y),min(footprint.z,footprint.w)),
+                max(max(footprint.x,footprint.y),max(footprint.z,footprint.w)),nearestDepth);
 }
-vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 normalDelta, vec2 rasterUV) {
+vec3 water_depth_footprint(sampler2D depthBuffer, vec2 uv, out vec4 footprint) {
+    uv = clamp(uv,vec2(0.0),vec2(1.0));
+    footprint = textureGather(depthBuffer,uv).wzxy;
+    return water_depth_footprint_values(footprint,uv,textureSize(depthBuffer,0));
+}
+// Exact view Z from the same inverse projection as screen_view, using only the
+// two rows that divide Z by W.
+float water_screen_view_z(vec2 uv, float depth) {
+    vec4 ndc = vec4((uv - astra_jitter_uv()) * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    mat4 inverseRows = transpose(gbufferProjectionInverse);
+    return dot(inverseRows[2],ndc) / dot(inverseRows[3],ndc);
+}
+// A refracted query reads ONE pixel: the texel containing its UV supplies the
+// depth that bounds displacement, the acceptance test and (through the paired
+// transmission sampler) the endpoint and colour. No 2x2 footprint crosses this
+// path; silhouette corners no longer mix one tap's colour with another's depth.
+// pairedEntityDepth reports the caller's own entityViewDepth when the accepted
+// texel is the one that already supplied it, letting the paired transmission
+// skip its colortex28 fetch. -1 means "unknown, fetch normally".
+vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 normalDelta,
+                        vec2 rasterUV, float entityViewDepth, out float acceptedDepth,
+                        out float pairedEntityDepth) {
+    acceptedDepth = -1.0;
+    pairedEntityDepth = -1.0;
     // A true zero-displacement path must retain the caller's pixel centre.
+    // The accepted texel IS the caller's probe, so its entity depth pairs.
     // Keep the existing projected origin for nonzero refraction.
-    if (REFRACTION_STRENGTH == 0 || dot(normalDelta, normalDelta) <= 0.0) return rasterUV;
-    vec2 uv = view_screen(viewPos).xy;
-    float backgroundDepth = water_depth_range(depthBuffer, uv).y;
-    float backgroundZ = screen_view(vec3(uv, backgroundDepth)).z;
+    if (REFRACTION_STRENGTH == 0 || dot(normalDelta, normalDelta) <= 0.0) {
+        pairedEntityDepth = entityViewDepth;
+        return rasterUV;
+    }
+    vec4 originClip = gbufferProjection * vec4(viewPos,1.0);
+    vec2 uv = originClip.xy / originClip.w;
+    uv = uv.xy * 0.5 + 0.5 + astra_jitter_uv();
+    ivec2 depthSize = textureSize(depthBuffer,0);
+    ivec2 backgroundPixel = clamp(ivec2(clamp(uv,vec2(0.0),vec2(1.0))*vec2(depthSize)),
+                                  ivec2(0), depthSize-1);
+    float backgroundDepth = texelFetch(depthBuffer,backgroundPixel,0).r;
+    float backgroundZ = water_screen_view_z(uv, backgroundDepth);
+    // A late body can be much closer than the bed in the deferred snapshot.
+    // Its own linear depth must also limit displacement, not just supply RGB
+    // after the ray has already been refracted toward a distant background.
+    if (entityViewDepth > max(-viewPos.z,0.0)+0.002)
+        backgroundZ = max(backgroundZ,-entityViewDepth);
     vec3 direction = normalize(normalize(viewPos) + normalDelta * (REFRACTION_STRENGTH * 0.01));
     float distance = min(abs(viewPos.z - backgroundZ), 32.0);
-    vec2 refractedUV = view_screen(viewPos + direction * distance).xy;
+    vec4 directionClip = gbufferProjection * vec4(direction,0.0);
+    vec4 refractedClip = originClip + directionClip * distance;
+    vec2 refractedUV = refractedClip.xy / refractedClip.w;
+    refractedUV = refractedUV.xy * 0.5 + 0.5 + astra_jitter_uv();
     vec2 ndc = abs(refractedUV * 2.0 - 1.0);
     float visibility = clamp((1.0 - max(ndc.x, ndc.y)) / 0.10, 0.0, 1.0);
     refractedUV = mix(uv, refractedUV, visibility);
-    if (gl_FragCoord.z > water_depth_range(depthBuffer, refractedUV).x) return uv;
+    ivec2 refractedPixel = clamp(ivec2(clamp(refractedUV,vec2(0.0),vec2(1.0))*vec2(depthSize)),
+                                 ivec2(0), depthSize-1);
+    // Small displacements usually stay in the texel already read for the
+    // background bound. Reuse that exact value instead of fetching the same
+    // texel twice.
+    float refractedDepth = backgroundDepth;
+    if (any(notEqual(refractedPixel,backgroundPixel)))
+        refractedDepth = texelFetch(depthBuffer,refractedPixel,0).r;
+    // The caller probed colortex28 at rasterUV's own texel. That probe describes
+    // the accepted texel only while the accepted texel IS the caller's own, so
+    // report it there and keep -1 (unknown) everywhere else.
+    ivec2 rasterPixel = clamp(ivec2(clamp(rasterUV,vec2(0.0),vec2(1.0))*vec2(depthSize)),
+                              ivec2(0), depthSize-1);
+    if (gl_FragCoord.z > refractedDepth) {
+        acceptedDepth = backgroundDepth;
+        if (all(equal(backgroundPixel,rasterPixel))) pairedEntityDepth = entityViewDepth;
+        return uv;
+    }
+    acceptedDepth = refractedDepth;
+    if (all(equal(refractedPixel,rasterPixel))) pairedEntityDepth = entityViewDepth;
     return refractedUV;
-}
-vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 normalDelta) {
-    return water_refracted_uv(depthBuffer, viewPos, normalDelta, view_screen(viewPos).xy);
 }
 #endif

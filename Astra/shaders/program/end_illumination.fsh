@@ -1,5 +1,8 @@
 // Compact live content in the existing cache layout: seven island silhouettes.
 // Retain slot addresses for consumers; retired orbital bodies are zero-filled.
+// Slots 294..314 cache the ID-only island shape params and 315 the frame's star
+// rotation. This pass has no body-cache sampler, so it always computes the params
+// analytically and writes them; see the layout note in global/dimension/end_geometry.glsl.
 #include "/lib/settings.glsl"
 #include "/global/dimension/end_geometry.glsl"
 #include "/global/dimension/end_disc_profile.glsl"
@@ -16,6 +19,23 @@ void main() {
     int slot = int(gl_FragCoord.x);
     if (slot == 74) {
         gl_FragData[0] = vec4(end_ring_axis(),1.0);
+        return;
+    }
+    // ID-only island shape data and the frame's star rotation. Handle these before
+    // the slot>=75 basis branch below: that branch indexes id=(slot-75)/3 and would
+    // otherwise read these slots as out-of-range body ids.
+    if (slot >= ASTRA_END_SHAPE_SLOT_BASE && slot < ASTRA_END_STAR_ROTATION_SLOT) {
+        int index=slot-ASTRA_END_SHAPE_SLOT_BASE;
+        int part=index%3;
+        EndBodyShapeParams params=end_body_shape_params(ASTRA_END_BODY_FIRST_ID+index/3);
+        if(part==0) gl_FragData[0]=params.towerHeight;
+        else if(part==1) gl_FragData[0]=params.towerZ;
+        else gl_FragData[0]=vec4(params.shardZ,0.0);
+        return;
+    }
+    if (slot == ASTRA_END_STAR_ROTATION_SLOT) {
+        float a=end_star_rotation();
+        gl_FragData[0]=vec4(cos(a),sin(a),0.0,1.0);
         return;
     }
     if (slot >= 75) {

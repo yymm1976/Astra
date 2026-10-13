@@ -17,6 +17,11 @@ vec3 water_surface_absorption(vec2 depthBlend) {
     // Continuous depth response without separate ramps meeting at five blocks.
     // A modest shallow extinction retains body while the bed stays readable.
     vec3 shallow = vec3(0.240, 0.045, 0.060);
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    // A one-block pool/stream retains a light cyan body instead of looking
+    // like air. Keep the same continuous middle/deep blends and spectra.
+    shallow = vec3(0.320, 0.050, 0.065);
+    #endif
     vec3 middle, deep;
     #if WATER_CHARACTER == WATER_COLD
         middle = vec3(0.230, 0.050, 0.035);
@@ -36,7 +41,11 @@ vec3 water_surface_absorption(vec2 depthBlend) {
 // Raised alongside the absorption cut so the lost transmission comes back as
 // in-scattered water colour instead of simply going darker.
 vec3 water_scattering_coefficient() {
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    return vec3(0.014, 0.040, 0.064) * (UNDERWATER_FOG_DENSITY * 0.01);
+    #else
     return vec3(0.011, 0.032, 0.076) * (UNDERWATER_FOG_DENSITY * 0.01);
+    #endif
 }
 vec3 water_extinction() {
     return water_absorption_coefficient() + water_scattering_coefficient();
@@ -60,7 +69,10 @@ vec3 water_body_color(vec2 depthBlend) {
     return mix(mix(vec3(0.065, 0.148, 0.150), vec3(0.056, 0.148, 0.142), depthBlend.x),
                vec3(0.020, 0.160, 0.300), depthBlend.y);
 }
-vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight) {
+// Astra: coherent footprints reuse this affine transfer while keeping the
+// continuous shallow/middle/deep spectrum and a real representative endpoint.
+void water_surface_transfer(float verticalDepth, vec3 incidentLight, float haze,
+                            out vec3 transmission, out vec3 scattering) {
     // Use the actual column thickness; an artificial extra block would tint
     // even ankle-deep water and hide the neutral bed in a one-block pool.
     float appearanceDepth = max(verticalDepth, 0.0);
@@ -68,9 +80,22 @@ vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight
     // Shared by extinction and fill; no duplicate ramp or added exponential.
     vec2 depthBlend = vec2(appearanceDepth / (appearanceDepth + 4.0),
                           depthSquared / (depthSquared + 324.0));
-    vec3 transmission = exp(-appearanceDepth * water_surface_absorption(depthBlend));
-    return radiance * transmission
-         + water_body_color(depthBlend) * clamp(incidentLight, 0.0, 2.0)
-           * (1.0 - transmission);
+    transmission = exp(-appearanceDepth * water_surface_absorption(depthBlend)) * (1.0 - haze);
+    scattering = water_body_color(depthBlend) * clamp(incidentLight, 0.0, 2.0)
+               * (1.0 - transmission);
+}
+void water_surface_transfer(float verticalDepth, vec3 incidentLight,
+                            out vec3 transmission, out vec3 scattering) {
+    water_surface_transfer(verticalDepth, incidentLight, 0.0, transmission, scattering);
+}
+vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight, float haze) {
+    vec3 transmission, scattering;
+    water_surface_transfer(verticalDepth, incidentLight, haze, transmission, scattering);
+    return radiance * transmission + scattering;
+}
+vec3 water_surface_medium(vec3 radiance, float verticalDepth, vec3 incidentLight) {
+    vec3 transmission, scattering;
+    water_surface_transfer(verticalDepth, incidentLight, transmission, scattering);
+    return radiance * transmission + scattering;
 }
 #endif

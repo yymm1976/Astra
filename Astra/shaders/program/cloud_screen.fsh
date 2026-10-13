@@ -1,16 +1,18 @@
 // Astra screen-cloud cache. Uses the existing Complementary-derived cloud model.
 // Separate from the spherical reflection environment: this projection follows the view.
+#define ASTRA_SCREEN_CLOUD_WRITE
 #include "/program/scene.glsl"
 in vec2 texcoord;
-#ifndef RGBA16F
-const int RGBA16F = 0;
-#endif
 #ifdef CLOUD_TEMPORAL
 #ifdef ASTRA_CLOUD_TEMPORAL
 // R6/T3: independent temporal history for this cloud (colortex24/25). See
-// docs/handoffs/2026-09-27-R6-cloud-temporal.md. Every consumer uses colortex24
+// docs/archive/实现与取证.md#record-081. Every consumer uses colortex24
 // on this path, so no duplicate raw sheet needs to be written or cleared.
-// Included after RGBA16F, which the module's buffer-format constants reuse.
+// This path writes colortex24/25, so it declares RGBA16F here for the module; the
+// raw colortex12 path below gets the same token from cloud_buffer_formats.glsl.
+#ifndef RGBA16F
+const int RGBA16F = 0;
+#endif
 const bool colortex12Clear = false;
 #include "/global/atmosphere/cloud_temporal.glsl"
 #endif
@@ -19,11 +21,15 @@ const bool colortex12Clear = false;
 /* RENDERTARGETS: 24,25 */
 #else
 uniform sampler2D colortex12;
-const int colortex12Format = RGBA16F;
+#include "/lib/cloud_buffer_formats.glsl"
 /* RENDERTARGETS: 12 */
 #endif
 void main() {
-    vec3 ray = normalize(view_player(screen_view(vec3(texcoord, 1.0))));
+    vec2 sampleUV = texcoord;
+    #ifdef ASTRA_CLOUD_TEMPORAL
+    sampleUV += astra_cloud_grid_offset(frameCounter, textureSize(colortex24, 0));
+    #endif
+    vec3 ray = normalize(view_player(screen_view(vec3(sampleUV, 1.0))));
     float angularFootprint = max(length(dFdx(ray)), length(dFdy(ray)));
     vec2 interval = astra_cloud_interval(ray);
     bool visibleCloud = interval.y > interval.x && isEyeInWater < 2 && blindness <= 0.0001;
@@ -43,13 +49,20 @@ void main() {
         vec2 edge = 0.5 / vec2(textureSize(depthtex0, 0));
         vec2 lo = clamp(texcoord - pad, edge, 1.0 - edge);
         vec2 hi = clamp(texcoord + pad, edge, 1.0 - edge);
-        float farthestDepth = max(max(textureLod(depthtex0, lo, 0.0).r,
-                                     textureLod(depthtex0, hi, 0.0).r),
-                                 max(textureLod(depthtex0, vec2(lo.x, hi.y), 0.0).r,
-                                     textureLod(depthtex0, vec2(hi.x, lo.y), 0.0).r));
+        float farthestDepth = textureLod(depthtex0, lo, 0.0).r;
+        // A sky corner already proves this tile must retain its complete cloud ray.
+        // Remaining values are irrelevant once opaque rejection is disabled.
+        if (farthestDepth < 0.999999)
+            farthestDepth = max(farthestDepth, textureLod(depthtex0, hi, 0.0).r);
+        if (farthestDepth < 0.999999)
+            farthestDepth = max(farthestDepth, textureLod(depthtex0, vec2(lo.x, hi.y), 0.0).r);
+        if (farthestDepth < 0.999999)
+            farthestDepth = max(farthestDepth, textureLod(depthtex0, vec2(hi.x, lo.y), 0.0).r);
         // Include every depth texel inside the producing tile, so small canopy
         // openings between the outer guard corners cannot be rejected as opaque.
-        #if CLOUD_QUALITY == 0
+        // The overworld budget drops this pass to the quarter grid, so it takes
+        // the low tier's four corner gathers to cover the 4x4 native depths.
+        #if CLOUD_QUALITY == 0 || defined ASTRA_OVERWORLD_OPTIMIZED
         for (int corner = 0; corner < 4; ++corner) {
             // One sky texel already disables opaque rejection for the whole tile.
             if (farthestDepth >= 0.999999) break;
@@ -73,18 +86,22 @@ void main() {
     vec3 representative = vec3(0.0);
     vec4 cloud = vec4(0.0);
     if (visibleCloud && !occluded)
-        cloud = astra_planar_cloud(ray, 1e20, representative, angularFootprint);
+        // `ray` is unit and `interval` is its own slab (measured above for the
+        // visibility/occlusion test), so reuse both instead of re-solving.
+        cloud = astra_planar_cloud(ray, 1e20, representative, angularFootprint, interval);
     // The resolve blends with the real-previous-frame reprojection and reports the
     // metadata (representative distance, stamp, viewport fingerprint) for colortex25.
     vec4 cloudMeta;
     gl_FragData[0] = astra_cloud_temporal_resolve(vec4(cloud.rgb * cloud.a, cloud.a),
-                                                representative, texcoord, cloudMeta);
+                                                representative, ray, visibleCloud && !occluded, texcoord, cloudMeta);
     gl_FragData[1] = cloudMeta;
     #else
     vec3 representative;
     vec4 cloud = vec4(0.0);
     if (visibleCloud && !occluded)
-        cloud = astra_planar_cloud(ray, 1e20, representative, angularFootprint);
+        // `ray` is unit and `interval` is its own slab (measured above), so
+        // reuse both instead of re-solving.
+        cloud = astra_planar_cloud(ray, 1e20, representative, angularFootprint, interval);
     // Premultiplication keeps empty texels from bleeding black into cloud edges.
     gl_FragData[0] = vec4(cloud.rgb * cloud.a, cloud.a);
     #endif

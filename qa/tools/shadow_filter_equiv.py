@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Independent software/ideal hardware PCF visibility regression; standard library only.
 
-This models comparison sampling, not GPU precision or coloured-material equivalence.
+This models the four-lobe QUALITY=2 comparison kernel only, not current QUALITY=0/1,
+GPU precision, gather instruction counts, or coloured-material equivalence.
 Identical lobe positions imply equal visibility, not necessarily a smoother image.
 """
 from __future__ import annotations
