@@ -115,8 +115,8 @@ vec3 astra_water_segment(vec3 radiance, vec3 start, vec3 finish, float skylight)
 }
 // The distance/direction and the endpoint's world height are separate inputs:
 // secondary air legs start at a reflective/refractive interface, not at the eye.
-vec4 astra_fog_path_ordinary(vec3 playerPos, float skylight, float fragWorldY, bool airLeg) {
-    float distanceToCamera = length(playerPos);
+vec4 astra_fog_path_ordinary(vec3 playerPos, float skylight, float fragWorldY, bool airLeg,
+                             float distanceToCamera) {
     vec3 direction = playerPos / max(distanceToCamera, 1e-5);
     #ifdef DIMENSION_END
     bool ordinaryFog = blindness <= 0.0001;
@@ -236,8 +236,11 @@ vec4 astra_fog_path_ordinary(vec3 playerPos, float skylight, float fragWorldY, b
     return vec4(max(fog.rgb, vec3(0.0)), clamp(fog.a, 0.0, 1.0));
 }
 vec4 astra_fog_path(vec3 playerPos, float skylight, float fragWorldY, bool airLeg) {
+    // All three consumers describe this same endpoint, not a shaft's capped
+    // travel length or the projection eye. Reuse its one unmodified distance.
+    float distanceToCamera = length(playerPos);
     #ifdef DIMENSION_END
-    return astra_fog_path_ordinary(playerPos, skylight, fragWorldY, airLeg);
+    return astra_fog_path_ordinary(playerPos, skylight, fragWorldY, airLeg, distanceToCamera);
     #else
     float strength = clamp(blindness, 0.0, 1.0);
     #ifndef DIMENSION_NETHER
@@ -247,16 +250,16 @@ vec4 astra_fog_path(vec3 playerPos, float skylight, float fragWorldY, bool airLe
     #endif
     float blindOpacity = 0.0;
     if (strength > 0.0001) {
-        float darkness = length(playerPos) * strength * 0.5;
+        float darkness = distanceToCamera * strength * 0.5;
         blindOpacity = max(0.85, 1.0 - exp(-darkness * darkness));
         #if defined BORDER_FOG && !defined DIMENSION_NETHER
         blindOpacity = min(blindOpacity + smoothstep(borderFogDistance - 8.0,
-                                borderFogDistance, length(playerPos)), 1.0);
+                                borderFogDistance, distanceToCamera), 1.0);
         #endif
         // Preserve the full-strength replacement and its inexpensive early exit.
         if (strength >= 1.0) return vec4(vec3(0.0), blindOpacity);
     }
-    vec4 fog = astra_fog_path_ordinary(playerPos, skylight, fragWorldY, airLeg);
+    vec4 fog = astra_fog_path_ordinary(playerPos, skylight, fragWorldY, airLeg, distanceToCamera);
     if (strength > 0.0001) {
         // Blend premultiplied fog contributions so both the black coverage and
         // the ordinary atmosphere restore continuously, including the horizon.
