@@ -17,16 +17,15 @@ void main() {
     if (isEyeInWater!=1 || DEBUG_VERTEX_AO!=0)
         gl_Position=vec4(-2.0,-2.0,0.0,1.0);
     #endif
-    #ifdef ASTRA_OVERWORLD_OPTIMIZED
-    waterFogFrameBase = vec3(0.0);
-    waterFogFrameResponse = vec2(0.0);
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    waterFogFrameMedium = vec3(0.0);
     waterInterfaceIncident = vec3(0.0);
     if (isEyeInWater == 1 && DEBUG_VERTEX_AO == 0) {
-        solas_water_fog_frame_parameters(waterFogFrameBase, waterFogFrameResponse);
+        vec3 fogBase;
+        vec2 fogResponse;
+        solas_water_fog_frame_parameters(fogBase, fogResponse);
+        waterFogFrameMedium = solas_water_medium_linear(fogBase, fogResponse.x, wetness);
         waterInterfaceIncident = solas_water_interface_incident();
     }
-    #ifdef ASTRA_UNDERWATER_SHAFTS
-    waterFogFrameMedium = solas_water_medium_linear(waterFogFrameBase, waterFogFrameResponse.x, wetness);
-    #endif
     #endif
 }

@@ -9,9 +9,17 @@
 //
 // Water character is the ABOVE-water appearance of the transmitted bed. It must
 // not turn the submerged camera's entire medium green. Separate this artistic
-// interface-path spectrum from the clearer blue volume and incoming illumination.
+// interface-path spectrum from the clearer cyan volume and incoming illumination.
 vec3 water_absorption_coefficient() {
+    #ifdef DEBUG_DISABLE_WATER_ABSORPTION
+    return vec3(0.0);
+    #else
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    return vec3(0.032, 0.014, 0.012) * (WATER_ABSORPTION * 0.01);
+    #else
     return vec3(0.055, 0.028, 0.010) * (WATER_ABSORPTION * 0.01);
+    #endif
+    #endif
 }
 vec3 water_surface_absorption(vec2 depthBlend) {
     // Continuous depth response without separate ramps meeting at five blocks.
@@ -37,14 +45,17 @@ vec3 water_surface_absorption(vec2 depthBlend) {
          * (WATER_ABSORPTION * 0.01);
 }
 // Spectral single-scattering coefficient (100% fog-density reference point).
-// Kept small in red so the teal selectivity bought above is not diluted.
-// Raised alongside the absorption cut so the lost transmission comes back as
-// in-scattered water colour instead of simply going darker.
+// Main-world medium keeps red present and green/blue close, for pale cyan
+// rather than a saturated deep-blue background. Other dimensions keep theirs.
 vec3 water_scattering_coefficient() {
+    #ifdef DEBUG_DISABLE_UNDERWATER_FOG
+    return vec3(0.0);
+    #else
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-    return vec3(0.014, 0.040, 0.064) * (UNDERWATER_FOG_DENSITY * 0.01);
+    return vec3(0.026, 0.045, 0.048) * (UNDERWATER_FOG_DENSITY * 0.01);
     #else
     return vec3(0.011, 0.032, 0.076) * (UNDERWATER_FOG_DENSITY * 0.01);
+    #endif
     #endif
 }
 vec3 water_extinction() {
@@ -66,8 +77,17 @@ vec3 water_medium(vec3 radiance, float distanceInWater, vec3 incidentLight) {
 // Air-side fill follows the same continuous response as transmission. Existing
 // underwater absorption, scattering and wave optics remain independent.
 vec3 water_body_color(vec2 depthBlend) {
+    #ifdef DEBUG_DISABLE_UNDERWATER_FOG
+    return vec3(0.0);
+    #else
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    return mix(mix(vec3(0.065, 0.148, 0.150), vec3(0.056, 0.148, 0.142), depthBlend.x),
+               vec3(0.055, 0.165, 0.180), depthBlend.y);
+    #else
     return mix(mix(vec3(0.065, 0.148, 0.150), vec3(0.056, 0.148, 0.142), depthBlend.x),
                vec3(0.020, 0.160, 0.300), depthBlend.y);
+    #endif
+    #endif
 }
 // Astra: coherent footprints reuse this affine transfer while keeping the
 // continuous shallow/middle/deep spectrum and a real representative endpoint.
@@ -80,9 +100,17 @@ void water_surface_transfer(float verticalDepth, vec3 incidentLight, float haze,
     // Shared by extinction and fill; no duplicate ramp or added exponential.
     vec2 depthBlend = vec2(appearanceDepth / (appearanceDepth + 4.0),
                           depthSquared / (depthSquared + 324.0));
-    transmission = exp(-appearanceDepth * water_surface_absorption(depthBlend)) * (1.0 - haze);
+    // The fill keeps the real extinction even under the absorption bypass, so
+    // the absorption and fog diagnostic switches stay independently readable.
+    vec3 pathTransmission = exp(-appearanceDepth * water_surface_absorption(depthBlend))
+                          * (1.0 - haze);
     scattering = water_body_color(depthBlend) * clamp(incidentLight, 0.0, 2.0)
-               * (1.0 - transmission);
+               * (1.0 - pathTransmission);
+    #ifdef DEBUG_DISABLE_WATER_ABSORPTION
+    transmission = vec3(1.0 - haze);
+    #else
+    transmission = pathTransmission;
+    #endif
 }
 void water_surface_transfer(float verticalDepth, vec3 incidentLight,
                             out vec3 transmission, out vec3 scattering) {

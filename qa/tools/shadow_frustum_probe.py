@@ -130,7 +130,7 @@ def profiles():
     """(name, SHADOW_DISTANCE, SHADOW_RESOLUTION) for the three shipped tiers."""
     text = read(PROPERTIES)
     out = []
-    for name in ("PERFORMANCE", "BALANCED", "ULTRA"):
+    for name in ("PERFORMANCE", "BALANCED", "QUALITY"):
         tokens = re.search(r"^profile\.%s=(.*)$" % name, text, re.M).group(1).split()
         dist = float(next(t for t in tokens if t.startswith("SHADOW_DISTANCE=")).split("=")[1])
         res = float(next(t for t in tokens if t.startswith("SHADOW_RESOLUTION=")).split("=")[1])

@@ -209,7 +209,7 @@ void main() {
         bool previousTop=material==6u || ((material==4u || material==5u) && at_midBlock.y<0.0);
         float previousStrength=0.0;
         if (windState.z != 0.0 && (material==2u || (previousGround && previousTop)))
-            previousStrength=windState.z*astra_foliage_wind_lod(previousRelative);
+            previousStrength=windState.z*astra_foliage_wind_lod(previousRelative,material==2u);
         // Anchored bases and fully faded wind keep the same previous position.
         // They still retain valid camera motion, without reading unused phases.
         if (previousStrength != 0.0) {

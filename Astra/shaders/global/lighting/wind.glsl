@@ -239,9 +239,12 @@ vec3 astra_foliage_displacement(vec3 undeformedWorldPosition, float timeSeconds,
 // inside 64 blocks, fully still beyond 96. Budget 0 and every other dimension
 // keep 128..192, and because lit.vsh, shadow.vsh and the historical re-evaluation
 // all come through this one function, the model, its shadow and its motion stay
-// in lockstep whichever window is active.
-float astra_foliage_wind_lod(vec3 cameraRelativePosition) {
+// in lockstep whichever window is active. Leaves fade over 32..64 blocks in
+// every tier: distant alpha holes should not keep crossing map texels because
+// of barely visible wind. Ground plants retain their existing distance policy.
+float astra_foliage_wind_lod(vec3 cameraRelativePosition, bool isLeaves) {
 	float distanceSquared = dot(cameraRelativePosition, cameraRelativePosition);
+	if (isLeaves) return 1.0 - smoothstep(32.0 * 32.0, 64.0 * 64.0, distanceSquared);
 	#ifdef ASTRA_OVERWORLD_OPTIMIZED
 	return 1.0 - smoothstep(64.0 * 64.0, 96.0 * 96.0, distanceSquared);
 	#else
@@ -257,7 +260,7 @@ bool wave_foliage(
 ) {
 	if (WAVING_FOLIAGE_STRENGTH == 0 || !(isLeaves || (isGroundFoliage && topOfFoliage)))
 		return false;
-	float distanceWeight = astra_foliage_wind_lod(playerPos);
+	float distanceWeight = astra_foliage_wind_lod(playerPos, isLeaves);
 	if (distanceWeight <= 0.0) return false;
 	vec3 undeformedWorldPos = playerPos + cameraPosition;
 	playerPos += astra_foliage_displacement(

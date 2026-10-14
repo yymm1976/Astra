@@ -60,38 +60,23 @@ vec3 solas_water_sky(vec3 direction) {
 }
 
 // Distance medium in the frame's linear HDR domain. rgb is the medium radiance
-// and a is the scalar distance visibility: both are identity at the eye and at
-// density zero. ITT 3.2 composite1.fsh::WaterFog is the reference; ordinary
+// and a is scalar distance visibility; at the eye and at density zero the
+// fog blend is identity. ITT 3.2 composite1.fsh::WaterFog is the reference; ordinary
 // Astra water has no ice mask, so its ice terms are not faked. waterDistance is
 // the caller's real camera leg (hand-remapped, without the shaft distance cap), so
 // visibility and the caller's spectral absorption share one length.
 vec4 solas_water_fog(vec3 viewPos, float waterDistance) {
     float visibility = astra_water_visibility(waterDistance);
     vec3 medium;
-    #if defined ASTRA_OVERWORLD_OPTIMIZED && defined ASTRA_WATER_FOG_FRAME_READ && defined ASTRA_UNDERWATER_SHAFTS
-    // The shadowed volume owns the directional term, so this medium is a pure
-    // frame constant the vertex stage already prepared in linear.
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END && defined ASTRA_WATER_FOG_FRAME_READ
+    // Ordinary fog has no directional peak. Both shafts-on and shafts-off
+    // draws reuse the complete linear medium prepared by the vertex stage.
     medium = waterFogFrameMedium;
     #else
     vec3 fogBase;
     vec2 response;
-    #if defined ASTRA_OVERWORLD_OPTIMIZED && defined ASTRA_WATER_FOG_FRAME_READ
-    fogBase = waterFogFrameBase;
-    response = waterFogFrameResponse;
-    #else
     solas_water_fog_frame_parameters(fogBase, response);
-    #endif
-    float glare = 0.0;
-    #ifndef ASTRA_UNDERWATER_SHAFTS
-    // Skip the per-pixel angular peak when the shadowed shafts carry that light.
-    if (response.y > 0.0) {
-        vec3 lightDir = astra_world_light_direction();
-        vec3 ray = normalize(view_player(viewPos));
-        glare = clamp(dot(ray, lightDir) * astraSolasShadowFade * 0.5 + 0.5, 0.0, 1.0);
-        glare = 0.01 / (1.0 - 0.99 * glare) - 0.01;
-    }
-    #endif
-    medium = solas_water_medium_linear(fogBase, response.x + glare * response.y, wetness);
+    medium = solas_water_medium_linear(fogBase, response.x, wetness);
     #endif
     // ITT WaterFog's up/down response belongs to the medium, not to screen
     // blur. The shadowed shaft pass continues to own directional sunlight.
@@ -112,9 +97,9 @@ vec3 solas_water_composite(vec3 linearColor, vec3 viewPos, float waterDistance, 
         // Same incident-light colour as astra_sky_ambient(): the shared natural-look
         // gain (lib/color_controls.glsl) keeps the interface light on one hue. The
         // water material tint, absorption, fog and curve stay untouched.
-        // Every input is a uniform, so the budgeted full-screen passes read the
+        // Every input is a uniform, so the full-screen passes read the
         // value their vertex stage already prepared instead of rebuilding it here.
-        #if defined ASTRA_OVERWORLD_OPTIMIZED && defined ASTRA_WATER_FOG_FRAME_READ
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END && defined ASTRA_WATER_FOG_FRAME_READ
         vec3 incident = waterInterfaceIncident;
         #else
         vec3 incident = solas_water_interface_incident();

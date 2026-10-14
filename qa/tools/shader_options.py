@@ -3,8 +3,8 @@ from dataclasses import dataclass
 import re
 
 
-QUALITY_TIERS = ("PERFORMANCE", "BALANCED", "QUALITY", "ULTRA")
-ALL_PROFILES = ("PERFORMANCE", "NO_SHADOWS", "BALANCED", "QUALITY", "ULTRA")
+QUALITY_TIERS = ("PERFORMANCE", "BALANCED", "QUALITY")
+ALL_PROFILES = QUALITY_TIERS
 
 
 def parse_profiles(text: str) -> dict[str, dict[str, str | None]]:

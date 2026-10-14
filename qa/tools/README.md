@@ -15,9 +15,9 @@
 
 自动查找遇到多个实例或多个 Iris jar 会要求明确选择，不会按文件名猜测版本。编译工具及其 GPU 辅助脚本仍依赖 Windows 的 LWJGL 3.3.3；取消固定路径不表示已完成跨平台驱动适配。
 
-`inspect_iris_properties.py` 读取五档配置，用安装版本的 Iris 解析选项和布尔条件。PERFORMANCE、BALANCED、QUALITY、ULTRA 四个画质档参与递增比较，NO_SHADOWS 单独要求关闭阴影。它读取调度配置，不测游戏帧率。下界体素光门按现行 `program.world-1/shadowcomp` 加数字 `1..8` 的命名核对，并要求每档与 `shaders.properties` 里的资源门 `SHADOWS && NETHER_VOXEL_LIGHT && BLOCKLIGHT_STRENGTH > 0` 一致；某档没有覆盖到的选项取 `lib/settings.glsl` 的声明默认值，数值无法解析时明确报错，不会当成通过。
+`inspect_iris_properties.py` 读取流畅、均衡、精细三档配置（PERFORMANCE、BALANCED、QUALITY），由安装版本的Iris解释选项及程序开关。阴影总开关承担取消实时阴影，不再提供独立NO_SHADOWS预设。下界体素光的程序与资源仍由SHADOWS、NETHER_VOXEL_LIGHT及方块光强度共同控制。
 
-`compile_glsl.py` 不带 `--profiles` 时选择全部五档：PERFORMANCE、NO_SHADOWS、BALANCED、QUALITY、ULTRA。仍可通过 `--profiles PERFORMANCE BALANCED ULTRA` 手动选择旧三个档位，历史数量不改称五档结果。`check_pack.py` 保留 BALANCED 与源码原始默认一致、画质档成本递增、预设选项完整性及未知选项拒绝规则；主世界配色与其他独立颜色选择不要求随画质档重置。
+`compile_glsl.py` 的默认档位列表与共享解析器统一为PERFORMANCE、BALANCED、QUALITY。`check_pack.py` 同步三档、预算与菜单约定；未实现的VOXY开关明确不展示，夜间蓝移属于独立调色。既有记录中的五档或ULTRA结果属于此前版本，不作为当前三档的运行结论。
 
 `water_ssr_cost.py` 复用完整 `gbuffers_water` 入口做独立 GL_TIME_ELAPSED 计量（1080p），读取当前生产源码。当前选用 QUALITY 承接旧 BALANCED 的效果开关，并显式开启 SSR；运行输出注明档位及覆盖项。`native` 保持当前源码，`native_no_ssr` 显式关闭 SSR；光束关闭、AA关闭及原生阴影辅助开启的覆盖保持。`native_floor20`/`native_full_coarse`/`native_refraction_old` 只恢复对应改动前的渐入窗口、粗查询密度或冗余读取作对照，另有 `native_no_refraction`/`native_sequential` 分量开关与 `full/waves/trace/transmit` 隔离函数体；`--scene shore|canopy|wall60`、`--pitch` 选择场景与视向，`--image` 输出渲染帧。历史 BALANCED 数字对应当时配置，不能直接记为当前 QUALITY 数字。它不是 Iris 补丁后的游戏绘制，结果不换算 FPS。
 

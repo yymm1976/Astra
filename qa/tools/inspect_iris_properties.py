@@ -279,9 +279,6 @@ public class Iris {
     accepted = sum(len(parsed[t][2]) for t in ALL_PROFILES)
     print(f"checked {accepted} profile option assignment(s) against the Iris option store")
 
-    for key in ("shadow.enabled", "program.shadow.enabled", "program.world-1/shadow.enabled", "program.world1/shadow.enabled"):
-        if gates["NO_SHADOWS"].get(key) != "false":
-            failures.append(f"NO_SHADOWS must disable {key}")
     # 1b. The Nether voxel-light chain is gated on three knobs at once. shaders.properties
     #     writes the root stage plus shadowcomp1..8 under
     #     "SHADOWS && NETHER_VOXEL_LIGHT && BLOCKLIGHT_STRENGTH > 0", so the schedule and
@@ -357,8 +354,8 @@ public class Iris {
         if not schedule_differs:
             print(f"NOTE {cheap} -> {rich} schedules identically; only shader-side cost "
                   f"knobs differ (gated by check_pack.py)")
-    if on["PERFORMANCE"] == on["ULTRA"] and buffers["PERFORMANCE"] == buffers["ULTRA"]:
-        failures.append("PERFORMANCE and ULTRA schedule the same work - the tier system is inert")
+    if on["PERFORMANCE"] == on["QUALITY"] and buffers["PERFORMANCE"] == buffers["QUALITY"]:
+        failures.append("PERFORMANCE and QUALITY schedule the same work - the tier system is inert")
 
     for message in failures:
         print("FAIL " + message)

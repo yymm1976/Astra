@@ -303,15 +303,17 @@ vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
         #else
         float spread = float(SHADOW_SOFTNESS)*0.5;
         #endif
-        // A fixed texture radius covers metres at the radial map's rim. Limit
-        // the kernel to a small world radius or the receiver pixel's
-        // footprint; bilinear corners and receiver/caster projection remain.
-        // This is continuous in map density, without the old 32-block cutoff.
+        // Bound world softness, but retain at least half the requested texel
+        // spread: shrinking all four lobes onto the same bilinear footprint
+        // at the map rim would bring back hard steps on distant leaf shadows.
+        // The minimum is texture-relative, fixed across frames, and never
+        // exceeds the user's softness. Coarse distant maps can therefore blur
+        // beyond the preferred world radius; coverage still fades at the rim.
         float mapRim = max(1.0-length(shadowPos.xy*2.0-1.0),0.0001);
         float worldTexel = (2.0*shadowDistance*SHADOW_DISTORT_FACTOR)
                          / (float(shadowMapResolution)*mapRim*mapRim);
         float softRadius=max(0.22,0.75*sqrt(astraSurfaceShadowPixelWorldSquared));
-        spread = min(spread,softRadius/max(worldTexel,0.0001));
+        spread = clamp(softRadius/max(worldTexel,0.0001),0.5*spread,spread);
         if (spread<=0.0) {
             filtered=shadow_lobe_light_inside(shadowPos.xy,shadowPos.z,
                 receiverWorldY,shadowSize,opaqueFirst);

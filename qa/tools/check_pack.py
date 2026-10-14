@@ -119,7 +119,7 @@ def parse_properties():
 def quality_option_names(opts):
     # Colour settings intentionally survive a performance-profile change.
     independent = {"OVERWORLD_LOOK", "COLOR_STYLE", "TONEMAP_OPERATOR", "EXPOSURE", "AUTO_EXPOSURE",
-                   "SATURATION", "VIBRANCE", "CONTRAST", "COLOR_TEMPERATURE"}
+                   "SATURATION", "VIBRANCE", "CONTRAST", "COLOR_TEMPERATURE", "PURKINJE_STRENGTH"}
     return {name for name in opts if name not in independent
             and not name.startswith(("TINT_", "LOOK_"))}
 
@@ -156,7 +156,8 @@ def check_gui(opts):
                 if tok.startswith("[") or tok.startswith("<"):
                     continue
                 listed.add(tok)
-    missing = set(opts) - listed
+    # Voxy is reserved and unimplemented, deliberately absent from GUI.
+    missing = set(opts) - listed - {"VOXY_SUPPORT"}
     extra = listed - set(opts)
     if missing:
         c.fail(f"{len(missing)} option(s) in settings.glsl not present in any screen: "
@@ -167,7 +168,7 @@ def check_gui(opts):
     subscreens = sorted(k for k in screens if k != "screen")
     c.note(f"1 main screen + {len(subscreens)} categories: {', '.join(s.split('.',1)[1] for s in subscreens)}")
     required_screens = {"screen." + name for name in
-                        ("LIGHTING", "SHADOWS", "SKY", "WATER", "FOG", "POST", "PERFORMANCE", "COLORS")}
+                        ("LIGHTING", "SHADOWS", "SKY", "WATER", "FOG", "POST", "ADVANCED", "COLORS")}
     if required_screens - set(screens):
         c.fail("missing GUI categories: " + ", ".join(sorted(required_screens - set(screens))))
 
@@ -240,7 +241,7 @@ def check_gui(opts):
         c.note(f"profile.{pname}: {len(pset)} tokens, quality complete={quality_opts <= pset}")
     expected_profiles = set(ALL_PROFILES)
     if set(profiles) != expected_profiles:
-        c.fail("expected four quality tiers plus NO_SHADOWS; missing="
+        c.fail("expected PERFORMANCE, BALANCED and QUALITY; missing="
                + str(sorted(expected_profiles - set(profiles)))
                + ", unexpected=" + str(sorted(set(profiles) - expected_profiles)))
     return c
@@ -1136,7 +1137,7 @@ def check_iris_parser_contracts():
 
 TIER_ORDER = QUALITY_TIERS
 
-# Numeric knobs whose value must not step down along PERFORMANCE -> ULTRA, because the
+# Numeric knobs whose value must not step down along PERFORMANCE -> QUALITY, because the
 # larger number is more work or a richer implementation (SHADOW_SOFTNESS widens the PCF
 # footprint; SUN_MOON_MODE 1 draws procedural discs instead of the vanilla texture).
 # ANTIALIASING: 0 off, 1 FXAA (extra final pass + full-resolution colortex13), 2 TAA
@@ -1231,14 +1232,14 @@ def check_tier_differential(opts):
         if any(v is None for v in vals):
             c.fail(f"{name}: tiered but non-numeric somewhere: {vals}")
         elif any(b < a for a, b in zip(vals, vals[1:])):
-            c.fail(f"{name}: cost ladder steps down towards ULTRA: "
+            c.fail(f"{name}: cost ladder steps down towards QUALITY: "
                    f"{dict(zip(TIER_ORDER, vals))}")
     for name in sorted(varying & TIER_MONOTONE_DOWN):
         vals = [num(t, name) for t in TIER_ORDER]
         if any(v is None for v in vals):
             c.fail(f"{name}: tiered but non-numeric somewhere: {vals}")
         elif any(b > a for a, b in zip(vals, vals[1:])):
-            c.fail(f"{name}: richness ladder steps up towards ULTRA: "
+            c.fail(f"{name}: richness ladder steps up towards QUALITY: "
                    f"{dict(zip(TIER_ORDER, vals))}")
 
     # A boolean on is more work, so the on-sets must grow along the ladder.

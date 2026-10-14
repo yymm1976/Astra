@@ -190,29 +190,34 @@ vec3 apply_tonal_balance(vec3 color) {
 }
 
 vec3 apply_grading(vec3 displayColor) {
+	#ifdef DEBUG_DISABLE_COLOR_GRADE
+	// Bypass the whole style layer so an A/B pair can tell whether a cast comes
+	// from the grade or from lighting/water/exposure upstream. The clamp stays:
+	// the downstream vignette and dither slots assume display-referred 0..1.
+	return clamp(displayColor, vec3(0.0), vec3(1.0));
+	#else
 	vec3 color = apply_color_temperature(displayColor);
 	#if VIBRANCE != 100
 	color = apply_vibrance(color, VIBRANCE * 0.01);
 	#endif
 	#ifdef ASTRA_OVERWORLD_NATURAL
-	// Fresh overworld look. The preset base (saturation 103, contrast 100) is
-	// applied as a scale on the user's sliders, so manual values still move
-	// relative to the preset. This branch is compiled in even at the factory
-	// SATURATION == 100, where the #if below would otherwise skip the 103% base.
-	// Contrast is only evaluated when it differs from the preset's 100%, i.e.
-	// CONTRAST != 102; the default path stays free of the per-pixel pow.
-	color = apply_saturation(color, SATURATION * 0.0103);
-	#if CONTRAST != 102
-	color = apply_contrast(color, CONTRAST * 0.01 * (100.0 / 102.0));
-	#endif
+	// A small, bounded shadow/midtone lift keeps black and white fixed. It
+	// avoids a milky black floor and adds no texture reads or power function.
+	color = clamp(color, vec3(0.0), vec3(1.0));
+	color += 0.10 * color * (1.0-color) * (1.0-color);
+	color = apply_saturation(color, SATURATION * 0.0102);
 	#else
 	#if SATURATION != 100
 	color = apply_saturation(color, SATURATION * 0.01);
 	#endif
+	#endif
+	// 100 means neutral in every look; do not remap one preset's 102 to 100.
+	#if CONTRAST != 100
 	color = apply_contrast(color, CONTRAST * 0.01);
 	#endif
     color = apply_tonal_balance(color);
 	return clamp(color, vec3(0.0), vec3(1.0));
+	#endif
 }
 
 // ------------------------------------------------------------

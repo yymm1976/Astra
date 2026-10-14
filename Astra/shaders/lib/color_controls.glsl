@@ -31,7 +31,8 @@ const vec3 ASTRA_LOOK_HIGHS = vec3(LOOK_HIGHS_R, LOOK_HIGHS_G, LOOK_HIGHS_B) * 0
 // colour), so the incoming light keeps a single hue instead of drifting per site.
 // Neutral outside the natural overworld.
 #ifdef ASTRA_OVERWORLD_NATURAL
-const vec3 ASTRA_OVERWORLD_AMBIENT_GAIN = vec3(0.99, 1.035, 1.015);
+// Balance the blue base illumination, instead of adding another cyan cast.
+const vec3 ASTRA_OVERWORLD_AMBIENT_GAIN = vec3(1.22, 1.10, 0.95);
 #else
 const vec3 ASTRA_OVERWORLD_AMBIENT_GAIN = vec3(1.0);
 #endif
@@ -71,7 +72,9 @@ vec3 astra_sun_color_gain(float twilight, float dawn) {
     // Fresh overworld look: neutral daylight, with the existing warm twilight.
     // multiplied on top of the user's SUN/DAWN/DUSK channels and COLOR_STYLE.
     // Those stay fully usable because this only scales their result.
-    gain *= mix(vec3(1.02, 1.035, 1.005), vec3(1.08, 1.00, 0.92), twilight);
+    // The underlying noon palette is warm (1.10, 0.99, 0.83). This gain
+    // brings it close to neutral; a neutral gain alone would keep it yellow.
+    gain *= mix(vec3(0.94, 1.01, 1.15), vec3(1.08, 1.00, 0.92), twilight);
     #endif
     return gain;
 }
@@ -99,7 +102,7 @@ vec3 astra_sky_color_gain(float height, float daylight, float twilight, float da
     #ifdef ASTRA_OVERWORLD_NATURAL
     // Keep the night and warm transition palettes; the shared sky cache also
     // feeds reflections, so daytime sky and water retain the same hue.
-    vec3 fresh = mix(vec3(0.965, 1.045, 1.03), vec3(0.98, 1.035, 1.06),
+    vec3 fresh = mix(vec3(1.02, 1.04, 1.035), vec3(1.0, 1.015, 1.025),
                      smoothstep(0.0, 0.85, max(height, 0.0)));
     gain *= mix(vec3(1.0), fresh, daylight * (1.0 - twilight));
     #endif

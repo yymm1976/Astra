@@ -1,7 +1,7 @@
 // Display inputs that are constant across the full-screen draw.
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
-#if defined ASTRA_OVERWORLD_OPTIMIZED && !defined ASTRA_BLOOM
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_BLOOM
 #define ASTRA_WATER_FOG_FRAME_WRITE
 #include "/lib/solas_water_frame.glsl"
 #endif
@@ -21,18 +21,17 @@ out vec2 texcoord;
 void main() {
     gl_Position = ftransform();
     texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
-    #if defined ASTRA_OVERWORLD_OPTIMIZED && !defined ASTRA_BLOOM
-    waterFogFrameBase = vec3(0.0);
-    waterFogFrameResponse = vec2(0.0);
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_BLOOM
+    waterFogFrameMedium = vec3(0.0);
     waterInterfaceIncident = vec3(0.0);
     #if DEBUG_VERTEX_AO == 0 && (!defined ASTRA_DISPLAY_FINAL || ANTIALIASING != 1)
     if (isEyeInWater == 1) {
-        solas_water_fog_frame_parameters(waterFogFrameBase, waterFogFrameResponse);
+        vec3 fogBase;
+        vec2 fogResponse;
+        solas_water_fog_frame_parameters(fogBase, fogResponse);
+        waterFogFrameMedium = solas_water_medium_linear(fogBase, fogResponse.x, wetness);
         waterInterfaceIncident = solas_water_interface_incident();
     }
-    #endif
-    #ifdef ASTRA_UNDERWATER_SHAFTS
-    waterFogFrameMedium = solas_water_medium_linear(waterFogFrameBase, waterFogFrameResponse.x, wetness);
     #endif
     #endif
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END

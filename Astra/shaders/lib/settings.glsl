@@ -66,22 +66,22 @@
 
 // --- SHADOWS ---
 #define SHADOW_FILTER_MODE 0 // [0 1]
-#define SHADOW_FILTER_QUALITY 0 // [0 1 2]
+#define SHADOW_FILTER_QUALITY 1 // [0 1 2]
 // Native overworld receivers: 0 = one footprint; 1/2 = four fixed footprints.
 // Each footprint keeps four discrete comparisons. Other receivers use their own tiers.
 // 0 = software depth comparisons; 1 = hardware comparison gathers.
 // Both comparison modes pair each corner with its individual caster tint.
 #define SHADOWS // [false true]
 // Master switch for shadow map
-#define SHADOW_RESOLUTION 1024 // [512 1024 1536 2048 3072 4096]
+#define SHADOW_RESOLUTION 1536 // [1024 1536 2048]
 // Shadow map resolution (square)
-#define SHADOW_DISTANCE 96 // [64 80 96 112 128 160 192 256]
+#define SHADOW_DISTANCE 96 // [64 80 96 112 128]
 // Shadow render distance, blocks
-#define ENTITY_SHADOW_DISTANCE 32 // [32 48 64 96 128]
+#define ENTITY_SHADOW_DISTANCE 32 // [32 64]
 // Entity shadow distance, blocks
 #define ENTITY_SHADOWS // [false true]
 // Renderer-level switch for entity, player and block-entity shadow casters.
-#define SHADOW_SOFTNESS 2 // [1 2 4 8 16]
+#define SHADOW_SOFTNESS 2 // [1 2 4]
 // Shadow footprint radius, texels; medium/high filter quality only.
 #define COLORED_SHADOWS // [false true]
 // Tinted shadows via shadowcolor0 (stained glass / water)
@@ -128,6 +128,21 @@
 // Optional end-stone pore emission; zero preserves the unlit pore texture.
 #define NETHERRACK_GLOW 100 // [0 25 50 75 100]
 #define DEBUG_VERTEX_AO 0 // [0 1]
+// Diagnostic bypass switches. Each removes exactly one stage from the composed
+// image, so an A/B pair can attribute a visual result to that stage instead of
+// guessing which layer produced it. All three default OFF and are inert in the
+// shipping path; they are not quality options. Per-stage A/B table:
+// docs/审查/2026-10-14下一步规划意见处置.md
+//#define DEBUG_DISABLE_WATER_ABSORPTION // [false true]
+// Removes the per-channel extinction of the scene seen through water (camera
+// leg and interface bed paths). The in-scatter medium is untouched, so a
+// remaining tint belongs to the medium, not to absorption.
+//#define DEBUG_DISABLE_UNDERWATER_FOG // [false true]
+// Removes the water in-scatter/medium term. Absorption stays, so the bed and
+// distant scene keep their depth-dependent attenuation.
+//#define DEBUG_DISABLE_COLOR_GRADE // [false true]
+// Bypasses the display-space grade (temperature, vibrance, saturation,
+// contrast, tonal balance). Exposure and the tone map are separate slots.
 #define END_PRECESSION_MINUTES 36 // [20 24 28 32 36 40 44 48 52 56 60]
 // End ring axis precession; body orbital periods remain independent.
 
@@ -176,7 +191,7 @@
 // Underwater light shaft brightness, %.
 #define UNDERWATER_SHAFT_DISTANCE 1 // [0 1 2 3 4 6 8 10 12 16]
 // Nearby scattering reaches full strength at this distance; no emitter layout.
-#define UNDERWATER_SHAFT_SAMPLES 7 // [4 5 6 7 8 9 10]
+#define UNDERWATER_SHAFT_SAMPLES 7 // [4 7 10]
 // Maximum receiver-shadow intervals along the water ray in the scattering target.
 #define FANCY_TRANSLUCENTS // [false true]
 // Premultiplied alpha blending for translucents.
@@ -190,7 +205,7 @@
 // Render-distance border fog.
 #define CAVE_FOG // [false true]
 // Cave fog.
-#define UNDERWATER_FOG_DENSITY 40 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define UNDERWATER_FOG_DENSITY 35 // [0 15 25 35 50 75 100]
 // Astra cyan water haze: 40 gives visible distance fog with a short near-eye fade.
 // Other values scale density; reference-style atmosphere, locally tuned strength.
 #define NETHER_FOG_DENSITY 70 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
@@ -230,11 +245,11 @@
 // Scene-measured exposure gain on top of the slider above (bounded to about one stop
 // either way, overworld air only; needs in-game A/B, design.md SC-41)
 #define SATURATION 100 // [50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150]
-// Color grading: saturation (factory 105 after second visual round; 2026-09-07 -> 100)
+// Color grading: saturation, %; natural look applies its small 102% base.
 #define VIBRANCE 100 // [50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150]
-// Color grading: vibrance (factory 108 after second visual round; 2026-09-07 -> 100)
-#define CONTRAST 102 // [50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150]
-// Color grading: contrast (factory 104 per Refrax target; 2026-09-07 -> 102 弱化阴影对比)
+// Color grading: vibrance, %; 100 is neutral.
+#define CONTRAST 100 // [50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150]
+// Color grading: contrast, %; 100 is neutral in every look.
 #define COLOR_TEMPERATURE 0 // [-50 -45 -40 -35 -30 -25 -20 -15 -10 -5 0 5 10 15 20 25 30 35 40 45 50]
 // Color grading: temperature shift (-cool / +warm)
 //#define BLOOM // [false true]
@@ -333,14 +348,14 @@
 #define LOOK_HIGHS_B 100 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 
 // --- PERFORMANCE + ADVANCED ---
-#define OVERWORLD_BUDGET 2 // [0 1 2]
+#define OVERWORLD_BUDGET 1 // [0 1 2]
 // Main-world budget: 0 uses raw options; 1 caps shadows at 1536/112;
-// 2 is the default frame-rate budget (1024 ceiling, earlier water fading). Active budgets also use
+// 2 is the tighter frame-rate budget (1024 ceiling, earlier water fading). Active budgets also use
 // per-corner software shadow comparison. Ceilings never raise lighter raw options or enable
 // effects. Colour is independent; Nether and End retain their own settings.
 #define WAVING_FOLIAGE // [false true]
 // Vertex-animated foliage sway (wind params via custom uniforms)
-#define WAVING_FOLIAGE_STRENGTH 100 // [25 50 75 100 125 150 175 200]
+#define WAVING_FOLIAGE_STRENGTH 50 // [0 25 50 75 100]
 // Foliage sway strength, %
 //#define VOXY_SUPPORT // [false true]
 // Reserved Voxy integration switch; distant-terrain rendering is not implemented.
