@@ -78,6 +78,12 @@ vec4 astra_cloud_temporal_resolve(vec4 current, vec3 representativeWorld, vec3 r
         || any(isnan(current)) || any(isinf(current))
         || any(isnan(representativeWorld)) || any(isinf(representativeWorld))) return current;
 
+    #if CLOUD_QUALITY == 2
+    // Native four-ray coverage treats an empty current pixel as a real miss.
+    // Reject before any old metadata lookup; the output stamp above still clears it.
+    if (current.a <= 0.0) return current;
+    #endif
+
     // A half-float seconds stamp can round into the future at high frame rates.
     // Use an exact frame index for continuity and the engine's frame duration
     // for wind motion. Every texel carries the same index/viewport fingerprint.
@@ -97,11 +103,6 @@ vec4 astra_cloud_temporal_resolve(vec4 current, vec3 representativeWorld, vec3 r
     // a genuinely empty column only holds one frame and then clears. Slab
     // misses, opaque occlusion and camera/status gates never hold old coverage.
     bool emptyCurrent = current.a <= 0.0;
-    #if CLOUD_QUALITY == 2
-    // Four current-frame rays supply edge coverage. Do not leave a vanished
-    // cloud behind solely to fill a missing phase of the old coarse grid.
-    if (emptyCurrent) return current;
-    #endif
     if (emptyCurrent) {
         if (metaHere.a <= 0.0 || metaHere.r <= 0.0
             || any(isnan(ray)) || any(isinf(ray))) return current;

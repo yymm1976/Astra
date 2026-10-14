@@ -365,7 +365,6 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
         // Preserve the existing first-visible-surface lighting. Further
         // occupied segments change opacity, not the sky/lighting computation.
         if (cloudColorReady) {
-            volumetricClouds.rgb += firstCloudColor*weight;
             if (volumetricClouds.a >= 0.995) break;
             continue;
         }
@@ -501,7 +500,6 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
         // continuous when a boundary moves between adjacent sample positions.
         firstCloudColor = colorSample;
         cloudColorReady = true;
-        volumetricClouds.rgb += colorSample*weight;
         if (volumetricClouds.a >= 0.995) break;
         #else
         volumetricClouds.a = sqrt(cloudDistanceFactor * 1.33333)*columnDensity;
@@ -513,7 +511,10 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
 
     #if CLOUD_QUALITY == 2
     if (volumetricClouds.a > 0.0) {
-        volumetricClouds.rgb /= volumetricClouds.a;
+        // Every occupied segment uses this same colour. Its weighted sum
+        // divided by total opacity is the colour itself; integrate only the
+        // opacity and representative position needed by temporal reprojection.
+        volumetricClouds.rgb = firstCloudColor;
         representativeWorld /= volumetricClouds.a;
     }
     #endif

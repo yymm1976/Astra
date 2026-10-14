@@ -66,6 +66,30 @@ vec3 uchimura_tonemap(vec3 x) {
     return uchimura_tonemap_full(x, P, a, m, l, c, b);
 }
 
+// Scalar specialization of the existing Uchimura defaults. Its linear section
+// is exactly x; toe and shoulder never overlap, so only one curve is needed.
+float astra_uchimura_peak(float x) {
+    const float m = 0.22;
+    const float shoulderStart = 0.532;
+    const float shoulderRange = 0.468;
+    if (x >= shoulderStart)
+        return 1.0 - shoulderRange * exp(-(x - shoulderStart) / shoulderRange);
+    if (x >= m) return x;
+    return mix(m * pow(x / m, 1.33), x, smoothstep(0.0, m, x));
+}
+
+// Original Astra natural-look adaptation: preserve channel ratios through the
+// shoulder, then lose chroma only for genuinely bright scene luminance. This
+// does not tint midtones or add a grey shadow floor. No reference look is copied.
+vec3 astra_natural_uchimura(vec3 x) {
+    float peak = max(x.r, max(x.g, x.b));
+    if (peak <= 0.0) return vec3(0.0);
+    float mappedPeak = astra_uchimura_peak(peak);
+    vec3 mapped = x * (mappedPeak / peak);
+    float whitePath = smoothstep(1.0, 8.0, get_luminance(x));
+    return mix(mapped, vec3(mappedPeak), whitePath);
+}
+
 // Missing Deadlines (Benjamin Wrensch): https://iolite-engine.com/blog_posts/minimal_agx_implementation
 // Filament: https://github.com/google/filament/blob/main/filament/src/ToneMapper.cpp#L263
 // https://github.com/EaryChow/AgX_LUT_Gen/blob/main/AgXBaseRec2020.py
@@ -197,7 +221,11 @@ vec3 aces_tonemap(vec3 color) {
 vec3 apply_tonemap(vec3 x) {
     x = max(x, vec3(0.0));
     #if TONEMAP_OPERATOR == TONEMAP_UCHIMURA
+    #if defined ASTRA_OVERWORLD_NATURAL && !defined DEBUG_DISABLE_COLOR_GRADE
+    return astra_natural_uchimura(x);
+    #else
     return uchimura_tonemap(x);
+    #endif
     #elif TONEMAP_OPERATOR == TONEMAP_AGX
     return agx_tonemap(x);
     #elif TONEMAP_OPERATOR == TONEMAP_ACES

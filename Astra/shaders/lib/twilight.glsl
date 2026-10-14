@@ -13,14 +13,13 @@ float astra_twilight_strength() {
 vec3 astra_twilight_sunlight() {
     // Linear-light calibration of Complementary's warm light/ambient split.
     // The red/green ratio must survive multiplication by green grass albedo.
-    return mix(vec3(2.20,0.72,0.18),vec3(1.55,0.87,0.40),
-               smoothstep(0.06,0.48,worldSunVector.y));
+    return astraTwilightSunlight;
 }
 vec3 astra_twilight_atmosphere(vec3 baseSky, vec3 direction) {
     float twilight = astra_twilight_strength();
     if (twilight <= 0.0) return baseSky;
     float facing=dot(direction.xz,worldSunVector.xz)
-                 /max(length(direction.xz)*length(worldSunVector.xz),1e-5);
+                 /max(length(direction.xz)*astraTwilightSunHorizontal.z,1e-5);
     // Integer exponents as squaring chains per lib/pow.glsl; the 180/1400 halo
     // exponents below stay on pow() - they have no foldable chain.
     float solar=square(square(square(square(max(dot(direction,worldSunVector),0.0)))));
@@ -37,13 +36,12 @@ vec3 astra_twilight_atmosphere(vec3 baseSky, vec3 direction) {
     return mix(baseSky,morning,twilight*0.94);
 }
 vec3 astra_twilight_tint() {
-    return mix(vec3(0.32,0.085,0.035),vec3(0.29,0.16,0.10),
-               smoothstep(-0.03,0.16,worldSunVector.y));
+    return astraTwilightTint;
 }
 vec3 astra_twilight_sky(vec3 direction) {
     float twilight = astra_twilight_strength();
     if (twilight <= 0.0) return vec3(0.0);
-    vec2 sun=worldSunVector.xz/max(length(worldSunVector.xz),1e-5);
+    vec2 sun=astraTwilightSunHorizontal.xy;
     vec2 view=direction.xz/max(length(direction.xz),1e-5);
     float facing=dot(view,sun);
     float horizon=exp(-abs(direction.y-0.025)*7.0)

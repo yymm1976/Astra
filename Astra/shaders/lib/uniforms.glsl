@@ -16,10 +16,13 @@
 uniform vec3  lightVector;             // normalized shadow light (sun by day, moon by night)
 uniform vec3  worldSunVector;          // world-space SUN direction (independent of shadow light)
 uniform vec2  astraSunHorizontalDirection; // normalized horizontal sun, CPU precomputed for fog
+uniform vec3  astraTwilightSunHorizontal; // xy: unshifted guarded unit direction; z: raw XZ length
 uniform float sunProgress;             // 0 at sun horizon, 1 at zenith
 uniform float moonProgress;            // same, for the moon
 uniform float skyVisibilityDay;        // skylight collapse around dusk/dawn
 uniform float astraTwilightFactor;      // shared, rain-aware twilight envelope (also underwater)
+uniform vec3  astraTwilightSunlight;    // same solar-height palette, computed once per frame
+uniform vec3  astraTwilightTint;
 uniform float astraDawnBlend;           // 1 for dawn, 0 for dusk; used only in the twilight envelope
 uniform vec3  astraSkyColorM;           // rain-adjusted sqrt(skyColor), CPU palette terms
 uniform vec3  astraSkyNoonBase;         // pow(astraSkyColorM, 2.9)

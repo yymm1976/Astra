@@ -243,7 +243,7 @@ void main() {
     // Underwater has a modest fixed exposure compensation and retains manual
     // exposure; it does not inherit air metering or night colour shifts.
     vec3 displayHDR = ordinaryWater ? hdr*1.6 : display_air_hdr(hdr);
-    vec3 displayColor = srgb_encode(apply_tonemap(apply_exposure(displayHDR)));
+    vec3 displayColor = srgb_encode(apply_tonemap(apply_scene_grading(apply_exposure(displayHDR))));
     #else
     #ifdef DIMENSION_END
     vec3 exposed=apply_exposure(hdr);

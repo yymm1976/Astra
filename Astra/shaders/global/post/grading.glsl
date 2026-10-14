@@ -19,7 +19,7 @@
 //  macro the top-level shell injects (DIMENSION_NETHER / DIMENSION_END).
 // ============================================================
 //
-// --- INTERFACE CONTRACT: five slots, and the space each one runs in ----------
+// --- Display helpers and the colour space each one runs in ------------------
 //
 //   vec3 apply_auto_exposure(vec3 linearHDR)
 //       LINEAR / scene-referred, and the FIRST thing the chain does. A measured scene
@@ -34,6 +34,9 @@
 //       highlights get compressed instead of how bright the scene is.
 //
 //   vec3 apply_tonemap(vec3 hdr)                  [lib/tonemap.glsl, not here]
+//   vec3 apply_scene_grading(vec3 hdr)
+//       Natural overworld only: contrast on HDR luminance around 18% grey,
+//       after manual exposure and before tone mapping. Neutral at 100.
 //
 //   vec3 apply_grading(vec3 displayColor)
 //       DISPLAY-referred (gamma-encoded) - see "why display space" below.
@@ -48,16 +51,16 @@
 //       screenPos is gl_FragCoord.xy in device pixels, not 0..1.
 //
 // Full §2.2 final-chain order, therefore:
-//   colortex0 -> apply_auto_exposure (optional) -> apply_exposure -> tonemap
+//   colortex0 -> apply_auto_exposure (optional) -> apply_exposure
+//             -> apply_scene_grading -> tonemap
 //             -> sRGB encode -> apply_grading
 //             -> apply_vignette (optional) -> apply_output_dither -> gl_FragData[0]
 //
 // --- why display space ------------------------------------------------------
-// apply_contrast pivots at 0.5, which is middle grey only in display space (0.5
-// linear reads as 0.735 on screen), and the factory numbers below are Refrax
-// values, which Refrax calibrates on display-referred pixels (its grade pass ends
-// `colorGrade(applyTonemap(hdr))`, and its applyTonemap returns display space).
-// Grading in linear space would make those three sliders mean something else.
+// Temperature, vibrance, saturation and manual RGB balance keep their existing
+// display-space meaning. Original look and other dimensions also retain the
+// endpoint-preserving contrast curve at 0.5. Natural overworld contrast is now
+// applied once to HDR luminance instead, preserving ratios between RGB channels.
 //
 // SC-16 is resolved: apply_tonemap returns display-linear RGB for every operator.
 // AgX's internal power is its output linearisation, not a second sRGB transfer.
@@ -170,13 +173,25 @@ vec3 apply_color_temperature(vec3 color) {
 }
 
 // ------------------------------------------------------------
-// 3. Grading - display space: temperature -> vibrance -> saturation -> contrast
+// 3. Grading - natural contrast before tonemapping, display controls afterward.
 //
 // Vibrance before saturation is deliberate and matches Mellow's final chain:
 // vibrance is a relative correction that protects already-saturated pixels, so
 // running full saturation first would push channels into the range vibrance then
 // tries to protect, and the two sliders would fight.
 // ------------------------------------------------------------
+vec3 apply_scene_grading(vec3 hdr) {
+    #if defined ASTRA_OVERWORLD_NATURAL && !defined DEBUG_DISABLE_COLOR_GRADE && CONTRAST != 100
+    // One luminance power is equivalent to log-domain contrast around 18% grey.
+    // A shared RGB gain keeps hue unchanged. Exactly black remains black.
+    float luminance = get_luminance(hdr);
+    float gain = pow(max(luminance, 1e-6) / 0.18, CONTRAST * 0.01 - 1.0);
+    return hdr * gain;
+    #else
+    return hdr;
+    #endif
+}
+
 vec3 apply_tonal_balance(vec3 color) {
     #if LOOK_SHADOWS_R != 100 || LOOK_SHADOWS_G != 100 || LOOK_SHADOWS_B != 100 || LOOK_MIDS_R != 100 || LOOK_MIDS_G != 100 || LOOK_MIDS_B != 100 || LOOK_HIGHS_R != 100 || LOOK_HIGHS_G != 100 || LOOK_HIGHS_B != 100
     float luma = clamp(dot(color, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
@@ -200,19 +215,11 @@ vec3 apply_grading(vec3 displayColor) {
 	#if VIBRANCE != 100
 	color = apply_vibrance(color, VIBRANCE * 0.01);
 	#endif
-	#ifdef ASTRA_OVERWORLD_NATURAL
-	// A small, bounded shadow/midtone lift keeps black and white fixed. It
-	// avoids a milky black floor and adds no texture reads or power function.
-	color = clamp(color, vec3(0.0), vec3(1.0));
-	color += 0.10 * color * (1.0-color) * (1.0-color);
-	color = apply_saturation(color, SATURATION * 0.0102);
-	#else
 	#if SATURATION != 100
 	color = apply_saturation(color, SATURATION * 0.01);
 	#endif
-	#endif
-	// 100 means neutral in every look; do not remap one preset's 102 to 100.
-	#if CONTRAST != 100
+	// Natural contrast already acted on HDR luminance; never apply it twice.
+	#if CONTRAST != 100 && !defined ASTRA_OVERWORLD_NATURAL
 	color = apply_contrast(color, CONTRAST * 0.01);
 	#endif
     color = apply_tonal_balance(color);
