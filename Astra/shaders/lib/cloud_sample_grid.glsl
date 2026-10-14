@@ -3,6 +3,11 @@
 // Original Astra: centered subpixel coverage samples in CLOUD-buffer pixels.
 // Independent of scene TAA; producer, reprojection and consumers share this grid.
 vec2 astra_cloud_grid_offset(int frame, ivec2 size) {
+    #if CLOUD_QUALITY == 2
+    // High already averages four spatial rays on the native grid. Keep that
+    // footprint fixed instead of resampling it at a different phase each frame.
+    return vec2(0.0);
+    #else
     const vec2 offsets[8] = vec2[8](
         vec2(0.0, -1.0/6.0), vec2(-0.25, 1.0/6.0),
         vec2(0.25, -7.0/18.0), vec2(-0.375, -1.0/18.0),
@@ -10,5 +15,6 @@ vec2 astra_cloud_grid_offset(int frame, ivec2 size) {
         vec2(0.375, 1.0/18.0), vec2(-0.4375, 7.0/18.0));
     return (offsets[max(frame, 0) % 8] + vec2(0.0546875, 0.0))
          / max(vec2(size), vec2(1.0));
+    #endif
 }
 #endif

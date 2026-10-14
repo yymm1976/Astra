@@ -1,6 +1,7 @@
 #ifndef ASTRA_CLOUDS_SCREEN_GLSL
 #define ASTRA_CLOUDS_SCREEN_GLSL
-// Original Astra half-resolution resolve; requires clouds_planar and transforms.
+// Astra cloud-grid resolve; high preserves native subpixel coverage.
+// Requires clouds_planar and transforms.
 // No scene colour/depth lives here. Occlusion is evaluated at the receiving pixel.
 #ifdef ASTRA_CLOUD_TEMPORAL
 #include "/lib/cloud_sample_grid.glsl"
@@ -84,9 +85,20 @@ vec4 astra_screen_cloud_sample(vec2 uv) {
     vec2 edge = 0.5 * texel;
     vec2 rangeUV = clamp(uv, edge, 1.0 - edge);
     vec2 sampleUV = clamp(uv - astra_cloud_grid_offset(frameCounter, size), edge, 1.0 - edge);
+    #if CLOUD_QUALITY == 2
+    // Preserve integrated subpixel coverage. Sharpening alpha with two
+    // S-curves would turn the anti-aliased silhouette back into hard steps.
+    return textureLod(colortex24, sampleUV, 0.0);
+    #else
     return astra_screen_cloud_edge_aware(colortex24, sampleUV, rangeUV, texel);
+    #endif
+    #else
+    #if CLOUD_QUALITY == 2
+    // Native high-quality output needs no wide low-resolution reconstruction.
+    return textureLod(colortex12, uv, 0.0);
     #else
     return astra_screen_cloud_filter(colortex12, uv);
+    #endif
     #endif
 }
 

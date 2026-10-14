@@ -76,7 +76,7 @@ vec4 solas_water_fog(vec3 viewPos, float waterDistance) {
     vec3 fogBase;
     vec2 response;
     solas_water_fog_frame_parameters(fogBase, response);
-    medium = solas_water_medium_linear(fogBase, response.x, wetness);
+    medium = solas_water_medium_linear(fogBase, response.x);
     #endif
     // ITT WaterFog's up/down response belongs to the medium, not to screen
     // blur. The shadowed shaft pass continues to own directional sunlight.
@@ -110,15 +110,5 @@ vec3 solas_water_composite(vec3 linearColor, vec3 viewPos, float waterDistance, 
     vec3 absorbed = max(linearColor, vec3(0.0))
                   * astra_water_absorption_transmission(waterDistance);
     return mix(fog.rgb, absorbed, fog.a) + shafts;
-}
-// Solas composite14 and lib/post/tonemap defaults.
-vec3 solas_water_tonemap_curve(vec3 color) {
-    return ((color * (0.28 * color + 0.10 * 0.290) + 0.150 * 0.016)
-        / (color * (0.28 * color + 0.290) + 0.150 * 0.350)) - 0.016 / 0.350;
-}
-vec3 solas_water_display(vec3 color) {
-    // Slightly lower underwater exposure; retain the curve and its highlight shoulder.
-    return pow(max(solas_water_tonemap_curve(color * 4.95) / solas_water_tonemap_curve(vec3(15.2)),
-                   vec3(0.0)), vec3(1.0 / 2.2));
 }
 #endif

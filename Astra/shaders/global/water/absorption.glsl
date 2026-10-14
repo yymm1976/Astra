@@ -1,5 +1,6 @@
 #ifndef ASTRA_GLOBAL_WATER_ABSORPTION_GLSL
 #define ASTRA_GLOBAL_WATER_ABSORPTION_GLSL
+#include "/lib/water_palette.glsl"
 // Historical references: Solas waterFog.glsl and Steadfast water absorption
 // presets. The current block-distance transport and spectral values are written
 // for Astra; prior source history remains documented in THIRD-PARTY.md.
@@ -81,8 +82,7 @@ vec3 water_body_color(vec2 depthBlend) {
     return vec3(0.0);
     #else
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-    return mix(mix(vec3(0.065, 0.148, 0.150), vec3(0.056, 0.148, 0.142), depthBlend.x),
-               vec3(0.055, 0.165, 0.180), depthBlend.y);
+    return astra_water_body_palette(depthBlend);
     #else
     return mix(mix(vec3(0.065, 0.148, 0.150), vec3(0.056, 0.148, 0.142), depthBlend.x),
                vec3(0.020, 0.160, 0.300), depthBlend.y);

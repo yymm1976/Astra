@@ -18,32 +18,6 @@ uniform float astraSolasTimeAngle;
 float solas_sun_visibility() {
     return clamp(worldSunVector.y + 0.1, 0.0, 0.25) * 4.0;
 }
-void solas_water_fog_frame_parameters(out vec3 fogBase, out vec2 fogResponse) {
-    fogBase = mix(mix(solasWaterSqrt * solasWaterSqrt,
-                      normalize(fogColor + 0.00001) * 0.5, 0.10),
-                  solasWeather * 0.25, wetness * 0.25);
-    float eyeSky = clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0);
-    // Only shadowed shafts own directional peaks. Ordinary fog is draw-wide:
-    // no unoccluded angular glare under a canopy and no per-pixel colour power.
-    fogResponse = vec2(0.5 + 0.5 * eyeSky
-                       + 0.12 * astraSolasTimeBrightness * eyeSky, 0.0);
-    fogBase *= (0.1 + solas_sun_visibility() * 0.4) * (1.0 - clamp(blindness, 0.0, 1.0));
-}
-// Linear medium radiance. The old composite blended fog in a pow(..., 1/4.4)
-// domain and decoded with pow(..., 4.4), so it reached the frame as
-// fogBase ^ 2.2. Keep that conversion and the sky/weather/cave/blindness
-// controls; the new palette intentionally gives the medium a brighter tint. Its hue
-// follows Astra's pale cyan ratio, with wetness graying toward vec3(0.5),
-// renormalised to the palette luma so the hue shift cannot brighten the medium
-// on its own. All inputs are draw constants; display and water-composite
-// vertices prepare the result once per draw vertex in every main-world tier.
-vec3 solas_water_medium_linear(vec3 fogBase, float responseX, float weatherAmount) {
-    vec3 legacy = pow(max(fogBase * responseX, vec3(0.0)), vec3(2.2));
-    float intensity = dot(legacy, vec3(0.2126, 0.7152, 0.0722));
-    vec3 ratio = mix(vec3(0.38, 0.82, 0.86), vec3(0.5), clamp(weatherAmount, 0.0, 1.0) * 0.6);
-    float ratioLuma = max(dot(ratio, vec3(0.2126, 0.7152, 0.0722)), 1e-5);
-    return ratio * (intensity / ratioLuma);
-}
 // Frame-constant thin-sheet incident light: the same ambient hue as
 // astra_sky_ambient(), through the shared natural-look gain in
 // lib/color_controls.glsl. Every input is a uniform, so a full-screen vertex
@@ -54,6 +28,19 @@ vec3 solas_water_interface_incident() {
                  * (SKYLIGHT_STRENGTH * 0.01);
     float access = smoothstep(0.0, 0.40, float(eyeBrightnessSmooth.y) / 240.0);
     return mix(MIN_AMBIENT_COLOR, outdoor, access);
+}
+void solas_water_fog_frame_parameters(out vec3 fogBase, out vec2 fogResponse) {
+    float eyeSky = clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0);
+    // Share the surface body's middle-depth cyan and its incident lighting.
+    // Weather belongs to that lighting, never a separate grey colour overlay.
+    fogBase = astra_water_body_palette(vec2(1.0, 0.0)) * solas_water_interface_incident();
+    fogBase *= 1.0 - clamp(blindness, 0.0, 1.0);
+    fogResponse = vec2(0.65 + 0.35 * eyeSky, 0.0);
+}
+// Inputs are already linear. Keep the surface hue without a second palette,
+// grey weather mix, or nonlinear colour conversion before the display curve.
+vec3 solas_water_medium_linear(vec3 fogBase, float responseX) {
+    return fogBase * responseX;
 }
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END
     #ifdef ASTRA_WATER_FOG_FRAME_WRITE

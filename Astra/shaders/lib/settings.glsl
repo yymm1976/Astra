@@ -101,14 +101,12 @@
 #define STAR_AMOUNT 2 // [0 1 2 3 4]
 // Celestial star catalogue: off / sparse / normal / dense / very dense.
 #define CLOUD_MODE 1 // [0 1 2]
-#define CLOUD_QUALITY 0 // [0 1 2]
-// Planar clouds: quarter/half/native grid, with 12/16/96 coarse-search limits.
-// Low/balanced refine the first occupied interval twice and approximate lighting.
-// Reflection clouds use 6/8 coarse samples and one refinement; high is unchanged.
-// Smooth sky-base tables follow this tier at 65/129/257 square nodes.
-// These tier values apply with the budget off and in the other dimensions; the
-// overworld budget always uses quarter cloud targets, up to 12 coarse steps plus
-// 2 refinements, reflection clouds 6 plus 1, and the 65-square sky-base table.
+#define CLOUD_QUALITY 2 // [0 1 2]
+// Planar clouds: quarter/half/native grid. Low/medium retain 12/16 coarse
+// searches and boundary refinement; high integrates 4-block intervals (up to
+// 512) and averages four native subpixel rays. High reflections share density
+// integration. Sky-base tables use 65/129/257 square nodes. Cloud quality is
+// independent of the overworld surface/water budget; high is the default.
 // 0 = vanilla clouds, 1 = planar wispy clouds, 2 = off
 #define CLOUD_COVERAGE 50 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100]
 // Planar cloud coverage, % (CLOUD_MODE=1 only)

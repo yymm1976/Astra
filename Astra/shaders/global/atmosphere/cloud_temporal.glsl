@@ -45,7 +45,11 @@ flat in int cloudFrameValid;
 
 // History share of the exponential blend. Source-derived initial value; needs
 // in-game A/B like every constant in this module.
+#if CLOUD_QUALITY == 2
+const float ASTRA_CLOUD_TEMPORAL_WEIGHT = 0.75;
+#else
 const float ASTRA_CLOUD_TEMPORAL_WEIGHT = 0.90;
+#endif
 // A thin cloud can miss the half-resolution ray in one phase of its subpixel
 // footprint while the column is still there. That phase reuses the reprojected
 // history at a higher share so the sun does not flick fully open for one frame.
@@ -58,7 +62,7 @@ const float ASTRA_CLOUD_TEMPORAL_COVERAGE_FLOOR = 0.15;
 
 // current = vec4(premultiplied radiance, coverage) straight from this frame's
 // march; representativeWorld = the integral's transmittance-weighted first moment
-// (single-hit model -> the first hit, vec3(0) when the column is empty); ray is
+// (high -> opacity-weighted segments; low/medium -> first hit; zero when empty); ray is
 // the producer's unit world direction for this texel, used to recover a
 // representative for an empty column.
 // Returns the blended premultiplied cloud for colortex24 and writes colortex25's
@@ -93,6 +97,11 @@ vec4 astra_cloud_temporal_resolve(vec4 current, vec3 representativeWorld, vec3 r
     // a genuinely empty column only holds one frame and then clears. Slab
     // misses, opaque occlusion and camera/status gates never hold old coverage.
     bool emptyCurrent = current.a <= 0.0;
+    #if CLOUD_QUALITY == 2
+    // Four current-frame rays supply edge coverage. Do not leave a vanished
+    // cloud behind solely to fill a missing phase of the old coarse grid.
+    if (emptyCurrent) return current;
+    #endif
     if (emptyCurrent) {
         if (metaHere.a <= 0.0 || metaHere.r <= 0.0
             || any(isnan(ray)) || any(isinf(ray))) return current;
@@ -158,6 +167,12 @@ vec4 astra_cloud_temporal_resolve(vec4 current, vec3 representativeWorld, vec3 r
     }
     if (coverage <= 0.00001) return current;
     vec4 history = historySum / coverage;
+    #if CLOUD_QUALITY == 2
+    // Limit opacity lag without separating colour from coverage.
+    vec3 historyColor = history.rgb / max(history.a, 1e-4);
+    history.a = clamp(history.a, max(current.a-0.10,0.0), min(current.a+0.10,1.0));
+    history.rgb = historyColor * history.a;
+    #endif
 
     // Empty-phase protection is local to a slowly moving edge. Remove both
     // sampling jitters before measuring real motion, so fast camera rotation

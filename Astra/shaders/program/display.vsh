@@ -29,7 +29,7 @@ void main() {
         vec3 fogBase;
         vec2 fogResponse;
         solas_water_fog_frame_parameters(fogBase, fogResponse);
-        waterFogFrameMedium = solas_water_medium_linear(fogBase, fogResponse.x, wetness);
+        waterFogFrameMedium = solas_water_medium_linear(fogBase, fogResponse.x);
         waterInterfaceIncident = solas_water_interface_incident();
     }
     #endif

@@ -13,6 +13,12 @@ const vec3 astraWaterTintSqrt = vec3(0.56, 0.74, 0.75);
 const vec3 astraWaterShaftTintSqrt = mix(vec3(0.75), astraWaterTintSqrt, 0.50);
 const vec3 astraWaterTransmissionTint = vec3(0.60, 0.97, 1.0);
 const float astraWaterShaftRange = 48.0;
+// Shared linear water-body palette: surface fill and ordinary underwater fog
+// use the same cyan, with illumination and path length applied by consumers.
+vec3 astra_water_body_palette(vec2 depthBlend) {
+    return mix(mix(vec3(0.065, 0.148, 0.150), vec3(0.056, 0.148, 0.142), depthBlend.x),
+               vec3(0.055, 0.165, 0.180), depthBlend.y);
+}
 // Underwater distance medium. 40% maps to density 1; the clearer default is
 // 35%. At zero density distance fog is identity; absorption is independent.
 #define ASTRA_WATER_FOG_DENSITY (UNDERWATER_FOG_DENSITY * 0.025)

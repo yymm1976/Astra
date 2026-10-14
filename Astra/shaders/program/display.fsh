@@ -235,18 +235,15 @@ void main() {
         float obscured=smoothstep(3.0,28.0,distanceToEye);
         hdr *= mix(1.0,mix(0.40,0.001,obscured),dark);
     }
-    // Underwater uses Solas' own display curve (its domain keeps the reference's
-    // gamma-blend order). The two paths are exclusive, so pick one up front - the
-    // previous shape computed the full Uchimura+sRGB chain first and discarded it for
-    // every underwater pixel (consolidated review D4 / Hunyuan A1). TONEMAP_OPERATOR
-    // applies to the air path only; lang documents that.
+    // Surface and submerged colours share the chosen tone curve and sRGB
+    // conversion. A separate underwater curve compressed channel differences
+    // differently, so sharing only the water palette could still look greyer.
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
     // The vertex-provided auto-exposure gain belongs on this arm only (SC-41).
-    // Underwater keeps the Solas curve on the manual slider; other dimensions
-    // have no metering pass. display_air_hdr preserves Purkinje -> gain order.
-    vec3 displayColor = ordinaryWater
-        ? solas_water_display(apply_exposure(hdr))
-        : srgb_encode(apply_tonemap(apply_exposure(display_air_hdr(hdr))));
+    // Underwater has a modest fixed exposure compensation and retains manual
+    // exposure; it does not inherit air metering or night colour shifts.
+    vec3 displayHDR = ordinaryWater ? hdr*1.6 : display_air_hdr(hdr);
+    vec3 displayColor = srgb_encode(apply_tonemap(apply_exposure(displayHDR)));
     #else
     #ifdef DIMENSION_END
     vec3 exposed=apply_exposure(hdr);

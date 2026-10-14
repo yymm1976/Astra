@@ -5,13 +5,9 @@
 // contains only the smooth sky base: no glare, sprites, stars, dither or medium.
 // Keep these dimensions paired with shaders.properties. Odd sizes retain exact
 // zero-angle nodes; sharp sky layers are evaluated outside this smooth table.
-// Overworld budget: ASTRA_OVERWORLD_OPTIMIZED pins the table to the existing
-// low-tier 65 nodes per axis (the table is overworld-only, so the
-// Nether/End never see this macro). Producer and every consumer read the same
-// ASTRA_GRADIENT_SKY_SIZE, so the UV mapping stays paired automatically.
-#if defined ASTRA_OVERWORLD_OPTIMIZED
-const vec2 ASTRA_GRADIENT_SKY_SIZE = vec2(65.0);
-#elif CLOUD_QUALITY == 0
+// Cloud quality owns this table independently of the surface/water budget.
+// Producer and every consumer share the same size and UV mapping.
+#if CLOUD_QUALITY == 0
 const vec2 ASTRA_GRADIENT_SKY_SIZE = vec2(65.0);
 #elif CLOUD_QUALITY == 2
 const vec2 ASTRA_GRADIENT_SKY_SIZE = vec2(257.0);
