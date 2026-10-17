@@ -1,4 +1,10 @@
 // E2: retain unattenuated HDR in 4; medium is applied once to display buffer 0.
+// Overworld only: the matching vertex stage (program/deferred.vsh) declares and
+// writes the same flat water kind under this condition. Nether/End keep the
+// dimension early-out inside medium_state.glsl and must not declare the input.
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+#define ASTRA_WATER_STATE_FRAME_READ
+#endif
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
 #include "/lib/taa_reactive.glsl"

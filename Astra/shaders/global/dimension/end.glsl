@@ -56,7 +56,11 @@ vec3 end_lighting(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
     // Linear irradiance retains directional contrast; the old clamped/square-root
     // blend flattened both the normal response and the cast shadows.
     vec3 color=end_surface_diffuse(albedo,normal,visibility,end_surface_eclipse,directRadiance);
-    vec3 local=block_lighting(0.0,blockLight,held_light_strength(params.heldLightBase,playerPos),0.0,0.0);
+    vec2 localComponents=local_light_components(0.0,blockLight,
+        held_light_strength(params.heldLightBase,playerPos),0.0,0.0);
+    if (localComponents.y>0.0)
+        localComponents.y*=astra_held_light_facing(playerPos,normal);
+    vec3 local=astra_local_light_radiance(localComponents);
     color+=albedo*(solasMinLight+params.nightVision*vec3(0.2,0.3,0.2)
                   +local+(emissive+portal*2.0)*(EMISSIVE_STRENGTH*0.01));
     return color;

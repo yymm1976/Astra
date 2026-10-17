@@ -5,25 +5,28 @@
 #include "/lib/sky_reflection_cache.glsl"
 #include "/lib/water_buffer_formats.glsl"
 
-const int colortex11Format = R11F_G11F_B10F;
+#ifndef RGBA16F
+#define RGBA16F RGBA16F
+#endif
+// RGB retains the shared environment; alpha carries cloud transmittance so
+// transmitted sun/stars can use that same footprint without another cloud march.
+const int colortex11Format = RGBA16F;
+// Every cache texel, including longitude gutters, is produced before geometry.
+const bool colortex11Clear = false;
 /* RENDERTARGETS: 11 */
 void main() {
     vec3 direction = astra_sky_cache_direction(gl_FragCoord.xy);
     vec3 sky = astra_sky_radiance(direction);
+    float cloudTransmittance = 1.0;
     #if CLOUD_MODE == CLOUD_PLANAR
-        // Budget 1/2 inherits the low tier's angular footprint so the coarse
-        // reflected march keeps the same thin-cloud coverage as CLOUD_QUALITY < 2.
-        #if CLOUD_QUALITY < 2 || defined ASTRA_OVERWORLD_OPTIMIZED
         // Resolve edges over this sphere's angular texel footprint, rather than
         // treating a coarse reflected texel as an infinitely narrow ray.
         vec3 unusedRepresentative;
         float cloudFootprint = max(2.0 * ASTRA_SKY_CACHE_PI / ASTRA_SKY_CACHE_CORE.x,
                                   ASTRA_SKY_CACHE_PI / ASTRA_SKY_CACHE_CORE.y);
         vec4 cloud = astra_planar_cloud(direction, 1e20, unusedRepresentative, cloudFootprint);
-        #else
-        vec4 cloud = astra_planar_cloud(direction);
-        #endif
         sky = mix(sky, cloud.rgb, cloud.a);
+        cloudTransmittance = 1.0-cloud.a;
     #endif
-    gl_FragData[0] = vec4(max(sky, vec3(0.0)), 1.0);
+    gl_FragData[0] = vec4(max(sky, vec3(0.0)),cloudTransmittance);
 }

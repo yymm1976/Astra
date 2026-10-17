@@ -16,7 +16,7 @@ const int colortex28Format = RGBA16F;
 const bool colortex28Clear = false;
 const vec4 colortex9ClearColor = vec4(0.0,0.0,0.0,0.0);
 const vec4 colortex28ClearColor = vec4(0.0,0.0,0.0,0.0);
-#ifdef SCREENSPACE_REFLECTIONS
+#ifdef NETHER_ROCK_REFLECTIONS
 // Mips are generated from the completed scene for the rough reflection lookup.
 const bool colortex0MipmapEnabled = true;
 #endif
@@ -29,14 +29,14 @@ void main() {
     vec4 metadata = vec4(0.0);
     gl_FragData[0] = reflection;
     gl_FragData[1] = metadata;
-#ifdef SCREENSPACE_REFLECTIONS
+#ifdef NETHER_ROCK_REFLECTIONS
     if (DEBUG_VERTEX_AO != 0 || isEyeInWater != 0) return;
     // Rough rocks need a spatially broad signal, not a ray for every display
     // pixel. Low/balanced use a stable 2x2 receiver lattice; the resolve restores
     // native output only across matching surfaces. Keep the native attachments
     // because the End independently uses target 9 at native resolution.
     ivec2 receiverPixel = ivec2(gl_FragCoord.xy);
-    #if WATER_EFFECT_QUALITY < 2
+    #if NETHER_REFLECTION_QUALITY < 2
     if (any(notEqual(receiverPixel & ivec2(1), ivec2(0)))) return;
     #endif
     vec4 material = texelFetch(colortex3, receiverPixel, 0);
@@ -80,7 +80,7 @@ void main() {
                 vec2 size=vec2(textureSize(colortex9,0));
                 if(!any(isnan(previous)) && !any(isinf(previous))
                     && all(greaterThanEqual(previous,vec3(0.0))) && all(lessThanEqual(previous,vec3(1.0)))) {
-                    #if WATER_EFFECT_QUALITY < 2
+                    #if NETHER_REFLECTION_QUALITY < 2
                     const int historyStride = 2;
                     #else
                     const int historyStride = 1;

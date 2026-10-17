@@ -14,10 +14,12 @@ const vec3 astraWaterShaftTintSqrt = mix(vec3(0.75), astraWaterTintSqrt, 0.50);
 const vec3 astraWaterTransmissionTint = vec3(0.60, 0.97, 1.0);
 const float astraWaterShaftRange = 48.0;
 // Shared linear water-body palette: surface fill and ordinary underwater fog
-// use the same cyan, with illumination and path length applied by consumers.
+// use cyan-blue, with illumination and path length applied by consumers.
+// A lower red component keeps the body coloured after display conversion;
+// increasing depth darkens green as well, instead of tending to pale grey-teal.
 vec3 astra_water_body_palette(vec2 depthBlend) {
-    return mix(mix(vec3(0.065, 0.148, 0.150), vec3(0.056, 0.148, 0.142), depthBlend.x),
-               vec3(0.055, 0.165, 0.180), depthBlend.y);
+    return mix(mix(vec3(0.020, 0.160, 0.220), vec3(0.010, 0.110, 0.190), depthBlend.x),
+               vec3(0.004, 0.055, 0.150), depthBlend.y);
 }
 // Underwater distance medium. 40% maps to density 1; the clearer default is
 // 35%. At zero density distance fog is identity; absorption is independent.
@@ -37,10 +39,10 @@ vec3 astra_water_absorption_transmission(float waterDistance) {
     return exp(astraWaterAbsorptionPerBlock * waterDistance);
     #endif
 }
-// Reference in-scatter visibility exp2(-d * 0.04 * WATERFOG_DENSITY)
-// (composite1.fsh:78-79; ordinary water has no ice mask, so no clamp floor is
-// faked). Folded to base e with ln(2).
-const float astraWaterVisibilityPerBlock = -0.0277259 * ASTRA_WATER_FOG_DENSITY;
+// Clear-water distance haze in inverse blocks. Keep spectral absorption and
+// full camera distance, but avoid an additional dense neutral veil on entry.
+// At default density the haze alone transmits about 76% across twenty blocks.
+const float astraWaterVisibilityPerBlock = -0.016 * ASTRA_WATER_FOG_DENSITY;
 float astra_water_visibility(float waterDistance) {
     #ifdef DEBUG_DISABLE_UNDERWATER_FOG
     // Full scene visibility removes the medium blend in composite(): the

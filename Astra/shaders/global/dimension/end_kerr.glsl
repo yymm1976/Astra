@@ -177,16 +177,16 @@ vec3 end_crisp_photon_ring(vec3 ray,float cone) {
     if(dot(ray,end_light_direction())<=0.04) return vec3(0.0);
     vec2 q=end_kerr_screen(ray);
     float aa=end_kerr_footprint(q,cone);
-    vec3 ring=end_photon_radiance(q,aa);
-    if(max(ring.r,max(ring.g,ring.b))<0.00001) return vec3(0.0);
-    // The disc lookup and the fade below previously derived this same impact
-    // coordinate twice; the ring term keeps its own unstretched radial because
-    // it deliberately uses the pre-impact offset.
     vec2 impact=end_kerr_impact(q);
+    float impactRadius=end_kerr_impact_radius(impact);
+    vec3 ring=end_photon_radiance_precomputed(q-vec2(-0.055*END_KERR_SPIN,0.0),impactRadius,aa);
+    if(max(ring.r,max(ring.g,ring.b))<0.00001) return vec3(0.0);
+    // Ring, disc lookup and rear fade share one impact mapping and radius.
+    // The ring's colour still uses its original pre-impact radial offset.
     float unusedFootprint;
     vec3 point=end_disc_transfer_impact(impact,0.0,0.0,unusedFootprint);
     float cover=end_flow_edge(length(point.xy),aa*2.0)*point.z;
-    if(point.y>0.0) cover*=smoothstep(1.025,1.065,end_kerr_impact_radius(impact));
+    if(point.y>0.0) cover*=smoothstep(1.025,1.065,impactRadius);
     ring*=1.0-cover;
     if(max(ring.r,max(ring.g,ring.b))<0.00001) return vec3(0.0);
     for(int i=66;i<END_BODY_COUNT;i++) {
@@ -292,7 +292,10 @@ vec4 end_flow_material(vec2 p,float footprint,vec4 frame) {
     // cooler outer annuli add colour on both sides without screen-space tinting.
     // Fourth root of a non-negative base: sqrt(sqrt(x)) is exact here and avoids
     // the transcendental pow(x,0.25). Rounding may differ.
-    float temperature=6500.0*sqrt(sqrt(max(radialFlux*heating,0.0)))*g;
+    // Visible-light depiction temperature, not an inferred temperature of a
+    // particular astronomical object. Cooler outer flow is amber/orange; the
+    // hotter, approaching flow tends toward warm white and then blue-white.
+    float temperature=5200.0*sqrt(sqrt(max(radialFlux*heating,0.0)))*g;
     float slope=(end_disc_half_height(r+0.002)-end_disc_half_height(r-0.002))/0.004;
     vec3 normal=normalize(vec3(-slope*p/max(r,0.001),frame.w));
     float mu=clamp(dot(normal,frame.xyz),0.0,1.0);
@@ -300,7 +303,7 @@ vec4 end_flow_material(vec2 p,float footprint,vec4 frame) {
     // Integrated intensity transforms as g^4; g^3 belongs to spectral intensity.
     vec3 spectral=end_disc_emission_color(temperature);
     // Colour accents preserve the frequency-shift energy and angular limb.
-    vec3 emission=spectral*flux*2.2*g*g*g*g*limb;
+    vec3 emission=spectral*flux*3.2*g*g*g*g*limb;
     // Inner photosphere stays opaque; the tenuous outer skirt opens between
     // dense turbulent patches and reveals the lensed star field beneath it.
     edge*=mix(1.0,1.0-exp(-structure*3.5),smoothstep(2.4,END_DISC_OUTER,r));

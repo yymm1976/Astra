@@ -26,6 +26,10 @@
 
 in vec4 mc_Entity;
 in vec3 at_midBlock;
+#if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_SOLID_SHADOW
+in vec4 mc_midTexCoord;
+flat out vec4 shadowFoliageTexBounds;
+#endif
 
 out vec2 texcoord;
 out vec4 tint;                  // vertex colour, feeds the coloured-shadow tint
@@ -46,7 +50,7 @@ layout(r32ui) uniform uimage3D astraVoxelImage;
 // Occupancy encoding consumed by program/nether_light.csh and
 // global/dimension/nether_colored_light.glsl:
 //   bit 8  : solid geometry -> blocks diffusion
-//   bits 0-7: 0 = air, 1 = solid/unlit, 2..8 = coloured light groups,
+//   bits 0-7: 0 = no emission, 1 = reserved, 2..8 = coloured light groups,
 //            9..11 = fire, soul fire, lava
 // There is deliberately NO frame stamp. The image directive declares clear=true
 // (shaders.properties), so Iris zeroes the whole volume every frame: an unwritten cell
@@ -66,11 +70,9 @@ void astra_voxel_write() {
     ivec3 cell = astra_nether_voxel_cell(center, fract(cameraPosition));
     if(!astra_nether_voxel_in_bounds(cell)) return;
     int raw = int(mc_Entity.x+0.5);
-    // Any rendered vertex marks its cell as captured. kind 0 = captured air, kind 1 =
-    // captured solid, 2..8 = coloured light groups, 9..11 = fire/soul fire/lava. The
-    // diffusion pass only spreads through kind 0, so an unlit-but-rendered cell must be
-    // 0 here; writing 1 for it (the pre-handoff behaviour) made every air cell look
-    // solid and the propagation loop never ran at all.
+    // Unlit geometry keeps kind 0; kind 1 is reserved. The independent solid bit
+    // blocks diffusion through full cubes, including non-emitting walls.
+    // Species 2..8 are coloured light groups, 9..11 are fire/soul fire/lava.
     uint kind = 0u;
     bool solid = true;
     // Water, plants and torches are not full cubes: they must not block the volume.
@@ -91,6 +93,9 @@ void astra_voxel_write() {
 #endif
 void main() {
     waterCasterKind = 0;
+    #if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_SOLID_SHADOW
+    shadowFoliageTexBounds = vec4(0.0);
+    #endif
     #if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END
     shadowCasterPlaneNormal = vec3(0.0);
     #endif
@@ -159,6 +164,12 @@ void main() {
 	// Raw block.properties IDs - see block.properties for the allocation table.
 	bool isWater = abs(mc_Entity.x - 10001.0) < 0.5;
 	bool isLeaves = abs(mc_Entity.x - 10002.0) < 0.5;
+    #if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_SOLID_SHADOW
+    if (isLeaves || isGroundFoliage) {
+        vec2 halfExtent = abs(gl_MultiTexCoord0.xy-mc_midTexCoord.xy);
+        shadowFoliageTexBounds = vec4(mc_midTexCoord.xy-halfExtent,mc_midTexCoord.xy+halfExtent);
+    }
+    #endif
 	bool topOfFoliage = abs(mc_Entity.x - 10006.0) < 0.5
 		|| ((abs(mc_Entity.x - 10004.0) < 0.5
 			|| abs(mc_Entity.x - 10005.0) < 0.5) && at_midBlock.y < 0.0);

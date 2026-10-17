@@ -2,13 +2,18 @@
 #define ASTRA_END_PLASMA_GLSL
 // Optical-depth proxies, not an X-ray spectrum or a magnetohydrodynamic solver.
 // Four fixed samples serve the corona and the slower, broad disc wind together.
-void end_plasma_layers(vec2 q,float sourceZ,float outside,
+void end_plasma_layers(vec2 q,float sourceZ,float outside,bool opaqueSource,
                        out vec4 behind,out vec4 ahead) {
     behind=vec4(0.0,0.0,0.0,1.0); ahead=behind;
     if(outside<0.001 || abs(q.x)>5.4 || abs(q.y)>3.0) return;
     const float cosIncl=0.987117;
     for(int i=0;i<4;i++) {
         float z=-3.3+float(i)*2.2;
+        // Split at the same photosphere before preparing density or textures.
+        // A fully opaque front disc discards the entire behind layer; samples
+        // with no near fraction cannot change the surviving ahead layer either.
+        float nearFraction=clamp((z+1.1-sourceZ)/2.2,0.0,1.0);
+        if(opaqueSource && nearFraction<=0.0) continue;
         vec3 p=vec3(q.x,q.y*END_DISC_INCLINATION-z*cosIncl,
                     q.y*cosIncl+z*END_DISC_INCLINATION);
         float radius=length(p.xy), height=abs(p.z);
@@ -37,9 +42,8 @@ void end_plasma_layers(vec2 q,float sourceZ,float outside,
         // Each sample represents a 2.2-unit depth interval. Split that interval
         // at the photosphere; assigning the entire cell to one side creates
         // hard diagonal bands when the moving surface crosses a sample centre.
-        float nearFraction=clamp((z+1.1-sourceZ)/2.2,0.0,1.0);
         vec2 fraction=vec2(1.0-nearFraction,nearFraction);
-        vec2 transmission=exp(-tau*2.2*fraction);
+        float nearTransmission=exp(-tau*2.2*fraction.y);
         // The disc is observed blue-white, so the plasma body follows it: a
         // blue-white corona over a blue-violet wind. Only the densest streamlines
         // take an ember tint, echoing the disc's dim outer tail instead of
@@ -49,10 +53,13 @@ void end_plasma_layers(vec2 q,float sourceZ,float outside,
                        +vec3(0.62,0.34,0.18)*wind*windCore*0.050)*outside;
         // Same depth convention as the photosphere: the near gas may veil its
         // light, while far gas is actually hidden by the opaque disc.
-        ahead.rgb=ahead.rgb*transmission.y+emission*fraction.y;
-        ahead.a*=transmission.y;
-        behind.rgb=behind.rgb*transmission.x+emission*fraction.x;
-        behind.a*=transmission.x;
+        ahead.rgb=ahead.rgb*nearTransmission+emission*fraction.y;
+        ahead.a*=nearTransmission;
+        if(!opaqueSource) {
+            float farTransmission=exp(-tau*2.2*fraction.x);
+            behind.rgb=behind.rgb*farTransmission+emission*fraction.x;
+            behind.a*=farTransmission;
+        }
     }
 }
 vec3 end_polar_jet(vec2 q,float aa,float outside) {

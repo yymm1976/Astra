@@ -13,11 +13,27 @@ vec3 astra_fxaa(sampler2D source, vec2 uv, bool geometryOnly) {
     ivec2 sourceSize = textureSize(source,0);
     vec2 texel = 1.0/vec2(sourceSize);
     vec4 center = astra_fxaa_sample(source,uv,texel);
+    #ifndef DIMENSION_END
+    ivec2 pixel = clamp(ivec2(uv*vec2(sourceSize)),ivec2(0),sourceSize-1);
+    #endif
     if (geometryOnly) {
         // Underwater caustics and block texels are colour detail, not geometry
         // edges. Restrict AA to depth silhouettes instead of shifting all detail.
         float depth = textureLod(depthtex0, uv, 0.0).r;
-        float delta = max(max(abs(textureLod(depthtex0, uv+vec2(texel.x,0),0.0).r-depth),
+        float delta;
+        #ifndef DIMENSION_END
+        // Same native grid as the display input: the two overlapping gathers
+        // retain all four cardinal depths. Keep the original reads at borders
+        // or when a host supplies different depth/display extents.
+        if (all(equal(textureSize(depthtex0,0),sourceSize))
+            && all(greaterThan(pixel,ivec2(0))) && all(lessThan(pixel,sourceSize-1))) {
+            vec4 lowerDepth = textureGather(depthtex0,vec2(pixel)*texel,0);
+            vec4 upperDepth = textureGather(depthtex0,vec2(pixel+ivec2(1))*texel,0);
+            delta = max(max(abs(upperDepth.x-depth),abs(lowerDepth.z-depth)),
+                        max(abs(upperDepth.z-depth),abs(lowerDepth.x-depth)));
+        } else
+        #endif
+        delta = max(max(abs(textureLod(depthtex0, uv+vec2(texel.x,0),0.0).r-depth),
                               abs(textureLod(depthtex0, uv-vec2(texel.x,0),0.0).r-depth)),
                           max(abs(textureLod(depthtex0, uv+vec2(0,texel.y),0.0).r-depth),
                               abs(textureLod(depthtex0, uv-vec2(0,texel.y),0.0).r-depth)));
@@ -28,7 +44,6 @@ vec3 astra_fxaa(sampler2D source, vec2 uv, bool geometryOnly) {
     // Final and colortex13 share the native pixel grid. Two gathers at grid
     // corners retain the four cardinal lumas and also return NE/SW for edges.
     // Clamp-to-edge preserves the original border samples.
-    ivec2 pixel = clamp(ivec2(uv*vec2(sourceSize)),ivec2(0),sourceSize-1);
     vec4 lowerLuma = textureGather(source,vec2(pixel)*texel,3);
     vec4 upperLuma = textureGather(source,vec2(pixel+ivec2(1))*texel,3);
     float n = upperLuma.x;

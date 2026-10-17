@@ -83,13 +83,14 @@ vec4 astra_screen_cloud_sample(vec2 uv) {
     ivec2 size = textureSize(colortex24, 0);
     vec2 texel = 1.0 / vec2(size);
     vec2 edge = 0.5 * texel;
-    vec2 rangeUV = clamp(uv, edge, 1.0 - edge);
-    vec2 sampleUV = clamp(uv - astra_cloud_grid_offset(frameCounter, size), edge, 1.0 - edge);
     #if CLOUD_QUALITY == 2
     // Preserve integrated subpixel coverage. Sharpening alpha with two
     // S-curves would turn the anti-aliased silhouette back into hard steps.
-    return textureLod(colortex24, sampleUV, 0.0);
+    // High has no cloud-grid offset; retain its exact border clamp.
+    return textureLod(colortex24, clamp(uv, edge, 1.0 - edge), 0.0);
     #else
+    vec2 rangeUV = clamp(uv, edge, 1.0 - edge);
+    vec2 sampleUV = clamp(uv - astra_cloud_grid_offset(frameCounter, size), edge, 1.0 - edge);
     return astra_screen_cloud_edge_aware(colortex24, sampleUV, rangeUV, texel);
     #endif
     #else

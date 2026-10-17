@@ -10,6 +10,11 @@
 // docs/archive/实现与取证.md#record-077.
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
+// Same dimension condition as program/deferred.vsh: Nether/End never declare or
+// write this flat water kind, and medium_state.glsl already returns false there.
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+#define ASTRA_WATER_STATE_FRAME_READ
+#endif
 #include "/program/scene.glsl"
 uniform sampler2D colortex3;
 uniform sampler2D colortex23;
@@ -18,6 +23,8 @@ in vec2 texcoord;
 const int RGBA16F = 0;
 #endif
 const int colortex23Format = RGBA16F;
+// Even excluded media, sky and hand pixels write the identity segment.
+const bool colortex23Clear = false;
 /* RENDERTARGETS: 23 */
 void main() {
     vec4 result = astra_volume_identity();

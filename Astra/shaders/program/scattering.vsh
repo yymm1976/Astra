@@ -14,6 +14,8 @@ flat out vec4 waterShaftSource;
 flat out vec2 waterShaftSurface;
 flat out vec2 waterShaftFieldOrigin;
 flat out vec3 waterShaftIllumination;
+flat out vec3 waterShaftViewOrigin;
+flat out vec3 waterShaftWorldOrigin;
 #if CLOUD_MODE == CLOUD_PLANAR && defined CLOUD_SHADOWS
 flat out vec3 waterShaftAirSource;
 #endif
@@ -31,6 +33,8 @@ void main() {
     waterShaftSurface = vec2(0.0);
     waterShaftFieldOrigin = vec2(0.0);
     waterShaftIllumination = vec3(0.0);
+    waterShaftViewOrigin = vec3(0.0);
+    waterShaftWorldOrigin = vec3(0.0);
     #if CLOUD_MODE == CLOUD_PLANAR && defined CLOUD_SHADOWS
     waterShaftAirSource = vec3(0.0);
     #endif
@@ -73,11 +77,10 @@ void main() {
         gl_Position = vec4(-2.0,-2.0,0.0,1.0);
         return;
     }
-    vec4 perspectiveEye = gbufferProjectionInverse[2];
-    vec3 viewOrigin = abs(perspectiveEye.w) > 0.000001
-        ? perspectiveEye.xyz/perspectiveEye.w : vec3(0.0);
+    vec3 viewOrigin = projection_view_origin();
+    vec3 worldOrigin = view_camera_relative(viewOrigin);
     float surfaceY = water_unpack_surface_height(waterState.rg)-cameraPosition.y;
-    if (surfaceY-view_camera_relative(viewOrigin).y <= 0.032) {
+    if (surfaceY-worldOrigin.y <= 0.032) {
         gl_Position = vec4(-2.0,-2.0,0.0,1.0);
         return;
     }
@@ -89,6 +92,8 @@ void main() {
         return;
     }
     waterShaftSource = vec4(waterLightDir,visibility);
+    waterShaftViewOrigin = viewOrigin;
+    waterShaftWorldOrigin = worldOrigin;
     #if CLOUD_MODE == CLOUD_PLANAR && defined CLOUD_SHADOWS
     waterShaftAirSource = lightDir;
     #endif

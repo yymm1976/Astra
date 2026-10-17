@@ -13,6 +13,11 @@ uniform sampler2D colortex3;
 const float WATER_SHAFT_MAX_DISTANCE = 128.0;
 // Sentinel for an unread material record; legal colortex3 flags are 0..255.
 const uint WATER_SCENE_FLAGS_UNSET = 256u;
+#ifdef ASTRA_SHAFT_MARCH_PASS
+// The projection eye and its world transform are identical for the whole draw.
+flat in vec3 waterShaftViewOrigin;
+flat in vec3 waterShaftWorldOrigin;
+#endif
 
 // Four visibility samples per interval; each represents an integrated wave span.
 #if !defined ASTRA_OVERWORLD_OPTIMIZED || UNDERWATER_SHAFT_SAMPLES < 7
@@ -26,7 +31,11 @@ vec3 water_shafts_view_origin() {
     // model-view is its separate rotation. The perspective eye is the inverse
     // projection of the homogeneous clip Z axis, not necessarily view (0,0,0).
     // In a usual perspective projection this reduces exactly to that zero.
+    #ifdef ASTRA_SHAFT_MARCH_PASS
+    return waterShaftViewOrigin;
+    #else
     return projection_view_origin();
+    #endif
 }
 
 vec3 water_shafts_view(vec2 uv, out float rayLength, out float sceneDepth,
@@ -148,6 +157,7 @@ float water_shaft_wave_span(vec2 localEntry, vec2 entryRay, float begin, float s
     bool nearFade = begin < WATER_SHAFT_NEAR_END;
     bool farFade = end > WATER_SHAFT_FAR_START;
     bool filtered = angularFootprint*end > ITT_WATER_FIELD_CELL;
+    bool coarsest = angularFootprint*begin >= ITT_WATER_FIELD_CELL*16.0;
     vec2 localBegin = localEntry+entryRay*begin;
     vec2 localEnd = localEntry+entryRay*end;
     vec2 borderRange = min(min(localBegin,localEnd),
@@ -157,12 +167,15 @@ float water_shaft_wave_span(vec2 localEntry, vec2 entryRay, float begin, float s
     for (int i=0;i<8;++i) {
         float distance = begin+nodes[i]*span;
         vec2 local = localEntry+entryRay*distance;
-        float lod = 0.0;
-        if (filtered) {
+        float lod = coarsest ? 4.0 : 0.0;
+        if (filtered && !coarsest) {
             float footprint = max(ITT_WATER_FIELD_CELL,angularFootprint*distance);
             lod = clamp(log2(footprint/ITT_WATER_FIELD_CELL),0.0,4.0);
         }
         float irradiance = textureLod(colortex29,local/ITT_WATER_FIELD_EXTENT,lod).r;
+        // The field contains nonnegative flux; an exact zero stays zero after
+        // every border/distance filter and contributes nothing to this span.
+        if (irradiance == 0.0) continue;
         if (borderFade) {
             vec2 border = min(local,ITT_WATER_FIELD_EXTENT-local);
             irradiance *= smoothstep(2.0,3.0,min(border.x,border.y));
@@ -180,7 +193,7 @@ vec4 water_shafts_march(vec2 uv, out vec3 viewPos, out float marchLength) {
     uint sceneFlags;
     viewPos = water_shafts_view(uv,rayLength,sceneDepth,sceneFlags);
     vec3 viewOrigin = water_shafts_view_origin();
-    vec3 worldOrigin = view_camera_relative(viewOrigin);
+    vec3 worldOrigin = waterShaftWorldOrigin;
     vec3 ray = normalize(view_player(viewPos-viewOrigin));
     // Derivatives must be evaluated before per-pixel hand/depth early returns.
     vec3 rayDx = dFdx(ray), rayDy = dFdy(ray);
@@ -251,6 +264,7 @@ vec4 water_shafts_march(vec2 uv, out vec3 viewPos, out float marchLength) {
                 if (visibility <= 0.0) continue;
                 float irradiance = water_shaft_wave_span(localEntry,entryRay.xz,
                     waveBegin,cellLength,angularFootprint);
+                if (irradiance == 0.0) continue;
                 float lightPath=max(incidentPath-ray.y*distance/source.y,0.0);
                 vec3 transmission = exp(-incidentExtinction*lightPath-viewExtinction*distance);
                 // The complete integration is bounded to 26 blocks, so the

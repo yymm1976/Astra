@@ -14,7 +14,9 @@
 //
 // Uniforms: none beyond built-ins (alphaTestRef, gtexture)
 // design.md 3.2 layer 2: program/* is the only lib entry
-#if !defined DIMENSION_NETHER && !defined DIMENSION_END && defined GL_ARB_conservative_depth
+// Iris resolves conditionals before driver compilation and exposes extensions
+// as MC_GL_*. Keep GL_* for hosts that preprocess directly in the driver.
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && (defined MC_GL_ARB_conservative_depth || defined GL_ARB_conservative_depth)
 #extension GL_ARB_conservative_depth : enable
 #endif
 #include "/lib/settings.glsl"
@@ -32,9 +34,13 @@ in vec3 waterCasterWorld;
 #if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END
 in vec3 shadowUndistortedPosition;
 flat in vec3 shadowCasterPlaneNormal;
-#ifdef GL_ARB_conservative_depth
+#ifndef ASTRA_SOLID_SHADOW
+flat in vec4 shadowFoliageTexBounds;
+#endif
+#if defined ASTRA_SOLID_SHADOW && (defined MC_GL_ARB_conservative_depth || defined GL_ARB_conservative_depth)
 // Corrected depth never approaches the light, so occluded fragments can still
 // be rejected against the original raster depth before running this shader.
+// Foliage in the general program needs exact plane depth in either direction.
 layout(depth_greater) out float gl_FragDepth;
 #endif
 #endif
@@ -63,16 +69,45 @@ void main() {
     vec3 shadowDx=dFdx(shadowUndistortedPosition);
     vec3 shadowDy=dFdy(shadowUndistortedPosition);
     float shadowDet=shadowDx.x*shadowDy.y-shadowDx.y*shadowDy.x;
+    vec2 ray=undistort(vec3(gl_FragCoord.xy*(2.0/float(shadowMapResolution))-1.0,0.0)).xy;
+    #ifndef ASTRA_SOLID_SHADOW
+    // Derive texture gradients before any alpha/material branch. Depth and the
+    // foliage cutout must describe the SAME inverse-warped light ray. Ordinary
+    // interpolation on a radially warped triangle makes the holes slide over
+    // its depth plane as the camera moves, independently of wind strength.
+    vec2 shadowTexcoord=texcoord;
+    vec2 shadowTexcoordDx=dFdx(texcoord), shadowTexcoordDy=dFdy(texcoord);
+    vec2 rayDx=dFdx(ray), rayDy=dFdy(ray);
+    bool foliageCaster=shadowFoliageTexBounds.z>shadowFoliageTexBounds.x
+        && shadowFoliageTexBounds.w>shadowFoliageTexBounds.y;
+    if (foliageCaster && abs(shadowDet)>1e-20) {
+        vec2 uvRawX=(shadowTexcoordDx*shadowDy.y-shadowTexcoordDy*shadowDx.y)/shadowDet;
+        vec2 uvRawY=(shadowTexcoordDy*shadowDx.x-shadowTexcoordDx*shadowDy.x)/shadowDet;
+        vec2 rawDelta=ray-shadowUndistortedPosition.xy;
+        shadowTexcoord+=uvRawX*rawDelta.x+uvRawY*rawDelta.y;
+        shadowTexcoordDx=uvRawX*rayDx.x+uvRawY*rayDx.y;
+        shadowTexcoordDy=uvRawX*rayDy.x+uvRawY*rayDy.y;
+        // The straight raster edge can extend beyond the inverse-warped face.
+        // Keep its corrected lookup inside this quad's atlas rectangle.
+        vec2 inset=min(0.5/vec2(textureSize(gtexture,0)),
+                       (shadowFoliageTexBounds.zw-shadowFoliageTexBounds.xy)*0.25);
+        shadowTexcoord=clamp(shadowTexcoord,shadowFoliageTexBounds.xy+inset,
+                                          shadowFoliageTexBounds.zw-inset);
+    }
+    #endif
     gl_FragDepth=gl_FragCoord.z;
     bool analyticPlane = abs(shadowCasterPlaneNormal.z)>1e-6;
     if (waterCasterKind==0 && (analyticPlane || abs(shadowDet)>1e-20)) {
         vec2 plane=analyticPlane ? -shadowCasterPlaneNormal.xy/shadowCasterPlaneNormal.z
             : vec2(shadowDy.y*shadowDx.z-shadowDx.y*shadowDy.z,
                    shadowDx.x*shadowDy.z-shadowDy.x*shadowDx.z)/shadowDet;
-        vec2 ray=undistort(vec3(gl_FragCoord.xy*(2.0/float(shadowMapResolution))-1.0,0.0)).xy;
         float planeDepth=(shadowUndistortedPosition.z
             +dot(ray-shadowUndistortedPosition.xy,plane))*0.25+0.5;
+        #ifndef ASTRA_SOLID_SHADOW
+        gl_FragDepth=foliageCaster ? planeDepth : max(gl_FragCoord.z,planeDepth);
+        #else
         gl_FragDepth=max(gl_FragCoord.z,planeDepth);
+        #endif
     }
 #endif
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
@@ -125,7 +160,11 @@ void main() {
     #if defined ASTRA_SOLID_SHADOW && !defined DIMENSION_NETHER && !defined DIMENSION_END
     shadowData = vec4(WATER_HEIGHT_NONE, 1.0, 1.0, 1.0);
     #else
-	vec4 albedo = texture(gtexture, texcoord) * tint;
+    #if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+        vec4 albedo = textureGrad(gtexture,shadowTexcoord,shadowTexcoordDx,shadowTexcoordDy) * tint;
+    #else
+		vec4 albedo = texture(gtexture, texcoord) * tint;
+    #endif
 
 	if (waterHeight >= WATER_HEIGHT_NONE && albedo.a < alphaTestRef) {
 		discard;

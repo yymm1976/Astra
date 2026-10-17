@@ -12,7 +12,7 @@ void main() {
     texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
     #ifdef ASTRA_TAA
     #if defined ASTRA_BLOOM && !defined DIMENSION_NETHER && !defined DIMENSION_END
-    // The water display consumes colortex4 directly and rejects TAA history.
+    // The water display consumes colortex9 directly and rejects TAA history.
     // Neither full-screen copy is consumed here. composite7 still stamps the
     // water medium, so the first air frame rejects these untouched histories.
     if (isEyeInWater == 1) {

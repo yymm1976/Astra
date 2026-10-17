@@ -10,7 +10,8 @@
 // Adapted from Solas V2.2b by Septonious: common.glsl, waterFog.glsl,
 // color/lightColor.glsl. Source supplied locally; see THIRD-PARTY.md.
 // Astra adapters: prefixed names, existing world sun, linear scene boundary.
-// Both palettes retain the original terrain/surface intensities and colour domain.
+// Legacy palette helpers retain the reference domain; active overworld terrain
+// uses the shared air/water palette in diffuse_lighting instead.
 uniform vec3 astraSolasTerrainAmbient;
 uniform vec3 astraSolasTerrainDirect;
 uniform vec3 astraSolasSurfaceAmbient;

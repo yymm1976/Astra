@@ -6,6 +6,9 @@
 #include "/lib/scene_buffer_formats.glsl"
 #include "/program/scene.glsl"
 in vec2 texcoord;
+// Geometry pixels explicitly write zero; sky pixels write their complete HDR
+// result. Deferred consumes this same-frame target only after the full draw.
+const bool colortex9Clear = false;
 /* RENDERTARGETS: 9 */
 void main() {
     vec3 ray = normalize(view_player(screen_view(vec3(texcoord, 1.0))));

@@ -1,4 +1,4 @@
-// Shared scene assembly/display transform. Invoked once: composite8 with FXAA,
+// Shared scene assembly/display transform. Invoked once: composite8 with spatial AA,
 // otherwise final. Output dither belongs after AA and is never stored in the AA input.
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
@@ -8,6 +8,9 @@
 #include "/lib/encoding.glsl"
 #include "/lib/tonemap.glsl"
 #include "/global/post/grading.glsl"
+#if defined DIMENSION_NETHER && DEBUG_NETHER_LIGHT > 0
+#include "/global/dimension/nether_light_debug.glsl"
+#endif
 #ifdef DIMENSION_END
 #include "/global/post/end_sky_tonemap.glsl"
 #endif
@@ -89,12 +92,18 @@ vec3 display_air_hdr(vec3 hdr) {
 #endif
 #ifdef ASTRA_DISPLAY_PREPARE
     const int colortex13Format = RGBA16;
+    // Display preparation writes every spatial-AA input pixel before final reads it.
+    const bool colortex13Clear = false;
     /* RENDERTARGETS: 13 */
     #define ASTRA_DISPLAY_OUT gl_FragData[0]
 #else
     #define ASTRA_DISPLAY_OUT gl_FragColor
 #endif
 void main() {
+    #if defined DIMENSION_NETHER && DEBUG_NETHER_LIGHT > 0
+    ASTRA_DISPLAY_OUT=vec4(astra_nether_light_debug(texcoord),1.0);
+    return;
+    #endif
     #if DEBUG_VERTEX_AO == 1
     ASTRA_DISPLAY_OUT = vec4(texture(colortex0,texcoord).rgb,1.0);
     return;

@@ -167,7 +167,6 @@ vec3 astra_get_sky_base(float VdotU, float VdotS, AstraSkyFactors f, AstraSkyPal
 	float VdotSM3 = pow2(pow2(max(-VdotS, 0.0)));
 
 	float VdotUmax0 = max(VdotU, 0.0);
-	float VdotUmax0M = 1.0 - pow2(VdotUmax0);
 
 	// :24-26
 	vec3 upColor     = mix(p.nightUp     * (1.5 - 0.5 * nightFactorSqrt2 + nightFactorM * VdotSM3 * 1.5),

@@ -66,7 +66,8 @@ float astra_volume_extinction(float worldY, float density) {
 float astra_volume_phase(float mu) {
 	float g = clamp(ASTRA_VOLUME_PHASE_G, -0.8, 0.8);
 	float g2 = g * g;
-	return (1.0 - g2) / (12.5663706 * pow(1.0 + g2 - 2.0 * g * mu, 1.5));
+    float base = 1.0 + g2 - 2.0 * g * mu;
+	return (1.0 - g2) / (12.5663706 * base * sqrt(base));
 }
 
 // Sky-ambient incident radiance for the in-scatter floor. The cave floor colour is
@@ -117,8 +118,8 @@ vec4 astra_volume_incident_segment(vec3 incident, float extinction, float distan
 
 // Integrate the camera ray out to distanceBlocks. Segments are composed near-first
 // (astra_volume_compose contract); each segment is treated as homogeneous at its
-// sample point. Beyond the bounded march the residual is one analytic segment at the
-// bound's density, so far geometry converges into the haze instead of cutting off.
+// sample point. Beyond the bounded march the residual is one analytic segment at its
+// midpoint's density, so far geometry converges into the haze instead of cutting off.
 // shadowMap=false is the cheap mode (cloud shadow only) used by the prefix query.
 vec4 astra_volume_march_from(vec3 origin, vec3 rayWorld, float distanceBlocks,
                             bool shadowMap, int steps) {
@@ -174,14 +175,17 @@ vec4 astra_volume_march_from(vec3 origin, vec3 rayWorld, float distanceBlocks,
                                        shadowClip, traceShadows);
 		volume = astra_volume_compose(volume, astra_volume_incident_segment(source, sigma, stepLength));
 	}
-	if (distanceBlocks > marchLength) {
-		vec3 p = origin + rayWorld * marchLength;
-		float sigma = astra_volume_extinction(cameraPosition.y + p.y,density);
-		vec3 source = astra_volume_light(p, lightDirWorld, direct, incident,
+    if (distanceBlocks > marchLength) {
+        float residualLength = distanceBlocks - marchLength;
+        // Represent the whole residual instead of extending its starting
+        // height indefinitely along upward or downward rays.
+        vec3 p = origin + rayWorld * (marchLength + 0.5 * residualLength);
+        float sigma = astra_volume_extinction(cameraPosition.y + p.y,density);
+        vec3 source = astra_volume_light(p, lightDirWorld, direct, incident,
                                        vec4(0.0), false);
-		volume = astra_volume_compose(volume,
-			astra_volume_incident_segment(source, sigma, distanceBlocks - marchLength));
-	}
+        volume = astra_volume_compose(volume,
+            astra_volume_incident_segment(source, sigma, residualLength));
+    }
 	return volume;
 }
 

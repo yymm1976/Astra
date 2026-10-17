@@ -1,8 +1,8 @@
 #ifndef ASTRA_PROGRAM_WATER_GLSL
 #define ASTRA_PROGRAM_WATER_GLSL
 // SC-34 follow-up: colour, depth, interface side and path length are inseparable.
-// Above water uses Steadfast Fresnel and refraction; underwater retains Solas
-// waves/colour domain with an ITT-inspired refracted sky and critical-angle window.
+// Above water uses Steadfast Fresnel and refraction; the underwater interface
+// uses ITT waves and sky-window optics, with every mixture in linear light.
 // From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot:
 // historical translucent.glsl composition adaptation. Source at
 // _analysis/Steadfast-0.8.0/shaders/environment/lighting/translucent.glsl.
@@ -12,6 +12,7 @@
 #include "/global/water/surface.glsl"
 #include "/global/water/raytrace.glsl"
 #include "/global/water/refraction.glsl"
+#include "/lib/celestial_sprite.glsl"
 uniform sampler2D colortex4;
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END
 uniform sampler2D colortex28;
@@ -216,8 +217,6 @@ float water_transmission_sample(vec2 uv, vec3 origin, vec3 faceNormal, float sky
     ivec2 size = textureSize(depthtex1,0);
     if (any(lessThan(uv,vec2(0.0))) || any(greaterThanEqual(uv,vec2(1.0)))) return 0.0;
     ivec2 anchorPixel = ivec2(uv*vec2(size));
-    float receiverDistance = length(origin);
-    vec3 incidentLight = astra_water_incident(skylight);
     float depth = knownAnchorDepth >= 0.0 ? knownAnchorDepth : texelFetch(depthtex1,anchorPixel,0).r;
     vec3 endpoint;
     vec4 entity;
@@ -225,6 +224,8 @@ float water_transmission_sample(vec2 uv, vec3 origin, vec3 faceNormal, float sky
     if (depth >= 0.999999 && entity.a <= 0.0) return 0.0;
     float acceptance = water_side_acceptance(-1.0,endpoint,origin,faceNormal);
     if (acceptance <= 0.0) return 0.0;
+    float receiverDistance = length(origin);
+    vec3 incidentLight = astra_water_incident(skylight);
     vec3 transmission,scattering;
     water_surface_path_transfer(origin,endpoint,faceNormal,true,receiverDistance,
                                 incidentLight,transmission,scattering);
@@ -693,7 +694,7 @@ flat in vec3 waterSunRight;
 flat in vec3 waterSunVertical;
 #endif
 #endif
-vec3 water_transmitted_sun(vec3 direction, float angularFootprint) {
+vec3 water_transmitted_sun(vec3 direction, float angularFootprint, float cloudTransmittance) {
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
     vec3 centre=waterSunCentre;
     #else
@@ -719,8 +720,8 @@ vec3 water_transmitted_sun(vec3 direction, float angularFootprint) {
     vec2 spriteUV=vec2(dot(direction,right),dot(direction,vertical))/(0.672*alignment)+0.5;
     if (any(lessThan(spriteUV,vec2(0.0))) || any(greaterThan(spriteUV,vec2(1.0))))
         return vec3(0.0);
-    vec4 sprite=textureLod(astraSunTexture,spriteUV,0.0);
-    source=astra_scene_highlights(srgb_decode(max(sprite.rgb,vec3(0.0)))
+    vec4 sprite=astra_celestial_sprite(astraSunTexture,spriteUV);
+    source=astra_scene_highlights(sprite.rgb
         *mix(vec3(2.0,1.90,1.65),vec3(2.0,1.28,0.56),astra_twilight_strength()))*sprite.a;
     #else
     const float radius=0.028;
@@ -732,9 +733,8 @@ vec3 water_transmitted_sun(vec3 direction, float angularFootprint) {
     #endif
     if (max(max(source.r,source.g),source.b)<=0.001) return vec3(0.0);
     float visibility=mix(1.0,0.25,astraRainFactor)*solas_sun_visibility();
-    #if CLOUD_MODE == CLOUD_PLANAR
-    visibility*=1.0-astra_planar_cloud(direction).a;
-    #endif
+    if (visibility == 0.0) return vec3(0.0);
+    visibility*=cloudTransmittance;
     return source*visibility;
 }
 
@@ -777,7 +777,7 @@ vec4 astra_underwater_interface(vec3 litWater, vec3 viewPos, vec3 normal, vec3 f
     #endif
     if (screenReflectionShare > 0.0) {
         vec4 hit = vec4(0.0);
-        #ifdef SCREENSPACE_REFLECTIONS
+        #ifdef UNDERWATER_SURFACE_REFLECTIONS
             hit = water_raytrace(depthtex1, viewPos, reflectedRay, faceNormal);
         #endif
         if (hit.a > 0.0) {
@@ -788,22 +788,21 @@ vec4 astra_underwater_interface(vec3 litWater, vec3 viewPos, vec3 normal, vec3 f
             reflectionWeight = hit.a * screenReflectionShare
                 * water_sample_path(hit.xy, viewPos, faceNormal,
                 true, true, 0.0, skylight, hit.z, radiance);
-            // Complete TIR with a complete paired hit has no gamma-space blend.
-            // Encoding this radiance only to decode it again adds no effect.
+            // A complete paired hit owns the full total-internal-reflection ray.
             if (totalReflection && reflectionWeight >= 1.0)
                 return vec4(max(radiance,vec3(0.0)),1.0);
             if (reflectionWeight > 0.0)
-                reflection = pow(max(radiance,vec3(0.0)),vec3(1.0/2.2));
+                reflection = max(radiance,vec3(0.0));
         }
     }
     // Full-confidence geometry owns the reflected leg. Only misses / partial
-    // hits need the long-water fallback and its gamma-domain conversion.
+    // hits need the long-water fallback. Every mixture stays in linear light.
     if (reflectionWeight < 1.0) {
         vec3 waterIncident = astra_water_incident(skylight);
-        vec3 fallback = pow(max(water_medium(litWater,48.0,waterIncident),vec3(0.0)),vec3(1.0/2.2));
+        vec3 fallback = max(water_medium(litWater,48.0,waterIncident),vec3(0.0));
         reflection = mix(fallback,reflection,reflectionWeight);
     }
-    if (totalReflection) return vec4(pow(max(reflection,vec3(0.0)),vec3(2.2)),1.0);
+    if (totalReflection) return vec4(max(reflection,vec3(0.0)),1.0);
     // Fresnel already solved Snell's transmitted cosine. Reuse that root for
     // the same refracted ray instead of solving the interface a second time.
     vec3 refractedRay = WATER_IOR*windowIncident
@@ -846,28 +845,34 @@ vec4 astra_underwater_interface(vec3 litWater, vec3 viewPos, vec3 normal, vec3 f
     if (geometryCoverage < 1.0) {
         vec3 skyDirection = normalize(view_player(refractedRay));
         vec3 sky;
+        float cloudTransmittance = 1.0;
         #if CLOUD_MODE == CLOUD_PLANAR
         // The same current-frame sky/cloud environment used by water above.
         // Near the critical angle refraction magnifies the angular footprint.
         float skyRoughness = clamp(angularFootprint*WATER_IOR
             / max(abs(dot(refractedRay,normal)),0.05),0.0,0.20);
-        sky = astra_cached_reflection_sky(skyDirection,skyRoughness);
+        vec4 environment = astra_cached_reflection_environment(skyDirection,skyRoughness);
+        sky = environment.rgb;
+        cloudTransmittance = clamp(environment.a,0.0,1.0);
         #ifdef STARS
         // The low-frequency reflection cache deliberately excludes star points.
-        sky += astra_star_field(skyDirection)*(1.0-astra_planar_cloud(skyDirection).a);
+        vec3 stars = astra_star_field(skyDirection);
+        // Share the same cloud footprint as the cached sky, with no per-pixel
+        // cloud search for either individual stars or the galactic band.
+        sky += stars*cloudTransmittance;
         #endif
         #else
         sky = astra_overworld_sky(skyDirection);
         #endif
         sky+=water_transmitted_sun(skyDirection,angularFootprint*WATER_IOR
-            /max(abs(dot(refractedRay,normal)),0.05));
-        background = pow(max(mix(sky,transmittedGeometry,geometryCoverage),vec3(0.0)),vec3(1.0/2.2));
+            /max(abs(dot(refractedRay,normal)),0.05),cloudTransmittance);
+        background = max(mix(sky,transmittedGeometry,geometryCoverage),vec3(0.0));
     } else {
         // A sky ray above used to read and convert the opaque background too,
         // then overwrite it. Geometry alone needs this scene lookup.
-        background = pow(max(transmittedGeometry,vec3(0.0)),vec3(1.0/2.2));
+        background = max(transmittedGeometry,vec3(0.0));
     }
-    return vec4(pow(max(mix(background,reflection,fresnel),vec3(0.0)),vec3(2.2)),1.0);
+    return vec4(max(mix(background,reflection,fresnel),vec3(0.0)),1.0);
 }
 #endif
 
@@ -895,9 +900,16 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
     if (water && !belowWater) {
         // Air-to-water cannot reach total internal reflection. This branch
         // owns the existing Schlick response, so no dielectric solve is needed.
-        // Modest reflective floor; the water body remains visible and the
-        // grazing response still reaches one.
-        fresnel = (0.042 + 0.958 * pow5(clamp(1.0 + dot(incident, viewNormal), 0.0, 1.0))) * skylight;
+        // Derive the face-on reflection from the same water IOR as refraction.
+        // A fixed 4.2% floor overweights neutral sky against a dark water body.
+        // The grazing response still reaches one; source glints stay separate.
+        #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+        const float waterF0Ratio = (WATER_IOR - 1.0) / (WATER_IOR + 1.0);
+        const float waterF0 = waterF0Ratio * waterF0Ratio;
+        #else
+        const float waterF0 = 0.042;
+        #endif
+        fresnel = (waterF0 + (1.0-waterF0) * pow5(clamp(1.0 + dot(incident, viewNormal), 0.0, 1.0))) * skylight;
     } else
         fresnel = water_fresnel(max(dot(-incident, viewNormal), 0.0), eta, totalReflection);
     vec3 reflectedRay = reflect(incident, viewNormal);
@@ -1009,9 +1021,13 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
     if (!belowWater && fresnel > 0.0 && skylight > 0.0 && astraDirectLightGate > 0.0) {
         vec3 source = astra_world_light_direction();
         float sourceStrength = mix(float(MOONLIGHT_STRENGTH),float(SUNLIGHT_STRENGTH),astraSunSource)*0.01;
-        float glint = water_source_glint(reflectedWorld,source,geometric,roughness)
-                    * astraDirectLightGate * sourceStrength
-                    * mix(astraMoonIllumination,1.0,astraSunSource);
+        float sourceIllumination = mix(astraMoonIllumination,1.0,astraSunSource);
+        // Disabled light settings and an exactly dark moon cannot contribute.
+        // Keep the original lobe and multiplication order whenever light exists.
+        float glint = 0.0;
+        if (sourceStrength != 0.0 && sourceIllumination != 0.0)
+            glint = water_source_glint(reflectedWorld,source,geometric,roughness)
+                  * astraDirectLightGate * sourceStrength * sourceIllumination;
         if (glint > 0.002) {
             vec3 sourceShadow = shadow_map_position(playerPos,geometric,dot(geometric,source));
             vec3 visibility = surface_shadow_light(playerPos,sourceShadow,skylight);
@@ -1085,7 +1101,20 @@ vec4 astra_water(vec3 color, float alpha, vec3 playerPos, vec3 viewPos,
             vec3 straight = vec3(0.0);
             float straightValid=0.0;
             if (!airMiss) {
-                if (unshiftedPath) {
+                bool straightPathCached = unshiftedPath;
+                #ifdef SCREENSPACE_REFRACTION
+                if (!straightPathCached && water && !belowWater && geometric.y > 0.9) {
+                    // This path point-fetches one paired scene pixel. A subpixel
+                    // UV shift inside that same pixel cannot change its endpoint,
+                    // radiance or acceptance: reuse that query for the fallback,
+                    // keeping the original final UV-dependent blend. Other paths
+                    // retain their exact-UV requirement. floor excludes offscreen
+                    // UVs beside the viewport's first row/column as well.
+                    vec2 sceneSize = vec2(textureSize(depthtex1, 0));
+                    straightPathCached = all(equal(floor(refractedUV * sceneSize), floor(uv * sceneSize)));
+                }
+                #endif
+                if (straightPathCached) {
                     straight = transmitted;
                     straightValid = valid;
                 } else if (water && !belowWater && geometric.y > 0.9) {

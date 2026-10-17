@@ -1,6 +1,6 @@
 // Astra E1/E2. Single lit fragment entry for native geometry.
 #include "/lib/settings.glsl"
-#if defined ASTRA_WATER_PASS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
 #define ASTRA_WATER_STATE_FRAME_READ
 #endif
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_WATER_PASS && !defined ASTRA_WEATHER
@@ -8,6 +8,7 @@
 #define ASTRA_SURFACE_SHADOW_FRAGMENT
 #endif
 #include "/lib/uniforms.glsl"
+#define ASTRA_HELD_LIGHT_FRAGMENT
 #include "/program/scene.glsl"
 #include "/lib/surface_emission.glsl"
 #include "/lib/rock_material.glsl"
@@ -202,12 +203,23 @@ void main() {
     vec3 faceNormal = unpack_octahedral(faceData, 9);
     vec3 normal = faceNormal;
     uint material = (faceData >> 18) & 15u;
+    uint lightingMaterial = material;
+    #if defined ORE_GLOW && defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT
+    uint oreType = (faceData >> 27) & 15u;
+    // Triggered redstone uses the same fleck-only emission, not two glow terms.
+    if (oreType != 0u && material == 10u) lightingMaterial = 0u;
+    #endif
     bool water = material == 1u;
     bool ice = material == 9u;
     bool iceTop = ice && normal.y > 0.99;
     #ifdef ASTRA_WATER_PASS
-        vec2 waveCoord=playerPos.xz-playerPos.y*0.2;
-        float wavePixel=max(length(dFdx(waveCoord)),length(dFdy(waveCoord)));
+        float wavePixel = 0.0;
+        if (isEyeInWater == 1) {
+            // Only the submerged ITT field consumes this footprint. The medium
+            // is draw-uniform, so derivatives remain defined for the full quad.
+            vec2 waveCoord=playerPos.xz-playerPos.y*0.2;
+            wavePixel=max(length(dFdx(waveCoord)),length(dFdy(waveCoord)));
+        }
         // Evaluate derivatives before alpha rejection or divergent material flow.
         // The air interface keeps its filtered waves. The submerged horizontal
         // interface shares ITT's moving normal field with the volume's entry
@@ -291,7 +303,11 @@ void main() {
         if (albedo.a < alphaTestRef) discard;
     }
     #else
+    #ifndef ASTRA_TERRAIN_SOLID
+    // Iris routes this entry only through the solid-terrain OFF-alpha key.
+    // Cutout and legacy terrain retain the original texture alpha rejection.
     if (albedo.a < alphaTestRef) discard;
+    #endif
     #endif
     #ifdef ASTRA_WEATHER
     // The near-camera fade can erase rain entirely. An invisible fragment
@@ -300,6 +316,10 @@ void main() {
     #endif
     #if defined DIMENSION_NETHER || defined DIMENSION_END
     float rockSmoothness = astra_rock_smoothness(material, textureColor.rgb);
+    #if defined DIMENSION_NETHER && defined ASTRA_TERRAIN
+    bool netherMasonry = (faceData & (1u << 26)) != 0u;
+    if (netherMasonry) rockSmoothness = astra_nether_masonry_smoothness(textureColor.rgb);
+    #endif
     #endif
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
     if (water && isEyeInWater == 1) {
@@ -374,16 +394,17 @@ void main() {
                            astraBlocklightSuppression, astraHeldLightSuppression));
     #else
     #ifdef ASTRA_WATER_PASS
-    // Only the submerged horizontal interface consumes a lit water layer.
-    // Vertical sheets transport the opaque background and a small sky sheen.
+    // The Overworld's submerged horizontal interface uses lit water for its
+    // missed-reflection fallback. Other dimensions' fluid path ignores it;
+    // ice and non-water translucent surfaces still need their own lighting.
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
     if (!water || (isEyeInWater == 1 && abs(geometricNormal.y) > 0.9))
     #else
-    if (!water || isEyeInWater == 1)
+    if (!water)
     #endif
     #endif
     color = astra_light(albedo.rgb, water && isEyeInWater == 1 ? -normal : normal, playerPos, surfaceShadowPosition,
-                             lightLevel.y, lightLevel.x, material, directRadiance,
+                             lightLevel.y, lightLevel.x, lightingMaterial, directRadiance,
                              vertexAO, ambientRadiance, skyResponse);
     #endif
     #if defined DIMENSION_NETHER && defined ASTRA_TERRAIN
@@ -393,6 +414,8 @@ void main() {
         float peak = max(color.r, max(color.g, color.b));
         color *= 0.80 / (1.0 + peak * 0.18);
     }
+    if (netherMasonry)
+        color = nether_masonry_ambient(color,albedo.rgb,normal,vertexAO);
     #endif
     #if defined ASTRA_SSAO && !defined ASTRA_TRANSLUCENT
     gl_FragData[ASTRA_AMBIENT_SLOT] = vec4(0.0);
@@ -445,6 +468,9 @@ void main() {
     }
     #endif
     #if defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT
+    #ifdef ORE_GLOW
+    color += astra_ore_emission(oreType, textureColor.rgb);
+    #endif
     #ifdef DIMENSION_END
     vec3 endStoneEmission = astra_end_stone_emission(material,albedo.rgb);
     color += endStoneEmission;

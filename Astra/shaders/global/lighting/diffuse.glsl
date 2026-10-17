@@ -123,6 +123,7 @@ vec3 ambient_sky_lighting(float skyLightStrength, float ambientStrength, vec3 sk
 vec3 direct_lighting(
 	vec3  worldNormal,
 	vec3  worldLightVector,
+	float ndotl,
 	vec3  playerPos,
 	vec3  shadowPos,
 	float skyLight,
@@ -132,7 +133,6 @@ vec3 direct_lighting(
 	vec3  visibility,
 	vec3  viewDir
 ) {
-	float ndotl = dot(worldNormal, worldLightVector);
 	float directLightStrength;
 	float sssTransmission = 0.0;
 
@@ -310,6 +310,8 @@ vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
         // exceeds the user's softness. Coarse distant maps can therefore blur
         // beyond the preferred world radius; coverage still fades at the rim.
         float mapRim = max(1.0-length(shadowPos.xy*2.0-1.0),0.0001);
+        // Inverse radial derivative: p = a*q/(1-|q|), so dp/d|q| =
+        // a/(1-|q|)^2. The squared rim is the widest texel axis, not a duplicate.
         float worldTexel = (2.0*shadowDistance*SHADOW_DISTORT_FACTOR)
                          / (float(shadowMapResolution)*mapRim*mapRim);
         float softRadius=max(0.22,0.75*sqrt(astraSurfaceShadowPixelWorldSquared));
@@ -390,8 +392,7 @@ vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
 // Shared zero-response gate for surface shadows and the caller's cloud visibility.
 // Ground foliage retains its positive wrap; glass keeps its fixed top response.
 bool astra_direct_facing_away(float ndotl, bool subsurfaceScatter, bool isLeaves,
-                             bool isGlass, bool volumeWater) {
-    if (volumeWater) return ndotl <= (0.01 / 1.01);
+                             bool isGlass) {
     return !isGlass && (subsurfaceScatter
         ? (isLeaves && ndotl <= -(0.35 / 0.65))
         : ndotl <= -0.05);
@@ -444,77 +445,40 @@ vec3 diffuse_lighting(
     // The value handed back for skipped pixels is 1.0
     // because every consumer multiplies it by a facing term that is zero here.
     float facingNdotL = dot(worldNormal, worldLightVector);
-    bool volumeWater = isEyeInWater == 1 && !water_is_thin_sheet();
+    bool thinSheet = water_is_thin_sheet();
+    bool volumeWater = isEyeInWater == 1 && !thinSheet;
     // Leaves have a finite wrap too: below -0.35/0.65 both Lambert and wrap
     // are zero. Their transmission only remixes visibility, so it cannot make
     // this zero direct response contribute light. Skip those canopy queries.
     bool facingAway = astra_direct_facing_away(facingNdotL, subsurfaceScatter,
-                                              isLeaves, isGlass, volumeWater);
+                                              isLeaves, isGlass);
     vec3 visibility = facingAway
         ? vec3(1.0)
         : surface_shadow_light(playerPos, shadowPos, skyLight);
+    // The same bank/bed material keeps the same incident sky and sun palette
+    // when the eye crosses the interface. Shadow transmission owns the incoming
+    // sun's water leg; the final composite owns the camera leg, each once.
+    float ambientSkyLight = skyLight;
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
     if (volumeWater) {
-        // Retain Solas light colours; let diffuse water illumination survive
-        // cast shadows instead of extinguishing it with squared sky access.
-        vec3 ambient, direct;
-        #if defined ASTRA_TERRAIN && !defined ASTRA_WATER_PASS
-            solas_water_lighting(ambient, direct, true);
-        #else
-            solas_water_lighting(ambient, direct, false);
-        #endif
-        float NoL = max(dot(worldNormal, worldLightVector), 0.0);
-        vec3 shadow = max(visibility * clamp(NoL * 1.01 - 0.01, 0.0, 1.0), vec3(0.0));
-        vec3 sunWeight = shadow * (1.0 - wetness * 0.75) * astraSolasShadowFade;
-        float skyAccess = sqrt(clamp(skyLight, 0.0, 1.0));
-        #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-        // Vanilla sky light reaches zero in a deep water column. Recover
-        // diffuse access from the already cached local interface, so a shaded
-        // seabed does not become a cave solely because it is >15 blocks deep.
-        // Geometry reads the last composed interface; no new target is needed.
         vec4 waterState = water_volume_state();
         if (waterState.a > 0.5) {
             float waterDepth = max(water_unpack_surface_height(waterState.rg)
                                  - cameraPosition.y - playerPos.y, 0.0);
-            float surfaceAccess = sqrt(clamp(waterState.b, 0.0, 1.0));
-            skyAccess = max(skyAccess, surfaceAccess * 0.60 * exp(-waterDepth*0.035));
+            float surfaceAccess = clamp(waterState.b, 0.0, 1.0);
+            ambientSkyLight = max(ambientSkyLight, surfaceAccess*exp(-waterDepth*0.035));
         }
-        #endif
-        vec3 waterAmbient = ambient * skyAccess * (SKYLIGHT_STRENGTH * 0.01)
-                          * mix(vec3(1.0), astraWaterTransmissionTint, 0.35);
-        // Direct light still obeys the shadow map. Ambient fill never depends
-        // on the caustic peak or on whether a face points towards the sun.
-        vec3 sceneLight = waterAmbient + direct * sunWeight;
-        float vanilla = (0.25 * worldNormal.y + 0.75)
-            + (0.667 - abs(worldNormal.x)) * (1.0 - abs(worldNormal.y)) * 0.15;
-        vanilla = mix(1.0, vanilla * vanilla, clamp(float(eyeBrightnessSmooth.y) / 240.0, 0.0, 1.0));
-        sceneLight += max(solasMinLight, MIN_AMBIENT_COLOR)
-                    + params.nightVision * vec3(0.2, 0.3, 0.2);
-        float held = held_light_strength(params.heldLightBase, playerPos);
-        float localIntensity = local_light_intensity(skyLight, blockLight, held,
-                                   params.blocklightSuppression, params.heldLightSuppression);
-        // The lake bed is lit by the same light as the bank it belongs to, and the
-        // same night colour rule applies to it. Skipping this made a night lake bed
-        // the one surface that stayed fully saturated under a desaturated night.
-        // facingAway pixels carry the fake visibility = 1.0 from the shadow-fetch
-        // skip; without this gate they would take the MAXIMUM desaturation while
-        // being the surfaces that receive no moonlight at all - the exact surfaces
-        // the night rule says keep their albedo (consolidated review D3 / Qoder F-44).
-        surfaceColor = desaturate_surface(surfaceColor, facingAway ? 0.0 : night_desaturation(skyLight,
-            1.0 - clamp(localIntensity, 0.0, 1.0),
-            visibility));
-        directRadiance = surfaceColor * direct * sunWeight * vanilla;
-        return surfaceColor * (sceneLight * vanilla + BLOCKLIGHT_COLOR * min(1.0, localIntensity));
     }
+    #endif
 
-    // Air-only terms: the underwater branch supplies its own ambient response.
     // Only foliage transmission consumes the view direction.
     bool directContributes = !facingAway && any(notEqual(params.directLightSurface, vec3(0.0)));
     vec3 viewDir = directContributes && subsurfaceScatter && SSS_STRENGTH > 0 && skyLight > 0.20
         ? normalize(-playerPos) : vec3(0.0);
 	float ambientStr = ambient_strength(subsurfaceScatter ? 0.7071 : worldNormal.y);
-	vec3 lighting = ambient_sky_lighting(max(skyLight, params.nightVision), ambientStr, params.skyAmbient);
+	vec3 lighting = ambient_sky_lighting(max(ambientSkyLight, params.nightVision), ambientStr, params.skyAmbient);
     #if defined ASTRA_DIRECTIONAL_SKYLIGHT && !defined ASTRA_SKY_SH_WRITE
-    if ((isEyeInWater == 0 || water_is_thin_sheet()) && !subsurfaceScatter && !isGlass) {
+    if ((isEyeInWater == 0 || thinSheet) && !subsurfaceScatter && !isGlass) {
         float access = skyLight * mix(0.25, 1.0, skyLight);
         // Night vision retains its established isotropic/readability behaviour.
         float directionalKeep = 1.0 - clamp(params.nightVision, 0.0, 1.0);
@@ -580,13 +544,16 @@ vec3 diffuse_lighting(
 	// 2. Local light: block light + handheld (held uses the player-centred light source).
     vec3 ambientLighting = lighting;
 	float heldLight = held_light_strength(params.heldLightBase, playerPos);
-	float localIntensity = local_light_intensity(
+	vec2 localComponents = local_light_components(
 		skyLight,
 		blockLight,
 		heldLight,
 		params.blocklightSuppression,
 		params.heldLightSuppression);
-	lighting += BLOCKLIGHT_COLOR * min(1.0, localIntensity);
+    if (localComponents.y > 0.0)
+        localComponents.y *= astra_held_light_facing(playerPos, worldNormal);
+    float localIntensity = localComponents.x + localComponents.y;
+	lighting += astra_local_light_radiance(localComponents);
 
 	// 3. Lightning flash (additive, transient). Gated by LIGHTNING_FLASH.
 	#ifdef LIGHTNING_FLASH
@@ -597,7 +564,7 @@ vec3 diffuse_lighting(
     // The same facing gate already rejected shadow queries. A zero direct
     // response needs neither the SSS view lobe nor the directional solve.
 	vec3 direct = directContributes ? direct_lighting(
-		worldNormal, worldLightVector, playerPos, shadowPos,
+		worldNormal, worldLightVector, facingNdotL, playerPos, shadowPos,
 		skyLight, subsurfaceScatter, isLeaves, isGlass,
 		visibility * (subsurfaceScatter ? 0.7071 : 1.0),
 		viewDir) : vec3(0.0);
@@ -613,8 +580,7 @@ vec3 diffuse_lighting(
 	// colour. Runs for glass and foliage too: those are exactly the surfaces whose
 	// night colour used to be decided entirely by the sky.
 	float localAttenuation = 1.0 - clamp(localIntensity, 0.0, 1.0);
-	// Same facingAway gate as the underwater branch above: the skip's neutral
-	// visibility must not read as "fully moonlit" here (consolidated review D3).
+	// A skipped shadow query's neutral visibility must not read as fully moonlit.
 	surfaceColor = desaturate_surface(
 		surfaceColor, facingAway ? 0.0 : night_desaturation(skyLight, localAttenuation, visibility));
 	directRadiance = surfaceColor * direct * params.directLightSurface;

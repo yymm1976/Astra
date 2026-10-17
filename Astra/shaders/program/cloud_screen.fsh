@@ -1,6 +1,12 @@
 // Astra screen-cloud cache. Uses the existing Complementary-derived cloud model.
 // Separate from the spherical reflection environment: this projection follows the view.
 #define ASTRA_SCREEN_CLOUD_WRITE
+// Overworld only: the matching vertex stage (program/cloud_screen.vsh) declares
+// and writes the same flat water kind. The cloud sky lookup consumes it per ray;
+// reusing the draw-wide value removes the per-pixel colortex6 fetch.
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+#define ASTRA_WATER_STATE_FRAME_READ
+#endif
 #include "/program/scene.glsl"
 in vec2 texcoord;
 #ifdef CLOUD_TEMPORAL
@@ -41,6 +47,7 @@ vec4 astra_screen_cloud_current(vec2 uv, vec3 centreRay, vec2 centreInterval,
         #endif
         0));
     vec4 sum = vec4(0.0);
+    AstraCloudFrame frameCloud = astra_cloud_frame();
     for (int sampleIndex=0;sampleIndex<4;++sampleIndex) {
         vec2 offset=vec2((sampleIndex & 1)==0 ? -0.25 : 0.25,
                          (sampleIndex & 2)==0 ? -0.25 : 0.25)*texel;
@@ -50,7 +57,7 @@ vec4 astra_screen_cloud_current(vec2 uv, vec3 centreRay, vec2 centreInterval,
         sampledVisible = true;
         vec3 sampleRepresentative;
         vec4 cloud=astra_planar_cloud(sampleRay,1e20,sampleRepresentative,
-                                     footprint*0.5,sampleInterval);
+                                     footprint*0.5,sampleInterval,frameCloud);
         sum += vec4(cloud.rgb*cloud.a,cloud.a);
         representative += sampleRepresentative*cloud.a;
     }
@@ -64,6 +71,20 @@ vec4 astra_screen_cloud_current(vec2 uv, vec3 centreRay, vec2 centreInterval,
     #endif
 }
 void main() {
+    // These conditions are uniform for the draw. Preserve the empty output and
+    // current history stamp without reconstructing rays or probing opaque depth.
+    // Derivatives below therefore still run in uniform control flow.
+    if (!(isEyeInWater < 2 && blindness <= 0.0001)) {
+        #ifdef ASTRA_CLOUD_TEMPORAL
+        vec4 cloudMeta;
+        gl_FragData[0] = astra_cloud_temporal_resolve(vec4(0.0), vec3(0.0), vec3(0.0),
+                                                    false, texcoord, cloudMeta);
+        gl_FragData[1] = cloudMeta;
+        #else
+        gl_FragData[0] = vec4(0.0);
+        #endif
+        return;
+    }
     vec2 sampleUV = texcoord;
     #ifdef ASTRA_CLOUD_TEMPORAL
     sampleUV += astra_cloud_grid_offset(frameCounter, textureSize(colortex24, 0));
@@ -71,7 +92,7 @@ void main() {
     vec3 ray = normalize(view_player(screen_view(vec3(sampleUV, 1.0))));
     float angularFootprint = max(length(dFdx(ray)), length(dFdy(ray)));
     vec2 interval = astra_cloud_interval(ray);
-    bool visibleCloud = interval.y > interval.x && isEyeInWater < 2 && blindness <= 0.0001;
+    bool visibleCloud = interval.y > interval.x;
     bool occluded = false;
     // A ray missing the slab has no cloud endpoint to compare with terrain.
     // Keep derivatives above and the empty/history output below unchanged.
@@ -124,7 +145,7 @@ void main() {
     vec3 representative = vec3(0.0);
     vec4 current = vec4(0.0);
     bool sampledVisible = false;
-    if (!occluded && isEyeInWater < 2 && blindness <= 0.0001)
+    if (!occluded)
         current = astra_screen_cloud_current(sampleUV,ray,interval,angularFootprint,
                                               representative,sampledVisible);
     #ifdef ASTRA_CLOUD_TEMPORAL

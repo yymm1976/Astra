@@ -9,11 +9,12 @@ uniform sampler2D colortex9;
 uniform sampler2D colortex0;
 #include "/global/water/bloom_capture.glsl"
 in vec2 texcoord;
+flat in int bloomOrdinaryWater;
 /* RENDERTARGETS: 2 */
 void main() {
     // Identical to display.vsh's displayOrdinaryWater; both stages must pick the
     // same medium so no pixel reads a capture produced by the other one.
-    bool ordinaryWater = isEyeInWater == 1 && !water_is_thin_sheet();
+    bool ordinaryWater = bloomOrdinaryWater != 0;
     if (ordinaryWater)
         gl_FragData[0] = vec4(computeBloom(colortex9, texcoord), 1.0);
     else if (isEyeInWater == 1)

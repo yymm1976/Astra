@@ -3,6 +3,12 @@
 // bent normal (colortex26) - the visibility-weighted mean direction of the sampled
 // unoccluded set around the geometric normal, consumed by the deferred2 SH sky
 // re-evaluation. AO alone is unchanged and never pays for it.
+// The matching vertex stage (program/deferred.vsh) supplies the frame-wide
+// water kind as a flat varying, so AO does not re-fetch it per fragment.
+// Same dimension condition as that vertex stage.
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+#define ASTRA_WATER_STATE_FRAME_READ
+#endif
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
 #include "/lib/transforms.glsl"
@@ -14,11 +20,14 @@ in vec2 texcoord;
 const int RGBA16F = 0;
 #endif
 const int colortex21Format = RGBA16F;
+// main writes defined fallback values before every early return.
+const bool colortex21Clear = false;
 #ifdef ASTRA_DIRECTIONAL_SKYLIGHT
 #ifndef RG16F
 const int RG16F = 0;
 #endif
 const int colortex26Format = RG16F;
+const bool colortex26Clear = false;
 /* RENDERTARGETS: 21,26 */
 #else
 /* RENDERTARGETS: 21 */

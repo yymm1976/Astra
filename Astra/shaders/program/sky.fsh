@@ -4,6 +4,7 @@
 #include "/lib/uniforms.glsl"
 #include "/lib/transforms.glsl"
 #include "/program/scene.glsl"
+#include "/lib/celestial_sprite.glsl"
 
 #ifdef ASTRA_SKY_TEXTURED
 in vec2 texcoord;
@@ -65,20 +66,14 @@ void main() {
 		if (renderStage == MC_RENDER_STAGE_STARS) discard;
 
 		#if SUN_MOON_MODE == SUN_MOON_VANILLA
-			vec4 celestial = texture(gtexture, texcoord) * tint;
+			vec4 celestial = astra_celestial_sprite(gtexture,texcoord);
+            celestial.rgb *= srgb_decode(max(tint.rgb,vec3(0.0)));
+            celestial.a *= tint.a;
             if (celestial.a <= 0.001 || max(max(celestial.r,celestial.g),celestial.b) <= 0.001) discard;
-			celestial.rgb = srgb_decode(max(celestial.rgb, vec3(0.0)));
             if (renderStage == MC_RENDER_STAGE_SUN)
                 celestial.rgb *= mix(vec3(2.0,1.90,1.65),vec3(2.0,1.28,0.56),astra_twilight_strength());
-            // The sun/moon sprite owns its own ceiling. The vanilla atlas sun is a
-            // hard-edged square, and 2.0x on the linear white sprite put every channel
-            // far past the tonemapper's knee, where the disc flattened to a white
-            // rectangle with no readable limb. This is the SAME luminance shoulder the
-            // sky uses (twilight.glsl): the square body stays square and stays at the
-            // brightness the multiplier above asked for, while the sprite's edge
-            // texels - which are dimmer - keep their relative values, so the outline
-            // reads. No new pass and no new render target: one function call on four
-            // pixels of sky per frame.
+            // Retain the shared highlight shoulder after linear sprite filtering.
+            // The active texture still supplies the square body and moon phase.
             celestial.rgb = astra_scene_highlights(celestial.rgb);
             // The current-frame cloud is composed after opaque depth exists.
             // Deferred attenuates this additive celestial layer by that coverage.

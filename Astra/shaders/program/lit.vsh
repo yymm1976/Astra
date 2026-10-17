@@ -1,12 +1,14 @@
 // Original Astra integration for native geometry and water interfaces.
 #include "/lib/settings.glsl"
-#if defined ASTRA_WATER_PASS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
 #define ASTRA_WATER_STATE_FRAME_WRITE
 #endif
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_WATER_PASS && !defined ASTRA_WEATHER
 #define ASTRA_SURFACE_SHADOW_PLANE
 #endif
 #include "/lib/uniforms.glsl"
+#define ASTRA_HELD_LIGHT_VERTEX
+#include "/lib/handheld_light.glsl"
 #include "/lib/encoding.glsl"
 #include "/lib/transforms.glsl"
 #include "/lib/wet_material.glsl"
@@ -25,6 +27,7 @@ in vec4 mc_Entity;
 in vec3 at_midBlock;
 #endif
 #ifdef ASTRA_WATER_PASS
+flat out int waterRasterProjectionMatches;
 #if defined DIMENSION_NETHER || defined DIMENSION_END
 in vec4 at_tangent;
 out vec3 waterTangent;
@@ -78,6 +81,11 @@ void main() {
         return;
     }
     #endif
+    #ifdef ASTRA_WATER_STATE_FRAME_WRITE
+    // The medium record cannot change during this geometry draw. Supply the
+    // same identity to lighting, AO and fog without fragment-side state reads.
+    waterMaterialThinSheet = water_is_thin_sheet() ? 1 : 0;
+    #endif
     texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
     lightcoord = (gl_TextureMatrix[1] * gl_MultiTexCoord1).xy;
     tint = gl_Color;
@@ -123,9 +131,18 @@ void main() {
     #endif
     #endif
     faceData = pack_octahedral(normal, 9) | (material << 18);
+    #if defined ORE_GLOW && defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT
+    // Keep the normal, four-bit material, wet class and dimension flags intact.
+    int oreBlock = int(mc_Entity.x + 0.5);
+    uint oreType = oreBlock >= 10041 && oreBlock <= 10048 ? uint(oreBlock - 10040) : 0u;
+    if (oreBlock == 10034) oreType = 3u; // triggered redstone keeps its old emitter ID
+    faceData |= oreType << 27;
+    #endif
     #if defined DIMENSION_NETHER && defined ASTRA_TERRAIN
     // Preserve lava identity separately from the shared emissive category.
     if (int(mc_Entity.x + 0.5) == 10030) faceData |= 1u << 25;
+    // Bit 26 is Nether masonry only; the shared four-bit material stays intact.
+    if (int(mc_Entity.x + 0.5) == 10018) faceData |= 1u << 26;
     #endif
     #if defined ASTRA_TERRAIN && !defined DIMENSION_NETHER && !defined DIMENSION_END
         faceData |= astra_wet_class(int(mc_Entity.x + 0.5)) << 23;
@@ -139,6 +156,9 @@ void main() {
         if(currentRenderedItemId==10017) faceData|=1u<<22;
     #endif
     #endif
+    #ifdef HANDHELD_LIGHTING
+    astraHeldLightTint = astra_compute_held_light_tint();
+    #endif
     vec4 vertex=gl_Vertex;
     #ifdef ASTRA_SKY_TEXTURED
     #if SUN_MOON_MODE == SUN_MOON_VANILLA
@@ -149,6 +169,14 @@ void main() {
     #endif
     #endif
     vec4 viewPos = gl_ModelViewMatrix * vertex;
+    #ifdef ASTRA_WATER_PASS
+    // Decide once per vertex, including hand-water's distinct projection.
+    // Only matching native projection can reuse the raster clip coordinate.
+    waterRasterProjectionMatches = int(all(equal(gl_ProjectionMatrix[0],gbufferProjection[0]))
+        && all(equal(gl_ProjectionMatrix[1],gbufferProjection[1]))
+        && all(equal(gl_ProjectionMatrix[2],gbufferProjection[2]))
+        && all(equal(gl_ProjectionMatrix[3],gbufferProjection[3])));
+    #endif
     #if defined ASTRA_WATER_PASS && (defined DIMENSION_NETHER || defined DIMENSION_END)
         waterTangent = normalize(mat3(gbufferModelViewInverse) * (gl_NormalMatrix * at_tangent.xyz));
         waterBinormal = normalize(mat3(gbufferModelViewInverse) * (gl_NormalMatrix * cross(at_tangent.xyz, gl_Normal.xyz) * at_tangent.w));
@@ -156,8 +184,7 @@ void main() {
         waterViewVector = vec3(dot(waterTangent, worldView), dot(waterBinormal, worldView), dot(normal, worldView));
         waterViewDistance = length(viewPos.xyz);
     #endif
-    #ifdef ASTRA_WATER_STATE_FRAME_WRITE
-    waterMaterialThinSheet = water_is_thin_sheet() ? 1 : 0;
+    #if defined ASTRA_WATER_PASS && !defined DIMENSION_NETHER && !defined DIMENSION_END
     waterSunCentre = normalize(worldSunVector);
     #if SUN_MOON_MODE == SUN_MOON_VANILLA
     vec3 orbitRight = vec3(0.0,sin(radians(sunPathRotation)),cos(radians(sunPathRotation)));

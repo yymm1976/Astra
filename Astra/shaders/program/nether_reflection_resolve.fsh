@@ -15,7 +15,7 @@ in vec2 texcoord;
 void main() {
     vec3 source = textureLod(colortex0,texcoord,0.0).rgb;
     gl_FragData[0] = vec4(source,1.0);
-#ifdef SCREENSPACE_REFLECTIONS
+#ifdef NETHER_ROCK_REFLECTIONS
     if (DEBUG_VERTEX_AO != 0 || isEyeInWater != 0) return;
     ivec2 receiverPixel = clamp(ivec2(texcoord * vec2(textureSize(depthtex0,0))),
                                 ivec2(0),textureSize(depthtex0,0)-1);
@@ -35,7 +35,7 @@ void main() {
         if (f > 0.002) {
             vec2 size = vec2(textureSize(colortex9,0));
             float radius = 12.0*(1.0-0.75*pow8(material.a));
-            #if WATER_EFFECT_QUALITY == 2
+            #if NETHER_REFLECTION_QUALITY == 2
             vec2 stride = 0.5*radius/size;
             #endif
             ivec2 extent = textureSize(colortex9,0);
@@ -51,7 +51,8 @@ void main() {
             // exp(-x*x/12.5), for |x|=0,1,2. The 2D Gaussian is separable.
             const float kernelAxis[3] = float[3](1.0,0.9231163464,0.7261490371);
             vec4 sum = vec4(0.0); float total = 0.0;
-            #if WATER_EFFECT_QUALITY < 2
+            #if NETHER_REFLECTION_QUALITY < 2
+            #if NETHER_REFLECTION_QUALITY == 0
             // Five footprints on the 2x2 lattice: at most 20 contributors.
             // Match the nine-footprint kernel's energy and per-axis variance;
             // diagonal isolated reflections may contribute less. Keep every
@@ -65,6 +66,17 @@ void main() {
                 ivec2 basePixel = ivec2(floor(location))*2;
                 vec2 fraction = fract(location);
                 float kernel = tap == 0 ? 0.5 : 0.125;
+            #else
+            // Nine regions retain diagonal highlights on the same sparse ray
+            // lattice. The separable weights sum to one and match the low
+            // kernel's per-axis variance without broadening its blur.
+            for (int y=-1;y<=1;y++) for (int x=-1;x<=1;x++) {
+                vec2 offset=vec2(x,y)*(radius*0.943634);
+                vec2 location=(texcoord*size-0.5+offset)*0.5;
+                ivec2 basePixel=ivec2(floor(location))*2;
+                vec2 fraction=fract(location);
+                float kernel=(x==0 ? 0.5 : 0.25)*(y==0 ? 0.5 : 0.25);
+            #endif
                 const int contributorStride = 2;
             #else
             for (int y=-2;y<=2;y++) for (int x=-2;x<=2;x++) {

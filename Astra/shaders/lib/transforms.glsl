@@ -19,6 +19,16 @@ vec3 project_and_divide(mat4 projection_mat, vec3 x) {
 vec3 screen_view(vec3 x) {
     x.xy -= astra_jitter_uv();
     x = x * 2.0 - 1.0;
+    // Native perspective matrices have only one nonzero entry in each of the
+    // first two columns. Keep all of columns 2/3, including translated eyes and
+    // asymmetric frusta. Modded projections with cross terms use the full solve.
+    if (all(equal(gbufferProjectionInverse[0].yzw, vec3(0.0)))
+        && all(equal(gbufferProjectionInverse[1].xzw, vec3(0.0)))) {
+        vec4 p = gbufferProjectionInverse[2] * x.z + gbufferProjectionInverse[3];
+        p.xy += vec2(gbufferProjectionInverse[0].x * x.x,
+                     gbufferProjectionInverse[1].y * x.y);
+        return p.xyz / p.w;
+    }
     return project_and_divide(gbufferProjectionInverse, x);
 }
 

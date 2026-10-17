@@ -141,6 +141,10 @@ uniform int blockEntityId;
 uniform int currentRenderedItemId;
 uniform int renderStage;
 uniform float astraHeldLightBase;
+uniform int heldItemId;
+uniform int heldItemId2;
+uniform int heldBlockLightValue;
+uniform int heldBlockLightValue2;
 uniform float astraBlocklightSuppression;
 uniform float astraHeldLightSuppression;
 

@@ -59,7 +59,8 @@ void main() {
     for(int i=0;i<32;i++) {
         float f=float(i);
         float a=f*2.39996323;
-        float radius=sqrt(mix(0.95*0.95,5.20*5.20,(f+0.5)/32.0));
+        float radius=sqrt(mix(END_DISC_INNER*END_DISC_INNER,
+                              END_DISC_OUTER*END_DISC_OUTER,(f+0.5)/32.0));
         vec3 offset=(disc[0]*cos(a)+disc[1]*sin(a))*radius*END_SOURCE_DISTANCE*END_SHADOW_TAN;
         vec3 target=source+offset;
         float limit=length(target); vec3 ray=target/limit;

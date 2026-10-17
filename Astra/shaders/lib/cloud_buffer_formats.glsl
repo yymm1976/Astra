@@ -11,4 +11,7 @@
 const int RGBA16F = 0;
 #endif
 const int colortex12Format = RGBA16F;
+// Both same-frame producers write the complete target, including empty cloud
+// pixels. Consumers run afterwards, so a frame-start clear is redundant.
+const bool colortex12Clear = false;
 #endif

@@ -57,12 +57,16 @@
 // until SC-41 overturned that: this is a lighting term, auto-exposure is a display gain.
 #define HANDHELD_LIGHTING // [false true]
 // Dynamic handheld light source
+#define DIRECTIONAL_LOCAL_LIGHTING // [false true]
+// Known hand-light direction and the Nether volume gradient; no guessed lightmap direction.
 #define HANDHELD_LIGHT_STRENGTH 100 // [0 25 50 75 100 125 150 175 200 225 250 275 300 325 350 375 400]
 // Handheld light strength, %
 #define LIGHTNING_FLASH // [false true]
 // Lightning bolt point light + sky flash
 #define EMISSIVE_STRENGTH 100 // [50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200]
 // Emissive surface boost, %
+#define ORE_GLOW // [false true]
+// Mineral flecks only; coal and copper ores are deliberately unclassified.
 
 // --- SHADOWS ---
 #define SHADOW_FILTER_MODE 0 // [0 1]
@@ -125,7 +129,14 @@
 #define END_STONE_GLOW 0 // [0 25 50 75 100 125 150]
 // Optional end-stone pore emission; zero preserves the unlit pore texture.
 #define NETHERRACK_GLOW 100 // [0 25 50 75 100]
+#define NETHER_ROCK_REFLECTIONS // [false true]
+// Rock reflections are independent of the water/puddle SSR option.
+#define NETHER_REFLECTION_QUALITY 1 // [0 1 2]
+// Low/balanced trace a 2x2 lattice and reconstruct 5/9 footprints; high uses
+// native receiver tracing and the 5x5 kernel. Independent of water quality.
 #define DEBUG_VERTEX_AO 0 // [0 1]
+#define DEBUG_NETHER_LIGHT 0 // [0 1 2 3]
+// 1: receiver field, 2: camera-height light slice, 3: occupancy/source slice.
 // Diagnostic bypass switches. Each removes exactly one stage from the composed
 // image, so an A/B pair can attribute a visual result to that stage instead of
 // guessing which layer produced it. All three default OFF and are inert in the
@@ -158,13 +169,14 @@
 #define WATER_WAVE_SPEED 100 // [25 50 75 100 125 150 175 200]
 // Wave flow speed, %
 //#define SCREENSPACE_REFLECTIONS // [false true]
+#define UNDERWATER_SURFACE_REFLECTIONS // [false true]
+// Independent underside scene reflection; no extra air-side water ray.
 //#define ROUGH_SKY_REFLECTIONS // [false true]
 // Optional mip-filtered overworld environment + normalized environment BRDF.
 // Off by default to retain the existing water/ice/puddle appearance.
 #define WATER_EFFECT_QUALITY 0 // [0 1 2]
 // Water SSR total depth-query budget: 12/20/40 (including 4/4/8 refinements).
-// Low/balanced rock reflections use a stable 2x2 receiver lattice with five
-// bilinear footprints; high retains the dense ray and 5x5 footprint filter.
+// Nether rock tracing/reconstruction has its own NETHER_REFLECTION_QUALITY.
 // Reflection reconstruction uses 1/5/9 bilinear footprints. Refraction keeps
 // the same interface-side rejection and true optical path at every quality.
 // SSR on water top faces; ice uses the environment without a fluid march.
@@ -210,7 +222,7 @@
 // Scales Complementary's distance fog; there is no additional plume layer.
 #define END_FOG_DENSITY 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // End void fog density, %
-//#define NETHER_VOXEL_LIGHT // [false true]
+#define NETHER_VOXEL_LIGHT // [false true]
 // Nether volumetric light: fire, soul fire and lava cast spatial coloured light through a
 // 64x64x64 voxel volume around the player (8 propagation steps, same frame, no history).
 // Bounded subset of the Solas voxel-light architecture, not a full 128+ volume. Needs
@@ -267,8 +279,8 @@
 // solar disc is behind geometry; needs in-game A/B, see qa/session-log.md)
 #define DITHERING // [false true]
 // IGN output dithering (banding suppression, after any spatial AA)
-#define ANTIALIASING 1 // [0 1 2]
-// 0 off, 1 display-space FXAA, 2 HDR temporal AA with projection jitter.
+#define ANTIALIASING 1 // [0 1 2 3]
+// 0 off, 1 display-space FXAA, 2 HDR temporal AA with projection jitter, 3 SMAA 1x.
 //#define VIGNETTE // [false true]
 // Vignette (explicitly OFF by default, design 4.4)
 
@@ -730,6 +742,13 @@ const bool shadowHardwareFiltering1 = false;
 // The AO diagnostic stays unjittered even when temporal AA is selected.
 #if ANTIALIASING == 2 && DEBUG_VERTEX_AO == 0
     #define ASTRA_TAA
+#endif
+
+#if (ANTIALIASING == 1 || ANTIALIASING == 3) && DEBUG_VERTEX_AO == 0
+#define ASTRA_SPATIAL_AA
+#endif
+#if ANTIALIASING == 3 && DEBUG_VERTEX_AO == 0
+#define ASTRA_SMAA
 #endif
 
 // E1/E2 internal scheduling predicate; not a user option.

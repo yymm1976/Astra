@@ -3,6 +3,9 @@
 // Adapted from Steadfast 0.8.0 environment/water/refraction.glsl, coderbot.
 // GPL-3.0-or-later with Section 7 terms; see Astra/LICENSE and THIRD-PARTY.md.
 // SUMMARY efficiency idea: avoid depth queries when refraction has no displacement.
+#ifdef ASTRA_WATER_PASS
+flat in int waterRasterProjectionMatches;
+#endif
 vec3 water_depth_footprint_values(vec4 footprint, vec2 uv, ivec2 size) {
     vec2 location = clamp(uv,vec2(0.0),vec2(1.0))*vec2(size);
     ivec2 nearestCorner = ivec2(floor(location) - floor(location - 0.5));
@@ -38,14 +41,28 @@ vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 normalDelta,
     pairedEntityDepth = -1.0;
     // A true zero-displacement path must retain the caller's pixel centre.
     // The accepted texel IS the caller's probe, so its entity depth pairs.
-    // Keep the existing projected origin for nonzero refraction.
+    // A mismatched native projection retains the general projected origin.
     if (REFRACTION_STRENGTH == 0 || dot(normalDelta, normalDelta) <= 0.0) {
         pairedEntityDepth = entityViewDepth;
         return rasterUV;
     }
-    vec4 originClip = gbufferProjection * vec4(viewPos,1.0);
-    vec2 uv = originClip.xy / originClip.w;
-    uv = uv.xy * 0.5 + 0.5 + astra_jitter_uv();
+    vec4 originClip;
+    vec2 uv;
+    #ifdef ASTRA_WATER_PASS
+    if (waterRasterProjectionMatches != 0) {
+        // Raster XY/W already project this same native point. Refraction only
+        // consumes XY/W, so clip Z need not be reconstructed. Keep the general
+        // matrix path for hand-water or any other projection mismatch.
+        float clipW = 1.0/gl_FragCoord.w;
+        uv = rasterUV;
+        originClip = vec4(((uv-astra_jitter_uv())*2.0-1.0)*clipW,0.0,clipW);
+    } else
+    #endif
+    {
+        originClip = gbufferProjection * vec4(viewPos,1.0);
+        uv = originClip.xy / originClip.w;
+        uv = uv * 0.5 + 0.5 + astra_jitter_uv();
+    }
     ivec2 depthSize = textureSize(depthBuffer,0);
     ivec2 backgroundPixel = clamp(ivec2(clamp(uv,vec2(0.0),vec2(1.0))*vec2(depthSize)),
                                   ivec2(0), depthSize-1);

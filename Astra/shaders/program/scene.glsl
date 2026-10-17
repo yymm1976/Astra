@@ -274,10 +274,14 @@ vec4 astra_fog(vec3 playerPos, float skylight, float fragWorldY) {
     return astra_fog_path(playerPos,skylight,fragWorldY,false);
 }
 vec4 astra_air_fog(vec3 playerPos, float skylight, float fragWorldY) {
-    #if defined DIMENSION_NETHER || defined DIMENSION_END
+    #ifdef DIMENSION_NETHER
     return astra_fog(playerPos,skylight,fragWorldY);
     #else
+    #ifndef DIMENSION_END
     if (isEyeInWater == 1 && blindness > 0.0001) return vec4(0.0);
+    #endif
+    // The End has no underwater composite, but this interface-to-scene leg
+    // is still air. Do not replace its atmosphere with the camera's water colour.
     return astra_fog_path(playerPos,skylight,fragWorldY,true);
     #endif
 }
@@ -368,7 +372,7 @@ vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
             bool cloudReceiver = (isEyeInWater == 0 || water_is_thin_sheet())
                 && any(greaterThan(params.directLightSurface, vec3(0.0)))
                 && !astra_direct_facing_away(dot(normal, astra_world_light_direction()),
-                                             sss, material == 2u, material == 8u, false);
+                                             sss, material == 2u, material == 8u);
             #ifdef CLOUD_SHADOWS
             vec3 cloudLightDir = astra_world_light_direction();
             if (cloudReceiver) {

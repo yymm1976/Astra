@@ -8,6 +8,7 @@
 const int RGBA16F=0;
 #endif
 const int colortex11Format=RGBA16F;
+const bool colortex11Clear=false;
 /* RENDERTARGETS: 11 */
 void main() {
     vec3 ray=astra_sky_cache_direction(gl_FragCoord.xy);

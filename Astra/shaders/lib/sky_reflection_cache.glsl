@@ -30,27 +30,27 @@ uniform sampler2D colortex11;
 #ifdef ROUGH_SKY_REFLECTIONS
 // One hardware-filtered query away from the longitude seam. Across the seam,
 // interpolate the last/first columns explicitly; latitude stays clamp-to-edge.
-vec3 astra_sky_cache_level(vec2 uv, int level) {
+vec4 astra_sky_cache_level(vec2 uv, int level) {
     vec2 size = vec2(textureSize(colortex11, level));
     float x = uv.x * size.x - 0.5;
     if (x >= 0.0 && x <= size.x - 1.0)
-        return textureLod(colortex11, uv, float(level)).rgb;
-    vec3 last = textureLod(colortex11, vec2(1.0 - 0.5 / size.x, uv.y), float(level)).rgb;
-    vec3 first = textureLod(colortex11, vec2(0.5 / size.x, uv.y), float(level)).rgb;
+        return textureLod(colortex11, uv, float(level));
+    vec4 last = textureLod(colortex11, vec2(1.0 - 0.5 / size.x, uv.y), float(level));
+    vec4 first = textureLod(colortex11, vec2(0.5 / size.x, uv.y), float(level));
     return mix(last, first, fract(x));
 }
-vec3 astra_sky_cache_filtered(vec2 uv, float lod) {
+vec4 astra_sky_cache_filtered(vec2 uv, float lod) {
     int lower = int(floor(lod));
     int upper = int(ceil(lod));
     float halfColumn = 0.5 / float(textureSize(colortex11, upper).x);
     if (uv.x >= halfColumn && uv.x <= 1.0 - halfColumn)
-        return textureLod(colortex11, uv, lod).rgb;
-    vec3 a = astra_sky_cache_level(uv, lower);
+        return textureLod(colortex11, uv, lod);
+    vec4 a = astra_sky_cache_level(uv, lower);
     if (lower == upper) return a;
     return mix(a, astra_sky_cache_level(uv, upper), fract(lod));
 }
 #endif
-vec3 astra_cached_reflection_sky(vec3 direction, float roughness) {
+vec4 astra_cached_reflection_environment(vec3 direction, float roughness) {
     // Direction is normalized by the reflection facade. Avoid atan(0,0) at poles.
     float longitude = dot(direction.xz, direction.xz) > 1e-10
         ? atan(direction.z, direction.x) / (2.0 * ASTRA_SKY_CACHE_PI) + 0.5 : 0.5;
@@ -66,8 +66,11 @@ vec3 astra_cached_reflection_sky(vec3 direction, float roughness) {
             / (ASTRA_SKY_CACHE_CORE.x + 2.0);
     float halfRow = 0.5 / ASTRA_SKY_CACHE_CORE.y;
     float v = clamp(latitude, halfRow, 1.0 - halfRow);
-    return textureLod(colortex11, vec2(u, v), 0.0).rgb;
+    return textureLod(colortex11, vec2(u, v), 0.0);
     #endif
+}
+vec3 astra_cached_reflection_sky(vec3 direction, float roughness) {
+    return astra_cached_reflection_environment(direction,roughness).rgb;
 }
 vec3 astra_cached_reflection_sky(vec3 direction) {
     // SH irradiance continues to integrate the unblurred environment.

@@ -171,7 +171,7 @@ vec4 astra_cloud_temporal_resolve(vec4 current, vec3 representativeWorld, vec3 r
     #if CLOUD_QUALITY == 2
     // Limit opacity lag without separating colour from coverage.
     vec3 historyColor = history.rgb / max(history.a, 1e-4);
-    history.a = clamp(history.a, max(current.a-0.10,0.0), min(current.a+0.10,1.0));
+    history.a = clamp(history.a, max(current.a-0.025,0.0), min(current.a+0.025,1.0));
     history.rgb = historyColor * history.a;
     #endif
 
@@ -201,6 +201,16 @@ vec4 astra_cloud_temporal_resolve(vec4 current, vec3 representativeWorld, vec3 r
         weight = ASTRA_CLOUD_TEMPORAL_EMPTY_WEIGHT * emptyMotionWeight * coverage;
     } else {
         weight = ASTRA_CLOUD_TEMPORAL_WEIGHT * coverage;
+        #if CLOUD_QUALITY == 2
+        // A volume's representative depth cannot align every layer while the
+        // camera moves. Native four-ray coverage carries moving edges itself;
+        // retain history mainly on stationary pixels instead of trailing rims.
+        vec2 previousStable = uvPrev - previousJitter + previousGridOffset;
+        vec2 currentStable = uv - astra_jitter_uv_for(frameCounter)
+            + astra_cloud_grid_offset(frameCounter,historySize);
+        float motionPixels = length((previousStable-currentStable)*vec2(viewWidth,viewHeight));
+        weight *= 1.0-smoothstep(0.5,2.5,motionPixels);
+        #endif
         weight *= 1.0 - smoothstep(0.20, 0.80, abs(histY - curY) / max(max(histY, curY), 0.05));
         weight *= 1.0 - smoothstep(0.35, 0.90,
                     abs(current.a - history.a)

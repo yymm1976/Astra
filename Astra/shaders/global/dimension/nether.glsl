@@ -181,12 +181,23 @@ vec3 nether_lighting(
             // on receivers instead of replacing 95% with a weak local estimate.
             // Voxel emitters retain their species colours; tint/style controls
             // currently apply to lightmap/held light rather than this field.
-            blockLighting = mix(blockLighting, voxel * (BLOCKLIGHT_STRENGTH * 0.01), coverage * 0.75);
+            vec3 coloredLight=voxel*(BLOCKLIGHT_STRENGTH*0.01);
+            const vec3 localLumaWeights=vec3(0.2126,0.7152,0.0722);
+            float coloredLuma=dot(coloredLight,localLumaWeights);
+            float supportLuma=dot(blockLighting,localLumaWeights);
+            // The short-range field provides local hue; the lightmap still
+            // supplies missing intensity. Replacing a stronger lightmap with
+            // weak voxel radiance otherwise darkens lit fortress receivers.
+            if (coloredLuma>0.00001)
+                coloredLight*=max(coloredLuma,supportLuma)/coloredLuma;
+            coloredLight*=astra_nether_light_facing(playerPos,worldNormal,voxel);
+            blockLighting = mix(blockLighting,coloredLight,coverage*0.75);
         }
     #endif
         // Keep hand-held light separate from volume coverage, as Solas does.
         float held = held_light_strength(params.heldLightBase, playerPos);
-        if (held > 0.0) blockLighting += nether_block_lighting(0.0, held);
+        if (held > 0.0) blockLighting += nether_block_lighting(0.0, held)
+            * astra_held_light_tint() * astra_held_light_facing(playerPos, worldNormal);
         blockLighting *= localShare;
     }
 
@@ -222,6 +233,20 @@ vec3 nether_lighting(
                * (0.7 + 0.3 * NETHER_VS_BRIGHTNESS);
     }
     return color;
+}
+
+// Material-specific readability for dark Nether masonry. This is a restrained
+// diffuse environment term, not an emitter or a fabricated off-screen reflection.
+// Fade it under existing light and preserve the original texture and corner AO.
+vec3 nether_masonry_ambient(vec3 litColor,vec3 albedo,vec3 normal,float vertexAO) {
+    const vec3 weights=vec3(0.2126,0.7152,0.0722);
+    float illumination=dot(litColor,weights)/max(dot(albedo,weights),0.00001);
+    float dim=1.0-smoothstep(0.12,0.35,illumination);
+    float ao=clamp(vertexAO,0.0,1.0);
+    float openness=0.25+0.75*ao*ao;
+    float facing=0.8+0.2*max(normal.y,0.0);
+    return litColor+albedo*vec3(0.070,0.065,0.075)*dim*openness*facing
+                        *(0.7+0.3*NETHER_VS_BRIGHTNESS);
 }
 
 #endif

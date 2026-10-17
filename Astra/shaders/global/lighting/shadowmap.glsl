@@ -403,6 +403,8 @@ vec3 shadow_map_position(vec3 playerPos, vec3 worldNormal, float ndotl) {
     vec3 raw = player_shadow(playerPos);
     // Steadfast's normal offset is paired with its radial projection. All PCF
     // taps compare the same Z; no screen-derivative plane inversion is involved.
+    // 1.5 is a world-block coefficient applied to dimensionless map radius.
+    // The shadow projection is orthographic (w=1), not camera perspective depth.
     float bias = 1.5 * length(raw.xy)
                + shadowGrazingBias * (1.0 - max(ndotl, 0.0));
     vec3 shadowPos = distort(player_shadow(playerPos + worldNormal * bias)) * 0.5 + 0.5;

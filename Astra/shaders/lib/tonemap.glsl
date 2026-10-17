@@ -17,7 +17,7 @@
 // Apache-2.0 (The Khronos Group) and is not ported here.
 //
 // Uniforms: none
-// Requires: lib/settings.glsl (TONEMAP_OPERATOR), lib/encoding.glsl (get_luminance, to_linear)
+// Requires: lib/settings.glsl (TONEMAP_OPERATOR), lib/encoding.glsl (get_luminance)
 
 // https://64.github.io/tonemapping/
 vec3 reinhard_jodie(vec3 v) {

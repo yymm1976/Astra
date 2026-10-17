@@ -6,10 +6,12 @@
 // The image is cleared every frame (clear=true in the image directive), so an unwritten
 // cell reads as 0 and 0 means air. No frame stamp is involved - see the note in
 // program/shadow.vsh for why the previous stamp was both unnecessary and parity-broken.
-//   bits 0-7 light species: 0 = captured air (diffusion passes through), 1 = solid/unlit,
+//   bits 0-7 light species: 0 = no emission, 1 = reserved (not written),
 //            2..8 = coloured block light (mirrored from block.properties groups),
 //            9-11 = fire, soul fire, lava
+// Species 0 is also used by non-emitting solids; bit 8 alone blocks diffusion.
 #include "/lib/nether_voxel_grid.glsl"
+#include "/lib/emitter_colors.glsl"
 layout(local_size_x=8,local_size_y=8,local_size_z=8) in;
 const ivec3 workGroups=ivec3(8,8,8);
 uniform usampler3D astraVoxelSampler;
@@ -54,15 +56,10 @@ uniform vec2 astraNetherEmissionPulse;
 vec3 emission(uint id) {
     // Most cells are air or non-emitting solids; neither has a source palette.
     if(id<=1u) return vec3(0.0);
-    if(id==2u) return vec3(1.0,0.04,0.01);
-    if(id==3u || id==9u) return vec3(1.0,0.30,0.045)*astraNetherEmissionPulse.x;
-    if(id==4u) return vec3(1.0,0.66,0.22);
-    if(id==5u) return vec3(0.32,1.0,0.43);
-    if(id==6u) return vec3(0.3,0.85,1.0);
-    if(id==7u || id==10u) return vec3(0.055,0.62,1.0)*astraNetherEmissionPulse.y;
-    if(id==8u) return vec3(0.64,0.20,1.0);
-    if(id==11u) return vec3(0.72,0.24,0.04);
-    return vec3(0.0);
+    vec3 color=astra_emitter_color(id);
+    if(id==3u || id==9u) color*=astraNetherEmissionPulse.x;
+    if(id==7u || id==10u) color*=astraNetherEmissionPulse.y;
+    return color;
 }
 void main() {
     ivec3 p=ivec3(gl_GlobalInvocationID);

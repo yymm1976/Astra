@@ -24,7 +24,7 @@ void main() {
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_BLOOM
     waterFogFrameMedium = vec3(0.0);
     waterInterfaceIncident = vec3(0.0);
-    #if DEBUG_VERTEX_AO == 0 && (!defined ASTRA_DISPLAY_FINAL || ANTIALIASING != 1)
+    #if DEBUG_VERTEX_AO == 0 && (!defined ASTRA_DISPLAY_FINAL || !defined ASTRA_SPATIAL_AA)
     if (isEyeInWater == 1) {
         vec3 fogBase;
         vec2 fogResponse;
@@ -38,7 +38,7 @@ void main() {
     displayOrdinaryWater = int(isEyeInWater == 1 && !water_is_thin_sheet());
     #if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG && (defined GODRAYS_SUN_OCCLUSION || defined ASTRA_GODRAYS_CLOUD_OCCLUSION)
     displayGodraysVisibility = 1.0;
-    #if DEBUG_VERTEX_AO == 0 && (!defined ASTRA_DISPLAY_FINAL || ANTIALIASING != 1)
+    #if DEBUG_VERTEX_AO == 0 && (!defined ASTRA_DISPLAY_FINAL || !defined ASTRA_SPATIAL_AA)
     // Scattering has already written this draw-wide source visibility.
     // Ordinary water uses the same texel's alpha as distance, so never read it here.
     if ((isEyeInWater == 0 || (isEyeInWater == 1 && displayOrdinaryWater == 0))
@@ -52,8 +52,8 @@ void main() {
     #endif
     #ifdef AUTO_EXPOSURE
     displayExposureGain = 1.0;
-    // FXAA's final draw consumes the display prepared by composite8 already.
-    #if DEBUG_VERTEX_AO == 0 && (!defined ASTRA_DISPLAY_FINAL || ANTIALIASING != 1)
+    // Spatial AA's final draw consumes the display prepared by composite8 already.
+    #if DEBUG_VERTEX_AO == 0 && (!defined ASTRA_DISPLAY_FINAL || !defined ASTRA_SPATIAL_AA)
     if (displayOrdinaryWater == 0) displayExposureGain = astra_ae_gain();
     #endif
     #endif

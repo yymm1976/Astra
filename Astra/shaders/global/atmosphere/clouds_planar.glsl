@@ -110,11 +110,17 @@ float astra_2d_cloud_sample(vec2 pos) {
 float astra_cloud_coverage_bias() {
     return mix(0.20, -0.20, CLOUD_COVERAGE * 0.01) - 0.04 - 0.28 * astraRainFactor;
 }
+float astra_cloud_existence_gate(float layerThreshold, float coverageBias) {
+    return 0.25 + layerThreshold * 0.5 + coverageBias;
+}
 float astra_cloud_existence_gate(float layerThreshold) {
-    return 0.25 + layerThreshold * 0.5 + astra_cloud_coverage_bias();
+    return astra_cloud_existence_gate(layerThreshold, astra_cloud_coverage_bias());
+}
+float astra_cloud_saturation(float coverageBias) {
+    return 0.43 + coverageBias;
 }
 float astra_cloud_saturation() {
-    return 0.43 + astra_cloud_coverage_bias();
+    return astra_cloud_saturation(astra_cloud_coverage_bias());
 }
 float astra_cloud_coarse(vec3 tracePos, float cloudAltitude) {
     vec3 tracePosM = astra_modify_trace_pos(tracePos, cloudAltitude);
@@ -173,6 +179,39 @@ void astra_cloud_colors(AstraSkyFactors f, AstraSkyPalette p,
                        * ASTRA_OVERWORLD_AMBIENT_GAIN;
 }
 
+// Inputs shared by the rays traced from one fragment. High-quality screen cloud
+// traces four subpixel rays; these values are identical for all four, so prepare
+// them once instead of rebuilding them inside every ray march.
+struct AstraCloudFrame {
+    float coverageBias;
+    float saturationBase;
+    float dither;
+    bool colorsReady;
+    vec3 cloudAmbientColor;
+    vec3 cloudLightColor;
+    float twilight;
+};
+
+AstraCloudFrame astra_cloud_frame() {
+    AstraCloudFrame ctx;
+    ctx.coverageBias = astra_cloud_coverage_bias();
+    ctx.saturationBase = astra_cloud_saturation(ctx.coverageBias);
+    ctx.dither = 0.0;
+    ctx.colorsReady = false;
+    ctx.cloudAmbientColor = vec3(0.0);
+    ctx.cloudLightColor = vec3(0.0);
+    ctx.twilight = 0.0;
+    return ctx;
+}
+
+void astra_cloud_frame_colors(inout AstraCloudFrame ctx, AstraSkyFactors f, AstraSkyPalette p) {
+    if (ctx.colorsReady) return;
+    ctx.dither = astra_cloud_ign();
+    astra_cloud_colors(f, p, ctx.cloudAmbientColor, ctx.cloudLightColor);
+    ctx.twilight = astra_twilight_strength();
+    ctx.colorsReady = true;
+}
+
 // ------------------------------------------------------------
 // Shared slab/cylinder interval for marching and the screen-cloud resolve.
 // The input is a unit world direction; an empty interval is returned for a miss.
@@ -223,7 +262,7 @@ vec2 astra_cloud_interval(vec3 nPlayerPos) {
 // both the plane solve and VdotU assume it. The 4-argument wrapper below keeps
 // the public contract by normalizing once and solving the interval itself.
 vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 representativeWorld,
-                       float angularFootprint, vec2 interval) {
+                       float angularFootprint, vec2 interval, inout AstraCloudFrame ctx) {
     representativeWorld = vec3(0.0);
     float higherPlaneAltitude = ASTRA_CLOUD_ALTITUDE + ASTRA_CLOUD_STRETCH;
     float lowerPlaneAltitude = ASTRA_CLOUD_ALTITUDE - ASTRA_CLOUD_STRETCH;
@@ -233,7 +272,6 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
     if (planeDistanceDif <= 0.0) return vec4(0.0);
     if (minPlaneDistance >= maxRayDistance) return vec4(0.0);
     float VdotU = nPlayerPos.y;
-    float dither = astra_cloud_ign();
     // Fixed midpoint: pixel noise must not move the cloud's first occupied
     // interval or lighting depth as the camera turns. High coverage comes from
     // segment integration and spatial subpixel samples, not a random hit depth.
@@ -263,6 +301,8 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
     float stepMult = planeDistanceDif/float(sampleCount);
     #endif
     vec3 tracePos;
+    float coverageBias = ctx.coverageBias;
+    float saturationBase = ctx.saturationBase;
 
 	vec4 volumetricClouds = vec4(0.0);
     #if CLOUD_QUALITY == 2
@@ -298,8 +338,36 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
 		vec3 tracePosM = astra_modify_trace_pos(tracePos, ASTRA_CLOUD_ALTITUDE);
 		float coarseSample = astra_2d_cloud_sample(tracePosM.xz);
 		float coarse = 0.78*coarseSample;
-		float existenceGate = astra_cloud_existence_gate(threshold);
+		float existenceGate = astra_cloud_existence_gate(threshold, coverageBias);
+        #if CLOUD_QUALITY == 2
+        // The coarse field defines a continuous column: gate = base + .5*u^8.
+        // Clip each integration segment to that column before measuring its
+        // opacity. Whole four-block slices otherwise appear/disappear along
+        // the underside, exposing a stack of bright contour lines.
+        float baseGate = astra_cloud_existence_gate(0.0,coverageBias);
+        if (coarse <= baseGate) continue;
+        float halfHeight = ASTRA_CLOUD_STRETCH
+            *pow(clamp(2.0*(coarse-baseGate),0.0,1.0),0.125);
+        float lightingDistance = segmentStart;
+        if (abs(VdotU) > 1e-6) {
+            vec2 columnBounds = (vec2(ASTRA_CLOUD_ALTITUDE-halfHeight,
+                                     ASTRA_CLOUD_ALTITUDE+halfHeight)-cameraPosition.y)/VdotU;
+            float occupiedStart = max(segmentStart,min(columnBounds.x,columnBounds.y));
+            float occupiedEnd = min(segmentStart+segmentLength,max(columnBounds.x,columnBounds.y));
+            if (occupiedEnd <= occupiedStart) continue;
+            segmentLength = occupiedEnd-occupiedStart;
+            sampleDistance = 0.5*(occupiedStart+occupiedEnd);
+            lightingDistance = occupiedStart;
+            tracePos = cameraPosition+sampleDistance*nPlayerPos;
+            threshold = pow8(clamp(abs(ASTRA_CLOUD_ALTITUDE-tracePos.y)
+                                  /ASTRA_CLOUD_STRETCH,0.0,1.0));
+            existenceGate = astra_cloud_existence_gate(threshold,coverageBias);
+            horizontalOffset = tracePos.xz-cameraPosition.xz;
+            horizontalDistance2 = dot(horizontalOffset,horizontalOffset);
+        } else if (abs(tracePos.y-ASTRA_CLOUD_ALTITUDE) >= halfHeight) continue;
+        #else
 		if (coarse <= existenceGate) continue;
+        #endif
         // Coverage belongs to the occupied coarse column. Moving the shading
         // point onto its boundary must not erase that column's opacity.
         float densityCoarse = coarse;
@@ -320,7 +388,7 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
             float middle = 0.5*(lowDistance+highDistance);
             vec3 candidate = cameraPosition+middle*nPlayerPos;
             float layer = clamp(abs(ASTRA_CLOUD_ALTITUDE-candidate.y)/ASTRA_CLOUD_STRETCH,0.001,0.999);
-            float candidateGate = astra_cloud_existence_gate(pow8(layer));
+            float candidateGate = astra_cloud_existence_gate(pow8(layer), coverageBias);
             vec3 candidateM = astra_modify_trace_pos(candidate,ASTRA_CLOUD_ALTITUDE);
             float candidateSample = astra_2d_cloud_sample(candidateM.xz);
             float candidateCoarse = 0.78*candidateSample;
@@ -342,7 +410,7 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
         // detail value (that octave is non-negative), so the detail lookup and
         // its rounded-coordinate math cannot change the result. `saturation`
         // is the same expression the column-density ramp below consumes.
-        float saturation = max(astra_cloud_saturation(), densityGate + 0.02);
+        float saturation = max(saturationBase, densityGate + 0.02);
         float noise = densityCoarse;
         if (noise < saturation) {
             vec2 detailUv = mat2(0.8,-0.6,0.6,0.8)*tracePosM.xz*2.7+vec2(31.7,9.3);
@@ -353,8 +421,9 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
         float edgeWidth = clamp(sampleDistance * angularFootprint
                                 * ASTRA_CLOUD_NARROWNESS * 0.35, 0.02, 0.10);
         columnDensity *= smoothstep(densityGate, densityGate + edgeWidth, densityCoarse);
+        float lTracePosXZ=sqrt(horizontalDistance2);
         #if CLOUD_QUALITY == 2
-        float distanceRatio = clamp((ASTRA_CLOUD_THRESHOLD_F-sqrt(horizontalDistance2))
+        float distanceRatio = clamp((ASTRA_CLOUD_THRESHOLD_F-lTracePosXZ)
                                     /ASTRA_CLOUD_THRESHOLD_F,0.0,0.75);
         float sampleAlpha = (1.0-exp(-columnDensity*segmentLength*ASTRA_CLOUD_DENSITY_EXTINCTION))
                           *sqrt(distanceRatio*1.33333);
@@ -368,18 +437,25 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
             if (volumetricClouds.a >= 0.995) break;
             continue;
         }
+        // Shade the continuous entry surface, rather than the midpoint of the
+        // first occupied slice. Density still belongs to the integration point.
+        tracePos = cameraPosition+lightingDistance*nPlayerPos;
+        tracePosM = astra_modify_trace_pos(tracePos,ASTRA_CLOUD_ALTITUDE);
+        coarseSample = astra_2d_cloud_sample(tracePosM.xz);
         #endif
 
         // Empty rays need density only, not the sky palette and cloud lighting.
         // Evaluate the colour at the first visible hit. High reuses it while
         // integrating opacity; low/medium return that single hit immediately.
         float VdotS = dot(nPlayerPos, astraSunDirection);
+        // Uniform-only sky records stay local to this ray's shading. Keep only
+        // the derived cloud colours live across the four potentially long marches.
         AstraSkyFactors f=astra_sky_factors();
         AstraSkyPalette p=astra_sky_palette();
-        vec3 cloudAmbientColor,cloudLightColor;
-        astra_cloud_colors(f,p,cloudAmbientColor,cloudLightColor);
-        float twilight=astra_twilight_strength();
-        float lTracePosXZ=sqrt(horizontalDistance2);
+        astra_cloud_frame_colors(ctx, f, p);
+        vec3 cloudAmbientColor=ctx.cloudAmbientColor;
+        vec3 cloudLightColor=ctx.cloudLightColor;
+        float twilight=ctx.twilight;
 		// :94-95 - height within the sheet drives the lit-top / dark-bottom look
 		float cloudShading = 1.0 - (higherPlaneAltitude - tracePos.y) / ASTRA_CLOUD_TALLNESS;
 		      cloudShading = pow(max0(cloudShading), 0.8);
@@ -458,7 +534,7 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
 		// :123 - doGlare = isEyeInWater == 0, doGround = false (same as the sky)
         // This colour depends on the view ray, never on the marching sample.
         // Evaluate once, and only for rays that actually encounter a cloud.
-        vec3 cloudSkyColor=astra_get_sky(VdotU,VdotS,dither,
+        vec3 cloudSkyColor=astra_get_sky(VdotU,VdotS,ctx.dither,
             isEyeInWater==0 || water_is_thin_sheet(),false,f,p);
         // Converge toward the same tinted atmosphere as the visible sky. Keep
         // the smooth shared table unmodified: each consumer owns this gain.
@@ -523,6 +599,13 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
 	volumetricClouds.a *= 0.5 + 0.5 * skyFadeM;
 
 	return volumetricClouds;
+}
+
+vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 representativeWorld,
+                       float angularFootprint, vec2 interval) {
+    AstraCloudFrame ctx = astra_cloud_frame();
+    return astra_planar_cloud(nPlayerPos, maxRayDistance, representativeWorld,
+                              angularFootprint, interval, ctx);
 }
 
 vec4 astra_planar_cloud(vec3 worldDir, float maxRayDistance, out vec3 representativeWorld,

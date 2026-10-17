@@ -5,6 +5,9 @@ in vec2 texcoord;
 const int R16 = 0;
 #endif
 const int colortex14Format = R16;
+// Active draws overwrite the complete map. When the vertex stage skips a
+// neutral draw, cloud_shadow_at returns 1 before it can read this attachment.
+const bool colortex14Clear = false;
 /* RENDERTARGETS: 14 */
 void main() {
     float transmission = 1.0;

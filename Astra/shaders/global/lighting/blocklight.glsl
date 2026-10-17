@@ -55,6 +55,7 @@
 //                           frozen uniforms.glsl, so E1 passes it through.
 
 #include "/lib/colors.glsl"
+#include "/lib/handheld_light.glsl"
 
 // SUMMARY ideas (Hysteria/Insanity/BSL): player-centred continuous falloff and
 // a bounded source. Original Astra rational intensity, no reference expression
@@ -81,7 +82,7 @@ float held_light_strength(float heldLightBase, vec3 playerPos) {
 // the suppression across most sky-lit area. Held light is additionally suppressed by the
 // player's OWN sky exposure (heldLightSuppression), so a torch held while standing in
 // sunlight does not still bleed into a nearby cave.
-float local_light_intensity(
+vec2 local_light_components(
 	float skyLight,
 	float blockLight,
 	float heldLight,
@@ -91,19 +92,36 @@ float local_light_intensity(
 	float blockLightIntensity = pow4(blockLight) * (BLOCKLIGHT_STRENGTH * 0.01);
 	float heldLightIntensity  = pow4(heldLight);   // heldLight already carries HANDHELD_LIGHT_STRENGTH
 
-	#ifdef BLOCKLIGHT_SUPPRESSION
-		blockLightIntensity *= 1.0 - sqrt(skyLight) * blocklightSuppression;
+    // With no block or held source, daylight suppression has nothing to dim.
+    // Keep the same exact zero without evaluating either square-root response.
+    if (blockLightIntensity == 0.0 && heldLightIntensity == 0.0) return vec2(0.0);
 
-		float heldLightSkyLight = sqrt(max(skyLight, heldLightSuppression));
-		heldLightIntensity *= 1.0 - heldLightSkyLight * blocklightSuppression;
+	#ifdef BLOCKLIGHT_SUPPRESSION
+        if (blockLightIntensity != 0.0)
+		    blockLightIntensity *= 1.0 - sqrt(skyLight) * blocklightSuppression;
+
+        if (heldLightIntensity != 0.0) {
+		    float heldLightSkyLight = sqrt(max(skyLight, heldLightSuppression));
+		    heldLightIntensity *= 1.0 - heldLightSkyLight * blocklightSuppression;
+        }
 	#endif
 
-	return blockLightIntensity + heldLightIntensity;
+	return vec2(blockLightIntensity, heldLightIntensity);
+}
+
+vec3 astra_local_light_radiance(vec2 components) {
+    if (components.y <= 0.0)
+        return BLOCKLIGHT_COLOR * min(1.0, components.x);
+    float intensity = components.x + components.y;
+    // Share the original cap between both sources, preserving coloured hand
+    // light separately from the warm placed-light contribution.
+    return BLOCKLIGHT_COLOR * (vec3(components.x) + astra_held_light_tint() * components.y)
+         / max(1.0, intensity);
 }
 
 vec3 block_lighting(float skyLight, float blockLight, float heldLight,
                     float blocklightSuppression, float heldLightSuppression) {
-    return BLOCKLIGHT_COLOR * min(1.0, local_light_intensity(skyLight, blockLight, heldLight,
+    return astra_local_light_radiance(local_light_components(skyLight, blockLight, heldLight,
                                   blocklightSuppression, heldLightSuppression));
 }
 

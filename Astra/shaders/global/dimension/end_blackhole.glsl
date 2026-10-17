@@ -67,7 +67,7 @@ vec3 end_blackhole_system(vec3 ray,float cone,out float backgroundVisibility) {
         sourceZ=-primary.y*0.987117
                 +primaryFrame.w*end_disc_half_height(length(primary.xy))*END_DISC_INCLINATION;
     vec4 behind,ahead;
-    end_plasma_layers(q,sourceZ,outside,behind,ahead);
+    end_plasma_layers(q,sourceZ,outside,frontCover==1.0,behind,ahead);
     color=behind.rgb;
     backgroundVisibility*=behind.a;
     if(frontCover<1.0 && outside>0.00001 && rearReveal>0.0) {

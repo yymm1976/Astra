@@ -55,13 +55,21 @@ vec3 astra_star_cell(ivec2 cell, uint salt) {
 vec3 astra_star_chart(vec2 coord, uint salt) {
     vec2 grid = coord * 204.8;
     ivec2 cell = ivec2(floor(grid));
-    vec2 blend = fract(grid);
-    blend = blend * blend * (3.0 - 2.0 * blend);
-    vec3 row0 = mix(astra_star_cell(cell, salt),
-                    astra_star_cell(cell + ivec2(1, 0), salt), blend.x);
-    vec3 row1 = mix(astra_star_cell(cell + ivec2(0, 1), salt),
-                    astra_star_cell(cell + ivec2(1, 1), salt), blend.x);
-    return mix(row0, row1, blend.y);
+    vec2 f = fract(grid);
+    vec4 dx = vec4(f.x,f.x-1.0,f.x,f.x-1.0);
+    vec4 dy = vec4(f.y,f.y,f.y-1.0,f.y-1.0);
+    vec4 support = max(vec4(1.0)-dx*dx-dy*dy,vec4(0.0));
+    vec4 broad = support*support;
+    vec4 core = broad*broad*broad;
+    // Compact round points with a tight core and faint halo. Each radial
+    // profile has unit integral, preserving catalogue flux and star count.
+    // Value and slope reach zero before a star leaves this four-corner cell.
+    vec4 weights = (0.85*7.0/3.14159265)*core
+                 +(0.15*3.0/3.14159265)*broad;
+    return astra_star_cell(cell,salt)*weights.x
+         + astra_star_cell(cell+ivec2(1,0),salt)*weights.y
+         + astra_star_cell(cell+ivec2(0,1),salt)*weights.z
+         + astra_star_cell(cell+ivec2(1,1),salt)*weights.w;
 }
 
 vec3 astra_milky_way(vec3 celestial) {
