@@ -27,6 +27,9 @@ uniform sampler2D colortex23;
 uniform sampler2D colortex9;
 #endif
 in vec2 texcoord;
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_VOLUME_FOG
+flat in vec3 deferredRainAirSource;
+#endif
 #ifdef ASTRA_TAA
 uniform sampler2D colortex16;
 /* RENDERTARGETS: 0,4,16 */
@@ -141,11 +144,12 @@ vec3 puddle_reflection(vec3 playerPos, vec3 normal, vec3 incident, float noV) {
     #endif
     return puddle_reflection_sky(ray, noV);
 }
+#ifndef ASTRA_VOLUME_FOG
 vec3 rainy_air(vec3 endPoint) {
-    if(astraRainFactor < 0.01 || !(isEyeInWater == 0 || water_is_thin_sheet()) || skyVisibilityDay <= 0.0
-            || blindness > 0.0001) return vec3(0.0);
-    float access = smoothstep(0.35,0.85,float(eyeBrightnessSmooth.y)/240.0);
-    if(access <= 0.0) return vec3(0.0);
+    // Source-off and uniform weather/medium gates were prepared by the matching
+    // quad vertex. Keep ray-local shadow visibility inside the march: a shaded
+    // surface can still have illuminated mist between it and the camera.
+    if (all(lessThanEqual(deferredRainAirSource,vec3(0.0)))) return vec3(0.0);
     vec3 L = astra_world_light_direction();
     float endpointLength = length(endPoint);
     float distanceToEye = min(endpointLength,100.0);
@@ -219,9 +223,9 @@ vec3 rainy_air(vec3 endPoint) {
         sum += lit * attenuation;
         attenuation *= attenuationStep;
     }
-    return vec3(1.0,0.91,0.78) * sum * stepLength
-         * 0.003 * phase * astraRainFactor * access * skyVisibilityDay;
+    return deferredRainAirSource * (sum*stepLength*phase);
 }
+#endif
 #endif
 void main() {
     #if DEBUG_VERTEX_AO == 1
@@ -430,9 +434,11 @@ void main() {
         #endif
         #ifdef STARS
             float pointStars;
-            vec3 skyStars = astra_star_field(skyRay, pointStars);
+            float galaxyReactive;
+            vec3 skyStars = astra_star_field(skyRay, pointStars, galaxyReactive);
             clearSky += skyStars;
             #ifdef ASTRA_TAA
+            reactive = max(reactive,galaxyReactive);
             if (pointStars > 0.0) reactive = 1.0;
             #endif
         #endif

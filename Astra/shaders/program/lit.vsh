@@ -27,7 +27,7 @@ in vec4 mc_Entity;
 in vec3 at_midBlock;
 #endif
 #ifdef ASTRA_WATER_PASS
-flat out int waterRasterProjectionMatches;
+flat out int waterProjectionFlags;
 #if defined DIMENSION_NETHER || defined DIMENSION_END
 in vec4 at_tangent;
 out vec3 waterTangent;
@@ -35,6 +35,12 @@ out vec3 waterBinormal;
 out vec3 waterViewVector;
 out float waterViewDistance;
 #else
+// Only the water draw consumes the shared glint palette. Keep its existing
+// highlight response while preparing it before fragment shading.
+#include "/lib/pow.glsl"
+#include "/lib/twilight.glsl"
+#include "/lib/color_controls.glsl"
+flat out vec3 waterGlintRadiance;
 flat out vec3 waterSunCentre;
 #if SUN_MOON_MODE == SUN_MOON_VANILLA
 flat out vec3 waterSunRight;
@@ -52,6 +58,10 @@ out vec3 surfaceShadowCoordinate;
 flat out vec3 surfaceShadowPlaneNormal;
 #endif
 flat out uint faceData;
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+// Reconstruct the same quantized flat normal once per vertex, not per pixel.
+flat out vec3 astraFaceNormal;
+#endif
 uint astra_material(int id) {
     if (id < 10001 || id > 10040) return 0u;
     if (id == 10033) return 0u; // non-emitting partial shapes; voxel identity is separate
@@ -131,6 +141,9 @@ void main() {
     #endif
     #endif
     faceData = pack_octahedral(normal, 9) | (material << 18);
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    astraFaceNormal = unpack_octahedral(faceData, 9);
+    #endif
     #if defined ORE_GLOW && defined ASTRA_TERRAIN && !defined ASTRA_TRANSLUCENT
     // Keep the normal, four-bit material, wet class and dimension flags intact.
     int oreBlock = int(mc_Entity.x + 0.5);
@@ -172,10 +185,24 @@ void main() {
     #ifdef ASTRA_WATER_PASS
     // Decide once per vertex, including hand-water's distinct projection.
     // Only matching native projection can reuse the raster clip coordinate.
-    waterRasterProjectionMatches = int(all(equal(gl_ProjectionMatrix[0],gbufferProjection[0]))
+    waterProjectionFlags = int(all(equal(gl_ProjectionMatrix[0],gbufferProjection[0]))
         && all(equal(gl_ProjectionMatrix[1],gbufferProjection[1]))
         && all(equal(gl_ProjectionMatrix[2],gbufferProjection[2]))
         && all(equal(gl_ProjectionMatrix[3],gbufferProjection[3])));
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    // Independent facts: raster origin (bit 0), forward direction XY/W (bit 1),
+    // inverse view Z/W (bit 2), and inverse XY axes (bit 3). Off-centre
+    // columns remain fully represented.
+    if (all(equal(gbufferProjection[0].yw,vec2(0.0)))
+        && all(equal(gbufferProjection[1].xw,vec2(0.0))))
+        waterProjectionFlags |= 2;
+    if (all(equal(gbufferProjectionInverse[0].zw,vec2(0.0)))
+        && all(equal(gbufferProjectionInverse[1].zw,vec2(0.0)))) {
+        waterProjectionFlags |= 4;
+        if (gbufferProjectionInverse[0].y == 0.0 && gbufferProjectionInverse[1].x == 0.0)
+            waterProjectionFlags |= 8;
+    }
+    #endif
     #endif
     #if defined ASTRA_WATER_PASS && (defined DIMENSION_NETHER || defined DIMENSION_END)
         waterTangent = normalize(mat3(gbufferModelViewInverse) * (gl_NormalMatrix * at_tangent.xyz));
@@ -185,6 +212,12 @@ void main() {
         waterViewDistance = length(viewPos.xyz);
     #endif
     #if defined ASTRA_WATER_PASS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    float glintTwilight = astra_twilight_strength();
+    vec3 glintSun = mix(vec3(1.00,0.96,0.88),
+        astra_twilight_highlights(astra_twilight_sunlight()),glintTwilight);
+    vec3 glintMoon = astraMoonPalette*ASTRA_TINT_MOON*astraMoonLightScale;
+    waterGlintRadiance = mix(glintMoon,glintSun,astraSunSource)
+        *mix(0.34,mix(0.72,0.52,glintTwilight),astraSunSource);
     waterSunCentre = normalize(worldSunVector);
     #if SUN_MOON_MODE == SUN_MOON_VANILLA
     vec3 orbitRight = vec3(0.0,sin(radians(sunPathRotation)),cos(radians(sunPathRotation)));
@@ -273,11 +306,18 @@ void main() {
     // planar, and its two possible diagonals must not change surface depth.
     #if defined SHADOWS && !defined DIMENSION_NETHER && !defined ASTRA_WEATHER
     float shadowNdotL = dot(normal, astra_shadow_light_direction());
-    #if defined ASTRA_TERRAIN && !defined DIMENSION_END && !defined ASTRA_WATER_PASS
+    #if defined ASTRA_TERRAIN && !defined DIMENSION_END
+    #ifdef ASTRA_WATER_PASS
+    // Fluid fragments use surface diffuse lighting only on a submerged horizontal
+    // interface. Their source glint computes its own shadow coordinate later.
+    // Keep a margin around the fragment's quantized |normal.y| > 0.9 decision.
+    bool shadowReceiver = material != 1u || (isEyeInWater == 1 && abs(normal.y) > 0.89);
+    #else
     bool shadowReceiver = shadowNdotL > -0.10 || material == 8u;
     #ifdef SSS_FOLIAGE
     if (material >= 2u && material <= 6u)
         shadowReceiver = material != 2u || shadowNdotL > -0.60;
+    #endif
     #endif
     // Flat native face normals cannot become lit after interpolation. The
     // margin also covers their fragment-side octahedral quantization.

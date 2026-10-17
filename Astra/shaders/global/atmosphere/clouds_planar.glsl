@@ -308,6 +308,14 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
     #if CLOUD_QUALITY == 2
     vec3 firstCloudColor = vec3(0.0);
     bool cloudColorReady = false;
+    // Cache the shared endpoint between adjacent segments. One initial lookup
+    // plus one per segment replaces unrelated midpoint columns, without a
+    // second density query at every boundary or a per-segment eighth root.
+    vec3 initialPosition = cameraPosition+minPlaneDistance*nPlayerPos;
+    float previousCoarse = astra_cloud_coarse(initialPosition,ASTRA_CLOUD_ALTITUDE);
+    float previousGate = astra_cloud_existence_gate(pow8(clamp(
+        abs(initialPosition.y-ASTRA_CLOUD_ALTITUDE)/ASTRA_CLOUD_STRETCH,0.0,1.0)),coverageBias);
+    float horizontalRayLength = length(nPlayerPos.xz);
     #endif
 
 	for (int i = 0; i < sampleCount; i++) {
@@ -318,10 +326,33 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
         float segmentStart = minPlaneDistance + float(i) * stepMult;
         float segmentLength = min(stepMult, min(maxRayDistance,maxPlaneDistance)-segmentStart);
         if (segmentLength <= 0.0) break;
-        float sampleDistance = segmentStart + 0.5 * segmentLength;
+        vec3 segmentEndPosition = cameraPosition+(segmentStart+segmentLength)*nPlayerPos;
+        float endCoarse = astra_cloud_coarse(segmentEndPosition,ASTRA_CLOUD_ALTITUDE);
+        float endGate = astra_cloud_existence_gate(pow8(clamp(
+            abs(segmentEndPosition.y-ASTRA_CLOUD_ALTITUDE)/ASTRA_CLOUD_STRETCH,0.0,1.0)),coverageBias);
+        float startCoarse = previousCoarse;
+        float startSigned = startCoarse-previousGate;
+        float endSigned = endCoarse-endGate;
+        previousCoarse = endCoarse;
+        previousGate = endGate;
+        if (max(startSigned,endSigned) <= 0.0) continue;
+        // Linear boundary interpolation includes the horizontal density change.
+        // Freezing one midpoint's whole vertical column leaves stacked slices
+        // at cloud sides even when its top/bottom bounds are clipped exactly.
+        float occupiedStart = startSigned < 0.0 ? -startSigned/(endSigned-startSigned) : 0.0;
+        float occupiedEnd = endSigned < 0.0 ? startSigned/(startSigned-endSigned) : 1.0;
+        float occupiedMiddle = 0.5*(occupiedStart+occupiedEnd);
+        float lightingDistance = segmentStart+occupiedStart*segmentLength;
+        float sampleDistance = segmentStart+occupiedMiddle*segmentLength;
+        segmentLength *= occupiedEnd-occupiedStart;
+        tracePos = cameraPosition+sampleDistance*nPlayerPos;
+        vec3 tracePosM = astra_modify_trace_pos(tracePos,ASTRA_CLOUD_ALTITUDE);
+        float coarse = mix(startCoarse,endCoarse,occupiedMiddle);
+        float coarseSample = coarse/0.78;
+        float existenceGate = astra_cloud_existence_gate(pow8(clamp(
+            abs(tracePos.y-ASTRA_CLOUD_ALTITUDE)/ASTRA_CLOUD_STRETCH,0.0,1.0)),coverageBias);
         #else
         float sampleDistance = minPlaneDistance + (float(i) + marchOffset) * stepMult;
-        #endif
 		if (sampleDistance >= maxRayDistance) break;
         tracePos = cameraPosition+sampleDistance*nPlayerPos;
 
@@ -339,33 +370,6 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
 		float coarseSample = astra_2d_cloud_sample(tracePosM.xz);
 		float coarse = 0.78*coarseSample;
 		float existenceGate = astra_cloud_existence_gate(threshold, coverageBias);
-        #if CLOUD_QUALITY == 2
-        // The coarse field defines a continuous column: gate = base + .5*u^8.
-        // Clip each integration segment to that column before measuring its
-        // opacity. Whole four-block slices otherwise appear/disappear along
-        // the underside, exposing a stack of bright contour lines.
-        float baseGate = astra_cloud_existence_gate(0.0,coverageBias);
-        if (coarse <= baseGate) continue;
-        float halfHeight = ASTRA_CLOUD_STRETCH
-            *pow(clamp(2.0*(coarse-baseGate),0.0,1.0),0.125);
-        float lightingDistance = segmentStart;
-        if (abs(VdotU) > 1e-6) {
-            vec2 columnBounds = (vec2(ASTRA_CLOUD_ALTITUDE-halfHeight,
-                                     ASTRA_CLOUD_ALTITUDE+halfHeight)-cameraPosition.y)/VdotU;
-            float occupiedStart = max(segmentStart,min(columnBounds.x,columnBounds.y));
-            float occupiedEnd = min(segmentStart+segmentLength,max(columnBounds.x,columnBounds.y));
-            if (occupiedEnd <= occupiedStart) continue;
-            segmentLength = occupiedEnd-occupiedStart;
-            sampleDistance = 0.5*(occupiedStart+occupiedEnd);
-            lightingDistance = occupiedStart;
-            tracePos = cameraPosition+sampleDistance*nPlayerPos;
-            threshold = pow8(clamp(abs(ASTRA_CLOUD_ALTITUDE-tracePos.y)
-                                  /ASTRA_CLOUD_STRETCH,0.0,1.0));
-            existenceGate = astra_cloud_existence_gate(threshold,coverageBias);
-            horizontalOffset = tracePos.xz-cameraPosition.xz;
-            horizontalDistance2 = dot(horizontalOffset,horizontalOffset);
-        } else if (abs(tracePos.y-ASTRA_CLOUD_ALTITUDE) >= halfHeight) continue;
-        #else
 		if (coarse <= existenceGate) continue;
         #endif
         // Coverage belongs to the occupied coarse column. Moving the shading
@@ -421,7 +425,11 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
         float edgeWidth = clamp(sampleDistance * angularFootprint
                                 * ASTRA_CLOUD_NARROWNESS * 0.35, 0.02, 0.10);
         columnDensity *= smoothstep(densityGate, densityGate + edgeWidth, densityCoarse);
+        #if CLOUD_QUALITY == 2
+        float lTracePosXZ=sampleDistance*horizontalRayLength;
+        #else
         float lTracePosXZ=sqrt(horizontalDistance2);
+        #endif
         #if CLOUD_QUALITY == 2
         float distanceRatio = clamp((ASTRA_CLOUD_THRESHOLD_F-lTracePosXZ)
                                     /ASTRA_CLOUD_THRESHOLD_F,0.0,0.75);
@@ -441,7 +449,7 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
         // first occupied slice. Density still belongs to the integration point.
         tracePos = cameraPosition+lightingDistance*nPlayerPos;
         tracePosM = astra_modify_trace_pos(tracePos,ASTRA_CLOUD_ALTITUDE);
-        coarseSample = astra_2d_cloud_sample(tracePosM.xz);
+        coarseSample = mix(startCoarse,endCoarse,occupiedStart)/0.78;
         #endif
 
         // Empty rays need density only, not the sky palette and cloud lighting.

@@ -66,8 +66,12 @@ vec3 astra_sky_reflection(vec3 worldDir, float roughness) {
 }
 
 vec3 astra_direct_light() {
-    vec3 sun = astraSunPalette * (SUNLIGHT_STRENGTH * 0.01)
-             * astra_sun_color_gain(astraTwilightFactor, astraDawnBlend);
+    // The CPU handoff is exactly 0 or 1, never a blend weight. Evaluate only
+    // the active source; night need not build the daytime colour response.
+    if (astraDirectLightGate <= 0.0) return vec3(0.0);
+    if (astraSunSource > 0.5)
+        return astraSunPalette * (SUNLIGHT_STRENGTH * 0.01)
+             * astra_sun_color_gain(astraTwilightFactor, astraDawnBlend) * astraDirectLightGate;
 	// 2026-09-23 night-visual round ("夜晚阴影太多显得奇怪"): the old palette was a
 	// saturated blue (R<G<B, 0.30/0.40/0.62 -> 0.48/0.61/0.88) at 0.68 absolute, i.e.
 	// about 4x astra_sky_ambient(), so direct light dominated the night and every cast
@@ -88,7 +92,7 @@ vec3 astra_direct_light() {
 	// Match the actual shadow source, including Iris's dusk/dawn handoff.
     // The source transform, normalization, handoff and horizon polynomials are
     // uniform across the frame; shaders.properties evaluates them on the CPU.
-    return mix(moon, sun, astraSunSource) * astraDirectLightGate;
+    return moon * astraDirectLightGate;
 }
 
 vec3 astra_overworld_sky(vec3 worldDir) {

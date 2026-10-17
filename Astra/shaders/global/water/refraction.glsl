@@ -4,8 +4,23 @@
 // GPL-3.0-or-later with Section 7 terms; see Astra/LICENSE and THIRD-PARTY.md.
 // SUMMARY efficiency idea: avoid depth queries when refraction has no displacement.
 #ifdef ASTRA_WATER_PASS
-flat in int waterRasterProjectionMatches;
+flat in int waterProjectionFlags;
 #endif
+vec3 water_screen_view(vec3 screenPosition) {
+    #if defined ASTRA_WATER_PASS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    if ((waterProjectionFlags & 8) != 0) {
+        // Same sparse inverse as screen_view; its matrix-shape decision was
+        // made by the vertex stage, rather than repeated for every endpoint.
+        screenPosition.xy -= astra_jitter_uv();
+        vec3 ndc = screenPosition * 2.0 - 1.0;
+        vec4 point = gbufferProjectionInverse[2] * ndc.z + gbufferProjectionInverse[3];
+        point.xy += vec2(gbufferProjectionInverse[0].x * ndc.x,
+                         gbufferProjectionInverse[1].y * ndc.y);
+        return point.xyz / point.w;
+    }
+    #endif
+    return screen_view(screenPosition);
+}
 vec3 water_depth_footprint_values(vec4 footprint, vec2 uv, ivec2 size) {
     vec2 location = clamp(uv,vec2(0.0),vec2(1.0))*vec2(size);
     ivec2 nearestCorner = ivec2(floor(location) - floor(location - 0.5));
@@ -23,6 +38,15 @@ vec3 water_depth_footprint(sampler2D depthBuffer, vec2 uv, out vec4 footprint) {
 // Exact view Z from the same inverse projection as screen_view, using only the
 // two rows that divide Z by W.
 float water_screen_view_z(vec2 uv, float depth) {
+    #if defined ASTRA_WATER_PASS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    if ((waterProjectionFlags & 4) != 0) {
+        // No UV or jitter term can enter Z/W when both inverse XY columns
+        // have zero Z/W. Column 2/3 offsets and perspective W stay intact.
+        float ndcZ = depth * 2.0 - 1.0;
+        return (gbufferProjectionInverse[2].z * ndcZ + gbufferProjectionInverse[3].z)
+             / (gbufferProjectionInverse[2].w * ndcZ + gbufferProjectionInverse[3].w);
+    }
+    #endif
     vec4 ndc = vec4((uv - astra_jitter_uv()) * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
     mat4 inverseRows = transpose(gbufferProjectionInverse);
     return dot(inverseRows[2],ndc) / dot(inverseRows[3],ndc);
@@ -34,7 +58,7 @@ float water_screen_view_z(vec2 uv, float depth) {
 // pairedEntityDepth reports the caller's own entityViewDepth when the accepted
 // texel is the one that already supplied it, letting the paired transmission
 // skip its colortex28 fetch. -1 means "unknown, fetch normally".
-vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 normalDelta,
+vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 incident, vec3 normalDelta,
                         vec2 rasterUV, float entityViewDepth, out float acceptedDepth,
                         out float pairedEntityDepth) {
     acceptedDepth = -1.0;
@@ -49,7 +73,7 @@ vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 normalDelta,
     vec4 originClip;
     vec2 uv;
     #ifdef ASTRA_WATER_PASS
-    if (waterRasterProjectionMatches != 0) {
+    if ((waterProjectionFlags & 1) != 0) {
         // Raster XY/W already project this same native point. Refraction only
         // consumes XY/W, so clip Z need not be reconstructed. Keep the general
         // matrix path for hand-water or any other projection mismatch.
@@ -73,11 +97,21 @@ vec2 water_refracted_uv(sampler2D depthBuffer, vec3 viewPos, vec3 normalDelta,
     // after the ray has already been refracted toward a distant background.
     if (entityViewDepth > max(-viewPos.z,0.0)+0.002)
         backgroundZ = max(backgroundZ,-entityViewDepth);
-    vec3 direction = normalize(normalize(viewPos) + normalDelta * (REFRACTION_STRENGTH * 0.01));
+    // The interface already needs this unit viewing direction for Fresnel and
+    // reflection. Reuse it without normalizing the same position a second time.
+    vec3 direction = normalize(incident + normalDelta * (REFRACTION_STRENGTH * 0.01));
     float distance = min(abs(viewPos.z - backgroundZ), 32.0);
-    vec4 directionClip = gbufferProjection * vec4(direction,0.0);
-    vec4 refractedClip = originClip + directionClip * distance;
-    vec2 refractedUV = refractedClip.xy / refractedClip.w;
+    vec3 directionClip;
+    #if defined ASTRA_WATER_PASS && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    if ((waterProjectionFlags & 2) != 0) {
+        directionClip = vec3(gbufferProjection[0].x * direction.x,
+                             gbufferProjection[1].y * direction.y, 0.0)
+                      + gbufferProjection[2].xyw * direction.z;
+    } else
+    #endif
+        directionClip = (gbufferProjection * vec4(direction,0.0)).xyw;
+    vec3 refractedClip = originClip.xyw + directionClip * distance;
+    vec2 refractedUV = refractedClip.xy / refractedClip.z;
     refractedUV = refractedUV.xy * 0.5 + 0.5 + astra_jitter_uv();
     vec2 ndc = abs(refractedUV * 2.0 - 1.0);
     float visibility = clamp((1.0 - max(ndc.x, ndc.y)) / 0.10, 0.0, 1.0);

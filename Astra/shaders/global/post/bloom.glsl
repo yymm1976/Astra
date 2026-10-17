@@ -122,8 +122,22 @@ vec3 bloom_capture(sampler2D src, vec2 texCoord, bool sceneCapture) {
         #endif
 		vec2 coord = clamp(texCoord + offset * srcTexel * tapScale,
 		                   pad, 1.0 - pad);
+        #ifdef ASTRA_CELESTIAL_BLOOM
+        // Filter the VISIBLE sky after opaque/translucent occlusion. An unseen
+        // disc emits nothing; its surviving half can spill across a foreground
+        // silhouette later. Pair the point colour with this very depth texel.
+        ivec2 sourceSize = textureSize(src,0);
+        ivec2 pixel = clamp(ivec2(coord*vec2(sourceSize)),ivec2(0),sourceSize-1);
+        if (texelFetch(depthtex0,pixel,0).r < 0.999999) continue;
+        vec3 source = max(texelFetch(src,pixel,0).rgb,vec3(0.0));
+        #else
         vec3 source = max(textureLod(src,coord,0.0).rgb,vec3(0.0));
+        #endif
         if (!sceneCapture) source = bloom_prefilter(source);
+        #ifdef ASTRA_CELESTIAL_BLOOM
+        float sourcePeak = max(source.r,max(source.g,source.b));
+        source *= min(1.0,3.0/max(sourcePeak,0.000001));
+        #endif
         #if defined DIMENSION_END && defined ASTRA_BLOOM_CAPTURE && END_STONE_GLOW > 0
         // With pore emission disabled, colortex3.a is identically zero.
         // Ordinary scene/sky bloom above remains independent of this option.
@@ -152,6 +166,17 @@ vec3 bloom_capture(sampler2D src, vec2 texCoord) {
     return bloom_capture(src, texCoord, false);
     #endif
 }
+
+#ifdef CELESTIAL_BLOOM
+// Two existing pyramid levels form a narrow optical halo. Added in display
+// linear light so sky and foreground share the SAME glow at an occlusion edge,
+// even though the End photosphere has its own surface/sky tone curves.
+vec3 celestial_bloom(sampler2D bloomTex,vec2 uv) {
+    vec3 light = textureLod(bloomTex,uv,0.0).rgb*0.75
+               + textureLod(bloomTex,uv,1.0).rgb*0.25;
+    return max(light,vec3(0.0))*0.16;
+}
+#endif
 
 // Stage 2 (program/display.fsh, E1/C6): combine the mip levels of the capture into the
 // bloom that gets added to the scene.

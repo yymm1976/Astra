@@ -42,6 +42,17 @@ uniform sampler2D colortex1;
     #endif
 #endif
 #endif
+#ifdef CELESTIAL_BLOOM
+#ifdef ASTRA_CELESTIAL_BLOOM
+#include "/global/post/bloom.glsl"
+uniform sampler2D colortex2;
+const bool colortex2MipmapEnabled = true;
+#endif
+#endif
+#ifdef ASTRA_TREE_SHAFTS
+#include "/global/post/godrays.glsl"
+flat in vec3 displayTreeShaftLight;
+#endif
 #ifdef GODRAYS
 #ifndef DIMENSION_NETHER
 #ifndef DIMENSION_END
@@ -76,7 +87,7 @@ uniform sampler2D colortex9;
 in vec2 texcoord;
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END
 flat in int displayOrdinaryWater;
-#if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG && (defined GODRAYS_SUN_OCCLUSION || defined ASTRA_GODRAYS_CLOUD_OCCLUSION)
+#if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG && !defined ASTRA_TREE_SHAFTS && (defined GODRAYS_SUN_OCCLUSION || defined ASTRA_GODRAYS_CLOUD_OCCLUSION)
 flat in float displayGodraysVisibility;
 #endif
 #ifdef AUTO_EXPOSURE
@@ -159,10 +170,9 @@ void main() {
         {
             float bloomStrength=BLOOM_STRENGTH*0.01;
             #ifdef DIMENSION_END
-            // Restrict the optical halo of the sky photosphere; terrain retains
-            // its own glow. Source radiance and disc exposure are unchanged.
-            if (endSceneDepth >= 0.999999)
-                bloomStrength *= 0.60;
+            // Keep one optical strength across the sky/foreground boundary.
+            // A receiver-depth switch puts a new straight edge into the halo.
+            bloomStrength *= 0.60;
             #endif
             #if !defined DIMENSION_NETHER && !defined DIMENSION_END
             bloomStrength*=1.0-0.28*astra_twilight_strength();
@@ -174,6 +184,13 @@ void main() {
     #ifndef DIMENSION_NETHER
     #ifndef DIMENSION_END
     #if GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG
+        #ifdef ASTRA_TREE_SHAFTS
+        if ((isEyeInWater == 0 || (isEyeInWater == 1 && !ordinaryWater))
+            && any(greaterThan(displayTreeShaftLight,vec3(0.0))) && blindness <= 0.0001) {
+            hdr += displayTreeShaftLight*astra_tree_shafts_resolve(colortex1,sceneUV)
+                   *(GODRAYS_STRENGTH*0.01);
+        }
+        #else
         if ((isEyeInWater == 0 || (isEyeInWater == 1 && !ordinaryWater))
             && godraysExposure > 0.0 && blindness <= 0.0001) {
             float sunVisibility = 1.0;
@@ -188,6 +205,7 @@ void main() {
                        * godraysExposure * (GODRAYS_STRENGTH * 0.01);
             }
         }
+        #endif
     #endif
     #endif
     #endif
@@ -252,16 +270,28 @@ void main() {
     // Underwater has a modest fixed exposure compensation and retains manual
     // exposure; it does not inherit air metering or night colour shifts.
     vec3 displayHDR = ordinaryWater ? hdr*1.6 : display_air_hdr(hdr);
-    vec3 displayColor = srgb_encode(apply_tonemap(apply_scene_grading(apply_exposure(displayHDR))));
+    vec3 displayLinear = apply_tonemap(apply_scene_grading(apply_exposure(displayHDR)));
     #else
     #ifdef DIMENSION_END
     vec3 exposed=apply_exposure(hdr);
-    vec3 displayColor=srgb_encode(endSceneDepth>=0.999999
-        ? astra_end_sky_tonemap(exposed) : apply_tonemap(exposed));
+    vec3 displayLinear=endSceneDepth>=0.999999
+        ? astra_end_sky_tonemap(exposed) : apply_tonemap(exposed);
     #else
-    vec3 displayColor = srgb_encode(apply_tonemap(apply_exposure(hdr)));
+    vec3 displayLinear = apply_tonemap(apply_exposure(hdr));
     #endif
     #endif
+    #ifdef ASTRA_CELESTIAL_BLOOM
+    if (isEyeInWater == 0 && blindness < 1.0) {
+        float haloVisibility = 1.0-clamp(blindness,0.0,1.0);
+        haloVisibility *= 1.0-clamp(darknessFactor,0.0,1.0);
+        haloVisibility *= EXPOSURE*0.01*grading_dimension_exposure();
+        #if defined AUTO_EXPOSURE && !defined DIMENSION_END
+        haloVisibility *= displayExposureGain;
+        #endif
+        displayLinear += celestial_bloom(colortex2,sceneUV)*haloVisibility;
+    }
+    #endif
+    vec3 displayColor = srgb_encode(displayLinear);
     displayColor = apply_grading(displayColor);
     displayColor = apply_vignette(displayColor, texcoord);
     #ifdef ASTRA_DISPLAY_PREPARE

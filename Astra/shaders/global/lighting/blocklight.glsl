@@ -72,6 +72,20 @@ float held_light_strength(float heldLightBase, vec3 playerPos) {
 	#endif
 }
 
+// Same capped light and uncropped distance response, directly in intensity:
+// clamp(base/sqrt(1+d2/20.25),0,1)^4 = clamp(base^4/(1+d2/20.25)^2,0,1).
+// The frame prepares base^4 once; no fragment-local root or fourth power remains.
+float held_light_intensity(float sourceIntensity, vec3 playerPos) {
+    #ifndef HANDHELD_LIGHTING
+    return 0.0;
+    #else
+    if (sourceIntensity <= 0.0) return 0.0;
+    vec3 toLight = playerPos + relativeEyePosition;
+    float distanceTerm = 1.0 + dot(toLight,toLight)/20.25;
+    return clamp(sourceIntensity/(distanceTerm*distanceTerm),0.0,1.0);
+    #endif
+}
+
 // Block light + handheld, combined into one emission so their overlap has no seam
 // (Steadfast's min(1.0, a + b) form). The pow(_, 4.0) gives the strong-but-pleasing
 // falloff; BLOCKLIGHT_STRENGTH / HANDHELD_LIGHT_STRENGTH scale each source's fill of the
@@ -85,12 +99,13 @@ float held_light_strength(float heldLightBase, vec3 playerPos) {
 vec2 local_light_components(
 	float skyLight,
 	float blockLight,
-	float heldLight,
+	float heldLightIntensity,
 	float blocklightSuppression,
 	float heldLightSuppression
 ) {
 	float blockLightIntensity = pow4(blockLight) * (BLOCKLIGHT_STRENGTH * 0.01);
-	float heldLightIntensity  = pow4(heldLight);   // heldLight already carries HANDHELD_LIGHT_STRENGTH
+    // The caller supplies final held intensity; legacy amplitude callers raise
+    // it exactly once in block_lighting or their dimension-specific composer.
 
     // With no block or held source, daylight suppression has nothing to dim.
     // Keep the same exact zero without evaluating either square-root response.
@@ -121,7 +136,7 @@ vec3 astra_local_light_radiance(vec2 components) {
 
 vec3 block_lighting(float skyLight, float blockLight, float heldLight,
                     float blocklightSuppression, float heldLightSuppression) {
-    return astra_local_light_radiance(local_light_components(skyLight, blockLight, heldLight,
+    return astra_local_light_radiance(local_light_components(skyLight, blockLight, pow4(heldLight),
                                   blocklightSuppression, heldLightSuppression));
 }
 

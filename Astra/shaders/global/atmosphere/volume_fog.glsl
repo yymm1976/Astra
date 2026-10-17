@@ -129,7 +129,7 @@ vec4 astra_volume_march_from(vec3 origin, vec3 rayWorld, float distanceBlocks,
 	vec3 lightDirWorld = astra_world_light_direction();
 	// Ray direction and frame lighting are identical for every segment. Keep
 	// palette and phase work outside the integration loop; weather density is CPU-side.
-	vec3 direct = astra_direct_light() * astra_volume_phase(dot(rayWorld,lightDirWorld));
+	vec3 direct = astra_air_shaft_color(astra_direct_light()) * astra_volume_phase(dot(rayWorld,lightDirWorld));
 	vec3 incident = astra_volume_incident();
 	float density = astraVolumeDensity;
     // Parallel shadow-space ray: transform the affine origin/direction once.

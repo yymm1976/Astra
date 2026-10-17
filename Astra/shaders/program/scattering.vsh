@@ -42,6 +42,8 @@ void main() {
     bool airCamera = isEyeInWater == 0 || thinSheet;
     #if !defined GODRAYS || GODRAYS_STRENGTH == 0 || defined ASTRA_VOLUME_FOG
     bool skipAir = true;
+    #elif defined ASTRA_TREE_SHAFTS
+    bool skipAir = SUNLIGHT_STRENGTH <= 0 || astraSunSource < 0.5 || astraDirectLightGate <= 0.0 || blindness > 0.0001;
     #else
     bool skipAir = godraysExposure <= 0.0 || blindness > 0.0001;
     #endif
@@ -54,9 +56,11 @@ void main() {
     }
     // The water branch returns before any screen-light consumer in scattering.fsh.
     if (airCamera) {
+        #ifndef ASTRA_TREE_SHAFTS
         vec4 clipLight = astra_jitter_clip(gbufferProjection*vec4(lightVector,0.0));
         vec2 ndcLight = clipLight.w > 0.0 ? clipLight.xy/max(clipLight.w,0.0001) : vec2(0.0);
         lightScreenPos = ndcLight*0.5+0.5;
+        #endif
     }
     #ifdef ASTRA_UNDERWATER_SHAFTS
     #if !defined GODRAYS || GODRAYS_STRENGTH == 0 || defined ASTRA_VOLUME_FOG

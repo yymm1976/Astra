@@ -234,8 +234,8 @@ void main() {
         shadowCasterPlaneNormal = (gl_NormalMatrix * gl_Normal)
             / vec3(gl_ProjectionMatrix[0][0],gl_ProjectionMatrix[1][1],gl_ProjectionMatrix[2][2]);
 #endif
-	// Keep native XY coverage. Opaque fragment depth corrects the warped plane
-	// conservatively; water retains its original paired depth/height record.
+		// Keep native XY coverage. Fragment depth follows the inverse-warped plane
+		// in either direction; water retains its original paired depth/height record.
 	gl_Position.xyz = distort(gl_Position.xyz / gl_Position.w) * gl_Position.w;
 
 }

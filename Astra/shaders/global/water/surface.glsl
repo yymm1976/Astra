@@ -305,7 +305,13 @@ vec2 surface_gradient(vec2 worldPos, SurfaceFootprint footprint, float time, flo
 
 WaterSurface water_surface(vec3 worldPos, vec3 baseNormal, float time, bool active) {
 	WaterSurface surface;
+	#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    // lit.fsh supplies the already decoded flat unit face normal. No
+    // interpolation or wave/rain perturbation precedes this call.
+	vec3 faceNormal = baseNormal;
+	#else
 	vec3 faceNormal = normalize(baseNormal);
+	#endif
 	surface.normal = faceNormal;
 	surface.roughness = 0.045;
 

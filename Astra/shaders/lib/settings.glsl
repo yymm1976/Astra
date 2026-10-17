@@ -87,6 +87,8 @@
 // Renderer-level switch for entity, player and block-entity shadow casters.
 #define SHADOW_SOFTNESS 2 // [1 2 4]
 // Shadow footprint radius, texels; medium/high filter quality only.
+#define CLOUD_SHADOW_SOFTENING 100 // [0 25 50 75 100]
+// Native surface footprints widen by at most 25% under the existing cloud shadow.
 #define COLORED_SHADOWS // [false true]
 // Tinted shadows via shadowcolor0 (stained glass / water)
 #define STATIC_SHADOW_FALLBACK // [false true]
@@ -103,6 +105,8 @@
 // 0 = vanilla sun/moon texture, 1 = procedural discs
 #define STARS // [false true]
 #define STAR_AMOUNT 2 // [0 1 2 3 4]
+#define MILKY_WAY_BRIGHTNESS 100 // [0 25 50 75 100 125 150 175 200]
+// Procedural galactic band and its faint extra stars; existing points stay unchanged.
 // Celestial star catalogue: off / sparse / normal / dense / very dense.
 #define CLOUD_MODE 1 // [0 1 2]
 #define CLOUD_QUALITY 2 // [0 1 2]
@@ -221,6 +225,8 @@
 #define NETHER_FOG_DENSITY 70 // [0 5 10 15 20 25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
 // Scales Complementary's distance fog; there is no additional plume layer.
 #define END_FOG_DENSITY 100 // [25 30 35 40 45 50 55 60 65 70 75 80 85 90 95 100 105 110 115 120 125 130 135 140 145 150 155 160 165 170 175 180 185 190 195 200]
+#define END_HEIGHT_FOG // [false true]
+// Broad island-height atmosphere; retains the original far-distance fade.
 // End void fog density, %
 #define NETHER_VOXEL_LIGHT // [false true]
 // Nether volumetric light: fire, soul fire and lava cast spatial coloured light through a
@@ -262,7 +268,15 @@
 // Color grading: contrast, %; 100 is neutral in every look.
 #define COLOR_TEMPERATURE 0 // [-50 -45 -40 -35 -30 -25 -20 -15 -10 -5 0 5 10 15 20 25 30 35 40 45 50]
 // Color grading: temperature shift (-cool / +warm)
+#define LOOK_WARM_SATURATION 104 // [80 85 90 95 100 102 104 106 108 110 115 120]
+#define LOOK_CYAN_SATURATION 106 // [80 85 90 95 100 102 104 106 108 110 115 120]
+#define LOOK_GREEN_SATURATION 100 // [80 85 90 95 100 102 104 106 108 110 115 120]
+// Natural overworld daylight only; chromatic masks preserve greys and night colours.
+#define AIR_SHAFT_COLOR 1 // [0 1]
+// 0 follows terrain light; 1 uses a mildly warm, luminance-matched air-scattering tint.
 //#define BLOOM // [false true]
+// A narrow visible-sky halo, independent of general scene/underwater Bloom.
+#define CELESTIAL_BLOOM // [false true]
 // Optional Bloom: underwater composition/capture + display mip consumption.
 #define BLOOM_QUALITY 0 // [0 1 2]
 // Capture source reads: low 4, balanced 5, high 13; all keep threshold and knee.
@@ -270,8 +284,9 @@
 // Bloom strength, %
 #define PURKINJE_STRENGTH 0 // [0 10 20 30 40 50 60 70 80 90 100]
 // Optional night blue shift; zero removes the colour operation. Independent of quality.
-//#define GODRAYS // [false true]
-// Godrays (half-res, default OFF for the BALANCED profile, design 1.2)
+#define GODRAYS // [false true]
+// With shadows: bounded quarter-size sunlight shafts, on in balanced/quality.
+// Without shadows: the original half-size screen-space fallback.
 #define GODRAYS_STRENGTH 100 // [0 10 20 30 40 50 60 70 80 90 100 110 120 130 140 150 160 170 180 190 200]
 // Godrays strength, %
 //#define GODRAYS_SUN_OCCLUSION // [false true]
@@ -707,6 +722,9 @@ const bool shadowHardwareFiltering1 = false;
     #define ASTRA_BLOOM
 #endif
 #endif
+#if defined CELESTIAL_BLOOM && !defined ASTRA_BLOOM && !defined DIMENSION_NETHER && DEBUG_VERTEX_AO == 0
+    #define ASTRA_CELESTIAL_BLOOM
+#endif
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END && DEBUG_VERTEX_AO == 0
     // Zero sky intensity has no directional term or bent-normal sky swap.
     #ifdef DIRECTIONAL_SKYLIGHT
@@ -722,6 +740,9 @@ const bool shadowHardwareFiltering1 = false;
 // mode, TAA or shadows (without SHADOWS the sun term keeps cloud shadow only).
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END && defined VOLUMETRIC_FOG && VOLUME_FOG_DENSITY > 0
     #define ASTRA_VOLUME_FOG
+#endif
+#if defined GODRAYS && GODRAYS_STRENGTH > 0 && defined SHADOWS && !defined ASTRA_VOLUME_FOG && !defined DIMENSION_NETHER && !defined DIMENSION_END && DEBUG_VERTEX_AO == 0
+    #define ASTRA_TREE_SHAFTS
 #endif
 // R6/T3: the screen-cloud history is overworld-only (planar clouds are) and
 // deliberately independent of ASTRA_TAA: it keeps its own previous-frame state
@@ -763,7 +784,7 @@ const bool shadowHardwareFiltering1 = false;
 // copy is part of the optical composition, independent of those optional effects.
 #define ASTRA_SCENE_COPY
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END && CLOUD_MODE == CLOUD_PLANAR
-#if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG
+#if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG && !defined ASTRA_TREE_SHAFTS
     #define ASTRA_GODRAYS_CLOUD_OCCLUSION
 #endif
 #endif

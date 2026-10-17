@@ -51,6 +51,9 @@ in vec2 lightcoord;
 in vec4 tint;
 in float vertexAO;
 flat in uint faceData;
+#if !defined DIMENSION_NETHER && !defined DIMENSION_END
+flat in vec3 astraFaceNormal;
+#endif
 #ifdef ASTRA_TAA
 in vec4 taaPreviousClip;
 in float taaPreviousViewDepth;
@@ -200,7 +203,12 @@ void main() {
     // faceData is flat and never rewritten, so this two-axis decode is evaluated once
     // and the water branches below reuse it. They previously decoded the identical
     // face normal twice more (lit.fsh:75 and lit.fsh:86).
+    // Main-world geometry now supplies that same decode from its provoking vertex.
+    #if !defined DIMENSION_NETHER && !defined DIMENSION_END
+    vec3 faceNormal = astraFaceNormal;
+    #else
     vec3 faceNormal = unpack_octahedral(faceData, 9);
+    #endif
     vec3 normal = faceNormal;
     uint material = (faceData >> 18) & 15u;
     uint lightingMaterial = material;

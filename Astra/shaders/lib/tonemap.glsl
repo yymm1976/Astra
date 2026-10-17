@@ -84,8 +84,14 @@ float astra_uchimura_peak(float x) {
 vec3 astra_natural_uchimura(vec3 x) {
     float peak = max(x.r, max(x.g, x.b));
     if (peak <= 0.0) return vec3(0.0);
+    // This interval is exactly the identity, and its luminance is below the
+    // whitening threshold. No curve, RGB rescale or white blend is required.
+    if (peak >= 0.22 && peak < 0.532) return x;
     float mappedPeak = astra_uchimura_peak(peak);
     vec3 mapped = x * (mappedPeak / peak);
+    // apply_tonemap supplies nonnegative RGB. Its positive luminance weights
+    // sum to one, so luminance cannot exceed the largest component.
+    if (peak <= 1.0) return mapped;
     float whitePath = smoothstep(1.0, 8.0, get_luminance(x));
     return mix(mapped, vec3(mappedPeak), whitePath);
 }

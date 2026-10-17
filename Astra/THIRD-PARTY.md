@@ -1,5 +1,21 @@
 # Astra — 第三方出处台账（THIRD-PARTY.md）
 
+### 雨雾源色共用与末地高度层次
+
+依据源码取证版线索回读Photon main快照`include/fog/end_fog_vl.glsl::end_fog_density`，仅参考“密度随高度变化”的思路，没有复制其指数衰减、坐标阈值、发光噪声或步进实现。Astra自写宽高度包络、实际空气段三点平均及远端渐隐恢复；不是Photon体积雾移植。雨雾光源改为复用包内既有太阳源色与微暖亮度归一函数，共用条件移到deferred顶点，原逐位置阴影/云判断保留。无新增外部代码或素材，原模块的派生归属继续适用。
+
+### 选择性色彩、空气光束配色与云下柔化
+
+参考新增调研所引Photon main的选择性色相调色及阴天柔化思路、ComplementaryReimagined main的`lib/colors/lightAndAmbientColors.glsl`地面/光束配色分工；本次读取报告对应本地分支快照。Astra自行编写RGB分量选择、显示亮度及通道余量限制、入射亮度归一的微暖空气光束色和已有云遮挡驱动的最多25%半径调整，没有复制HSL函数、色相隔离表达式、参考色表或半影倍率。水面单位视线复用和顶点高光配色沿用包内既有公式，原Steadfast、Complementary、Mellow及Solas派生归属继续适用；没有新增素材或vendor代码。
+
+### 树隙阳光、天空亮源薄光晕与照明分离
+
+参考本地Solas `lib/atmosphere/volumetrics.glsl::computeVolumetricLight/calculateVLParameters`、`lib/post/getBloom.glsl`，本地Photon及2026-10-17在线main的`program/c5_c10_bloom_downsample.fsh`、`include/lighting/colors/end_color.glsl`。仅采用真实阴影逐位置遮挡、遮挡后亮源扩散、直射与环境配色分离的思路，没有移植其循环、捕获核、色表、源强表达式或新增素材。Astra自行编写48格树隙光、HG相位参数、共享段透过比例、终点深度保护重建，以及可见天空捕获和统一显示光晕；复用现有阴影/Bloom模块的原归属继续适用。鲜艳度/饱和度合并及日月单侧求值是包内既有公式调整，Mellow等既有来源保留。当前行为、成本和限制见[实现与限制](../docs/实现与限制.md)。
+
+### 2026-10-17：程序银河与带内微星
+
+`global/atmosphere/stars.glsl`的银河亮度、静态中心权重、尘埃增强、同一星表中的暗弱候选及局部TAA反应值由Astra编写。Photon的`draw_galaxy/draw_stars`和Solas的`drawMilkyWay`只提供“银河结构与局部星点密度有关”的思路；未复制新的参考表达式、代码、全景图片或噪声素材。原模块的Complementary投影与可见性来源、既有Solas噪声素材归属继续保留。亮度为编译选项，不新增CPU颜色表达式、独立星场或绘制阶段；具体行为和开销见实现说明。
+
 ### 2026-10-17：SMAA 1x与实体地形入口
 
 SMAA内核直接取自[iryoku/smaa的master分支SMAA.hlsl](https://github.com/iryoku/smaa/blob/master/SMAA.hlsl)，读取日期2026-10-17，保存为`shaders/lib/vendor/smaa/SMAA.glsl`；Jorge Jimenez、Jose I. Echevarria、Belen Masia、Fernando Navarro、Diego Gutierrez的版权及MIT式许可保留在源文件和同目录`LICENSE.txt`。本地改动为将原注释编码转为UTF-8，并将颜色边缘函数的无边缘discard改为写零返回，以匹配Astra无需清空的完整输出。采用high预设的水平/垂直、对角和角点处理。

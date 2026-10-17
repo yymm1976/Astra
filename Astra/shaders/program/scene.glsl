@@ -152,7 +152,10 @@ vec4 astra_fog_path_ordinary(vec3 playerPos, float skylight, float fragWorldY, b
         NetherParams params = NetherParams(fogColor, nightVision, astraHeldLightBase);
         fog = nether_fog(skyStrength, params, distanceToCamera, distanceToCamera, playerPos);
     #elif defined DIMENSION_END
-        fog = end_fog(skyStrength, distanceToCamera, distanceToCamera, playerPos);
+        // playerPos is this path's displacement, while fragWorldY is its actual
+        // endpoint. Their difference also preserves a secondary air-leg origin.
+        fog = end_fog(skyStrength, distanceToCamera, distanceToCamera,
+                      vec2(fragWorldY-playerPos.y,fragWorldY));
     #else
         vec3 underwaterFog = vec3(0.0);
         if (!airLeg && isEyeInWater == 1 && !water_is_thin_sheet() && ordinaryFog)
@@ -334,9 +337,10 @@ vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
                             frameTimeCounter, params, directRadiance);
     #else
         LightParams params = LightParams(astra_sky_ambient(), astra_direct_light(),
-            nightVision, astraBlocklightSuppression, astraHeldLightBase,
+            nightVision, astraBlocklightSuppression, astraHeldLightIntensityBase,
             astraHeldLightSuppression, lightningBoltPosition);
         bool sss = material >= 2u && material <= 6u;
+        float cloudTransmission = 1.0;
         #ifndef SSS_FOLIAGE
             sss = false;
         #endif
@@ -376,20 +380,23 @@ vec3 astra_light(vec3 albedo, vec3 normal, vec3 playerPos, vec3 shadowPos,
             #ifdef CLOUD_SHADOWS
             vec3 cloudLightDir = astra_world_light_direction();
             if (cloudReceiver) {
-                params.directLightSurface *= mix(1.0,
+                cloudTransmission = mix(1.0,
                     astra_cloud_transmission(playerPos + cameraPosition, cloudLightDir),
                     cloudWeight);
+                params.directLightSurface *= cloudTransmission;
             }
             #else
             if (cloudReceiver) {
                 float cloudLight = astra_cloud_transmission(playerPos + cameraPosition, astra_world_light_direction());
-                params.directLightSurface *= mix(1.0, cloudLight, astraRainFactor * 0.75);
+                cloudTransmission = mix(1.0, cloudLight, astraRainFactor * 0.75);
+                params.directLightSurface *= cloudTransmission;
             }
             #endif
         }
         #endif
         vec3 color = diffuse_lighting(albedo, normal, playerPos, shadowPos,
-                         skylight, blocklight, sss, material == 2u, material == 8u, params, directRadiance, ambientRadiance, skyResponse);
+                         skylight, blocklight, sss, material == 2u, material == 8u, params, cloudTransmission,
+                         directRadiance, ambientRadiance, skyResponse);
         return color + albedo * ((emissive + portal) * (EMISSIVE_STRENGTH * 0.01));
     #endif
 }

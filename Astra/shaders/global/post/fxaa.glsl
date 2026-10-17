@@ -19,7 +19,7 @@ vec3 astra_fxaa(sampler2D source, vec2 uv, bool geometryOnly) {
     if (geometryOnly) {
         // Underwater caustics and block texels are colour detail, not geometry
         // edges. Restrict AA to depth silhouettes instead of shifting all detail.
-        float depth = textureLod(depthtex0, uv, 0.0).r;
+        float depth;
         float delta;
         #ifndef DIMENSION_END
         // Same native grid as the display input: the two overlapping gathers
@@ -29,14 +29,20 @@ vec3 astra_fxaa(sampler2D source, vec2 uv, bool geometryOnly) {
             && all(greaterThan(pixel,ivec2(0))) && all(lessThan(pixel,sourceSize-1))) {
             vec4 lowerDepth = textureGather(depthtex0,vec2(pixel)*texel,0);
             vec4 upperDepth = textureGather(depthtex0,vec2(pixel+ivec2(1))*texel,0);
+            // The upper footprint's (00) corner is this pixel. Iris binds the
+            // native depth sampler as nearest, so this is the original centre.
+            depth = upperDepth.w;
             delta = max(max(abs(upperDepth.x-depth),abs(lowerDepth.z-depth)),
                         max(abs(upperDepth.z-depth),abs(lowerDepth.x-depth)));
         } else
         #endif
-        delta = max(max(abs(textureLod(depthtex0, uv+vec2(texel.x,0),0.0).r-depth),
-                              abs(textureLod(depthtex0, uv-vec2(texel.x,0),0.0).r-depth)),
-                          max(abs(textureLod(depthtex0, uv+vec2(0,texel.y),0.0).r-depth),
-                              abs(textureLod(depthtex0, uv-vec2(0,texel.y),0.0).r-depth)));
+        {
+            depth = textureLod(depthtex0, uv, 0.0).r;
+            delta = max(max(abs(textureLod(depthtex0, uv+vec2(texel.x,0),0.0).r-depth),
+                            abs(textureLod(depthtex0, uv-vec2(texel.x,0),0.0).r-depth)),
+                        max(abs(textureLod(depthtex0, uv+vec2(0,texel.y),0.0).r-depth),
+                            abs(textureLod(depthtex0, uv-vec2(0,texel.y),0.0).r-depth)));
+        }
         if (delta < max((1.0-depth)*0.08, 0.00001)) return center.rgb;
     }
     float m = center.a;

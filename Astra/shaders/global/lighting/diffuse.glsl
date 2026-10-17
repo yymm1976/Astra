@@ -61,7 +61,7 @@
 //   global/lighting/blocklight.glsl -> global/lighting/diffuse.glsl.
 //   (global/* never includes global/*; the program is the composer — design.md 3.2.)
 // Calls (declared by the siblings above): shadow_mapping(), sss_wrap(),
-//   held_light_strength(), block_lighting(), lightning_point_light().
+//   held_light_intensity(), block_lighting(), lightning_point_light().
 //
 // LightParams — the non-frozen, per-frame inputs E1 supplies. Rationale mirrors B2 FogParams:
 // the Z3 custom-uniform set is frozen (SC-14), so any light colour / built-in not in
@@ -76,7 +76,8 @@
 //                           for D2/E1 — flagged in the handoff, not a C1 defect.)
 //   nightVision           — built-in (not frozen): 0..1, boosts ambient sky only.
 //   blocklightSuppression — CPU (Steadfast blocklightSuppression), 0..1; see blocklight.glsl.
-//   heldLightBase         — CPU heldBlockLightValue/15, 0..1; see blocklight.glsl.
+//   heldLightIntensityBase — CPU capped source with strength and fourth power;
+//                           see held_light_intensity() in blocklight.glsl.
 //   heldLightSuppression  — CPU smooth(eyeBrightness.y/240, .4, .4), 0..1; see blocklight.glsl.
 //   lightningBolt         — lightningBoltPosition (vec4), xyz + w gate; see blocklight.glsl.
 struct LightParams {
@@ -84,7 +85,7 @@ struct LightParams {
 	vec3  directLightSurface;
 	float nightVision;
 	float blocklightSuppression;
-	float heldLightBase;
+	float heldLightIntensityBase;
 	float heldLightSuppression;
 	vec4  lightningBolt;
 };
@@ -167,19 +168,28 @@ vec3 direct_lighting(
 		//      grass is no longer the brightest thing on screen.
 		directLightStrength = smoothstep(-0.05, 0.05, ndotl);
 		// Blend toward Lambert at low elevations to avoid full-strength grazing bands.
+        #if !defined DIMENSION_END && !defined DIMENSION_NETHER && !defined ASTRA_VOXY_PASS
+        float highSun = astraSurfaceTimeWeights.z;
+        #else
 		float highSun = smoothstep(0.15, 0.50, worldLightVector.y);
-        float grazing=max(ndotl,0.0);
-        #if !defined DIMENSION_END && !defined DIMENSION_NETHER
-        // A small forward-facing wrap catches sunrise on grass and stair tops;
-        // the existing facing gate still excludes back faces entirely.
-        // Complementary mainLighting.glsl: SIDE_SHADOWING uses a wrapped
-        // normal response, then sqrt2, instead of extinguishing grazing light.
-        float wrapped=clamp((ndotl+0.4)/1.4,0.0,1.0);
-        wrapped=wrapped*(2.0-wrapped);
-        grazing=mix(grazing,wrapped,astra_twilight_strength()
-                         *smoothstep(0.0,0.05,worldSunVector.y));
         #endif
-		directLightStrength *= mix(grazing, 1.0, highSun);
+        // A fully high source makes the grazing blend exactly one. This
+        // frame-wide branch skips the entire low-angle solve at midday/high moon.
+        if (highSun < 1.0) {
+            float grazing=max(ndotl,0.0);
+            #if !defined DIMENSION_END && !defined DIMENSION_NETHER
+            // A small forward-facing wrap catches sunrise on grass and stair tops;
+            // the existing facing gate still excludes back faces entirely.
+            // Complementary mainLighting.glsl: SIDE_SHADOWING uses a wrapped
+            // normal response, then sqrt2, instead of extinguishing grazing light.
+            if (astraSurfaceTimeWeights.w > 0.0) {
+                float wrapped=clamp((ndotl+0.4)/1.4,0.0,1.0);
+                wrapped=wrapped*(2.0-wrapped);
+                grazing=mix(grazing,wrapped,astraSurfaceTimeWeights.w);
+            }
+            #endif
+            directLightStrength *= mix(grazing, 1.0, highSun);
+        }
 		// Turned away from the light -> no direct light and no shadow sample (design.md 5).
 		if (directLightStrength < 0.0001) {
 			return vec3(0.0);
@@ -241,9 +251,8 @@ const vec3  NIGHT_DESATURATION_COLOR     = vec3(0.40, 0.50, 0.94);
 // must keep its albedo, which is the same rule the local-light term below applies for
 // torchlight. Only the moonlit part of the night is allowed to lose its colour.
 float night_desaturation(float skyLight, float localAttenuation, vec3 visibility) {
-	float night = 1.0 - skyVisibilityDay;
-	// Night vision is the player asking for colour to survive the dark.
-	night *= 1.0 - clamp(nightVision, 0.0, 1.0);
+    // Shared CPU response keeps the existing night-vision protection.
+    float night = astraPurkinjeGate;
     // Daylight and fully protected local-light regions keep their material
     // colour; none of them needs the shadow-colour luminance below.
     if (night <= 0.0 || skyLight <= 0.0 || localAttenuation <= 0.0) return 0.0;
@@ -274,7 +283,7 @@ vec3 desaturate_surface(vec3 color, float amount) {
 // branch and is never raised to two groups by the budget. Other dimensions and
 // OVERWORLD_BUDGET 0 keep the original SHADOW_FILTER_QUALITY branch and its
 // SHADOW_SOFTNESS untouched.
-vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
+vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight, float cloudTransmission) {
     #ifdef STATIC_SHADOW_FALLBACK
         float fallback = static_shadow(skyLight);
     #else
@@ -316,6 +325,14 @@ vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
                          / (float(shadowMapResolution)*mapRim*mapRim);
         float softRadius=max(0.22,0.75*sqrt(astraSurfaceShadowPixelWorldSquared));
         spread = clamp(softRadius/max(worldTexel,0.0001),0.5*spread,spread);
+        #if CLOUD_MODE == CLOUD_PLANAR && CLOUD_SHADOW_SOFTENING > 0
+        // An artistic overcast response, not a replacement for sky illumination.
+        // Reuse the caller's accepted cloud attenuation; no second cloud query.
+        // Apply AFTER the original bounds, with at most 25% extra radius. Every
+        // lobe still reconstructs all four own receiver/caster pairs.
+        spread *= 1.0+0.25*(CLOUD_SHADOW_SOFTENING*0.01)
+                 *(1.0-clamp(cloudTransmission,0.0,1.0));
+        #endif
         if (spread<=0.0) {
             filtered=shadow_lobe_light_inside(shadowPos.xy,shadowPos.z,
                 receiverWorldY,shadowSize,opaqueFirst);
@@ -389,6 +406,11 @@ vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
     #endif
 }
 
+// Water glints and other receivers retain their existing fixed footprint.
+vec3 surface_shadow_light(vec3 playerPos, vec3 shadowPos, float skyLight) {
+    return surface_shadow_light(playerPos,shadowPos,skyLight,1.0);
+}
+
 // Shared zero-response gate for surface shadows and the caller's cloud visibility.
 // Ground foliage retains its positive wrap; glass keeps its fixed top response.
 bool astra_direct_facing_away(float ndotl, bool subsurfaceScatter, bool isLeaves,
@@ -417,6 +439,7 @@ vec3 diffuse_lighting(
 	bool  isLeaves,
 	bool  isGlass,
 	LightParams params,
+    float cloudTransmission,
 	out vec3 directRadiance,
     out vec3 ambientRadiance,
     out vec3 directionalSkyRadiance
@@ -454,7 +477,7 @@ vec3 diffuse_lighting(
                                               isLeaves, isGlass);
     vec3 visibility = facingAway
         ? vec3(1.0)
-        : surface_shadow_light(playerPos, shadowPos, skyLight);
+        : surface_shadow_light(playerPos, shadowPos, skyLight, cloudTransmission);
     // The same bank/bed material keeps the same incident sky and sun palette
     // when the eye crosses the interface. Shadow transmission owns the incoming
     // sun's water leg; the final composite owns the camera leg, each once.
@@ -508,10 +531,10 @@ vec3 diffuse_lighting(
     // direct term was pure layered attenuation and is removed. The floor drops so the
     // shadow the moon casts still reads, which is what puts texture back on the faces
     // that face away from it. Night vision keeps the old forgiving value.
-    float night = (1.0-smoothstep(-0.12,0.02,worldSunVector.y))
-                * (1.0-clamp(params.nightVision,0.0,1.0));
-    float twilightFill=astra_twilight_strength()*skyLight*skyLight
-        *(1.0-clamp(params.nightVision,0.0,1.0));
+    // scene.glsl supplies the built-in nightVision to this sole main-world
+    // composer; only per-surface sky access and distance remain pixel-local.
+    float night = astraSurfaceTimeWeights.x;
+    float twilightFill = astraSurfaceTimeWeights.y*skyLight*skyLight;
     // The two distance responses overlap at twilight and share one length.
     float ambientDistance=0.0;
     if (night > 0.0 || (twilightFill > 0.0 && SKYLIGHT_STRENGTH > 0))
@@ -543,11 +566,11 @@ vec3 diffuse_lighting(
     #endif
 	// 2. Local light: block light + handheld (held uses the player-centred light source).
     vec3 ambientLighting = lighting;
-	float heldLight = held_light_strength(params.heldLightBase, playerPos);
+	float heldIntensity = held_light_intensity(params.heldLightIntensityBase, playerPos);
 	vec2 localComponents = local_light_components(
 		skyLight,
 		blockLight,
-		heldLight,
+		heldIntensity,
 		params.blocklightSuppression,
 		params.heldLightSuppression);
     if (localComponents.y > 0.0)

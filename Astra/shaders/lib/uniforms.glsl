@@ -38,12 +38,14 @@ uniform vec3  astraSunPalette;         // twilight-adjusted sun; strength applie
 uniform vec3  astraMoonPalette;        // moon progress; phase/strength applied in GLSL
 uniform float astraSunSource;          // actual shadow source: 1 sun, 0 moon
 uniform float astraDirectLightGate;    // actual source horizon visibility and weather attenuation
+uniform vec4 astraSurfaceTimeWeights;  // night fill, twilight fill, high source, sunrise wrap
 uniform vec3 astraSunDirection;         // normalized world sun direction, CPU-side
 uniform vec3 astraStarTangent;          // celestial tangent, independent of shadow-light handoff
 uniform vec3 astraStarAxis;             // fixed tilted celestial pole
 uniform vec2 astraStarTwinkle;          // time-only sin/cos, positions follow the sun instead
 uniform float astraStarVisibility;     // existing dusk/rain envelope, evaluated once per frame
 uniform vec3 astraWorldLightDirection;  // normalized actual shadow source, CPU-side
+uniform vec3 astraWaterGlintFrame;      // horizontal across-axis X/Z, gated source power
 uniform vec4 astraSkyFactorsSun;        // sun factor, visibility, visibility squared, noon
 uniform vec4 astraSkyFactorsTime;       // inverse noon, squared inverse noon, night, source-horizon handoff (1 by day/night)
 uniform vec4 astraSkyFactorsWeather;    // rain squared, dry factor, two night curve values
@@ -141,6 +143,7 @@ uniform int blockEntityId;
 uniform int currentRenderedItemId;
 uniform int renderStage;
 uniform float astraHeldLightBase;
+uniform float astraHeldLightIntensityBase; // capped/strength-scaled source, fourth power
 uniform int heldItemId;
 uniform int heldItemId2;
 uniform int heldBlockLightValue;

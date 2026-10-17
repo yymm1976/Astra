@@ -74,9 +74,38 @@ vec3 astra_sun_color_gain(float twilight, float dawn) {
     // Those stay fully usable because this only scales their result.
     // The underlying noon palette is warm (1.10, 0.99, 0.83). This gain
     // brings it close to neutral; a neutral gain alone would keep it yellow.
-    gain *= mix(vec3(0.94, 1.01, 1.15), vec3(1.08, 1.00, 0.92), twilight);
+    gain *= mix(vec3(0.91, 1.01, 1.20), vec3(1.08, 1.00, 0.92), twilight);
     #endif
     return gain;
+}
+
+// Air shafts keep their own artistic colour response. Water has its existing
+// spectral transmission/tint and deliberately does not receive this air tint.
+// Source palette and strength remain the caller's; only hue ratios change.
+vec3 astra_air_shaft_color(vec3 source) {
+    #if AIR_SHAFT_COLOR == 1
+    vec3 tint = mix(vec3(1.025,1.005,0.97),vec3(1.04,1.0,0.96),astraTwilightFactor);
+    vec3 coloured = source*tint;
+    float originalY = dot(source,vec3(0.2126,0.7152,0.0722));
+    float tintedY = dot(coloured,vec3(0.2126,0.7152,0.0722));
+    return tintedY > 0.0 ? coloured*(originalY/tintedY) : source;
+    #else
+    return source;
+    #endif
+}
+
+// The same solar source feeds tree shafts and the rain-air path. Source-off
+// decisions precede visibility sampling; a shaded endpoint says nothing about
+// the visibility of the rest of a ray. This helper is used in quad vertices.
+vec3 astra_sun_shaft_source() {
+    #if SUNLIGHT_STRENGTH <= 0
+    return vec3(0.0);
+    #else
+    if (astraSunSource <= 0.0 || astraDirectLightGate <= 0.0) return vec3(0.0);
+    return astra_air_shaft_color(astraSunPalette
+        *astra_sun_color_gain(astraTwilightFactor,astraDawnBlend))
+        *(SUNLIGHT_STRENGTH*0.01*astraDirectLightGate*astraSunSource);
+    #endif
 }
 
 // Original-look neutral settings remove the per-direction sky gain calculation.

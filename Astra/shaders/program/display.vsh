@@ -8,7 +8,11 @@
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END
 #include "/global/water/medium_state.glsl"
 flat out int displayOrdinaryWater;
-#if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG && (defined GODRAYS_SUN_OCCLUSION || defined ASTRA_GODRAYS_CLOUD_OCCLUSION)
+#ifdef ASTRA_TREE_SHAFTS
+#include "/lib/color_controls.glsl"
+flat out vec3 displayTreeShaftLight;
+#endif
+#if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG && !defined ASTRA_TREE_SHAFTS && (defined GODRAYS_SUN_OCCLUSION || defined ASTRA_GODRAYS_CLOUD_OCCLUSION)
 uniform sampler2D colortex1;
 flat out float displayGodraysVisibility;
 #endif
@@ -36,7 +40,10 @@ void main() {
     #endif
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
     displayOrdinaryWater = int(isEyeInWater == 1 && !water_is_thin_sheet());
-    #if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG && (defined GODRAYS_SUN_OCCLUSION || defined ASTRA_GODRAYS_CLOUD_OCCLUSION)
+    #ifdef ASTRA_TREE_SHAFTS
+    displayTreeShaftLight = astra_sun_shaft_source();
+    #endif
+    #if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG && !defined ASTRA_TREE_SHAFTS && (defined GODRAYS_SUN_OCCLUSION || defined ASTRA_GODRAYS_CLOUD_OCCLUSION)
     displayGodraysVisibility = 1.0;
     #if DEBUG_VERTEX_AO == 0 && (!defined ASTRA_DISPLAY_FINAL || !defined ASTRA_SPATIAL_AA)
     // Scattering has already written this draw-wide source visibility.

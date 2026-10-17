@@ -24,6 +24,8 @@
 //     live in A. Stage 2 reads back the matching channel with texelFetch; the other
 //     texels are written but read by nobody.
 // Water output: RGB = refracted additive linear VL, A = min(ray length,48) / 128
+// World-space tree shafts instead store direct-scattering weight in R and
+// their own positive view endpoint depth in G for silhouette-safe reconstruction.
 // in the overworld budget (otherwise the full endpoint / 128). The consumer
 // interpolates radiance directly and rejects mismatched corner distances.
 // The same-frame world optical field is independent of temporal radiance history.
@@ -31,10 +33,11 @@
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
 #include "/global/water/medium_state.glsl"
-#include "/global/post/godrays.glsl"
-#if defined ASTRA_UNDERWATER_SHAFTS || defined ASTRA_GODRAYS_CLOUD_OCCLUSION
+#if defined ASTRA_UNDERWATER_SHAFTS || defined ASTRA_GODRAYS_CLOUD_OCCLUSION || defined ASTRA_TREE_SHAFTS
     #include "/program/scene.glsl"
 #endif
+#define ASTRA_TREE_SHAFT_MARCH_PASS
+#include "/global/post/godrays.glsl"
 #ifdef ASTRA_GODRAYS_CLOUD_OCCLUSION
     #include "/global/atmosphere/clouds_screen.glsl"
 #endif
@@ -127,6 +130,14 @@ void main() {
 		gl_FragData[0] = vec4(0.0);
 		return;
 	#endif
+    #ifdef ASTRA_TREE_SHAFTS
+    if (SUNLIGHT_STRENGTH <= 0 || astraSunSource < 0.5 || astraDirectLightGate <= 0.0 || blindness > 0.0001) {
+        gl_FragData[0] = vec4(0.0);
+        return;
+    }
+    gl_FragData[0] = vec4(astra_tree_shafts(texcoord),0.0,0.0);
+    return;
+    #endif
 	if (godraysExposure <= 0.0 || blindness > 0.0001 || GODRAYS_STRENGTH == 0) {
 		// Whole-pass early-out (design.md 5). The buffer would otherwise keep whatever
 		// uninitialised content it had, which is invisible normally but is undefined

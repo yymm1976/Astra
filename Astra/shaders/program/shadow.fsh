@@ -14,11 +14,6 @@
 //
 // Uniforms: none beyond built-ins (alphaTestRef, gtexture)
 // design.md 3.2 layer 2: program/* is the only lib entry
-// Iris resolves conditionals before driver compilation and exposes extensions
-// as MC_GL_*. Keep GL_* for hosts that preprocess directly in the driver.
-#if !defined DIMENSION_NETHER && !defined DIMENSION_END && (defined MC_GL_ARB_conservative_depth || defined GL_ARB_conservative_depth)
-#extension GL_ARB_conservative_depth : enable
-#endif
 #include "/lib/settings.glsl"
 #include "/lib/uniforms.glsl"
 // srgb_decode: texture colour is sRGB, the tint must be linear
@@ -36,12 +31,6 @@ in vec3 shadowUndistortedPosition;
 flat in vec3 shadowCasterPlaneNormal;
 #ifndef ASTRA_SOLID_SHADOW
 flat in vec4 shadowFoliageTexBounds;
-#endif
-#if defined ASTRA_SOLID_SHADOW && (defined MC_GL_ARB_conservative_depth || defined GL_ARB_conservative_depth)
-// Corrected depth never approaches the light, so occluded fragments can still
-// be rejected against the original raster depth before running this shader.
-// Foliage in the general program needs exact plane depth in either direction.
-layout(depth_greater) out float gl_FragDepth;
 #endif
 #endif
 #include "/global/water/caustics.glsl"
@@ -103,11 +92,11 @@ void main() {
                    shadowDx.x*shadowDy.z-shadowDy.x*shadowDx.z)/shadowDet;
         float planeDepth=(shadowUndistortedPosition.z
             +dot(ray-shadowUndistortedPosition.xy,plane))*0.25+0.5;
-        #ifndef ASTRA_SOLID_SHADOW
-        gl_FragDepth=foliageCaster ? planeDepth : max(gl_FragCoord.z,planeDepth);
-        #else
-        gl_FragDepth=max(gl_FragCoord.z,planeDepth);
-        #endif
+        // Receiver and caster must describe the same inverse-warped plane.
+        // Clamping this to raster depth preserves the triangle's diagonal error
+        // on one side, including static trunks. Correction can go either way;
+        // declaring depth_greater would therefore be invalid for solid casters.
+        gl_FragDepth=planeDepth;
     }
 #endif
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END

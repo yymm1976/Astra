@@ -36,7 +36,8 @@
 //   vec3 apply_tonemap(vec3 hdr)                  [lib/tonemap.glsl, not here]
 //   vec3 apply_scene_grading(vec3 hdr)
 //       Natural overworld only: contrast on HDR luminance around 18% grey,
-//       after manual exposure and before tone mapping. Neutral at 100.
+//       after manual exposure and before tone mapping. The user's 100 setting
+//       adds no contrast beyond the natural style's bounded separation.
 //
 //   vec3 apply_grading(vec3 displayColor)
 //       DISPLAY-referred (gamma-encoded) - see "why display space" below.
@@ -181,15 +182,21 @@ vec3 apply_color_temperature(vec3 color) {
 // tries to protect, and the two sliders would fight.
 // ------------------------------------------------------------
 vec3 apply_scene_grading(vec3 hdr) {
-    #if defined ASTRA_OVERWORLD_NATURAL && !defined DEBUG_DISABLE_COLOR_GRADE && CONTRAST != 100
+    #if defined ASTRA_OVERWORLD_NATURAL && !defined DEBUG_DISABLE_COLOR_GRADE
+    // A mild luminance-only separation around 18% grey, without channel powers
+    // or a new LUT. Its gain is bounded to 0.94..1.06 and keeps black at black.
+    float luminance = get_luminance(hdr);
+    float separation = 1.0+0.06*(luminance-0.18)/(luminance+0.18);
+    hdr *= separation;
+    #if CONTRAST != 100
     // One luminance power is equivalent to log-domain contrast around 18% grey.
     // A shared RGB gain keeps hue unchanged. Exactly black remains black.
-    float luminance = get_luminance(hdr);
+    luminance *= separation;
     float gain = pow(max(luminance, 1e-6) / 0.18, CONTRAST * 0.01 - 1.0);
     return hdr * gain;
-    #else
-    return hdr;
     #endif
+    #endif
+    return hdr;
 }
 
 vec3 apply_tonal_balance(vec3 color) {
@@ -204,6 +211,47 @@ vec3 apply_tonal_balance(vec3 color) {
     #endif
 }
 
+// Original Astra colour-selective saturation. RGB channel differences select
+// warm/cyan/green families without an HSL round trip or angular functions.
+// The daylight gate leaves the colourful galactic band and star temperatures
+// alone. Zero chroma, black and white remain unchanged; no new depth read.
+vec3 apply_selective_color(vec3 color) {
+    #if defined ASTRA_OVERWORLD_NATURAL && (LOOK_WARM_SATURATION != 100 || LOOK_CYAN_SATURATION != 100 || LOOK_GREEN_SATURATION != 100)
+    if (skyVisibilityDay <= 0.0) return color;
+    color = clamp(color,0.0,1.0);
+    float low = min(color.r,min(color.g,color.b));
+    float high = max(color.r,max(color.g,color.b));
+    float chroma = high-low;
+    if (chroma <= 0.02) return color;
+    float inverseChroma = 1.0/chroma;
+    float gainDelta = 0.0;
+    #if LOOK_WARM_SATURATION != 100
+    float warm = max(min(color.r,color.g)-color.b,0.0)*inverseChroma
+               *clamp((color.r-color.g)*inverseChroma*3.0,0.0,1.0);
+    gainDelta += warm*(LOOK_WARM_SATURATION*0.01-1.0);
+    #endif
+    #if LOOK_CYAN_SATURATION != 100
+    float cyan = max(min(color.g,color.b)-color.r,0.0)*inverseChroma;
+    gainDelta += cyan*(LOOK_CYAN_SATURATION*0.01-1.0);
+    #endif
+    #if LOOK_GREEN_SATURATION != 100
+    float green = max(color.g-max(color.r,color.b),0.0)*inverseChroma;
+    gainDelta += green*(LOOK_GREEN_SATURATION*0.01-1.0);
+    #endif
+    float luminance = get_luminance(color);
+    gainDelta *= skyVisibilityDay*smoothstep(0.02,0.12,chroma)
+               *(1.0-smoothstep(0.82,1.0,luminance));
+    // Limit saturation before reaching the display gamut, rather than clipping
+    // one channel afterwards. The RGB/grey blend preserves this encoded luma.
+    float room = min((1.0-high)/max(high-luminance,0.00001),
+                     low/max(luminance-low,0.00001));
+    gainDelta = min(gainDelta,max(room,0.0));
+    return color+(color-vec3(luminance))*gainDelta;
+    #else
+    return color;
+    #endif
+}
+
 vec3 apply_grading(vec3 displayColor) {
 	#ifdef DEBUG_DISABLE_COLOR_GRADE
 	// Bypass the whole style layer so an A/B pair can tell whether a cast comes
@@ -212,17 +260,34 @@ vec3 apply_grading(vec3 displayColor) {
 	return clamp(displayColor, vec3(0.0), vec3(1.0));
 	#else
 	vec3 color = apply_color_temperature(displayColor);
-	#if VIBRANCE != 100
+		#if VIBRANCE != 100 && SATURATION != 100
+        // Both controls are affine RGB/grey blends. Share the original
+        // luminance and combine their gains instead of recomputing luminance
+        // after vibrance and constructing two intermediate colour vectors.
+        float low = min(color.r,min(color.g,color.b));
+        float high = max(color.r,max(color.g,color.b));
+        float luminance = get_luminance(color);
+        float response = (1.0-clamp(high-low,0.0,1.0))*clamp(1.0-high,0.0,1.0)
+                       *luminance*5.0;
+        float vibranceGain = 1.0+(VIBRANCE*0.01-1.0)*response;
+        float saturation = SATURATION*0.01;
+        float grey = luminance*vibranceGain*(1.0-saturation)
+                   +(low+high)*0.5*(1.0-vibranceGain);
+        color = color*(vibranceGain*saturation)+vec3(grey);
+        #else
+		#if VIBRANCE != 100
 	color = apply_vibrance(color, VIBRANCE * 0.01);
 	#endif
 	#if SATURATION != 100
 	color = apply_saturation(color, SATURATION * 0.01);
 	#endif
+        #endif
 	// Natural contrast already acted on HDR luminance; never apply it twice.
 	#if CONTRAST != 100 && !defined ASTRA_OVERWORLD_NATURAL
 	color = apply_contrast(color, CONTRAST * 0.01);
 	#endif
     color = apply_tonal_balance(color);
+    color = apply_selective_color(color);
 	return clamp(color, vec3(0.0), vec3(1.0));
 	#endif
 }

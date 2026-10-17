@@ -6,7 +6,8 @@
 #include "/lib/water_buffer_formats.glsl"
 
 #ifndef RGBA16F
-#define RGBA16F RGBA16F
+// Iris reads the named format directive; GLSL still needs a declared token.
+const int RGBA16F = 0;
 #endif
 // RGB retains the shared environment; alpha carries cloud transmittance so
 // transmitted sun/stars can use that same footprint without another cloud march.
