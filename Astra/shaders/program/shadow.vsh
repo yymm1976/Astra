@@ -76,7 +76,7 @@ void astra_voxel_write() {
     uint kind = 0u;
     bool solid = true;
     // Water, plants and torches are not full cubes: they must not block the volume.
-    if(raw == 10001 || raw == 10010 || (raw >= 10003 && raw <=10006)) { kind = 0u; solid = false; }
+    if(raw == 10001 || raw == 10010 || raw == 10019 || (raw >= 10003 && raw <=10006)) { kind = 0u; solid = false; }
     if(raw == 10033) { kind = 0u; solid = false; }
     if(raw >=10021 && raw <=10027) { kind=uint(raw-10019); solid = false; }
     // Opaque emitting cubes radiate their own species but block light arriving
@@ -140,7 +140,10 @@ void main() {
     // resolve to the same lower-block center (the 10006 upper half drops one
     // block), so the 48-block boundary can never split a plant into a shadowed
     // and an unshadowed half.
-    if ((renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT
+    // Iris 1.11.2 labels the opaque chunk group (including cutouts) SOLID.
+    // Keep the stage gate so entity/hand geometry cannot enter this block-ID path.
+    if ((renderStage == MC_RENDER_STAGE_TERRAIN_SOLID
+         || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT
          || renderStage == MC_RENDER_STAGE_TERRAIN_CUTOUT_MIPPED)
         && (abs(mc_Entity.x - 10005.0) < 0.5 || abs(mc_Entity.x - 10006.0) < 0.5)) {
         vec3 plantCenter = (shadowModelViewInverse
@@ -163,9 +166,12 @@ void main() {
 
 	// Raw block.properties IDs - see block.properties for the allocation table.
 	bool isWater = abs(mc_Entity.x - 10001.0) < 0.5;
-	bool isLeaves = abs(mc_Entity.x - 10002.0) < 0.5;
+	bool isLeaves = abs(mc_Entity.x - 10002.0) < 0.5
+        || abs(mc_Entity.x - 10019.0) < 0.5;
     #if defined SHADOWS && !defined DIMENSION_NETHER && !defined DIMENSION_END && !defined ASTRA_SOLID_SHADOW
-    if (isLeaves || isGroundFoliage) {
+    // Static cutout plants need the same inverse-warped UV/depth pairing.
+    // This does not put them into the ground-foliage wind group.
+    if (isLeaves || isGroundFoliage || abs(mc_Entity.x - 10003.0) < 0.5) {
         vec2 halfExtent = abs(gl_MultiTexCoord0.xy-mc_midTexCoord.xy);
         shadowFoliageTexBounds = vec4(mc_midTexCoord.xy-halfExtent,mc_midTexCoord.xy+halfExtent);
     }

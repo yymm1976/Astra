@@ -16,13 +16,13 @@
 
 `global/atmosphere/stars.glsl`的银河亮度、静态中心权重、尘埃增强、同一星表中的暗弱候选及局部TAA反应值由Astra编写。Photon的`draw_galaxy/draw_stars`和Solas的`drawMilkyWay`只提供“银河结构与局部星点密度有关”的思路；未复制新的参考表达式、代码、全景图片或噪声素材。原模块的Complementary投影与可见性来源、既有Solas噪声素材归属继续保留。亮度为编译选项，不新增CPU颜色表达式、独立星场或绘制阶段；具体行为和开销见实现说明。
 
-### 2026-10-17：SMAA 1x与实体地形入口
+### 2026-10-17：SMAA 1x与实心地形入口
 
-SMAA内核直接取自[iryoku/smaa的master分支SMAA.hlsl](https://github.com/iryoku/smaa/blob/master/SMAA.hlsl)，读取日期2026-10-17，保存为`shaders/lib/vendor/smaa/SMAA.glsl`；Jorge Jimenez、Jose I. Echevarria、Belen Masia、Fernando Navarro、Diego Gutierrez的版权及MIT式许可保留在源文件和同目录`LICENSE.txt`。本地改动为将原注释编码转为UTF-8，并将颜色边缘函数的无边缘discard改为写零返回，以匹配Astra无需清空的完整输出。采用high预设的水平/垂直、对角和角点处理。
+SMAA内核直接取自[iryoku/smaa的master分支SMAA.hlsl](https://github.com/iryoku/smaa/blob/master/SMAA.hlsl)，读取日期2026-10-17，保存为`shaders/lib/vendor/smaa/SMAA.glsl`；Jorge Jimenez、Jose I. Echevarria、Belen Masia、Fernando Navarro、Diego Gutierrez的版权及MIT式许可保留在源文件和同目录`LICENSE.txt`。本地改动为将原注释编码转为UTF-8，并将颜色及亮度边缘函数的无边缘discard改为写零返回，以匹配Astra无需清空的完整输出。采用high预设的水平/垂直、对角和角点处理。
 
 `textures/smaa-area.png`与`smaa-search.png`复用本地Mellow的`shaders/img/smaaArea.png`和`smaaSearch.png`标准SMAA查找表；Mellow的Copyright (c) 2026 TheCMK及MIT许可完整保留于`lib/vendor/smaa/MELLOW-LICENSE.txt`，SMAA上游归属同时保留。Grindstone只用于研读阶段组织，没有复制其CC BY-SA的redmean.glsl或CAS实现。
 
-三维度composite10/11包装、显示输入复用、单附件双图翻页、开关调度及在线性光量中执行的三像素最终混合由Astra接入编写；最终权重读取和单轴双区域插值沿用SMAA的邻域混合规则。实体/镂空地形入口使用本机Iris已有路由，不包含新的第三方表达式。实际行为及资源代价见[实现与限制](../docs/实现与限制.md)。
+三维度composite10/11包装、显示输入复用、单附件双图翻页、开关调度及在线性光量中执行的三像素最终混合由Astra接入编写；最终权重读取和单轴双区域插值沿用SMAA的邻域混合规则。实心/镂空地形入口使用本机Iris已有路由，不包含新的第三方表达式。实际行为及资源代价见[实现与限制](../docs/实现与限制.md)。
 
 ### 2026-10-16：下界砖反光、局部彩光与独立质量
 

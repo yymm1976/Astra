@@ -34,7 +34,7 @@ void solas_water_fog_frame_parameters(out vec3 fogBase, out vec2 fogResponse) {
     // Share the surface body's middle-depth cyan and its incident lighting.
     // Weather belongs to that lighting, never a separate grey colour overlay.
     fogBase = astra_water_body_palette(vec2(1.0, 0.0)) * solas_water_interface_incident();
-    fogBase *= 1.0 - clamp(blindness, 0.0, 1.0);
+    // Camera blindness is applied once to the complete underwater composite.
     fogResponse = vec2(0.65 + 0.35 * eyeSky, 0.0);
 }
 // Inputs are already linear. Keep the surface hue without a second palette,

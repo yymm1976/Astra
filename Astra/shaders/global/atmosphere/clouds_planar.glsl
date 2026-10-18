@@ -49,6 +49,9 @@
 // ============================================================
 
 #include "/global/atmosphere/sky_gradient.glsl"
+#if SKY_MODE != SKY_GRADIENT
+#include "/global/atmosphere/sky_minishita.glsl"
+#endif
 uniform sampler2D complementaryCloudNoise;
 
 // lib/atmospherics/clouds/cloudCoord.glsl:4
@@ -542,8 +545,12 @@ vec4 astra_planar_cloud(vec3 nPlayerPos, float maxRayDistance, out vec3 represen
 		// :123 - doGlare = isEyeInWater == 0, doGround = false (same as the sky)
         // This colour depends on the view ray, never on the marching sample.
         // Evaluate once, and only for rays that actually encounter a cloud.
+        #if SKY_MODE == SKY_GRADIENT
         vec3 cloudSkyColor=astra_get_sky(VdotU,VdotS,ctx.dither,
             isEyeInWater==0 || water_is_thin_sheet(),false,f,p);
+        #else
+        vec3 cloudSkyColor=astra_minishita_sky(nPlayerPos);
+        #endif
         // Converge toward the same tinted atmosphere as the visible sky. Keep
         // the smooth shared table unmodified: each consumer owns this gain.
         cloudSkyColor=astra_twilight_atmosphere(cloudSkyColor,nPlayerPos);

@@ -65,6 +65,8 @@ flat out vec3 astraFaceNormal;
 uint astra_material(int id) {
     if (id < 10001 || id > 10040) return 0u;
     if (id == 10033) return 0u; // non-emitting partial shapes; voxel identity is separate
+    // Thin vines/moss keep the existing leaf lighting, wind and TAA class.
+    if (id == 10019) return 2u;
     if (id >= 10001 && id <= 10007) return uint(id - 10000);
     if (id == 10010) return 8u;
     if (id == 10011) return 9u;
@@ -183,7 +185,7 @@ void main() {
     #endif
     vec4 viewPos = gl_ModelViewMatrix * vertex;
     #ifdef ASTRA_WATER_PASS
-    // Decide once per vertex, including hand-water's distinct projection.
+    // Decide once per vertex of this water terrain pass.
     // Only matching native projection can reuse the raster clip coordinate.
     waterProjectionFlags = int(all(equal(gl_ProjectionMatrix[0],gbufferProjection[0]))
         && all(equal(gl_ProjectionMatrix[1],gbufferProjection[1]))

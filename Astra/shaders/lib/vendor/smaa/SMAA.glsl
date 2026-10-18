@@ -775,9 +775,9 @@ float2 SMAAColorEdgeDetectionPS(float2 texcoord,
     // We do the usual threshold:
     float2 edges = step(threshold, delta.xy);
 
-    // Then discard if there is no edge:
+    // Astra: fully overwrite the uncleared edge image, including empty pixels.
     if (dot(edges, float2(1.0, 1.0)) == 0.0)
-        discard;
+        return float2(0.0, 0.0);
 
     // Calculate right and bottom deltas:
     float3 Cright = SMAASamplePoint(colorTex, offset[1].xy).rgb;

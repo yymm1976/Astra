@@ -187,8 +187,7 @@ void main() {
         #ifdef ASTRA_TREE_SHAFTS
         if ((isEyeInWater == 0 || (isEyeInWater == 1 && !ordinaryWater))
             && any(greaterThan(displayTreeShaftLight,vec3(0.0))) && blindness <= 0.0001) {
-            hdr += displayTreeShaftLight*astra_tree_shafts_resolve(colortex1,sceneUV)
-                   *(GODRAYS_STRENGTH*0.01);
+            hdr += displayTreeShaftLight*astra_tree_shafts_resolve(colortex1,sceneUV);
         }
         #else
         if ((isEyeInWater == 0 || (isEyeInWater == 1 && !ordinaryWater))

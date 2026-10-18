@@ -18,11 +18,13 @@ float itt_water_daylight(vec3 lightDirection, float sunSource) {
 // Shared current-frame light gate for production and consumption. The field is
 // generated after the water-state scan, including a newly entered pool.
 float itt_water_source_visibility(vec3 lightDir) {
+    // Keep the zero-output draw skip; partial blindness belongs to final composition.
+    if (blindness >= 1.0) return 0.0;
     float clearDay = itt_water_daylight(lightDir,astraSunSource)*(1.0-clamp(wetness,0.0,1.0));
     float sourceStrength = mix(float(MOONLIGHT_STRENGTH),float(SUNLIGHT_STRENGTH),astraSunSource)*0.01;
     float visibility = astraSolasShadowFade*(1.0-clamp(wetness,0.0,1.0)*0.75)*sourceStrength;
     visibility *= mix(0.32,1.35,clearDay)*mix(0.65,1.0,astraSunSource);
-    return visibility*(1.0-clamp(blindness,0.0,1.0));
+    return visibility;
 }
 vec2 water_shaft_field_origin(vec4 metadata) {
     return (floor(cameraPosition.xz/ITT_WATER_FIELD_CELL)+metadata.rg)*ITT_WATER_FIELD_CELL;

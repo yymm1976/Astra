@@ -41,7 +41,8 @@ void main() {
     #if !defined DIMENSION_NETHER && !defined DIMENSION_END
     displayOrdinaryWater = int(isEyeInWater == 1 && !water_is_thin_sheet());
     #ifdef ASTRA_TREE_SHAFTS
-    displayTreeShaftLight = astra_sun_shaft_source();
+    // Source colour and user strength are constant across this display draw.
+    displayTreeShaftLight = astra_sun_shaft_source()*(GODRAYS_STRENGTH*0.01);
     #endif
     #if defined GODRAYS && GODRAYS_STRENGTH > 0 && !defined ASTRA_VOLUME_FOG && !defined ASTRA_TREE_SHAFTS && (defined GODRAYS_SUN_OCCLUSION || defined ASTRA_GODRAYS_CLOUD_OCCLUSION)
     displayGodraysVisibility = 1.0;

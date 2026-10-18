@@ -28,7 +28,7 @@
 // the reference waves every block class with its own call-site parameters inside DoWave()
 // (wavingBlocks.glsl:110-213). Astra's frozen caller hands this module only the booleans
 // isLeaves / isGroundFoliage / topOfFoliage, i.e. two wave shapes: leaves (mat 10009 family
-// -> block.properties 10002) and grounded foliage (mat 10005/10021 family -> 10004/10005/10006).
+// -> block.properties 10002/10019) and grounded foliage (mat 10005/10021 family -> 10004/10005/10006).
 // Both shapes, the shared GetRawWave and the amplitude chain are transcribed verbatim below;
 // the per-block extras the Astra slots cannot express are listed under "NOT ported".
 //
@@ -48,8 +48,8 @@
 // NOT ported (blocked by the frozen interface or Astra material classes; all recorded in
 // docs/archive/实现与取证.md#record-089):
 //   - vine reduced amplitude 0.75 (wavingBlocks.glsl:150-152): Astra maps
-//     vine/pale_hanging_moss/pale_moss_carpet into the leaves class 10002, so this module
-//     cannot see vines.
+//     vine/pale_hanging_moss/pale_moss_carpet (raw 10019) into the same packed leaves
+//     class 2 as raw 10002, so this module still cannot distinguish vines.
 //   - the NO_WAVING_INDOORS lightmap gate (wavingBlocks.glsl:43-46 and :60-63, default ON
 //     in the reference). wave_foliage() has no lightmap parameter and the callers
 //     (program/lit.vsh, program/shadow.vsh) are public. The non-gated else branch
@@ -153,7 +153,7 @@ vec3 wind_wave(vec3 pos, float waveSpeed) {
 
 // Call-site helper for the foliage vertex stages. E1 passes the classification it decoded
 // from the packed material ID; block.properties maps it to
-//   10002 leaves            -> isLeaves
+//   10002 / 10019 leaves and thin vines/moss -> isLeaves
 //   10004 / 10005 / 10006   -> isGroundFoliage (small plants and double-plant halves;
 //                              crops are in 10004)
 // topOfFoliage is `at_midBlock.y < 0.0`: only the upper vertices of a plant move, so

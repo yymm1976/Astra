@@ -753,10 +753,11 @@ const bool shadowHardwareFiltering1 = false;
     #define ASTRA_CLOUD_TEMPORAL
     #endif
 #endif
-// A same-frame low-frequency sky table reuses the raw cloud target only when
-// screen clouds do not own it. Celestial glare, stars and discs stay analytic.
+// A same-frame low-frequency gradient-sky table reuses the raw cloud target only
+// when screen clouds do not own it. Minishita and its clouds do not read this table.
+// Celestial glare, stars and discs stay analytic.
 #if !defined DIMENSION_NETHER && !defined DIMENSION_END
-#if (SKY_MODE == SKY_GRADIENT || CLOUD_MODE == CLOUD_PLANAR) && (CLOUD_MODE != CLOUD_PLANAR || defined CLOUD_TEMPORAL)
+#if SKY_MODE == SKY_GRADIENT && (CLOUD_MODE != CLOUD_PLANAR || defined CLOUD_TEMPORAL)
     #define ASTRA_GRADIENT_SKY_CACHE
 #endif
 #endif
