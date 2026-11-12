@@ -256947,218 +256947,279 @@
   "excludedCacheFiles": [
     {
       "group": "Astra光影开发",
+      "path": ".lwjgl/3.3.3+5/x64/glfw.dll",
+      "bytes": 496128,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": ".lwjgl/3.3.3+5/x64/lwjgl.dll",
+      "bytes": 479232,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": ".lwjgl/3.3.3+5/x64/lwjgl_opengl.dll",
+      "bytes": 364032,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
       "path": "_analysis/__pycache__/four_report_decisions.cpython-310.pyc",
-      "bytes": 86925
+      "bytes": 86925,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "_analysis/__pycache__/four_report_groups.cpython-310.pyc",
-      "bytes": 11389
+      "bytes": 11389,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "_analysis/__pycache__/four_report_work.cpython-310.pyc",
-      "bytes": 3906
+      "bytes": 3906,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "_analysis/video-2026-10-01/__pycache__/download_refs.cpython-310.pyc",
-      "bytes": 4229
+      "bytes": 4229,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/runtime-feedback-2026-09-29/__pycache__/mc_control.cpython-310.pyc",
-      "bytes": 1894
+      "bytes": 1894,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/_audit_uniform_types.cpython-310.pyc",
-      "bytes": 10639
+      "bytes": 10639,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/block_reflect_probe.cpython-310.pyc",
-      "bytes": 24064
+      "bytes": 24064,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/check_pack.cpython-310.pyc",
-      "bytes": 68685
+      "bytes": 68685,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/check_pack.cpython-313.pyc",
-      "bytes": 123247
+      "bytes": 123247,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/compile_glsl.cpython-310.pyc",
-      "bytes": 22586
+      "bytes": 22586,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/compile_glsl.cpython-312.pyc",
-      "bytes": 31529
+      "bytes": 31529,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/compile_glsl.cpython-313.pyc",
-      "bytes": 31669
+      "bytes": 31669,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/compile_glsl.cpython-314.pyc",
-      "bytes": 35347
+      "bytes": 35347,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/cost_census.cpython-310.pyc",
-      "bytes": 4010
+      "bytes": 4010,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/end_march_count.cpython-310.pyc",
-      "bytes": 9227
+      "bytes": 9227,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/gen_rain_ripple.cpython-310.pyc",
-      "bytes": 3312
+      "bytes": 3312,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/inspect_iris_properties.cpython-310.pyc",
-      "bytes": 17344
+      "bytes": 17344,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/live_glsl_probe.cpython-310.pyc",
-      "bytes": 7354
+      "bytes": 7354,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/minecraft_paths.cpython-310.pyc",
-      "bytes": 3173
+      "bytes": 3173,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/minecraft_paths.cpython-312.pyc",
-      "bytes": 5315
+      "bytes": 5315,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/minecraft_paths.cpython-313.pyc",
-      "bytes": 5514
+      "bytes": 5514,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/minecraft_paths.cpython-314.pyc",
-      "bytes": 6431
+      "bytes": 6431,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/nether_voxel_model.cpython-310.pyc",
-      "bytes": 9068
+      "bytes": 9068,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/option_matrix.cpython-310.pyc",
-      "bytes": 12952
+      "bytes": 12952,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/option_matrix.cpython-312.pyc",
-      "bytes": 17372
+      "bytes": 17372,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/option_matrix.cpython-313.pyc",
-      "bytes": 17687
+      "bytes": 17687,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/provenance_steadfast.cpython-310.pyc",
-      "bytes": 5514
+      "bytes": 5514,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/provenance_steadfast.cpython-312.pyc",
-      "bytes": 8223
+      "bytes": 8223,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/provenance_steadfast.cpython-313.pyc",
-      "bytes": 8259
+      "bytes": 8259,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/render_end_design.cpython-310.pyc",
-      "bytes": 14864
+      "bytes": 14864,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/shader_options.cpython-310.pyc",
-      "bytes": 2144
+      "bytes": 2144,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/shader_options.cpython-312.pyc",
-      "bytes": 5483
+      "bytes": 5483,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/shader_options.cpython-313.pyc",
-      "bytes": 5650
+      "bytes": 5650,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/shader_options.cpython-314.pyc",
-      "bytes": 4130
+      "bytes": 4130,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/source_stamp.cpython-312.pyc",
-      "bytes": 5305
+      "bytes": 5305,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/source_stamp.cpython-313.pyc",
-      "bytes": 5281
+      "bytes": 5281,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/underwater_light_probe.cpython-310.pyc",
-      "bytes": 5735
+      "bytes": 5735,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/underwater_shaft_gate_probe.cpython-310.pyc",
-      "bytes": 14290
+      "bytes": 14290,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/verify_tonemap_chain.cpython-310.pyc",
-      "bytes": 12718
+      "bytes": 12718,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/water_path_probe.cpython-310.pyc",
-      "bytes": 19591
+      "bytes": 19591,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/water_path_probe.cpython-312.pyc",
-      "bytes": 23759
+      "bytes": 23759,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/water_path_probe.cpython-313.pyc",
-      "bytes": 23720
+      "bytes": 23720,
+      "matchesSecretName": false
     },
     {
       "group": "Astra光影开发",
       "path": "qa/tools/__pycache__/water_ssr_cost.cpython-310.pyc",
-      "bytes": 10830
+      "bytes": 10830,
+      "matchesSecretName": false
     }
   ],
   "links": [
