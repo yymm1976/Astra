@@ -1,0 +1,34 @@
+diff --git a/shaders/program/gbuffers_all_solid.fsh b/shaders/program/gbuffers_all_solid.fsh
+index 849a1dca..2b356bb1 100644
+--- a/shaders/program/gbuffers_all_solid.fsh
++++ b/shaders/program/gbuffers_all_solid.fsh
+@@ -313,6 +313,12 @@ void main() {
+     light_levels = clamp((light_levels - 1.0 / 32.0) * 32.0 / 30.0, 0.0, 1.0);
+ #else
+     base_color = read_tex(gtexture) * tint;
++
++#if defined IRIS_INLINE_GLINT
++    if (mc_hasGlint()) {
++        base_color.rgb += sqr(mc_sampleGlint());
++    }
++#endif
+ #endif
+ 
+ #ifdef NORMAL_MAPPING
+diff --git a/shaders/program/gbuffers_all_translucent.fsh b/shaders/program/gbuffers_all_translucent.fsh
+index f90fe584..f84807b5 100644
+--- a/shaders/program/gbuffers_all_translucent.fsh
++++ b/shaders/program/gbuffers_all_translucent.fsh
+@@ -541,6 +541,12 @@ void main() {
+             return;
+         }
+ 
++#if defined IRIS_INLINE_GLINT
++        if (mc_hasGlint()) {
++            fragment_color.rgb += sqr(mc_sampleGlint());
++        }
++#endif
++
+         material = material_from(
+             fragment_color.rgb,
+             material_mask,

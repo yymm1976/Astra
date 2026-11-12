@@ -1,0 +1,106 @@
+{
+ "solas-shader": {
+  "title": "Solas Shader",
+  "src": "https://github.com/Septonious/Solas-Shader",
+  "license": "LicenseRef-All-Rights-Reserved",
+  "desc": "A modern fantasy stylized shaderpack with colored lighting and stunning visuals",
+  "downloads": 18217455,
+  "updated": "2026-10-14T22:24:17.963697Z"
+ },
+ "mello": {
+  "title": "Mello",
+  "src": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "desc": "Mello is a shader with high performance and great visuals.",
+  "downloads": 305295,
+  "updated": "2026-10-15T21:51:20.203607Z"
+ },
+ "smm-ultra-light-weight-shader": {
+  "title": "SMM - Ultra Light Weight Shader",
+  "src": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "desc": "Lightweight shader designed for low-end hardware.\nlike GT 750M / i7-4700HQ #SuperMeltedMatter #light #low end #savetf2",
+  "downloads": 3990,
+  "updated": "2026-10-16T17:04:19.879815Z"
+ },
+ "revesperashader": {
+  "title": "ReVespera Shader VXPT",
+  "src": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "desc": "This is a new shader project that is still under development. The shader is inspired by Eclipse shader, IterationRP.",
+  "downloads": 5270,
+  "updated": "2026-10-16T15:59:18.614913Z"
+ },
+ "yukeeshaders": {
+  "title": "Yukee Shaders",
+  "src": null,
+  "license": "MIT",
+  "desc": "An anime-inspired Iris shaderpack with illustrated skies, soft pastel colors, outlines, and sunlight shadows.",
+  "downloads": 535,
+  "updated": "2026-10-16T17:30:16.726534Z"
+ },
+ "gleam-shaders": {
+  "title": "Gleam",
+  "src": null,
+  "license": "LGPL-3.0-or-later",
+  "desc": "A beautiful, extremely customizable and performant shader edit of MakeUp-UltraFast focused on fantasy visuals.",
+  "downloads": 1147,
+  "updated": "2026-10-15T20:36:04.666490Z"
+ },
+ "sublime-visuals": {
+  "title": "Sublime Visuals",
+  "src": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "desc": "Discover Minecraft like never before with Sublime Visuals, delivering stunning sunsets, crystal-clear water, dynamic lighting, atmospheric effects, and optimized performance for every adventure",
+  "downloads": 3406,
+  "updated": "2026-10-11T12:23:39.961975Z"
+ },
+ "phero-visuals": {
+  "title": "Phero Visuals",
+  "src": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "desc": "Phero Visuals Minecraft shader pack featuring vibrant lighting, realistic water, dynamic skies, soft shadows, cinematic atmosphere, and optimized performance for an immersive, smooth, and visually stu",
+  "downloads": 7819,
+  "updated": "2026-10-11T12:19:02.125437Z"
+ },
+ "zarya": {
+  "title": "Zarya",
+  "src": "https://github.com/Strelok-Creative-Unity/Zarya",
+  "license": "LicenseRef-All-Rights-Reserved",
+  "desc": "Fork of minecraft-miniature-shader by Mateus A. Kreuch, with a large visual extension layer.",
+  "downloads": 2226,
+  "updated": "2026-10-15T06:45:43.237595Z"
+ },
+ "hazelle-shaders": {
+  "title": "Hazelle Shaders",
+  "src": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "desc": "It’s colorful, nostalgic vibes with a mix of vintage aesthetics and a timeless, retro feel",
+  "downloads": 658,
+  "updated": "2026-10-14T19:32:55.112161Z"
+ },
+ "od-horizon-shader": {
+  "title": "OD-Horizon Shaders",
+  "src": null,
+  "license": "LGPL-3.0-or-later",
+  "desc": "A shader created simply for fun and as a hobby",
+  "downloads": 178,
+  "updated": "2026-10-16T06:18:17.038103Z"
+ },
+ "brisa-lite": {
+  "title": "Brisa Lite",
+  "src": null,
+  "license": "LicenseRef-Brisa-Lite---All-Rights-Reserved",
+  "desc": "Brisa Lite is a lightweight Minecraft shader focused on smooth performance, vibrant lighting, soft shadows, and beautiful visuals without sacrificing FPS.",
+  "downloads": 382,
+  "updated": "2026-10-16T15:57:20.150999Z"
+ },
+ "neolux": {
+  "title": "NeoLux",
+  "src": "https://codeberg.org/LucasTHCR/NeoLux",
+  "license": "GPL-3.0-or-later",
+  "desc": "Warm, low sunlight against quiet shade, soft volumetric clouds and dark water that mirrors the shore. A deferred shaderpack for Iris with a calm, cinematic look.",
+  "downloads": 901,
+  "updated": "2026-10-15T18:35:22.203010Z"
+ }
+}

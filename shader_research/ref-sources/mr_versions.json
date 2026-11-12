@@ -1,0 +1,3736 @@
+{
+ "hysteria-shaders": [
+  {
+   "name": "Hysteria Shaders v1.2.1 [Universal]",
+   "ver": "1.2.1",
+   "pub": "2024-08-02T06:47:23.370982Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Hysteria Shaders v1.1.0 [Universal]",
+   "ver": "1.1.0",
+   "pub": "2024-07-03T12:12:49.475185Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Hysteria Shaders v1.0.0 [Universal]",
+   "ver": "1.0.0",
+   "pub": "2024-07-02T08:32:30.502156Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "photon-shader": [
+  {
+   "name": "photon v1.3b",
+   "ver": "v1.3b",
+   "pub": "2026-04-14T20:47:01.327987Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "photon v1.3a",
+   "ver": "v1.3a",
+   "pub": "2026-04-13T19:22:37.777640Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "photon v1.3",
+   "ver": "v1.3",
+   "pub": "2026-04-11T15:07:43.598733Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "photon v1.2a",
+   "ver": "v1.2a",
+   "pub": "2025-06-29T19:39:33.539681Z",
+   "games": [
+    "1.19",
+    "1.19.1",
+    "1.19.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "photon v1.2",
+   "ver": "v1.2",
+   "pub": "2025-06-25T22:46:25.824843Z",
+   "games": [
+    "1.19",
+    "1.19.1",
+    "1.19.3"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "photon v1.1",
+   "ver": "v1.1",
+   "pub": "2025-01-28T13:27:56.031923Z",
+   "games": [
+    "1.19",
+    "1.19.1",
+    "1.19.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "bliss-shader": [
+  {
+   "name": "Bliss v2.1.2",
+   "ver": "2.1.2",
+   "pub": "2025-11-23T03:14:46.231498Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Bliss v2.1.1",
+   "ver": "2.1.1",
+   "pub": "2025-09-05T02:11:39.106040Z",
+   "games": [
+    "1.19.4",
+    "1.20",
+    "1.20.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Bliss v2.1.0",
+   "ver": "2.1.0",
+   "pub": "2025-09-03T03:43:05.871470Z",
+   "games": [
+    "1.19.4",
+    "1.20",
+    "1.20.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Bliss v2.0.4 (NO DISTANT HORIZONS SUPPORT)",
+   "ver": "2.0.4",
+   "pub": "2023-08-03T22:50:37.276669Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Bliss v2.0.3 (NO DISTANT HORIZONS SUPPORT)",
+   "ver": "2.0.3",
+   "pub": "2023-07-13T02:18:00.894834Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "complementary-unbound": [
+  {
+   "name": "r5.9.3",
+   "ver": "r5.9.3",
+   "pub": "2026-09-15T06:36:17.528689Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r5.9.2",
+   "ver": "r5.9.2",
+   "pub": "2026-09-14T18:27:36.591461Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r5.9.1",
+   "ver": "r5.9.1",
+   "pub": "2026-09-11T09:57:16.897686Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r5.9",
+   "ver": "r5.9",
+   "pub": "2026-09-02T10:49:24.206713Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r5.8.1",
+   "ver": "r5.8.1",
+   "pub": "2026-05-21T14:50:33.267877Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r5.8",
+   "ver": "r5.8",
+   "pub": "2026-05-14T09:47:18.262226Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "insanity-shader": [
+  {
+   "name": "Insanity v1.650",
+   "ver": "1.650",
+   "pub": "2024-06-13T18:19:17.049555Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Insanity v1.600",
+   "ver": "1.600",
+   "pub": "2024-04-22T22:43:58.596674Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Insanity v1.500",
+   "ver": "1.500",
+   "pub": "2023-10-12T11:46:31.294024Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Insanity v1.410",
+   "ver": "1.410",
+   "pub": "2023-04-29T09:27:19.439633Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Insanity v1.400",
+   "ver": "1.400",
+   "pub": "2023-04-26T09:58:37.942943Z",
+   "games": [
+    "1.7.2",
+    "1.7.3",
+    "1.7.4"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "bsl-shaders": [
+  {
+   "name": "BSL v10.1.8",
+   "ver": "10.1.8",
+   "pub": "2026-09-21T12:25:21.321877Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "BSL v10.1.7",
+   "ver": "10.1.7",
+   "pub": "2026-09-20T22:16:09.610679Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "BSL v10.1.6",
+   "ver": "10.1.6",
+   "pub": "2026-09-20T11:18:28.476801Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "BSL v10.1.5",
+   "ver": "10.1.5",
+   "pub": "2026-09-06T02:46:07.077400Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "BSL v10.1.4",
+   "ver": "10.1.4",
+   "pub": "2026-09-05T13:50:33.399973Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "BSL v10.1.3",
+   "ver": "10.1.3",
+   "pub": "2026-04-20T13:19:25.441679Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "solas-shader": [
+  {
+   "name": "Solas Shader V3.8",
+   "ver": "3.8",
+   "pub": "2026-10-14T22:24:17.963697Z",
+   "games": [
+    "1.12.2",
+    "1.13",
+    "1.13.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Solas Shader 3.7b",
+   "ver": "3.7b",
+   "pub": "2026-08-23T09:13:09.670686Z",
+   "games": [
+    "1.12",
+    "1.12.1",
+    "1.12.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Solas Shader V3.7",
+   "ver": "3.7",
+   "pub": "2026-07-01T14:38:53.928871Z",
+   "games": [
+    "1.12",
+    "1.12.1",
+    "1.12.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Solas Shader V3.6",
+   "ver": "3.6",
+   "pub": "2026-04-29T09:12:55.073808Z",
+   "games": [
+    "1.12",
+    "1.12.1",
+    "1.12.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Solas Shader V3.5",
+   "ver": "3.5",
+   "pub": "2026-03-28T12:44:37.886815Z",
+   "games": [
+    "1.12.2",
+    "1.13",
+    "1.13.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Solas Shader V3.4",
+   "ver": "3.4",
+   "pub": "2026-02-27T15:08:29.070098Z",
+   "games": [
+    "1.12.2",
+    "1.13",
+    "1.13.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "complementary-reimagined": [
+  {
+   "name": "r5.9.3",
+   "ver": "r5.9.3",
+   "pub": "2026-09-15T06:35:41.918796Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r5.9.2",
+   "ver": "r5.9.2",
+   "pub": "2026-09-14T18:27:11.230285Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r5.9.1",
+   "ver": "r5.9.1",
+   "pub": "2026-09-11T09:57:05.796851Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r5.9",
+   "ver": "r5.9",
+   "pub": "2026-09-02T10:48:56.090028Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r5.8.1",
+   "ver": "r5.8.1",
+   "pub": "2026-05-21T14:50:03.992642Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r5.8",
+   "ver": "r5.8",
+   "pub": "2026-05-14T09:46:31.071875Z",
+   "games": [
+    "1.7.10",
+    "1.8",
+    "1.8.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "rethinking-voxels": [
+  {
+   "name": "r0.1-beta9",
+   "ver": "r0.1-beta9",
+   "pub": "2025-06-19T23:16:17.455162Z",
+   "games": [
+    "1.20.1",
+    "1.20.4",
+    "1.21.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r0.1-beta8",
+   "ver": "r0.1-beta8",
+   "pub": "2025-05-12T21:24:34.361773Z",
+   "games": [
+    "1.20.1",
+    "1.20.4",
+    "1.20.6"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r0.1-beta7b",
+   "ver": "r0.1-beta7b",
+   "pub": "2025-04-12T18:15:40.125324Z",
+   "games": [
+    "1.20.4",
+    "1.21",
+    "1.21.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "april fools version 2025",
+   "ver": "aprilfools_2025",
+   "pub": "2025-04-01T07:55:28.209137Z",
+   "games": [
+    "1.20.4",
+    "1.21.1",
+    "1.21.4"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "r0.1-beta7a",
+   "ver": "r0.1-beta7a",
+   "pub": "2025-03-23T20:18:02.179158Z",
+   "games": [
+    "1.20.4",
+    "1.21",
+    "1.21.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": true
+  },
+  {
+   "name": "r0.1-beta7",
+   "ver": "r0.1-beta7",
+   "pub": "2025-03-22T22:00:09.345265Z",
+   "games": [
+    "1.20.4",
+    "1.21",
+    "1.21.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "makeup-ultra-fast-shaders": [
+  {
+   "name": "MakeUp - Ultra Fast 9.5g",
+   "ver": "9.5g",
+   "pub": "2026-10-04T05:28:42.138680Z",
+   "games": [
+    "1.12.2",
+    "1.13",
+    "1.13.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "MakeUp - Ultra Fast 9.5f",
+   "ver": "9.5f",
+   "pub": "2026-09-27T01:53:18.227784Z",
+   "games": [
+    "1.12.2",
+    "1.13",
+    "1.13.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "MakeUp - Ultra Fast 9.5e",
+   "ver": "9.5e",
+   "pub": "2026-09-05T23:58:54.467882Z",
+   "games": [
+    "1.12.2",
+    "1.13",
+    "1.13.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "MakeUp - Ultra Fast 9.5d",
+   "ver": "9.5d",
+   "pub": "2026-08-14T01:05:19.369067Z",
+   "games": [
+    "1.12.2",
+    "1.13",
+    "1.13.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "MakeUp - Ultra Fast 9.5c",
+   "ver": "9.5c",
+   "pub": "2026-06-27T18:25:45.973684Z",
+   "games": [
+    "1.12.2",
+    "1.13",
+    "1.13.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "MakeUp - Ultra Fast 9.5b",
+   "ver": "9.5b",
+   "pub": "2026-05-23T18:34:47.130256Z",
+   "games": [
+    "1.12.2",
+    "1.13",
+    "1.13.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "luster-shaders": [
+  {
+   "name": "Luster Shaders v5.4",
+   "ver": "v5.4",
+   "pub": "2026-10-06T00:33:49.090516Z",
+   "games": [
+    "1.21.11",
+    "26.1",
+    "26.1.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Luster Shaders v5.3",
+   "ver": "v5.3",
+   "pub": "2026-10-03T02:57:07.247292Z",
+   "games": [
+    "1.21.11",
+    "26.1",
+    "26.1.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Luster Shaders v5.2",
+   "ver": "v5.2",
+   "pub": "2026-09-27T16:28:55.019185Z",
+   "games": [
+    "1.21.11",
+    "26.1",
+    "26.1.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Luster Shaders v5.1",
+   "ver": "v5.1",
+   "pub": "2026-09-23T00:43:53.517968Z",
+   "games": [
+    "1.21.11",
+    "26.1",
+    "26.1.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Luster Shaders v5.0",
+   "ver": "v5.0",
+   "pub": "2026-09-13T17:14:49.169724Z",
+   "games": [
+    "1.21.11",
+    "26.1",
+    "26.1.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "escheridia": [
+  {
+   "name": "Escheridia 4.1",
+   "ver": "4.1",
+   "pub": "2026-03-15T18:10:53.103824Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Escheridia 4.0",
+   "ver": "4.0",
+   "pub": "2026-02-07T22:52:58.864483Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "3.0.1",
+   "ver": "3.0.1",
+   "pub": "2026-01-04T23:11:53.757295Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "3.0.0",
+   "ver": "3.0.0",
+   "pub": "2026-01-04T21:34:06.928808Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Escheridia V2.4.0",
+   "ver": "2.4.0",
+   "pub": "2025-08-25T20:24:35.342940Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Escheridia V2.3.3.1",
+   "ver": "2.3.3.1",
+   "pub": "2025-07-27T02:58:07.825230Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "ctrvcr": [
+  {
+   "name": "CTR-VCR v1.4.4",
+   "ver": "v1.4.4",
+   "pub": "2026-05-29T15:43:00.037162Z",
+   "games": [
+    "1.12.1",
+    "1.12.2",
+    "1.13"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": true
+  },
+  {
+   "name": "CTR-VCR v1.4.3",
+   "ver": "v1.4.3",
+   "pub": "2026-03-22T03:23:32.689648Z",
+   "games": [
+    "1.12.1",
+    "1.12.2",
+    "1.13"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "CTR-VCR v1.4.2",
+   "ver": "v1.4.2",
+   "pub": "2026-03-21T01:20:39.853003Z",
+   "games": [
+    "1.12.1",
+    "1.12.2",
+    "1.13"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "CTR-VCR v1.4.1",
+   "ver": "v1.4.1",
+   "pub": "2026-03-18T15:59:59.536944Z",
+   "games": [
+    "1.12.1",
+    "1.12.2",
+    "1.13"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "CTR-VCR v1.4.0",
+   "ver": "v1.4.0",
+   "pub": "2026-02-19T03:26:26.937125Z",
+   "games": [
+    "1.12.1",
+    "1.12.2",
+    "1.13"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "CTR-VCR v1.3.1",
+   "ver": "v1.3.1",
+   "pub": "2025-11-18T13:27:51.118284Z",
+   "games": [
+    "1.12.1",
+    "1.12.2",
+    "1.13"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "velocity-shaders": [
+  {
+   "name": "Velocity Version 11 (Major Release)",
+   "ver": "velo-12",
+   "pub": "2026-10-05T13:01:33.861107Z",
+   "games": [
+    "1.0",
+    "1.1",
+    "1.2.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "velo-11",
+   "ver": "velocity-11",
+   "pub": "2026-08-13T20:33:18.499133Z",
+   "games": [
+    "1.9",
+    "1.9.1",
+    "1.9.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "10",
+   "ver": "10",
+   "pub": "2026-07-22T13:12:20.361677Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Velocity Version 9",
+   "ver": "velo-v9",
+   "pub": "2026-06-25T01:45:12.795565Z",
+   "games": [
+    "1.8",
+    "1.8.1",
+    "1.8.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "artshade": [
+  {
+   "name": "ARTShade 0.4B",
+   "ver": "0.4B",
+   "pub": "2026-09-07T17:30:34.732535Z",
+   "games": [
+    "1.19",
+    "1.19.1",
+    "1.19.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "ARTShade 0.3.0fix",
+   "ver": "0.3.0fix",
+   "pub": "2026-05-08T02:25:40.050036Z",
+   "games": [
+    "1.19",
+    "1.19.1",
+    "1.19.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "fantasy-shaders": [
+  {
+   "name": "Fantasy Shaders Reimagined 1.1",
+   "ver": "1.1",
+   "pub": "2026-06-15T08:51:23.060751Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Fantasy Shaders Reimagined 1.0.1",
+   "ver": "1.0.1",
+   "pub": "2026-02-16T02:11:49.449867Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Fantasy Shader v1.0",
+   "ver": "1.0",
+   "pub": "2025-08-24T14:41:26.285728Z",
+   "games": [
+    "1.16",
+    "1.16.1",
+    "1.16.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "relumination": [
+  {
+   "name": "relumination v0.8",
+   "ver": "0.8",
+   "pub": "2025-12-25T07:54:58.699361Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "relumination v0.7.3",
+   "ver": "0.7.3",
+   "pub": "2025-03-16T00:21:13.435936Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "relumination v0.7.2",
+   "ver": "0.7.2",
+   "pub": "2025-03-15T23:59:44.169908Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "relumination v0.7.1",
+   "ver": "0.7.1",
+   "pub": "2024-10-19T04:11:57.786930Z",
+   "games": [
+    "1.21",
+    "1.21.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "relumination v0.7",
+   "ver": "0.7",
+   "pub": "2024-10-18T03:10:39.625619Z",
+   "games": [
+    "1.21",
+    "1.21.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "relumination v0.6",
+   "ver": "0.6",
+   "pub": "2024-08-29T06:25:13.305255Z",
+   "games": [
+    "1.21",
+    "1.21.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "lumeau": [
+  {
+   "name": "Beta 1.2",
+   "ver": "1.2-beta",
+   "pub": "2026-06-13T15:45:18.179461Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Beta 1.1",
+   "ver": "1.1-beta",
+   "pub": "2026-04-22T16:51:29.824209Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Alpha 1.0",
+   "ver": "1.0-alpha",
+   "pub": "2025-12-06T18:40:11.885108Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "kute": [
+  {
+   "name": "Kute (v1.0.0).zip",
+   "ver": "1.0",
+   "pub": "2025-08-11T13:59:13.842377Z",
+   "games": [
+    "1.8",
+    "1.8.1",
+    "1.8.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "smoother-glowing": [
+  {
+   "name": "1.5.1",
+   "ver": "1.5.1",
+   "pub": "2026-10-11T01:30:21.489494Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "vanilla"
+   ],
+   "featured": false
+  },
+  {
+   "name": "1.5.0",
+   "ver": "1.5.0",
+   "pub": "2026-09-19T01:50:09.797743Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "vanilla"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Smoother Glowing v1.4.0",
+   "ver": "1.4.0",
+   "pub": "2025-10-18T22:24:23.810909Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "vanilla"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Smoother Glowing v1.3.0",
+   "ver": "1.3.0",
+   "pub": "2025-06-19T23:08:12.690239Z",
+   "games": [
+    "1.21.6"
+   ],
+   "loaders": [
+    "vanilla"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Smoother Glowing v1.2.0",
+   "ver": "1.2.0",
+   "pub": "2025-03-30T18:32:55.475725Z",
+   "games": [
+    "1.9",
+    "1.9.1",
+    "1.9.2"
+   ],
+   "loaders": [
+    "vanilla"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Smoother Glowing v1.1.0",
+   "ver": "1.1.0",
+   "pub": "2024-11-16T13:09:23.460054Z",
+   "games": [
+    "1.9",
+    "1.9.1",
+    "1.9.2"
+   ],
+   "loaders": [
+    "vanilla"
+   ],
+   "featured": false
+  }
+ ],
+ "gleam-shaders": [
+  {
+   "name": "Gleam v2",
+   "ver": "v2",
+   "pub": "2026-10-15T20:36:04.666490Z",
+   "games": [
+    "1.16",
+    "1.16.1",
+    "1.16.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Gleam v1.9",
+   "ver": "v1.9",
+   "pub": "2026-10-03T22:18:11.668660Z",
+   "games": [
+    "1.19",
+    "1.19.1",
+    "1.19.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Gleam v1.8",
+   "ver": "1.8",
+   "pub": "2026-09-21T21:23:00.673198Z",
+   "games": [
+    "1.15",
+    "1.15.1",
+    "1.15.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "ray-tracing-potato": [
+  {
+   "name": "RAY TRACING POTATO 2.2.1 (FIXED)",
+   "ver": "2.2.1",
+   "pub": "2026-10-16T07:05:46.688130Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "RAY TRACING POTATO 2.2.0 (patched)",
+   "ver": "2.2.0",
+   "pub": "2026-10-05T22:40:38.376074Z",
+   "games": [
+    "26.3"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "RAY TRACING POTATO 2.1.0",
+   "ver": "2.1.0",
+   "pub": "2026-09-27T14:22:13.641321Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "RAY TRACING POTATO 1.16.5",
+   "ver": "2.0",
+   "pub": "2026-09-24T18:24:19.035752Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "RAY TRACING POTATO 1.0.2",
+   "ver": "1.0.2",
+   "pub": "2026-09-22T13:22:12.729223Z",
+   "games": [
+    "1.16",
+    "1.16.1",
+    "1.16.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "RAY TRACING POTATO v1.0.1",
+   "ver": "1.0.1",
+   "pub": "2026-09-18T16:29:19.487523Z",
+   "games": [
+    "1.18",
+    "1.18.1",
+    "1.18.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "lumenite-shaders": [
+  {
+   "name": "Lumenite Shaders 2.9.4",
+   "ver": "2.9.4",
+   "pub": "2026-10-14T20:52:43.184097Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Lumenite Shaders 2.9.3",
+   "ver": "2.9.3",
+   "pub": "2026-10-14T15:14:12.015264Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Lumenite Shaders 2.9.2",
+   "ver": "2.9.2",
+   "pub": "2026-10-14T06:38:45.571365Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Lumenite Shaders 2.9.1",
+   "ver": "2.9.1",
+   "pub": "2026-10-13T20:19:16.629195Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Lumenite Shaders 2.8.4",
+   "ver": "2.8.4",
+   "pub": "2026-10-10T09:38:20.210447Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Lumenite Shaders 2.8.3",
+   "ver": "2.8.3",
+   "pub": "2026-10-09T18:04:35.014236Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "firmament-shaders": [
+  {
+   "name": "Firmament 0.3",
+   "ver": "0.3",
+   "pub": "2026-10-12T18:45:44.021777Z",
+   "games": [
+    "1.18.2",
+    "1.19",
+    "1.19.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Firmament 0.22",
+   "ver": "0.22",
+   "pub": "2026-10-10T10:30:29.830014Z",
+   "games": [
+    "1.18.2",
+    "1.19",
+    "1.19.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Firmament 0.21",
+   "ver": "0.21",
+   "pub": "2026-10-08T12:03:58.529858Z",
+   "games": [
+    "1.18.2",
+    "1.19",
+    "1.19.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Firmament 0.2",
+   "ver": "0.2",
+   "pub": "2026-10-04T11:44:02.648636Z",
+   "games": [
+    "1.18.2",
+    "1.19",
+    "1.19.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Firmament 0.11",
+   "ver": "0.11",
+   "pub": "2026-10-01T13:58:49.441629Z",
+   "games": [
+    "1.18.2",
+    "1.19",
+    "1.19.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Firmament 0.10",
+   "ver": "0.10",
+   "pub": "2026-09-27T15:39:28.505502Z",
+   "games": [
+    "1.21.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "taa": [
+  {
+   "name": "Distance horizons support",
+   "ver": "1.6",
+   "pub": "2026-10-16T02:46:28.794299Z",
+   "games": [
+    "1.16",
+    "1.16.1",
+    "1.16.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Update to new version of minecraft",
+   "ver": "1.5.1",
+   "pub": "2026-09-27T13:33:48.174798Z",
+   "games": [
+    "1.19.3",
+    "1.19.4",
+    "1.20"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "TAA Project Release 1.5",
+   "ver": "1.5",
+   "pub": "2025-10-19T12:52:18.594187Z",
+   "games": [
+    "1.19.3",
+    "1.19.4",
+    "1.20"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": true
+  },
+  {
+   "name": "TAA Project Release 1.4",
+   "ver": "1.4",
+   "pub": "2024-10-19T07:05:11.422938Z",
+   "games": [
+    "1.14",
+    "1.14.1",
+    "1.14.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "TAA Project Release 1.3.1",
+   "ver": "1.3.1",
+   "pub": "2024-10-12T05:57:16.360206Z",
+   "games": [
+    "1.16",
+    "1.16.1",
+    "1.16.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "TAA Project Release 1.3",
+   "ver": "1.3",
+   "pub": "2024-10-07T04:00:37.819265Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": true
+  }
+ ],
+ "smaa-mc": [
+  {
+   "name": "v2.0.1+93.0-100.0",
+   "ver": "2.0.1+93.0-100.0",
+   "pub": "2026-10-11T15:16:45.156497Z",
+   "games": [
+    "26.3-snapshot-5",
+    "26.3-snapshot-6",
+    "26.3-snapshot-7"
+   ],
+   "loaders": [
+    "minecraft"
+   ],
+   "featured": false
+  },
+  {
+   "name": "v2.0.0+93.0-97.1",
+   "ver": "2.0.0+93.0-97.1",
+   "pub": "2026-09-15T16:47:46.539168Z",
+   "games": [
+    "26.3-snapshot-5",
+    "26.3-snapshot-6",
+    "26.3-snapshot-7"
+   ],
+   "loaders": [
+    "minecraft"
+   ],
+   "featured": false
+  },
+  {
+   "name": "v2.0.0-beta.1+93.0-94.0",
+   "ver": "2.0.0-beta.1+93.0-94.0",
+   "pub": "2026-07-29T20:33:49.235962Z",
+   "games": [
+    "26.3-snapshot-5",
+    "26.3-snapshot-6"
+   ],
+   "loaders": [
+    "minecraft"
+   ],
+   "featured": false
+  },
+  {
+   "name": "v2.0.0-beta.0+91.0-92.0",
+   "ver": "2.0.0-beta.0+91.0-92.0",
+   "pub": "2026-07-21T12:53:32.165252Z",
+   "games": [
+    "26.3-snapshot-3",
+    "26.3-snapshot-4"
+   ],
+   "loaders": [
+    "minecraft"
+   ],
+   "featured": false
+  },
+  {
+   "name": "v2.0.0-beta.0+91.0-91.0",
+   "ver": "2.0.0-beta.0+91.0-91.0",
+   "pub": "2026-07-14T19:44:11.050153Z",
+   "games": [
+    "26.3-snapshot-3"
+   ],
+   "loaders": [
+    "minecraft"
+   ],
+   "featured": false
+  },
+  {
+   "name": "v1.4.0",
+   "ver": "1.4.0",
+   "pub": "2025-11-12T12:20:31.867065Z",
+   "games": [
+    "1.21.10",
+    "1.21.11"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "mello": [
+  {
+   "name": "Mello 0.71",
+   "ver": "0.71",
+   "pub": "2026-10-15T21:51:20.203607Z",
+   "games": [
+    "26.2",
+    "26.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Mello 0.703",
+   "ver": "0.703",
+   "pub": "2026-10-13T09:20:53.898907Z",
+   "games": [
+    "26.2",
+    "26.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Mello 0.702",
+   "ver": "0.702",
+   "pub": "2026-10-10T21:21:41.594422Z",
+   "games": [
+    "26.2",
+    "26.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Mello 0.701",
+   "ver": "0.701",
+   "pub": "2026-10-10T16:37:39.415177Z",
+   "games": [
+    "26.2",
+    "26.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Mello 0.7",
+   "ver": "0.7",
+   "pub": "2026-10-09T20:04:22.219723Z",
+   "games": [
+    "26.2",
+    "26.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Mello 0.692",
+   "ver": "0.692",
+   "pub": "2026-08-25T17:52:15.615094Z",
+   "games": [
+    "26.1",
+    "26.1.1",
+    "26.1.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "simple-shadows": [
+  {
+   "name": "1.0.3",
+   "ver": "1.0.3",
+   "pub": "2026-10-14T01:08:21.457037Z",
+   "games": [
+    "26.2",
+    "26.3"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "26.1.x",
+   "ver": "1.0.2",
+   "pub": "2026-06-01T19:32:50.621534Z",
+   "games": [
+    "26.1",
+    "26.1.1",
+    "26.1.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "1.20.x",
+   "ver": "1.0.1",
+   "pub": "2026-04-29T01:38:35.282134Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Start of shaders",
+   "ver": "1.0.0",
+   "pub": "2026-02-14T13:34:13.736285Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "foxyshader": [
+  {
+   "name": "Foxy shader 1.2.2",
+   "ver": "1.2.2",
+   "pub": "2026-10-14T06:19:48.413599Z",
+   "games": [
+    "1.20.1",
+    "1.20.2",
+    "1.20.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Foxy shader 1.2.1",
+   "ver": "1.2.1",
+   "pub": "2026-10-10T17:18:45.720604Z",
+   "games": [
+    "1.20.1",
+    "1.20.2",
+    "1.20.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Foxy shader 1.2.0",
+   "ver": "1.2.0",
+   "pub": "2026-09-30T09:42:24.433136Z",
+   "games": [
+    "1.20.1",
+    "1.20.2",
+    "1.20.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Foxy shader 1.1.9",
+   "ver": "1.1.9",
+   "pub": "2026-09-29T07:10:21.316425Z",
+   "games": [
+    "1.20.1",
+    "1.20.2",
+    "1.20.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Foxy shader 1.1.8",
+   "ver": "1.1.8",
+   "pub": "2026-09-27T04:48:42.489445Z",
+   "games": [
+    "1.20.1",
+    "1.20.2",
+    "1.20.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Foxy shader 1.1.7",
+   "ver": "1.1.7",
+   "pub": "2026-09-25T12:36:10.129328Z",
+   "games": [
+    "1.20.1",
+    "1.20.2",
+    "1.20.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "makeup-dead-days": [
+  {
+   "name": "1.2",
+   "ver": "1.2",
+   "pub": "2026-10-11T05:52:01.628220Z",
+   "games": [
+    "1.20.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "1.1",
+   "ver": "1.1",
+   "pub": "2026-07-31T01:06:25.849749Z",
+   "games": [
+    "1.20.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "1",
+   "ver": "1.0",
+   "pub": "2026-07-06T22:34:22.815104Z",
+   "games": [
+    "1.20.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "yukeeshaders": [
+  {
+   "name": "Yukee Shaders 0.9.1",
+   "ver": "0.9.1",
+   "pub": "2026-10-16T17:30:16.726534Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Yukee Shaders 0.9.0",
+   "ver": "0.9.0",
+   "pub": "2026-10-16T16:47:48.275743Z",
+   "games": [
+    "1.20.1",
+    "1.21",
+    "1.21.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Yukee Shaders 0.8.2",
+   "ver": "0.8.2",
+   "pub": "2026-10-16T16:02:33.499334Z",
+   "games": [
+    "26.1",
+    "26.1.1",
+    "26.1.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Yukee Shaders 0.8.1",
+   "ver": "0.8.1",
+   "pub": "2026-10-14T03:00:29.000052Z",
+   "games": [
+    "26.1",
+    "26.1.1",
+    "26.1.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Yukee Shaders 26.1",
+   "ver": "0.8.0",
+   "pub": "2026-10-13T03:42:51.210056Z",
+   "games": [
+    "26.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Yukee Shaders 26.3",
+   "ver": "0.8.0",
+   "pub": "2026-10-13T03:42:19.611336Z",
+   "games": [
+    "26.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "apexshader": [
+  {
+   "name": "0.0.1",
+   "ver": "0.0.1",
+   "pub": "2026-10-16T15:37:56.763749Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "ApexShader 2.7.0",
+   "ver": "2.7.0",
+   "pub": "2026-10-13T14:49:48.965375Z",
+   "games": [
+    "1.18",
+    "1.18.1",
+    "1.18.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "ApexShader 2.5.8",
+   "ver": "2.5.8",
+   "pub": "2026-06-16T08:51:19.665483Z",
+   "games": [
+    "1.18",
+    "1.18.1",
+    "1.18.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "zarya": [
+  {
+   "name": "Zarya 1.2.0",
+   "ver": "1.2.0",
+   "pub": "2026-10-15T06:45:43.237595Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Zarya 1.1.0",
+   "ver": "1.1.0",
+   "pub": "2026-09-28T08:43:59.826013Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Zarya 1.0.0",
+   "ver": "1.0.0",
+   "pub": "2026-09-19T14:34:15.256447Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Zarya 0.1.1-lpv-fix",
+   "ver": "0.1.1-lpv-fix",
+   "pub": "2026-09-04T10:05:41.748053Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Zarya 0.1.1",
+   "ver": "0.1.1",
+   "pub": "2026-09-03T12:23:01.464773Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Zarya 0.1.0",
+   "ver": "0.1.0-beta-git",
+   "pub": "2026-08-29T22:59:43.728607Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "reverie_shader": [
+  {
+   "name": "1.0",
+   "ver": "v1.0",
+   "pub": "2026-10-04T20:06:15.508235Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": true
+  },
+  {
+   "name": "Beta 4",
+   "ver": "v0.9",
+   "pub": "2026-06-23T13:34:05.385725Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Beta 3",
+   "ver": "v0.8",
+   "pub": "2026-04-27T16:07:04.662473Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Beta 2",
+   "ver": "0.7",
+   "pub": "2026-03-25T08:15:44.652173Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Beta 1",
+   "ver": "0.6",
+   "pub": "2026-02-18T15:54:17.278197Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Alpha 5",
+   "ver": "0.5",
+   "pub": "2025-11-18T12:25:48.707875Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "revesperashader": [
+  {
+   "name": "ReVespera Shader VXPT 3",
+   "ver": "3",
+   "pub": "2026-10-16T15:59:18.614913Z",
+   "games": [
+    "1.21.8",
+    "1.21.9",
+    "1.21.10"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "sublime-visuals": [
+  {
+   "name": "Sublime Visuals V4",
+   "ver": "4",
+   "pub": "2026-10-11T12:23:39.961975Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Sublime Visuals 3",
+   "ver": "3",
+   "pub": "2026-09-05T04:20:56.690806Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Sublime Visuals V1.2",
+   "ver": "2",
+   "pub": "2026-07-26T13:34:11.766089Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Sublime Visuals ",
+   "ver": "V1",
+   "pub": "2026-06-06T07:02:31.197644Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "tuvefe-aura-warp": [
+  {
+   "name": "0.3",
+   "ver": "0.3",
+   "pub": "2026-10-16T03:08:17.116350Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "0.3",
+   "ver": "0.3",
+   "pub": "2026-10-16T03:07:01.589012Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "0.2",
+   "ver": "0.2",
+   "pub": "2026-10-10T00:51:22.962531Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "0.2",
+   "ver": "0.2",
+   "pub": "2026-10-10T00:50:10.989691Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "0.30",
+   "ver": "0.30",
+   "pub": "2026-02-07T01:56:24.715036Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "0.30",
+   "ver": "0.30",
+   "pub": "2026-02-07T01:55:13.500133Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "phero-visuals": [
+  {
+   "name": "Phero Visuals V3",
+   "ver": "3",
+   "pub": "2026-10-11T12:19:02.125437Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Phero Visuals 2",
+   "ver": "2",
+   "pub": "2026-09-05T04:14:05.482314Z",
+   "games": [
+    "1.15",
+    "1.15.1",
+    "1.15.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Phero Visual V1.2",
+   "ver": "1.2",
+   "pub": "2026-07-26T13:08:50.472697Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Phero Visuals V1",
+   "ver": "V1",
+   "pub": "2026-06-06T06:54:06.461402Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "incredible-graphics": [
+  {
+   "name": "Incredible Graphics 1.2.2",
+   "ver": "1.2.2",
+   "pub": "2026-10-05T20:50:27.215472Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Incredible Graphics 1.2.1",
+   "ver": "1.2.1",
+   "pub": "2026-09-02T22:58:14.291678Z",
+   "games": [
+    "1.21.11",
+    "26.1",
+    "26.1.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Incredible Graphics 1.2.0",
+   "ver": "1.2.0",
+   "pub": "2026-08-04T16:43:50.800140Z",
+   "games": [
+    "1.21.11",
+    "26.1",
+    "26.1.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Incredible Graphics 1.1.0",
+   "ver": "1.1.0",
+   "pub": "2026-07-24T01:21:07.752883Z",
+   "games": [
+    "26.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Initial Release",
+   "ver": "1.0.0",
+   "pub": "2026-07-23T01:50:11.080661Z",
+   "games": [
+    "26.1.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "super-duper-vanilla-2": [
+  {
+   "name": "Super Duper Vanilla 2-2.1",
+   "ver": "2.1",
+   "pub": "2026-10-04T08:16:38.919009Z",
+   "games": [
+    "1.21",
+    "1.21.1",
+    "1.21.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Semi-Release Version 1",
+   "ver": "beta.1",
+   "pub": "2026-09-27T13:10:48.365864Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "neolux": [
+  {
+   "name": "NeoLux 1.3.0",
+   "ver": "1.3.0",
+   "pub": "2026-10-15T18:35:22.203010Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": true
+  },
+  {
+   "name": "NeoLux 1.2.1",
+   "ver": "1.2.1",
+   "pub": "2026-10-14T09:44:33.047524Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": true
+  },
+  {
+   "name": "NeoLux 1.2.0",
+   "ver": "1.2.0",
+   "pub": "2026-10-10T19:09:10.053515Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": true
+  },
+  {
+   "name": "NeoLux 1.1.0",
+   "ver": "1.1.0",
+   "pub": "2026-09-24T13:46:06.526738Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": true
+  },
+  {
+   "name": "NeoLux 1.0.0",
+   "ver": "1.0.0",
+   "pub": "2026-09-02T18:02:12.875055Z",
+   "games": [
+    "1.17",
+    "1.17.1",
+    "1.18"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": true
+  }
+ ],
+ "hazelle-shaders": [
+  {
+   "name": "Hazelle Shaders 1.0.1",
+   "ver": "1.0.1",
+   "pub": "2026-10-14T19:32:55.112161Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "1.0.0",
+   "ver": "1.0.0",
+   "pub": "2026-10-10T19:39:27.114648Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "cloud-shaders": [
+  {
+   "name": "Hollow Shaders 1.0.0",
+   "ver": "1.0.0",
+   "pub": "2026-10-11T18:49:26.936788Z",
+   "games": [
+    "26.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Hollow Shaders 1.0.0",
+   "ver": "1.0.0",
+   "pub": "2026-10-11T18:48:18.155797Z",
+   "games": [
+    "26.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Hollow Shaders 1.0.0",
+   "ver": "1.0.0",
+   "pub": "2026-10-11T18:40:22.359312Z",
+   "games": [
+    "26.1.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Hollow Shaders 1.0.0",
+   "ver": "1.0.0",
+   "pub": "2026-10-11T18:39:05.082056Z",
+   "games": [
+    "26.1.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Hollow Shaders 1.0.0",
+   "ver": "1.0.0",
+   "pub": "2026-10-11T18:37:52.462312Z",
+   "games": [
+    "26.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Hollow Shaders 1.0.0",
+   "ver": "1.0.0",
+   "pub": "2026-10-11T18:28:56.801662Z",
+   "games": [
+    "1.21.11"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "kourin-shaders": [
+  {
+   "name": "Kourin Shaders V1",
+   "ver": "1",
+   "pub": "2026-10-04T07:10:47.593462Z",
+   "games": [
+    "26.1",
+    "26.1.1",
+    "26.1.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "vanilla-extra-shaders": [
+  {
+   "name": "VanillaEX Shader r1.2.0",
+   "ver": "r1.2.0",
+   "pub": "2026-10-13T07:01:59.346818Z",
+   "games": [
+    "1.16",
+    "1.16.1",
+    "1.16.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "VanillaEX Shader r1.1.1",
+   "ver": "r1.1.1",
+   "pub": "2026-10-12T19:01:09.501280Z",
+   "games": [
+    "1.16",
+    "1.16.1",
+    "1.16.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "VanillaEX Shader r1.1.0",
+   "ver": "r1.1.0",
+   "pub": "2026-10-12T01:02:12.302630Z",
+   "games": [
+    "1.16",
+    "1.16.1",
+    "1.16.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "VanillaEX Shader r1.0.8",
+   "ver": "r1.0.8",
+   "pub": "2026-10-11T18:23:16.593736Z",
+   "games": [
+    "1.16",
+    "1.16.1",
+    "1.16.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "VanillaEX Shader r1.0.6",
+   "ver": "r1.0.6",
+   "pub": "2026-10-11T07:02:50.038328Z",
+   "games": [
+    "1.16",
+    "1.16.1",
+    "1.16.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "VanillaEX Shader r1.0.3",
+   "ver": "r1.0.3",
+   "pub": "2026-10-11T04:26:51.851602Z",
+   "games": [
+    "1.16",
+    "1.16.1",
+    "1.16.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "potato-lite-shader": [
+  {
+   "name": "Potato Lite Shader - low performance v4.1",
+   "ver": "4.1",
+   "pub": "2026-10-05T22:18:21.039906Z",
+   "games": [
+    "26.3"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Potato Lite Shader - low performance 3",
+   "ver": "1.0",
+   "pub": "2026-09-28T20:22:07.931956Z",
+   "games": [
+    "26.3"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "crownlight-shader": [
+  {
+   "name": "Crownlight Shaders 1.2 for 26.3 Release Candidate 3",
+   "ver": "1.2-rc.26.3.rc.3",
+   "pub": "2026-10-12T08:30:21.692044Z",
+   "games": [
+    "26.3-rc-3"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Crownlight Shaders 1.2 for 26.3 Release Candidate 2",
+   "ver": "1.2-rc.26.3.rc.2",
+   "pub": "2026-10-12T08:29:51.437843Z",
+   "games": [
+    "26.3-rc-2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Crownlight Shaders 1.2 for 26.3 Release Candidate 1",
+   "ver": "1.2-rc.26.3.rc.1",
+   "pub": "2026-10-12T08:29:18.912228Z",
+   "games": [
+    "26.3-rc-1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Crownlight Shaders 1.2 for 26.3 Pre-release 3",
+   "ver": "1.2-mc26.3.pre.3",
+   "pub": "2026-10-12T08:27:41.540682Z",
+   "games": [
+    "26.3-pre-3"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "👑 Crownlight Shaders 1.2 for 26.3 Pre-release 2",
+   "ver": "1.2-mc26.3.pre.2",
+   "pub": "2026-10-12T08:22:40.991950Z",
+   "games": [
+    "26.3-pre-2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Crownlight Shaders 1.2 for 26.3 Pre-release 1",
+   "ver": "1.2-mc26.3.pre.1",
+   "pub": "2026-10-12T08:21:24.088835Z",
+   "games": [
+    "26.3-pre-1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "aetherglow": [
+  {
+   "name": "Aetherglow 1.1",
+   "ver": "1.1",
+   "pub": "2026-10-05T20:45:06.550450Z",
+   "games": [
+    "1.16",
+    "1.16.1",
+    "1.16.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Aetherglow 1.0",
+   "ver": "1.0",
+   "pub": "2026-10-03T14:49:41.660773Z",
+   "games": [
+    "1.18",
+    "1.18.1",
+    "1.18.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "lumavale-shaders": [
+  {
+   "name": "LumaVale Shaders ",
+   "ver": "1",
+   "pub": "2026-10-10T16:26:50.019012Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "od-horizon-shader": [
+  {
+   "name": "OD-Horizon Shaders r0.3",
+   "ver": "r0.3",
+   "pub": "2026-10-16T06:18:17.038103Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "OD-Horizon Shaders 0.2",
+   "ver": "0.2",
+   "pub": "2026-09-26T04:24:37.322402Z",
+   "games": [
+    "1.20",
+    "1.20.6",
+    "1.21"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "doruks-shader-plus": [
+  {
+   "name": "Doruk's Shader Plus 1.1.1",
+   "ver": "1.1.1",
+   "pub": "2026-10-12T16:11:19.459672Z",
+   "games": [
+    "1.8.9",
+    "1.9",
+    "1.9.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Doruk's Shader Plus 1.1.0",
+   "ver": "1.1.0",
+   "pub": "2026-10-12T15:53:59.454599Z",
+   "games": [
+    "1.8.9",
+    "1.9",
+    "1.9.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Doruk's Shader Plus 1.0.0",
+   "ver": "1.0.0",
+   "pub": "2026-09-27T10:34:22.626543Z",
+   "games": [
+    "1.9",
+    "1.9.1",
+    "1.9.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "nivora-shaders": [
+  {
+   "name": "Nivora Shaders ",
+   "ver": "1",
+   "pub": "2026-10-10T16:38:43.553412Z",
+   "games": [
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ],
+ "brisa-lite": [
+  {
+   "name": "Brisa Lite 2.2",
+   "ver": "2.2",
+   "pub": "2026-10-16T15:57:20.150999Z",
+   "games": [
+    "1.16.5",
+    "1.18.2",
+    "1.19"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Brisa Lite 2.1",
+   "ver": "2.1",
+   "pub": "2026-10-15T14:34:06.920093Z",
+   "games": [
+    "1.16.5",
+    "1.18.2",
+    "1.19"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Brisa Lite 2.0",
+   "ver": "2.0",
+   "pub": "2026-10-12T20:44:10.055254Z",
+   "games": [
+    "1.16.5",
+    "1.19.4",
+    "1.20.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Brisa Lite 1.9.1",
+   "ver": "1.9.1",
+   "pub": "2026-10-11T18:33:22.356971Z",
+   "games": [
+    "1.16.5",
+    "1.19.4",
+    "1.20.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Brisa Lite 1.9",
+   "ver": "1.9",
+   "pub": "2026-10-11T15:30:51.577506Z",
+   "games": [
+    "1.16.5",
+    "1.19.4",
+    "1.20.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Brisa Lite 1.8",
+   "ver": "1.8",
+   "pub": "2026-10-10T21:18:26.477579Z",
+   "games": [
+    "1.16.5",
+    "1.19.4",
+    "1.20.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "aetherstone-by-tark-projects": [
+  {
+   "name": "Aetherstone 1.2.1",
+   "ver": "1.2.1.B",
+   "pub": "2026-10-10T15:30:29.589875Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Aetherstone 1.2.0 Beta",
+   "ver": "1.2.0.B",
+   "pub": "2026-10-02T12:46:02.111033Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Aetherstone 1.1.3",
+   "ver": "1.1.3",
+   "pub": "2026-09-23T20:01:18.643407Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Aetherstone 1.1.2",
+   "ver": "1.1.2",
+   "pub": "2026-09-22T00:16:40.368772Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Hotfix and realistic varients",
+   "ver": "1.1.1",
+   "pub": "2026-09-21T18:42:22.403292Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Aetherstone 1.1",
+   "ver": "1.1.0",
+   "pub": "2026-09-21T11:31:42.697602Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "light-shadow": [
+  {
+   "name": "4.1",
+   "ver": "4.1",
+   "pub": "2026-10-13T10:51:00.048870Z",
+   "games": [
+    "26.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "4.0.2",
+   "ver": "4.0.2",
+   "pub": "2026-10-10T14:05:22.674632Z",
+   "games": [
+    "26.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "4.0.1",
+   "ver": "4.0.1",
+   "pub": "2026-10-09T12:00:56.353434Z",
+   "games": [
+    "26.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "4.0",
+   "ver": "4.0",
+   "pub": "2026-10-08T16:09:53.632146Z",
+   "games": [
+    "26.3"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "3.9",
+   "ver": "3.9",
+   "pub": "2026-09-24T07:14:11.264456Z",
+   "games": [
+    "26.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  },
+  {
+   "name": "3.8",
+   "ver": "3.8",
+   "pub": "2026-09-17T07:54:59.706747Z",
+   "games": [
+    "26.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "vomit-shaders": [
+  {
+   "name": "2.0.0",
+   "ver": "2.0.0",
+   "pub": "2026-10-13T17:07:26.115919Z",
+   "games": [
+    "1.19",
+    "1.19.1",
+    "1.19.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "The first version",
+   "ver": "0.0.1",
+   "pub": "2026-07-10T08:52:04.710390Z",
+   "games": [
+    "1.19",
+    "1.19.1",
+    "1.19.2"
+   ],
+   "loaders": [
+    "iris"
+   ],
+   "featured": false
+  }
+ ],
+ "hsn-shaders": [
+  {
+   "name": "HSN-Shaders 1.7",
+   "ver": "1.7",
+   "pub": "2026-10-11T08:35:13.810171Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "HSN-Shaders 26.3.6",
+   "ver": "1.6",
+   "pub": "2026-09-24T15:01:06.354314Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "HSN-Shaders 26.3-1.16.5",
+   "ver": "1.5",
+   "pub": "2026-09-20T14:06:45.802565Z",
+   "games": [
+    "1.16.5",
+    "1.17",
+    "1.17.1"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "HSN-Shaders 26.3.1",
+   "ver": "1.1",
+   "pub": "2026-09-16T01:50:31.205184Z",
+   "games": [
+    "26.2",
+    "26.3"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  },
+  {
+   "name": "Stable ",
+   "ver": "1.0",
+   "pub": "2026-09-13T05:02:32.310436Z",
+   "games": [
+    "26.2"
+   ],
+   "loaders": [
+    "iris",
+    "optifine"
+   ],
+   "featured": false
+  }
+ ]
+}

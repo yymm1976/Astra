@@ -1,0 +1,140 @@
+#ifndef ASTRA_LIB_COLOR_CONTROLS_GLSL
+#define ASTRA_LIB_COLOR_CONTROLS_GLSL
+// Original Astra palettes. Mellow inspired the independent style/RGB menus;
+// no reference shader colour tables or rendering code are copied here.
+// All gains are compile-time constants, neutral at 100.
+const vec3 ASTRA_TINT_SKY_DAY_TOP = vec3(TINT_SKY_DAY_TOP_R, TINT_SKY_DAY_TOP_G, TINT_SKY_DAY_TOP_B) * 0.01;
+const vec3 ASTRA_TINT_SKY_DAY_HORIZON = vec3(TINT_SKY_DAY_HORIZON_R, TINT_SKY_DAY_HORIZON_G, TINT_SKY_DAY_HORIZON_B) * 0.01;
+const vec3 ASTRA_TINT_SKY_DAWN_TOP = vec3(TINT_SKY_DAWN_TOP_R, TINT_SKY_DAWN_TOP_G, TINT_SKY_DAWN_TOP_B) * 0.01;
+const vec3 ASTRA_TINT_SKY_DAWN_HORIZON = vec3(TINT_SKY_DAWN_HORIZON_R, TINT_SKY_DAWN_HORIZON_G, TINT_SKY_DAWN_HORIZON_B) * 0.01;
+const vec3 ASTRA_TINT_SKY_DUSK_TOP = vec3(TINT_SKY_DUSK_TOP_R, TINT_SKY_DUSK_TOP_G, TINT_SKY_DUSK_TOP_B) * 0.01;
+const vec3 ASTRA_TINT_SKY_DUSK_HORIZON = vec3(TINT_SKY_DUSK_HORIZON_R, TINT_SKY_DUSK_HORIZON_G, TINT_SKY_DUSK_HORIZON_B) * 0.01;
+const vec3 ASTRA_TINT_SKY_NIGHT_TOP = vec3(TINT_SKY_NIGHT_TOP_R, TINT_SKY_NIGHT_TOP_G, TINT_SKY_NIGHT_TOP_B) * 0.01;
+const vec3 ASTRA_TINT_SKY_NIGHT_HORIZON = vec3(TINT_SKY_NIGHT_HORIZON_R, TINT_SKY_NIGHT_HORIZON_G, TINT_SKY_NIGHT_HORIZON_B) * 0.01;
+const vec3 ASTRA_TINT_SUN = vec3(TINT_SUN_R, TINT_SUN_G, TINT_SUN_B) * 0.01;
+const vec3 ASTRA_TINT_DAWN_SUN = vec3(TINT_DAWN_SUN_R, TINT_DAWN_SUN_G, TINT_DAWN_SUN_B) * 0.01;
+const vec3 ASTRA_TINT_DUSK_SUN = vec3(TINT_DUSK_SUN_R, TINT_DUSK_SUN_G, TINT_DUSK_SUN_B) * 0.01;
+const vec3 ASTRA_TINT_MOON = vec3(TINT_MOON_R, TINT_MOON_G, TINT_MOON_B) * 0.01;
+const vec3 ASTRA_TINT_AMBIENT = vec3(TINT_AMBIENT_R, TINT_AMBIENT_G, TINT_AMBIENT_B) * 0.01;
+const vec3 ASTRA_TINT_BLOCK = vec3(TINT_BLOCK_R, TINT_BLOCK_G, TINT_BLOCK_B) * 0.01;
+const vec3 ASTRA_TINT_CAVE = vec3(TINT_CAVE_R, TINT_CAVE_G, TINT_CAVE_B) * 0.01;
+const vec3 ASTRA_TINT_END_LIGHT = vec3(TINT_END_LIGHT_R, TINT_END_LIGHT_G, TINT_END_LIGHT_B) * 0.01;
+const vec3 ASTRA_TINT_END_AMBIENT = vec3(TINT_END_AMBIENT_R, TINT_END_AMBIENT_G, TINT_END_AMBIENT_B) * 0.01;
+const vec3 ASTRA_TINT_END_SKY = vec3(TINT_END_SKY_R, TINT_END_SKY_G, TINT_END_SKY_B) * 0.01;
+const vec3 ASTRA_TINT_NETHER = vec3(TINT_NETHER_R, TINT_NETHER_G, TINT_NETHER_B) * 0.01;
+const vec3 ASTRA_LOOK_SHADOWS = vec3(LOOK_SHADOWS_R, LOOK_SHADOWS_G, LOOK_SHADOWS_B) * 0.01;
+const vec3 ASTRA_LOOK_MIDS = vec3(LOOK_MIDS_R, LOOK_MIDS_G, LOOK_MIDS_B) * 0.01;
+const vec3 ASTRA_LOOK_HIGHS = vec3(LOOK_HIGHS_R, LOOK_HIGHS_G, LOOK_HIGHS_B) * 0.01;
+
+// Shared fresh-look ambient gain: one definition for every consumer of the
+// overworld ambient colour (astra_sky_ambient and the water interface incident
+// colour), so the incoming light keeps a single hue instead of drifting per site.
+// Neutral outside the natural overworld.
+#ifdef ASTRA_OVERWORLD_NATURAL
+// Balance the blue base illumination, instead of adding another cyan cast.
+const vec3 ASTRA_OVERWORLD_AMBIENT_GAIN = vec3(1.22, 1.10, 0.95);
+#else
+const vec3 ASTRA_OVERWORLD_AMBIENT_GAIN = vec3(1.0);
+#endif
+
+#if COLOR_STYLE == 1
+const vec3 ASTRA_STYLE_TOP = vec3(1.02,1.01,0.94);
+const vec3 ASTRA_STYLE_HORIZON = vec3(1.06,1.00,0.90);
+const vec3 ASTRA_STYLE_SUN = vec3(1.08,1.00,0.91);
+const vec3 ASTRA_STYLE_AMBIENT = vec3(0.98,1.00,1.04);
+const vec3 ASTRA_STYLE_BLOCK = vec3(1.02,1.00,0.93);
+#elif COLOR_STYLE == 2
+const vec3 ASTRA_STYLE_TOP = vec3(0.91,1.00,1.09);
+const vec3 ASTRA_STYLE_HORIZON = vec3(0.96,1.00,1.05);
+const vec3 ASTRA_STYLE_SUN = vec3(0.98,1.00,1.03);
+const vec3 ASTRA_STYLE_AMBIENT = vec3(0.95,1.00,1.08);
+const vec3 ASTRA_STYLE_BLOCK = vec3(1.00,1.00,1.04);
+#elif COLOR_STYLE == 3
+const vec3 ASTRA_STYLE_TOP = vec3(0.96);
+const vec3 ASTRA_STYLE_HORIZON = vec3(0.98);
+const vec3 ASTRA_STYLE_SUN = vec3(0.94);
+const vec3 ASTRA_STYLE_AMBIENT = vec3(1.12);
+const vec3 ASTRA_STYLE_BLOCK = vec3(0.98,1.00,1.02);
+#else
+const vec3 ASTRA_STYLE_TOP = vec3(1.0);
+const vec3 ASTRA_STYLE_HORIZON = vec3(1.0);
+const vec3 ASTRA_STYLE_SUN = vec3(1.0);
+const vec3 ASTRA_STYLE_AMBIENT = vec3(1.0);
+const vec3 ASTRA_STYLE_BLOCK = vec3(1.0);
+#endif
+
+vec3 astra_sun_color_gain(float twilight, float dawn) {
+    vec3 gain = ASTRA_TINT_SUN * ASTRA_STYLE_SUN;
+    #if TINT_DAWN_SUN_R != 100 || TINT_DAWN_SUN_G != 100 || TINT_DAWN_SUN_B != 100 || TINT_DUSK_SUN_R != 100 || TINT_DUSK_SUN_G != 100 || TINT_DUSK_SUN_B != 100
+    gain *= mix(vec3(1.0), mix(ASTRA_TINT_DUSK_SUN, ASTRA_TINT_DAWN_SUN, dawn), twilight);
+    #endif
+    #ifdef ASTRA_OVERWORLD_NATURAL
+    // Fresh overworld look: neutral daylight, with the existing warm twilight.
+    // multiplied on top of the user's SUN/DAWN/DUSK channels and COLOR_STYLE.
+    // Those stay fully usable because this only scales their result.
+    // The underlying noon palette is warm (1.10, 0.99, 0.83). This gain
+    // brings it close to neutral; a neutral gain alone would keep it yellow.
+    gain *= mix(vec3(0.91, 1.01, 1.20), vec3(1.08, 1.00, 0.92), twilight);
+    #endif
+    return gain;
+}
+
+// Air shafts keep their own artistic colour response. Water has its existing
+// spectral transmission/tint and deliberately does not receive this air tint.
+// Source palette and strength remain the caller's; only hue ratios change.
+vec3 astra_air_shaft_color(vec3 source) {
+    #if AIR_SHAFT_COLOR == 1
+    vec3 tint = mix(vec3(1.025,1.005,0.97),vec3(1.04,1.0,0.96),astraTwilightFactor);
+    vec3 coloured = source*tint;
+    float originalY = dot(source,vec3(0.2126,0.7152,0.0722));
+    float tintedY = dot(coloured,vec3(0.2126,0.7152,0.0722));
+    return tintedY > 0.0 ? coloured*(originalY/tintedY) : source;
+    #else
+    return source;
+    #endif
+}
+
+// The same solar source feeds tree shafts and the rain-air path. Source-off
+// decisions precede visibility sampling; a shaded endpoint says nothing about
+// the visibility of the rest of a ray. This helper is used in quad vertices.
+vec3 astra_sun_shaft_source() {
+    #if SUNLIGHT_STRENGTH <= 0
+    return vec3(0.0);
+    #else
+    if (astraSunSource <= 0.0 || astraDirectLightGate <= 0.0) return vec3(0.0);
+    return astra_air_shaft_color(astraSunPalette
+        *astra_sun_color_gain(astraTwilightFactor,astraDawnBlend))
+        *(SUNLIGHT_STRENGTH*0.01*astraDirectLightGate*astraSunSource);
+    #endif
+}
+
+// Original-look neutral settings remove the per-direction sky gain calculation.
+vec3 astra_sky_color_gain(float height, float daylight, float twilight, float dawn) {
+#if COLOR_STYLE != 0 || \
+    TINT_SKY_DAY_TOP_R != 100 || TINT_SKY_DAY_TOP_G != 100 || TINT_SKY_DAY_TOP_B != 100 || \
+    TINT_SKY_DAY_HORIZON_R != 100 || TINT_SKY_DAY_HORIZON_G != 100 || TINT_SKY_DAY_HORIZON_B != 100 || \
+    TINT_SKY_DAWN_TOP_R != 100 || TINT_SKY_DAWN_TOP_G != 100 || TINT_SKY_DAWN_TOP_B != 100 || \
+    TINT_SKY_DAWN_HORIZON_R != 100 || TINT_SKY_DAWN_HORIZON_G != 100 || TINT_SKY_DAWN_HORIZON_B != 100 || \
+    TINT_SKY_DUSK_TOP_R != 100 || TINT_SKY_DUSK_TOP_G != 100 || TINT_SKY_DUSK_TOP_B != 100 || \
+    TINT_SKY_DUSK_HORIZON_R != 100 || TINT_SKY_DUSK_HORIZON_G != 100 || TINT_SKY_DUSK_HORIZON_B != 100 || \
+    TINT_SKY_NIGHT_TOP_R != 100 || TINT_SKY_NIGHT_TOP_G != 100 || TINT_SKY_NIGHT_TOP_B != 100 || \
+    TINT_SKY_NIGHT_HORIZON_R != 100 || TINT_SKY_NIGHT_HORIZON_G != 100 || TINT_SKY_NIGHT_HORIZON_B != 100
+    vec3 top = mix(ASTRA_TINT_SKY_NIGHT_TOP, ASTRA_TINT_SKY_DAY_TOP, daylight);
+    vec3 horizon = mix(ASTRA_TINT_SKY_NIGHT_HORIZON, ASTRA_TINT_SKY_DAY_HORIZON, daylight);
+    top = mix(top, mix(ASTRA_TINT_SKY_DUSK_TOP, ASTRA_TINT_SKY_DAWN_TOP, dawn), twilight);
+    horizon = mix(horizon, mix(ASTRA_TINT_SKY_DUSK_HORIZON, ASTRA_TINT_SKY_DAWN_HORIZON, dawn), twilight);
+    vec3 gain = mix(horizon * ASTRA_STYLE_HORIZON, top * ASTRA_STYLE_TOP,
+                    smoothstep(0.0, 0.85, max(height, 0.0)));
+    #else
+    vec3 gain = vec3(1.0);
+    #endif
+    #ifdef ASTRA_OVERWORLD_NATURAL
+    // Keep the night and warm transition palettes; the shared sky cache also
+    // feeds reflections, so daytime sky and water retain the same hue.
+    vec3 fresh = mix(vec3(1.02, 1.04, 1.035), vec3(1.0, 1.015, 1.025),
+                     smoothstep(0.0, 0.85, max(height, 0.0)));
+    gain *= mix(vec3(1.0), fresh, daylight * (1.0 - twilight));
+    #endif
+    return gain;
+}
+#endif

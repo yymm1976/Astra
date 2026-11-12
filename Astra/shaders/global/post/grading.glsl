@@ -1,0 +1,373 @@
+#ifndef ASTRA_GLOBAL_POST_GRADING_GLSL
+#define ASTRA_GLOBAL_POST_GRADING_GLSL
+
+#include "/lib/encoding.glsl"
+#include "/lib/color_controls.glsl"
+#include "/lib/dither.glsl"
+#include "/lib/tonemap.glsl"
+#include "/global/post/exposure.glsl"
+
+// ============================================================
+//  Astra v1 - global/post/grading.glsl
+//  The style layer (design.md 4.4): exposure, colour temperature, vibrance,
+//  saturation, contrast, the optional vignette, and the IGN output dither.
+//  Design 4.4 makes this file the single place the pack's LOOK is tuned, so any
+//  constant that decides what Astra looks like belongs here, not in a pass.
+//  Owner: C6.  Consumer: program/final.fsh (E1 wires it).
+//
+//  Requires by program order: /lib/settings.glsl (POST block) plus the dimension
+//  macro the top-level shell injects (DIMENSION_NETHER / DIMENSION_END).
+// ============================================================
+//
+// --- Display helpers and the colour space each one runs in ------------------
+//
+//   vec3 apply_auto_exposure(vec3 linearHDR)
+//       LINEAR / scene-referred, and the FIRST thing the chain does. A measured scene
+//       gain, so it has to be outside the tone curve and outside the user's slider.
+//       display.vsh reads the gain per quad vertex; display.fsh multiplies it on
+//       the air arm only (SC-41). This helper retains the same direct-use API.
+//       The underwater display curve and nether/end keep the manual exposure.
+//
+//   vec3 apply_exposure(vec3 linearHDR)
+//       LINEAR / scene-referred. Must run BEFORE the tonemap: exposure is a
+//       sensor gain, and applying it after the tone curve changes which
+//       highlights get compressed instead of how bright the scene is.
+//
+//   vec3 apply_tonemap(vec3 hdr)                  [lib/tonemap.glsl, not here]
+//   vec3 apply_scene_grading(vec3 hdr)
+//       Natural overworld only: contrast on HDR luminance around 18% grey,
+//       after manual exposure and before tone mapping. The user's 100 setting
+//       adds no contrast beyond the natural style's bounded separation.
+//
+//   vec3 apply_grading(vec3 displayColor)
+//       DISPLAY-referred (gamma-encoded) - see "why display space" below.
+//
+//   vec3 apply_vignette(vec3 displayColor, vec2 screenUV)
+//       DISPLAY space. screenUV is 0..1 (texcoord). The function always exists
+//       and returns its input untouched when VIGNETTE is undefined, so the call
+//       site needs no #ifdef of its own.
+//
+//   vec3 apply_output_dither(vec2 screenPos, vec3 displayColor)
+//       DISPLAY space, LAST, and deliberately AFTER apply_grading's clamp.
+//       screenPos is gl_FragCoord.xy in device pixels, not 0..1.
+//
+// Full §2.2 final-chain order, therefore:
+//   colortex0 -> apply_auto_exposure (optional) -> apply_exposure
+//             -> apply_scene_grading -> tonemap
+//             -> sRGB encode -> apply_grading
+//             -> apply_vignette (optional) -> apply_output_dither -> gl_FragData[0]
+//
+// --- why display space ------------------------------------------------------
+// Temperature, vibrance, saturation and manual RGB balance keep their existing
+// display-space meaning. Original look and other dimensions also retain the
+// endpoint-preserving contrast curve at 0.5. Natural overworld contrast is now
+// applied once to HDR luminance instead, preserving ratios between RGB channels.
+//
+// SC-16 is resolved: apply_tonemap returns display-linear RGB for every operator.
+// AgX's internal power is its output linearisation, not a second sRGB transfer.
+// final performs exactly one srgb_encode before display-space grading.
+// ============================================================
+
+// ------------------------------------------------------------
+// PRESET - the look of the pack in one block.
+// Factory values began with Refrax v1.3.1's calibration and were adjusted after
+// the first two Iris visual rounds. Matching Refrax still needs the user's
+// visual verdict; source-level adjustments do not settle the final look.
+//
+// Grading and colour styles are independent of quality profiles. Choosing a
+// performance tier leaves the user's exposure, tone curve and colour gains intact.
+// ------------------------------------------------------------
+
+const float GRADING_EXPOSURE_NETHER = 1.05;
+// Multiplied ON TOP of the user's EXPOSURE slider, so the user can still dial
+// past it. The nether is a pure-ambient dimension (C3's nether_lighting has no
+// sun term), so a curve calibrated on daylight reads dark there.
+const float GRADING_EXPOSURE_END = 1.05;
+// Same reason, same amount: the End's light is faint skylight plus void fog.
+
+const vec3 GRADING_TINT_WARM = vec3(1.055, 1.0, 0.945);
+const vec3 GRADING_TINT_COOL = vec3(0.945, 1.0, 1.055);
+// A symmetric pair on purpose: a tint that only raised red would also raise
+// luminance and read as an exposure change rather than a temperature change.
+const float GRADING_TEMPERATURE_FULL_SCALE = 50.0;
+// COLOR_TEMPERATURE spans -50..50; this is the value that means "full tint", i.e.
+// either end of the slider applies GRADING_TINT_* at weight 1.0.
+
+const float GRADING_BLUE_GUARD = 3.0;
+// How fast a blue-dominant pixel resists the temperature tint: saturates once
+// blue leads the strongest other channel by 1/GRADING_BLUE_GUARD. Without it a
+// warm tint washes a clear sky and snow towards grey, and a cool tint does the
+// same to lava and netherrack. Set 0.0 to disable the guard (user always wins).
+// UNVERIFIED: Refrax uses slope 3.5 for the equivalent term.
+
+const float GRADING_DITHER_STRENGTH = 1.0 / 128.0;
+// Total span is 2 LSB of the 8-bit backbuffer (1/128 = 0.0078 vs 1 LSB = 1/255),
+// i.e. plus or minus one LSB around the exact value. Design 2.4: with no AA pass,
+// banding has to be broken here or nowhere.
+
+#ifdef VIGNETTE
+const float VIGNETTE_STRENGTH = 0.55;
+const float VIGNETTE_FALLOFF = 2.0;
+// At these two values corners darken about 15% and edge midpoints about 7%.
+#endif
+
+// ------------------------------------------------------------
+// 1. Exposure - linear, pre-tonemap
+// ------------------------------------------------------------
+float grading_dimension_exposure() {
+	#if defined DIMENSION_NETHER
+		return GRADING_EXPOSURE_NETHER;
+	#elif defined DIMENSION_END
+		return GRADING_EXPOSURE_END;
+	#else
+		return 1.0;
+	#endif
+}
+
+vec3 apply_exposure(vec3 linearHDR) {
+	return linearHDR * (EXPOSURE * 0.01 * grading_dimension_exposure());
+}
+
+// SUMMARY idea (Mellow/Bliss/Photon/Nostalgia/Kappa): mesopic night blue shift.
+// Original Astra luminance-preserving blend; no reference formula copied.
+vec3 astra_purkinje(vec3 hdr) {
+    #if PURKINJE_STRENGTH > 0 && !defined DIMENSION_NETHER && !defined DIMENSION_END
+    if (astraPurkinjeGate <= 0.0) return hdr;
+    float luminance = dot(hdr, vec3(0.2126, 0.7152, 0.0722));
+    float weight = astraPurkinjeGate * (PURKINJE_STRENGTH * 0.01)
+                 * (1.0 - smoothstep(0.01, 0.12, luminance));
+    // The tint has unit luminance; bright local lights retain their own colour.
+    const vec3 rodTint = vec3(0.55, 1.0, 1.5) / 0.94043;
+    return mix(hdr, luminance * rodTint, weight);
+    #else
+    return hdr;
+    #endif
+}
+
+// Auto-exposure sits in front of apply_exposure rather than inside it: it is a scene
+// measurement, and the user's slider stays the thing it multiplies. Like apply_vignette,
+// the function always exists and returns its input untouched when the option is off, so
+// the call site needs no #ifdef of its own - and the #ifdef has to be spelled this way
+// for Iris to treat AUTO_EXPOSURE as an option at all (see apply_output_dither below).
+vec3 apply_auto_exposure(vec3 linearHDR) {
+	#ifdef AUTO_EXPOSURE
+		return linearHDR * astra_ae_gain();
+	#else
+		return linearHDR;
+	#endif
+}
+
+// ------------------------------------------------------------
+// 2. Colour temperature - display space
+// ------------------------------------------------------------
+vec3 apply_color_temperature(vec3 color) {
+	#if COLOR_TEMPERATURE == 0
+		// Compiled out at the factory default, so the guard costs nothing for
+		// anyone who never touches the slider.
+		return color;
+	#else
+		float weight = clamp(abs(float(COLOR_TEMPERATURE)) / GRADING_TEMPERATURE_FULL_SCALE, 0.0, 1.0);
+		vec3 tint = COLOR_TEMPERATURE > 0 ? GRADING_TINT_WARM : GRADING_TINT_COOL;
+		float guard = clamp((color.b - max(color.r, color.g)) * GRADING_BLUE_GUARD, 0.0, 1.0);
+		return color * mix(vec3(1.0), tint, weight * (1.0 - guard));
+	#endif
+}
+
+// ------------------------------------------------------------
+// 3. Grading - natural contrast before tonemapping, display controls afterward.
+//
+// Vibrance before saturation is deliberate and matches Mellow's final chain:
+// vibrance is a relative correction that protects already-saturated pixels, so
+// running full saturation first would push channels into the range vibrance then
+// tries to protect, and the two sliders would fight.
+// ------------------------------------------------------------
+vec3 apply_scene_grading(vec3 hdr) {
+    #if defined ASTRA_OVERWORLD_NATURAL && !defined DEBUG_DISABLE_COLOR_GRADE
+    // A mild luminance-only separation around 18% grey, without channel powers
+    // or a new LUT. Its gain is bounded to 0.94..1.06 and keeps black at black.
+    float luminance = get_luminance(hdr);
+    float separation = 1.0+0.06*(luminance-0.18)/(luminance+0.18);
+    hdr *= separation;
+    #if CONTRAST != 100
+    // One luminance power is equivalent to log-domain contrast around 18% grey.
+    // A shared RGB gain keeps hue unchanged. Exactly black remains black.
+    luminance *= separation;
+    float gain = pow(max(luminance, 1e-6) / 0.18, CONTRAST * 0.01 - 1.0);
+    return hdr * gain;
+    #endif
+    #endif
+    return hdr;
+}
+
+vec3 apply_tonal_balance(vec3 color) {
+    #if LOOK_SHADOWS_R != 100 || LOOK_SHADOWS_G != 100 || LOOK_SHADOWS_B != 100 || LOOK_MIDS_R != 100 || LOOK_MIDS_G != 100 || LOOK_MIDS_B != 100 || LOOK_HIGHS_R != 100 || LOOK_HIGHS_G != 100 || LOOK_HIGHS_B != 100
+    float luma = clamp(dot(color, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+    float shadows = 1.0 - smoothstep(0.05, 0.40, luma);
+    float highs = smoothstep(0.60, 0.95, luma);
+    float mids = 1.0 - shadows - highs;
+    return color * (ASTRA_LOOK_SHADOWS * shadows + ASTRA_LOOK_MIDS * mids + ASTRA_LOOK_HIGHS * highs);
+    #else
+    return color;
+    #endif
+}
+
+// Original Astra colour-selective saturation. RGB channel differences select
+// warm/cyan/green families without an HSL round trip or angular functions.
+// The daylight gate leaves the colourful galactic band and star temperatures
+// alone. Zero chroma, black and white remain unchanged; no new depth read.
+vec3 apply_selective_color(vec3 color) {
+    #if defined ASTRA_OVERWORLD_NATURAL && (LOOK_WARM_SATURATION != 100 || LOOK_CYAN_SATURATION != 100 || LOOK_GREEN_SATURATION != 100)
+    if (skyVisibilityDay <= 0.0) return color;
+    color = clamp(color,0.0,1.0);
+    float low = min(color.r,min(color.g,color.b));
+    float high = max(color.r,max(color.g,color.b));
+    float chroma = high-low;
+    if (chroma <= 0.02) return color;
+    float inverseChroma = 1.0/chroma;
+    float gainDelta = 0.0;
+    #if LOOK_WARM_SATURATION != 100
+    float warm = max(min(color.r,color.g)-color.b,0.0)*inverseChroma
+               *clamp((color.r-color.g)*inverseChroma*3.0,0.0,1.0);
+    gainDelta += warm*(LOOK_WARM_SATURATION*0.01-1.0);
+    #endif
+    #if LOOK_CYAN_SATURATION != 100
+    float cyan = max(min(color.g,color.b)-color.r,0.0)*inverseChroma;
+    gainDelta += cyan*(LOOK_CYAN_SATURATION*0.01-1.0);
+    #endif
+    #if LOOK_GREEN_SATURATION != 100
+    float green = max(color.g-max(color.r,color.b),0.0)*inverseChroma;
+    gainDelta += green*(LOOK_GREEN_SATURATION*0.01-1.0);
+    #endif
+    float luminance = get_luminance(color);
+    gainDelta *= skyVisibilityDay*smoothstep(0.02,0.12,chroma)
+               *(1.0-smoothstep(0.82,1.0,luminance));
+    // Limit saturation before reaching the display gamut, rather than clipping
+    // one channel afterwards. The RGB/grey blend preserves this encoded luma.
+    float room = min((1.0-high)/max(high-luminance,0.00001),
+                     low/max(luminance-low,0.00001));
+    gainDelta = min(gainDelta,max(room,0.0));
+    return color+(color-vec3(luminance))*gainDelta;
+    #else
+    return color;
+    #endif
+}
+
+vec3 apply_grading(vec3 displayColor) {
+	#ifdef DEBUG_DISABLE_COLOR_GRADE
+	// Bypass the whole style layer so an A/B pair can tell whether a cast comes
+	// from the grade or from lighting/water/exposure upstream. The clamp stays:
+	// the downstream vignette and dither slots assume display-referred 0..1.
+	return clamp(displayColor, vec3(0.0), vec3(1.0));
+	#else
+	vec3 color = apply_color_temperature(displayColor);
+		#if VIBRANCE != 100 && SATURATION != 100
+        // Both controls are affine RGB/grey blends. Share the original
+        // luminance and combine their gains instead of recomputing luminance
+        // after vibrance and constructing two intermediate colour vectors.
+        float low = min(color.r,min(color.g,color.b));
+        float high = max(color.r,max(color.g,color.b));
+        float luminance = get_luminance(color);
+        float response = (1.0-clamp(high-low,0.0,1.0))*clamp(1.0-high,0.0,1.0)
+                       *luminance*5.0;
+        float vibranceGain = 1.0+(VIBRANCE*0.01-1.0)*response;
+        float saturation = SATURATION*0.01;
+        float grey = luminance*vibranceGain*(1.0-saturation)
+                   +(low+high)*0.5*(1.0-vibranceGain);
+        color = color*(vibranceGain*saturation)+vec3(grey);
+        #else
+		#if VIBRANCE != 100
+	color = apply_vibrance(color, VIBRANCE * 0.01);
+	#endif
+	#if SATURATION != 100
+	color = apply_saturation(color, SATURATION * 0.01);
+	#endif
+        #endif
+	// Natural contrast already acted on HDR luminance; never apply it twice.
+	#if CONTRAST != 100 && !defined ASTRA_OVERWORLD_NATURAL
+	color = apply_contrast(color, CONTRAST * 0.01);
+	#endif
+    color = apply_tonal_balance(color);
+    color = apply_selective_color(color);
+	return clamp(color, vec3(0.0), vec3(1.0));
+	#endif
+}
+
+// ------------------------------------------------------------
+// 4. Vignette - display space, optional, off by default (design 4.4)
+// Exists as a no-op when the macro is undefined so E1's call site stays
+// unconditional.
+// ------------------------------------------------------------
+vec3 apply_vignette(vec3 displayColor, vec2 screenUV) {
+	#if defined VIGNETTE
+		vec2 offset = screenUV - 0.5;
+		// Falloff here is the exponent itself, not Mellow's "2 - falloff"
+		// inversion, so larger means tighter. Distance is measured in UV space,
+		// which stretches the ellipse with the aspect ratio - acceptable for an
+		// off-by-default effect, and it keeps this slot free of a viewSize
+		// uniform (the Z3 uniform set is frozen, SC-14).
+		float falloff = pow(length(offset) * VIGNETTE_STRENGTH, VIGNETTE_FALLOFF);
+		displayColor *= 1.0 - min(falloff, 1.0);
+	#endif
+	#if defined DIMENSION_END
+		// End-only void preservation: a fixed, small corner falloff that keeps the
+		// sky's edges from banding against pure black. It is ADDITIVE over the user's
+		// vignette option instead of preempting it - the option now does what it says
+		// in the End too (consolidated review D5 / Qoder F-27 / Hunyuan C2).
+		vec2 eOffset=(screenUV-0.5)*2.0;
+		float eFalloff=clamp(dot(eOffset,eOffset)*0.5,0.0,1.0);
+		displayColor*=(1.0-0.08*eFalloff);
+	#endif
+	return displayColor;
+}
+
+// ------------------------------------------------------------
+// 5. Output dither - display space, last
+// Runs after apply_grading's clamp on purpose: pixels pinned at black or white
+// still need a per-pixel offset, or they collapse into flat bands right at the
+// clip edge. The overshoot is absorbed by the 8-bit write.
+// ------------------------------------------------------------
+vec3 apply_output_dither(vec2 screenPos, vec3 displayColor) {
+	// #ifdef, not #if defined: Iris only treats #ifdef/#ifndef lines as an option reference,
+	// so the other spelling left DITHERING out of the option set - no GUI row, and the
+	// profile tokens could not change it.
+	#if defined DITHERING || defined DIMENSION_END
+	// The End's void-preservation offset is additive over the user's dither and
+	// reuses the same IGN value; one evaluation covers both consumers.
+	float ditherValue = dither(screenPos) - 0.5;
+	#endif
+	#ifdef DITHERING
+		// Static IGN: lib/dither.glsl is fixed to animate = false. The output sits
+		// outside optional TAA's HDR history and is not accumulated there, so it must
+		// not assume temporal averaging. The user's option applies in the End as well
+		// (consolidated review D5 / Qoder F-27).
+		displayColor += ditherValue * GRADING_DITHER_STRENGTH;
+	#endif
+	#if defined DIMENSION_END
+		// End-only void preservation: half an 8-bit code each way, attenuated at
+		// black, additive over the option above.
+		float darkGate=smoothstep(0.0,0.025,max(displayColor.r,max(displayColor.g,displayColor.b)));
+		displayColor+=ditherValue*(1.0/255.0)*darkGate;
+	#endif
+	return displayColor;
+}
+
+// ------------------------------------------------------------
+// PROVENANCE
+//
+// Idea-level, Mellow v3.4 (MIT) by TheCMK - program/final.fsh:56-76 is where the
+// chain ORDER used here comes from (encode, then vibrance, saturation, contrast,
+// vignette, then a static IGN offset of the same magnitude), and the shape of the
+// vignette formula. The grading primitives are NOT re-ported: they are Astra's
+// existing Mellow port in lib/tonemap.glsl. License: MIT - see THIRD-PARTY.md.
+//
+// PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - IDEA ONLY, no code and
+//   no formula transplanted: a per-dimension exposure multiplier that stands
+//   outside the user's exposure slider (its sceneExposure / DIMENSION_EXPOSURE),
+//   and a blue-dominance guard on a warmth tint (its colorGrade blueDom term).
+//   Both rewritten here against Astra's own macros, constants and naming. Astra
+//   also drops Refrax's built-in auto-warmth, which design 4.4 does not ask for,
+//   and moves the guard onto the user's temperature slider instead. Registered in
+//   THIRD-PARTY.md per design.md 9.2.
+// ------------------------------------------------------------
+
+#endif // ASTRA_GLOBAL_POST_GRADING_GLSL

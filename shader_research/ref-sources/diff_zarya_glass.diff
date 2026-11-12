@@ -1,0 +1,361 @@
+diff --git a/shaders/common/glassDepth.glsl b/shaders/common/glassDepth.glsl
+index 210212e..7f55184 100644
+--- a/shaders/common/glassDepth.glsl
++++ b/shaders/common/glassDepth.glsl
+@@ -1,6 +1,7 @@
+ #ifndef RF_GLASS_DEPTH_GLSL
+ #define RF_GLASS_DEPTH_GLSL
+ 
++#ifndef VOXY_PATCH
+ #ifndef COLORTEX5_UNIFORM
+ #define COLORTEX5_UNIFORM
+ uniform sampler2D colortex5;
+@@ -10,9 +11,15 @@ uniform sampler2D colortex5;
+ #define DEPTHTEX1_UNIFORM
+ uniform sampler2D depthtex1;
+ #endif
++#endif
++
++bool rfGlassCovers(vec2 uv) {
++   vec4 glass = texture2D(colortex5, uv);
++   return glass.a > 0.5 || dot(glass.rgb, vec3(1.0)) > 0.004;
++}
+ 
+ float rfDepthBehindGlass(vec2 uv, float depth0) {
+-   if (dot(texture2D(colortex5, uv).rgb, vec3(1.0)) <= 0.004) {
++   if (!rfGlassCovers(uv)) {
+       return depth0;
+    }
+ 
+diff --git a/shaders/program/composite3.fsh b/shaders/program/composite3.fsh
+index 374261c..b2f3f9c 100644
+--- a/shaders/program/composite3.fsh
++++ b/shaders/program/composite3.fsh
+@@ -131,19 +131,57 @@ void main() {
+          isWater = smoothness > WATER_REFLECTIVITY - 0.05;
+       #endif
+ 
+-      bool throughGlass = dot(texture2D(colortex5, texUV).rgb, vec3(1.0)) > 0.004;
+-      if (!(isWater && throughGlass)) {
+-         float depth = sceneDepth;
+-         bool useLod = sceneLod;
++      bool throughGlass = rfGlassCovers(texUV);
++      float depth = sceneDepth;
++      bool useLod = sceneLod;
++      bool rebuiltWaterN = false;
++      vec3 rebuiltWorldN = vec3(0.0, 1.0, 0.0);
++      if (throughGlass && !isWater) {
++         depth = texture2D(depthtex0, texUV).x;
++         useLod = false;
++      }
++
++      #if defined VOXY && !defined DISTANT_HORIZONS
++         if (throughGlass) {
++            float vxTrans = texture2D(vxDepthTexTrans, texUV).x;
++            if (isVxDepthValid(vxTrans)) {
++               float vxOpaque = vxSampleOpaqueDepth(texUV);
++               bool transFront = vxOpaque >= 1.0 || vxTrans < vxOpaque - 1.0e-4;
++               float solid = texture2D(depthtex1, texUV).x;
++               float solidLen = solid < 1.0 ? length(screen2view(texUV, solid)) : 1.0e8;
++               float transLen = length(vxScreenToVanillaView(texUV, vxTrans));
++               if (transFront && transLen + 0.75 < solidLen) {
++                  float storedSmooth = smoothness;
++                  isWater = true;
++                  useLod = true;
++                  depth = vxTrans;
++                  smoothness = 0.98;
++                  roughness = 0.02;
++                  metalness = 0.0;
++                  if (storedSmooth < 0.94) {
++                     vec3 feet = vxViewToFeet(vxScreenToView(texUV, vxTrans));
++                     rebuiltWorldN = getWaterRippleNormal(feet + cameraPosition, vec3(0.0, 1.0, 0.0));
++                     rebuiltWaterN = true;
++                  }
++               }
++            }
++         }
++      #endif
++
++      if (!(isWater && throughGlass && !useLod)) {
+ 
+          vec3 viewPos = reflectionScreenToView(texUV, depth, useLod);
+          viewPos = rfWaterLodView(viewPos, useLod, depth, matData);
+          #if defined VOXY && !defined DISTANT_HORIZONS
+-            vec3 normal = useLod
+-               ? normalize(mat3(vxModelView) * prenormal)
+-               : eye2view(prenormal);
++            vec3 normal = rebuiltWaterN
++               ? normalize(mat3(vxModelView) * rebuiltWorldN)
++               : (useLod
++                  ? normalize(mat3(vxModelView) * prenormal)
++                  : eye2view(prenormal));
+          #else
+-            vec3 normal = eye2view(prenormal);
++            vec3 normal = rebuiltWaterN
++               ? normalize(mat3(gbufferModelView) * rebuiltWorldN)
++               : eye2view(prenormal);
+          #endif
+ 
+          #if REFLECTIONS > 0
+@@ -156,7 +194,7 @@ void main() {
+             vec4 reflectionColor = getReflectionColor(depth, normal, viewPos, useLod, roughness);
+ 
+             #ifdef OVERWORLD
+-               if (reflectionColor.a < 0.15 && !isWater) {
++               if (reflectionColor.a < 0.15 && (!isWater || rebuiltWaterN)) {
+                   vec3 reflected = reflect(viewDir, normal);
+                   #if defined VOXY && !defined DISTANT_HORIZONS
+                      if (useLod) {
+diff --git a/shaders/program/composite4.fsh b/shaders/program/composite4.fsh
+index 6c8dd71..5737ed7 100644
+--- a/shaders/program/composite4.fsh
++++ b/shaders/program/composite4.fsh
+@@ -56,6 +56,7 @@ varying vec2 texUV;
+    #include "/common/voxy.glsl"
+ #endif
+ #include "/common/lodDepth.glsl"
++#include "/common/glassDepth.glsl"
+ 
+ #if defined OVERWORLD && defined SHADER_CLOUDS && defined CLOUDS_HALF_RES
+    #define RF_CLOUD_DRAW
+@@ -99,6 +100,7 @@ void main() {
+       float cloudLod;
+       float cloudSolid;
+       rfLoadLodDepth(texUV, cloudDepth, cloudDepth1, cloudLod, cloudSolid);
++      cloudDepth = rfDepthBehindGlass(texUV, cloudDepth);
+       cloudLod = min(cloudLod, cloudSolid);
+       vec3 cloudDir = normalize(screen2view(texUV, 0.999));
+       float cloudMaxDist = max(max(CLOUD_LC_DISTANCE, CLOUD_MC_DISTANCE), CLOUD_UC_DISTANCE);
+diff --git a/shaders/program/composite5.fsh b/shaders/program/composite5.fsh
+index 6c6bdf4..96ad872 100644
+--- a/shaders/program/composite5.fsh
++++ b/shaders/program/composite5.fsh
+@@ -64,6 +64,7 @@ varying vec2 texUV;
+    #include "/common/voxy.glsl"
+ #endif
+ #include "/common/lodDepth.glsl"
++#include "/common/glassDepth.glsl"
+ 
+ #if defined AIR_FOG && defined OVERWORLD && defined ENABLE_SHADOWS
+    uniform mat4 shadowModelView;
+@@ -120,7 +121,7 @@ void main() {
+          color.rgb = color.rgb * (1.0 - clouds.a) + clouds.rgb;
+       #else
+       {
+-         float cloudDepth = lodDepth0;
++         float cloudDepth = rfDepthBehindGlass(texUV, lodDepth0);
+          vec3 cloudDir = normalize(screen2view(texUV, 0.999));
+          float cloudMaxDist = max(max(CLOUD_LC_DISTANCE, CLOUD_MC_DISTANCE), CLOUD_UC_DISTANCE);
+          bool cloudSky = cloudDepth >= 1.0;
+@@ -163,7 +164,7 @@ void main() {
+ 
+       #if defined OVERWORLD_COMETS && defined OVERWORLD
+       {
+-         float cometDepth = lodDepth0;
++         float cometDepth = rfDepthBehindGlass(texUV, lodDepth0);
+          bool cometSky = cometDepth >= 1.0;
+          float cometDist = 1.0e7;
+          vec3 cometViewDir = normalize(screen2view(texUV, 0.999));
+diff --git a/shaders/program/translucent.fsh b/shaders/program/translucent.fsh
+index 413c972..5f54db6 100644
+--- a/shaders/program/translucent.fsh
++++ b/shaders/program/translucent.fsh
+@@ -4,7 +4,10 @@ uniform float screenBrightness;
+ uniform ivec2 eyeBrightnessSmooth;
+ uniform sampler2D gtexture;
+ uniform sampler2D depthtex0;
++#ifndef DEPTHTEX1_UNIFORM
++#define DEPTHTEX1_UNIFORM
+ uniform sampler2D depthtex1;
++#endif
+ uniform float viewWidth;
+ uniform float viewHeight;
+ #ifndef FRAME_TIME_COUNTER_UNIFORM
+@@ -47,6 +50,7 @@ varying vec4 color;
+ 
+ #define RF_GLASS_SAMPLER gtexture
+ #include "/common/math.glsl"
++#include "/common/glassDepth.glsl"
+ #include "/common/glassTint.glsl"
+ #include "/common/getTorchColor.fsh"
+ #include "/common/transformations.glsl"
+@@ -103,16 +107,20 @@ void main() {
+ 
+       vec2 screenUV = gl_FragCoord.xy / vec2(viewWidth, viewHeight);
+       float mcDepth = texture2D(depthtex0, screenUV).x;
+-      if (mcDepth < 1.0 && length(feetPos.xz) < far) {
++      bool glassFront = mcDepth < 1.0 && rfGlassCovers(screenUV);
++      if (mcDepth < 1.0 && !glassFront && length(feetPos.xz) < far) {
+          discard;
+       }
+-      if (mcDepth < 1.0) {
++      if (mcDepth < 1.0 && !glassFront) {
+          float mcLinear = length(screen2view(screenUV, mcDepth));
+          float dhLinear = length(feet2view(feetPos));
+          if (mcLinear < dhLinear) {
+             discard;
+          }
+       }
++      gl_FragDepth = glassFront
++         ? max(mcDepth - max(1.0e-6, mcDepth * 1.0e-4), 0.0)
++         : gl_FragCoord.z;
+ 
+       vec4 albedo = vec4(1.0);
+    #else
+@@ -126,6 +134,7 @@ void main() {
+ 
+    vec3 packedNormal = normal;
+    vec3 glassAbsorb = vec3(0.0);
++   float glassCover = 0.0;
+    bool isGlass = glassLike > 0.5;
+    float packReflectivity = reflectivity;
+ 
+@@ -281,12 +290,13 @@ void main() {
+          glassAmbient *= 0.52 + (lightBrightness * lightStrength) * lightColor;
+       #endif
+ 
+-      glassAbsorb = rfGlassAbsorb(rfGlassTransmit(glassRgb, vec3(1.0), gid));
++      float frameMask = rfGlassFrameMask(texUV, glassTex, glassA);
++      glassAbsorb = rfGlassAbsorb(rfGlassTransmit(glassRgb, vec3(1.0), gid)) * (1.0 - frameMask);
++      glassCover = 1.0 - frameMask;
+       albedo = vec4(0.0);
+       albedo = rfGlassApplyFrame(albedo, texUV, glassTex, glassA, color.rgb, glassAmbient);
+ 
+       #if defined GENERATED_SPECULAR && defined ENABLE_SHADOWS && !defined THE_END
+-         float frameMask = rfGlassFrameMask(texUV, glassTex, glassA);
+          vec4 ipbr = generateIPBR(float(IPBR_GLASS), 0.0, glassTex);
+          albedo.rgb += ipbrSpecularHighlight(
+             viewN, feet2view(feetPos), shadowLightPosition,
+@@ -309,10 +319,6 @@ void main() {
+       discard;
+    }
+ 
+-   #ifdef DH_WATER
+-      gl_FragDepth = gl_FragCoord.z;
+-   #endif
+-
+    float packMatA = 1.0;
+    #ifdef DH_WATER
+       if (reflectivity > WATER_REFLECTIVITY - 0.01 && isEyeInWater != 1) {
+@@ -322,8 +328,12 @@ void main() {
+       }
+    #endif
+ 
+-   /* DRAWBUFFERS:0675 */
+-   /* RENDERTARGETS: 0,6,7,5 */
++   #ifdef DH_WATER
++      /* DRAWBUFFERS:067 */
++   #else
++      /* DRAWBUFFERS:0675 */
++      /* RENDERTARGETS: 0,6,7,5 */
++   #endif
+    gl_FragData[0] = albedo;
+    gl_FragData[1] = vec4(packedNormal, 1.0);
+    #ifdef GENERATED_SPECULAR
+@@ -342,5 +352,7 @@ void main() {
+       }
+       gl_FragData[2] = vec4(packReflect, 0.0, 0.5, packMatA);
+    #endif
+-   gl_FragData[3] = vec4(glassAbsorb, 1.0);
++   #ifndef DH_WATER
++      gl_FragData[3] = vec4(glassAbsorb, glassCover);
++   #endif
+ }
+diff --git a/shaders/program/voxy.json b/shaders/program/voxy.json
+index c2697c8..e0d251b 100644
+--- a/shaders/program/voxy.json
++++ b/shaders/program/voxy.json
+@@ -54,6 +54,7 @@
+         "tex": "sampler2D",
+         "depthtex0": "sampler2D",
+         "depthtex1": "sampler2D",
++        "colortex5": "sampler2D",
+         "shadowtex1": "sampler2D",
+         "shadowtex0": "sampler2D",
+         "shadowcolor0": "sampler2D",
+diff --git a/shaders/program/voxy_translucent.glsl b/shaders/program/voxy_translucent.glsl
+index b32117d..6628eb4 100644
+--- a/shaders/program/voxy_translucent.glsl
++++ b/shaders/program/voxy_translucent.glsl
+@@ -24,6 +24,7 @@ layout(location = 1) out vec4 outNormal;
+ layout(location = 2) out vec4 outMaterial;
+ 
+ #include "/common/math.glsl"
++#include "/common/glassDepth.glsl"
+ #include "/common/glassTint.glsl"
+ #include "/common/transformations.glsl"
+ #include "/common/voxy.glsl"
+@@ -51,12 +52,22 @@ void voxy_emitFragment(VoxyFragmentParameters parameters) {
+    vec3 vanillaView = feet2view(feetPos);
+ 
+    float mcDepth = texture2D(depthtex0, fragUV).x;
++   float writeDepth = gl_FragCoord.z;
++   bool blockedByVanilla = false;
+    if (mcDepth < 1.0) {
+       float mcLinear = length(screen2view(fragUV, mcDepth));
+-      if (mcLinear < length(vanillaView)) {
+-         discard;
++      if (mcLinear + 0.05 < length(vanillaView)) {
++         if (rfGlassCovers(fragUV)) {
++            writeDepth = max(mcDepth - max(1.0e-6, mcDepth * 1.0e-4), 0.0);
++         } else {
++            blockedByVanilla = true;
++         }
+       }
+    }
++   gl_FragDepth = writeDepth;
++   if (blockedByVanilla) {
++      discard;
++   }
+ 
+    int blockId = int(parameters.customId);
+    bool isWater = blockId == 10008 || blockId == 8;
+diff --git a/shaders/shaders.properties b/shaders/shaders.properties
+index 1fc4ab3..c977595 100644
+--- a/shaders/shaders.properties
++++ b/shaders/shaders.properties
+@@ -84,7 +84,7 @@ customTexture.rainGlyphs=tex/rain_glyphs.png
+ customTexture.snowGlyphs=tex/snow_glyphs.png
+ 
+ colortex0Format=RGBA16F
+-colortex5Format=RGB8
++colortex5Format=RGBA8
+ colortex7Format=RGBA16
+ colortex5Clear=true
+ colortex8Format=RGBA16F
+diff --git a/shaders/world-1/voxy.json b/shaders/world-1/voxy.json
+index c2697c8..e0d251b 100644
+--- a/shaders/world-1/voxy.json
++++ b/shaders/world-1/voxy.json
+@@ -54,6 +54,7 @@
+         "tex": "sampler2D",
+         "depthtex0": "sampler2D",
+         "depthtex1": "sampler2D",
++        "colortex5": "sampler2D",
+         "shadowtex1": "sampler2D",
+         "shadowtex0": "sampler2D",
+         "shadowcolor0": "sampler2D",
+diff --git a/shaders/world0/voxy.json b/shaders/world0/voxy.json
+index c2697c8..e0d251b 100644
+--- a/shaders/world0/voxy.json
++++ b/shaders/world0/voxy.json
+@@ -54,6 +54,7 @@
+         "tex": "sampler2D",
+         "depthtex0": "sampler2D",
+         "depthtex1": "sampler2D",
++        "colortex5": "sampler2D",
+         "shadowtex1": "sampler2D",
+         "shadowtex0": "sampler2D",
+         "shadowcolor0": "sampler2D",
+diff --git a/shaders/world1/voxy.json b/shaders/world1/voxy.json
+index c2697c8..e0d251b 100644
+--- a/shaders/world1/voxy.json
++++ b/shaders/world1/voxy.json
+@@ -54,6 +54,7 @@
+         "tex": "sampler2D",
+         "depthtex0": "sampler2D",
+         "depthtex1": "sampler2D",
++        "colortex5": "sampler2D",
+         "shadowtex1": "sampler2D",
+         "shadowtex0": "sampler2D",
+         "shadowcolor0": "sampler2D",

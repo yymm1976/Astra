@@ -1,0 +1,719 @@
+[
+ {
+  "noteLine": 22,
+  "file": "photon-main/shaders/settings.glsl",
+  "from": 120,
+  "to": 125,
+  "quoted": [
+   "  #define SHADOW",
+   "  #define SHADOW_SSRT",
+   "  #define SHADOW_SSRT_STEPS 10 // [4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24]",
+   "  #define SHADOW_PCF",
+   "  #define SHADOW_COLOR",
+   "  #define SHADOW_VPS"
+  ]
+ },
+ {
+  "noteLine": 33,
+  "file": "settings.glsl",
+  "from": 133,
+  "to": 136,
+  "quoted": [
+   "  #define SHADOW_PCF_STEPS_MIN           6 // [4 6 8 12 16 18 20 22 24 26 28 30 32]",
+   "  #define SHADOW_PCF_STEPS_MAX          12 // [4 6 8 12 16 18 20 22 24 26 28 30 32]",
+   "  #define SHADOW_PCF_STEPS_SCALE       1.0 // [0.0 0.2 0.4 0.6 0.8 1.0 1.2 1.4 1.6 1.8 2.0]",
+   "  #define SHADOW_BLOCKER_SEARCH_RADIUS 0.5 // [0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0]"
+  ]
+ },
+ {
+  "noteLine": 42,
+  "file": "settings.glsl",
+  "from": 138,
+  "to": 139,
+  "quoted": [
+   "  #define SHADOW_DEPTH_SCALE 0.2",
+   "  #define SHADOW_DISTORTION 0.85"
+  ]
+ },
+ {
+  "noteLine": 49,
+  "file": "shaders.properties",
+  "from": 1,
+  "to": 4,
+  "quoted": [
+   "    #define SHADOW_QUALITY 2 //[-1 0 1 2 3 4 5]",
+   "    #define SHADOW_SMOOTHING 4 //[1 2 3 4]",
+   "    #define SIDE_SHADOWING"
+  ]
+ },
+ {
+  "noteLine": 56,
+  "file": "cr/shaders/lib/common.glsl",
+  "from": 18,
+  "to": 18,
+  "quoted": [
+   "    #define SHADOW_QUALITY 2 //[-1 0 1 2 3 4 5]",
+   "    #define SHADOW_SMOOTHING 4 //[1 2 3 4]",
+   "    #define SIDE_SHADOWING"
+  ]
+ },
+ {
+  "noteLine": 64,
+  "file": "common.glsl",
+  "from": 242,
+  "to": 242,
+  "quoted": [
+   "#define SUN_ANGLE -1 //[-1 0 -20 -30 -40 -50 -60 60 50 40 30 20]",
+   "        #if SUN_ANGLE == -1",
+   "            #if SHADER_STYLE == 1",
+   "                const float sunPathRotation = 0.0;",
+   "                #define PERPENDICULAR_TWEAKS"
+  ]
+ },
+ {
+  "noteLine": 74,
+  "file": "bliss/shaders/lib/settings.glsl",
+  "from": 143,
+  "to": 151,
+  "quoted": [
+   "#define SCREENSPACE_CONTACT_SHADOWS",
+   "#define Variable_Penumbra_Shadows",
+   "#define VPS_Search_Samples 4 // [4 5 6 ... 32]",
+   "#define Min_Shadow_Filter_Radius 5.0 // [0.0 1.0 ... 119.0]",
+   "#define Max_Shadow_Filter_Radius 30.0 // [0.0 ... 119.0]",
+   "#define Max_Filter_Depth 35.0 // [0.1 ... 220.0]",
+   "#define BASIC_SHADOW_FILTER",
+   "#define SHADOW_FILTER_SAMPLE_COUNT 13 // [1 2 ... 120]"
+  ]
+ },
+ {
+  "noteLine": 87,
+  "file": "settings.glsl",
+  "from": 156,
+  "to": 156,
+  "quoted": [
+   "// #define TRANSLUCENT_COLORED_SHADOWS"
+  ]
+ },
+ {
+  "noteLine": 93,
+  "file": "shaders/lib/light/pcss.glsl",
+  "from": 78,
+  "to": 82,
+  "quoted": [
+   "    float blockerDepth = weightSum == 0.0 ? 0.0 : depthSum / weightSum;",
+   "    // Ortho chain: dView = dClip / proj[2].z and dClip = 2 * dRef /",
+   "    // shadowDepthScale, hence the factor 2",
+   "    float sssDepth = -2.0 * shadowProjectionInverse[2].z * depthSumSss"
+  ]
+ },
+ {
+  "noteLine": 108,
+  "file": "photon-main/shaders/include/lighting/shadows/distortion.glsl",
+  "from": 6,
+  "to": 9,
+  "quoted": [
+   "// Euclidian distance is defined as sqrt(a^2 + b^2 + ...). This function instead",
+   "// does quartic_root(a^4 + b^4 + ...). This results in smaller distances along",
+   "// the diagonal axes",
+   "float quartic_length(vec2 v) { return sqrt(sqrt(pow4(v.x) + pow4(v.y))); }"
+  ]
+ },
+ {
+  "noteLine": 117,
+  "file": "photon-main/shaders/include/lighting/shadows/distortion.glsl",
+  "from": 11,
+  "to": 14,
+  "quoted": [
+   "float get_distortion_factor(vec2 shadow_clip_pos) {",
+   "    return quartic_length(shadow_clip_pos) * SHADOW_DISTORTION",
+   "        + (1.0 - SHADOW_DISTORTION);",
+   "}"
+  ]
+ },
+ {
+  "noteLine": 126,
+  "file": "photon-main/shaders/include/lighting/shadows/distortion.glsl",
+  "from": 27,
+  "to": 29,
+  "quoted": [
+   "    shadow_clip_pos.xy *= (1.0 - SHADOW_DISTORTION)",
+   "        / (1.0 - quartic_length(shadow_clip_pos.xy));",
+   "    shadow_clip_pos.z *= rcp(SHADOW_DEPTH_SCALE);"
+  ]
+ },
+ {
+  "noteLine": 134,
+  "file": "photon-main/shaders/program/shadow.vsh",
+  "from": 123,
+  "to": 124,
+  "quoted": [
+   "    vec3 shadow_clip_pos = project_ortho(gl_ProjectionMatrix, pos);",
+   "    shadow_clip_pos = distort_shadow_space(shadow_clip_pos);"
+  ]
+ },
+ {
+  "noteLine": 145,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 123,
+  "to": 125,
+  "quoted": [
+   "        vec2 uv = shadow_clip_pos.xy + offset;",
+   "        uv /= get_distortion_factor(uv);",
+   "        uv = uv * 0.5 + 0.5;"
+  ]
+ },
+ {
+  "noteLine": 155,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "from": 1,
+  "to": 8,
+  "quoted": [
+   "vec3 GetShadowPos(vec3 playerPos) {",
+   "    vec3 shadowPos = PlayerToShadow(playerPos);",
+   "    float distb = sqrt(shadowPos.x * shadowPos.x + shadowPos.y * shadowPos.y);",
+   "    float distortFactor = distb * shadowMapBias + (1.0 - shadowMapBias);",
+   "    shadowPos.xy /= distortFactor;",
+   "    shadowPos.z *= 0.2;",
+   "    return shadowPos * 0.5 + 0.5;",
+   "}"
+  ]
+ },
+ {
+  "noteLine": 168,
+  "file": "ComplementaryReimagined-main/shaders/lib/common.glsl",
+  "from": 740,
+  "to": 740,
+  "quoted": [
+   "    const float shadowMapBias = 1.0 - 25.6 / shadowDistance;"
+  ]
+ },
+ {
+  "noteLine": 176,
+  "file": "Astra/shaders/lib/distort.glsl",
+  "from": 25,
+  "to": 27,
+  "quoted": [
+   "float get_distort_factor(vec2 pos) {",
+   "    return length(pos) + SHADOW_DISTORT_FACTOR;",
+   "}"
+  ]
+ },
+ {
+  "noteLine": 186,
+  "file": "Astra/shaders/lib/distort.glsl",
+  "from": 9,
+  "to": 15,
+  "quoted": [
+   "// k = this constant * the effective shadowDistance is the block radius at half",
+   "// the map edge, and it sets the whole detail profile: blocks/texel =",
+   "// 2 * (r + k) ^ 2 / (R * k). Steadfast shipped the plain 0.20 for its own",
+   "// 160-block map (k = 32); reusing it at Astra's shipping 256 gives k = 51.2 and",
+   "// halves near-field density. Anchoring on blocks keeps detail fixed while",
+   "// the selected distance changes only reach - the cost is a wider rim beyond the",
+   "// receiver edge, which shadowDistanceRenderMul = 1.5 partly fills upstream."
+  ]
+ },
+ {
+  "noteLine": 212,
+  "file": "photon-main/shaders/include/lighting/shadows/distortion.glsl",
+  "from": 33,
+  "to": 44,
+  "quoted": [
+   "// Shadow bias method from Complementary Reimagined by Emin",
+   "// Many thanks to Emin for letting me use it <3",
+   "// https://www.complementary.dev/reimagined",
+   "vec3 get_shadow_bias(vec3 scene_pos, vec3 normal, float NoL, float skylight) {",
+   "#if defined WORLD_END",
+   "    skylight = 1.0;",
+   "#endif",
+   "",
+   "    // Shadow bias without peter-panning",
+   "    return 0.25 * normal * clamp01(0.12 + 0.01 * length(scene_pos))",
+   "        * (2.0 - clamp01(NoL));",
+   "}"
+  ]
+ },
+ {
+  "noteLine": 239,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/mainLighting.glsl",
+  "from": 215,
+  "to": 216,
+  "quoted": [
+   "                                float distanceBias = pow(dot(playerPos, playerPos), 0.75);",
+   "                                vec3 bias = worldGeoNormal * (0.12 + 0.0008 * distanceBias) * (2.0 - 0.95 * NdotLmax0); // 0.95 fixes pink petals noon shadows"
+  ]
+ },
+ {
+  "noteLine": 250,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/mainLighting.glsl",
+  "from": 219,
+  "to": 220,
+  "quoted": [
+   "                                    // WS752GH42G: \"Water shadow outside water\" fix. This calculation needs to be similar (but not the exact same) as water up-bias",
+   "                                    bias.y += lightmapYM * (1.0 - abs(geoNdotU)) * 0.015 * max0(lViewPos - 40.0);"
+  ]
+ },
+ {
+  "noteLine": 261,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 408,
+  "to": 412,
+  "quoted": [
+   "    float bias = 1.5 * length(raw.xy)",
+   "               + shadowGrazingBias * (1.0 - max(ndotl, 0.0));",
+   "    vec3 shadowPos = distort(player_shadow(playerPos + worldNormal * bias)) * 0.5 + 0.5;",
+   "    shadowPos.z -= 0.00001;",
+   "    return shadowPos;"
+  ]
+ },
+ {
+  "noteLine": 271,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 359,
+  "to": 362,
+  "quoted": [
+   "// Normal offset where light grazes the surface, in world blocks. Deliberately",
+   "// not SHADOW_DISTORT_FACTOR: that now tracks the map core and is divided by",
+   "// SHADOW_DISTANCE, so borrowing it here would make this offset scale with range.",
+   "const float shadowGrazingBias = 0.20;"
+  ]
+ },
+ {
+  "noteLine": 282,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 398,
+  "to": 401,
+  "quoted": [
+   "    #ifdef ASTRA_SURFACE_SHADOW_PLANE",
+   "    // Carry raw NDC; fragment conversion preserves the small differences used",
+   "    // to recover the plane, especially on grazing surfaces near sunset.",
+   "    return player_shadow(playerPos);"
+  ]
+ },
+ {
+  "noteLine": 291,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 218,
+  "to": 223,
+  "quoted": [
+   "    // A filter corner can lie outside this finite face (e.g. below a step).",
+   "    // Extrapolation may move its reference behind the actual receiver and turn",
+   "    // a lower, sunlit neighbour into a blocker. Never increase reference Z.",
+   "    return min(vec4(referenceDepth),",
+   "        referenceDepth+(x-astraSurfaceRawOrigin.x)*astraSurfaceRawPlane.x",
+   "                      +(y-astraSurfaceRawOrigin.y)*astraSurfaceRawPlane.y);"
+  ]
+ },
+ {
+  "noteLine": 306,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 381,
+  "to": 384,
+  "quoted": [
+   "    float ndotlClamped = max(ndotl, 0.05);",
+   "    float grazingBias = end_shadow_texel_size()",
+   "        * clamp(1.30 * sqrt(max(1.0 - ndotlClamped * ndotlClamped, 0.0)) / ndotlClamped,",
+   "                1.30, 4.50);"
+  ]
+ },
+ {
+  "noteLine": 323,
+  "file": "photon-main/shaders/include/utility/sampling.glsl",
+  "from": 4,
+  "to": 11,
+  "quoted": [
+   "vec2 vogel_disc_sample(int step_index, int step_count, float rotation) {",
+   "    const float golden_angle = 2.4;",
+   "",
+   "    float r = sqrt(step_index + 0.5) / sqrt(float(step_count));",
+   "    float theta = step_index * golden_angle + rotation;",
+   "",
+   "    return r * vec2(cos(theta), sin(theta));",
+   "}"
+  ]
+ },
+ {
+  "noteLine": 338,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 229,
+  "to": 230,
+  "quoted": [
+   "    float dither = texelFetch(noisetex, ivec2(gl_FragCoord.xy) & 511, 0).b;",
+   "    dither = r1(frameCounter, dither);"
+  ]
+ },
+ {
+  "noteLine": 345,
+  "file": "photon-main/shaders/include/utility/random.glsl",
+  "from": 10,
+  "to": 13,
+  "quoted": [
+   "float r1(int n, float seed) {",
+   "    const float alpha = 1.0 / phi1;",
+   "    return fract(seed + n * alpha);",
+   "}"
+  ]
+ },
+ {
+  "noteLine": 358,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "from": 30,
+  "to": 42,
+  "quoted": [
+   "    float InterleavedGradientNoiseForShadows() {",
+   "        float n = 52.9829189 * fract(0.06711056 * gl_FragCoord.x + 0.00583715 * gl_FragCoord.y);",
+   "        #if !defined GBUFFERS_ENTITIES && !defined GBUFFERS_HAND && !defined GBUFFERS_TEXTURED && defined TAA",
+   "            return fract(n + goldenRatio * mod(float(frameCounter), 3600.0));",
+   "        #else",
+   "            return fract(n);",
+   "        #endif",
+   "    }",
+   "",
+   "    vec2 offsetDist(float x, int s) {",
+   "        float n = fract(x * 2.427) * 3.1415;",
+   "        return vec2(cos(n), sin(n)) * 1.4 * x / s;",
+   "    }"
+  ]
+ },
+ {
+  "noteLine": 382,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "from": 56,
+  "to": 61,
+  "quoted": [
+   "        for (int i = 0; i < shadowSamples; i++) {",
+   "            vec2 offset2 = offsetDist(gradientNoise + i, shadowSamples) * offset;",
+   "            if (leaves) shadowPosZM = shadowPos.z - 0.12 * offset * (gradientNoise + i) / shadowSamples;",
+   "            shadow += SampleShadow(vec3(shadowPos.st + offset2, shadowPosZM), colorMult, colorPow);",
+   "            shadow += SampleShadow(vec3(shadowPos.st - offset2, shadowPosZM), colorMult, colorPow);",
+   "        }"
+  ]
+ },
+ {
+  "noteLine": 395,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "from": 48,
+  "to": 53,
+  "quoted": [
+   "        #if !defined GBUFFERS_ENTITIES && !defined GBUFFERS_HAND && !defined GBUFFERS_TEXTURED",
+   "            offset *= 1.3875;",
+   "        #else",
+   "            shadowSamples *= 2;",
+   "            offset *= 0.69375;",
+   "        #endif"
+  ]
+ },
+ {
+  "noteLine": 410,
+  "file": "Astra/shaders/global/lighting/diffuse.glsl",
+  "from": 341,
+  "to": 354,
+  "quoted": [
+   "        for (int lobe=0;lobe<lobeCount;++lobe) {",
+   "            #if SHADOW_FILTER_QUALITY == 1",
+   "            // Fixed radius/weights across texel boundaries. Gating extra lobes",
+   "            // on centre visibility clipped their support and made stair bumps.",
+   "            vec2 offset=vec2((lobe & 1)==0 ? -1.0 : 1.0,",
+   "                             (lobe & 2)==0 ? -1.0 : 1.0)*(0.70710678*spread);",
+   "            #else",
+   "            vec2 offset = vec2((lobe & 1) == 0 ? -1.0 : 1.0,",
+   "                               (lobe & 2) == 0 ? -1.0 : 1.0)*spread;",
+   "            #endif",
+   "            filtered += shadow_lobe_light_inside(shadowPos.xy+offset/float(shadowMapResolution),",
+   "                shadowPos.z,receiverWorldY,shadowSize,opaqueFirst)",
+   "                /float(lobeCount);",
+   "        }"
+  ]
+ },
+ {
+  "noteLine": 433,
+  "file": "Astra/shaders/global/lighting/diffuse.glsl",
+  "from": 343,
+  "to": 344,
+  "quoted": [
+   "            // Fixed radius/weights across texel boundaries. Gating extra lobes",
+   "            // on centre visibility clipped their support and made stair bumps."
+  ]
+ },
+ {
+  "noteLine": 453,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 101,
+  "to": 107,
+  "quoted": [
+   "    // penumbra_size > max_filter_radius: blur",
+   "    // penumbra_size < min_filter_radius: anti-alias (blur then sharpen)",
+   "    float distortion_factor = get_distortion_factor(shadow_clip_pos.xy);",
+   "    float min_filter_radius = 2.0 * shadow_map_pixel_size * distortion_factor;",
+   "",
+   "    float filter_radius = max(penumbra_size, min_filter_radius);",
+   "    float filter_scale = sqr(filter_radius / min_filter_radius);"
+  ]
+ },
+ {
+  "noteLine": 465,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 176,
+  "to": 183,
+  "quoted": [
+   "    // sharpening for small penumbra sizes",
+   "    float sharpening_threshold",
+   "        = 0.4 * max0((min_filter_radius - penumbra_size) / min_filter_radius);",
+   "    shadow = linear_step(",
+   "        sharpening_threshold,",
+   "        1.0 - sharpening_threshold,",
+   "        shadow * rcp_steps",
+   "    );"
+  ]
+ },
+ {
+  "noteLine": 481,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 27,
+  "to": 27,
+  "quoted": [
+   "const float shadow_map_pixel_size = rcp(float(shadow_map_res));"
+  ]
+ },
+ {
+  "noteLine": 518,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 254,
+  "to": 258,
+  "quoted": [
+   "    float penumbra_size",
+   "        = sqrt(0.5) * shadow_map_pixel_size * SHADOW_PENUMBRA_SCALE;",
+   "",
+   "    // Increase blur radius to approximate subsurface scattering",
+   "    penumbra_size *= 1.0 + 7.0 * sss_amount;"
+  ]
+ },
+ {
+  "noteLine": 532,
+  "file": "Astra/shaders/global/lighting/diffuse.glsl",
+  "from": 327,
+  "to": 327,
+  "quoted": [
+   "        spread = clamp(softRadius/max(worldTexel,0.0001),0.5*spread,spread);"
+  ]
+ },
+ {
+  "noteLine": 553,
+  "file": "ComplementaryReimagined-main/shaders/program/shadow.glsl",
+  "from": 315,
+  "to": 323,
+  "quoted": [
+   "    #ifdef PERPENDICULAR_TWEAKS",
+   "        if (mat == 10005 || mat == 10017) { // Foliage",
+   "            #ifndef CONNECTED_GLASS_EFFECT",
+   "                vec2 midCoord = (gl_TextureMatrix[0] * mc_midTexCoord).st;",
+   "                vec2 texMinMidCoord = texCoord - midCoord;",
+   "            #endif",
+   "            vec3 normal = gl_NormalMatrix * gl_Normal;",
+   "            position.xyz += normal * sign(texMinMidCoord.y) * 0.2 * noonFactor * (1.0 + 0.01 * length(position.xyz));",
+   "        }",
+   "    #endif"
+  ]
+ },
+ {
+  "noteLine": 574,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/mainLighting.glsl",
+  "from": 183,
+  "to": 196,
+  "quoted": [
+   "                                #if defined PERPENDICULAR_TWEAKS && SHADOW_QUALITY >= 2",
+   "                                    // Fake Variable Penumbra Shadows",
+   "                                    // Making centerFactor also work in daylight if AO gradient is facing towards sun",
+   "                                    if (geoNdotU > 0.99) {",
+   "                                        float dFdxGLCA = dFdx(glColor.a);",
+   "                                        float dFdyGLCA = dFdy(glColor.a);",
+   "",
+   "                                        if (abs(dFdxGLCA) + abs(dFdyGLCA) > 0.00001) {",
+   "                                            vec3 aoGradView = dFdxGLCA * normalize(dFdx(playerPos.xyz))",
+   "                                                            + dFdyGLCA * normalize(dFdy(playerPos.xyz));",
+   "                                            if (dot(normalize(aoGradView.xz), normalize(ViewToPlayer(lightVec).xz)) < 0.3 + 0.4 * dither)",
+   "                                                if (dot(lightVec, upVec) < 0.99999) centerFactor = sqrt1(max0(glColor.a - 0.55) / 0.45);"
+  ]
+ },
+ {
+  "noteLine": 597,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/mainLighting.glsl",
+  "from": 250,
+  "to": 254,
+  "quoted": [
+   "                                } else if (subsurfaceMode == 2) {",
+   "                                    leaves = true;",
+   "                                    offset = 0.0005235 * lightmapYM + 0.0009765;",
+   "                                    shadowPos.z -= 0.000175 * lightmapYM;",
+   "                                    subsurfaceHighlight = lightFactor * 0.6;"
+  ]
+ },
+ {
+  "noteLine": 609,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "from": 58,
+  "to": 58,
+  "quoted": [
+   "            if (leaves) shadowPosZM = shadowPos.z - 0.12 * offset * (gradientNoise + i) / shadowSamples;"
+  ]
+ },
+ {
+  "noteLine": 619,
+  "file": "photon-main/shaders/include/lighting/diffuse_lighting.glsl",
+  "from": 76,
+  "to": 98,
+  "quoted": [
+   "#ifdef SHADOW_VPS",
+   "vec3 sss_approx(",
+   "    vec3 albedo,",
+   "    float sss_amount,",
+   "    float sheen_amount,",
+   "    float sss_depth,",
+   "    float LoV,",
+   "    float shadow",
+   ") {",
+   "    // Transmittance-based SSS",
+   "    if (sss_amount < eps) {",
+   "        return vec3(0.0);",
+   "    }",
+   "",
+   "    vec3 coeff = albedo * inversesqrt(dot(albedo, luminance_weights) + eps);",
+   "    coeff = 0.75 * clamp01(coeff);",
+   "    coeff = (1.0 - coeff) * sss_density / sss_amount;",
+   "",
+   "    float phase",
+   "        = mix(isotropic_phase, henyey_greenstein_phase(-LoV, 0.7), 0.33);",
+   "",
+   "    vec3 sss = sss_scale * phase * exp2(-coeff * sss_depth) * dampen(sss_amount)",
+   "        * pi;"
+  ]
+ },
+ {
+  "noteLine": 647,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 54,
+  "to": 54,
+  "quoted": [
+   "        depth_sum_sss += max0(ref_z - depth);"
+  ]
+ },
+ {
+  "noteLine": 653,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 58,
+  "to": 59,
+  "quoted": [
+   "    float sss_depth = -shadowProjectionInverse[2].z * depth_sum_sss",
+   "        * rcp(SHADOW_DEPTH_SCALE * float(step_count));"
+  ]
+ },
+ {
+  "noteLine": 662,
+  "file": "photon-main/shaders/include/lighting/shadows/ssrt.glsl",
+  "from": 103,
+  "to": 104,
+  "quoted": [
+   "    sss_depth = hit_after_sss ? -1.0",
+   "                              : max0(distance(ray_origin_view, exit_pos) * 0.2);"
+  ]
+ },
+ {
+  "noteLine": 669,
+  "file": "photon-main/shaders/include/lighting/diffuse_lighting.glsl",
+  "from": 232,
+  "to": 234,
+  "quoted": [
+   "    // Negative SSS depth => SSS blocked by occluder (SSRT SSS)",
+   "    bool sss_blocked = sss_depth < 0.0 || light_levels.y < 0.1;",
+   "    sss_depth = max0(sss_depth);"
+  ]
+ },
+ {
+  "noteLine": 695,
+  "file": "Astra/shaders/program/shadow.vsh",
+  "from": 206,
+  "to": 211,
+  "quoted": [
+   "#ifdef WAVING_FOLIAGE",
+   "    // Other casters already have their original shadow-view position.",
+   "    if (isLeaves || (isGroundFoliage && topOfFoliage)) {",
+   "        if (wave_foliage(isLeaves, isGroundFoliage, topOfFoliage, eyeRelativePos))",
+   "            viewPos = shadowModelView * vec4(eyeRelativePos, 1.0);",
+   "    }",
+   "#endif"
+  ]
+ },
+ {
+  "noteLine": 717,
+  "file": "Astra/shaders/lib/settings.glsl",
+  "from": 72,
+  "to": 88,
+  "quoted": [
+   "#define SHADOW_FILTER_QUALITY 1 // [0 1 2]",
+   "// Native overworld receivers: 0 = one footprint; 1/2 = four fixed footprints.",
+   "// Each footprint keeps four discrete comparisons. Other receivers use their own tiers.",
+   "// 0 = software depth comparisons; 1 = hardware comparison gathers.",
+   "// Both comparison modes pair each corner with its individual caster tint.",
+   "#define SHADOWS // [false true]",
+   "// Master switch for shadow map",
+   "#define SHADOW_RESOLUTION 1536 // [1024 1536 2048]",
+   "// Shadow map resolution (square)",
+   "#define SHADOW_DISTANCE 96 // [64 80 96 112 128]",
+   "// Shadow render distance, blocks",
+   "#define ENTITY_SHADOW_DISTANCE 32 // [32 64]",
+   "// Entity shadow distance, blocks",
+   "#define ENTITY_SHADOWS // [false true]",
+   "// Renderer-level switch for entity, player and block-entity shadow casters.",
+   "#define SHADOW_SOFTNESS 2 // [1 2 4]",
+   "// Shadow footprint radius, texels; medium/high filter quality only."
+  ]
+ },
+ {
+  "noteLine": 741,
+  "file": "Astra/shaders/lib/settings.glsl",
+  "from": 72,
+  "to": 72,
+  "quoted": [
+   "vec4 shadow_gather_visibility(sampler2D depths, vec2 uv, float referenceDepth) {",
+   "    vec2 edge = 0.5 / vec2(textureSize(depths, 0));",
+   "    return step(vec4(referenceDepth), textureGather(depths, clamp(uv,edge,1.0-edge), 0).wzxy);",
+   "}"
+  ]
+ },
+ {
+  "noteLine": 765,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 266,
+  "to": 274,
+  "quoted": [
+   "    vec4 referenceDepths=shadow_surface_reference_depths(uv,referenceDepth,size);",
+   "    vec4 opaqueVisibility = vec4(1.0);",
+   "    if (opaqueFirst) {",
+   "        opaqueVisibility = shadow_surface_visibility_inside(shadowtex1, uv, referenceDepths);",
+   "        if (all(equal(opaqueVisibility, vec4(0.0)))) {",
+   "            return vec3(0.0);",
+   "        }",
+   "    }",
+   "    vec4 allVisibility = shadow_surface_visibility_inside(shadowtex0, uv, referenceDepths);",
+   "    if (all(equal(allVisibility, vec4(1.0)))) {",
+   "        return vec3(1.0);",
+   "    }"
+  ]
+ },
+ {
+  "noteLine": 791,
+  "file": "Astra/shaders/global/lighting/diffuse.glsl",
+  "from": 321,
+  "to": 327,
+  "quoted": [
+   "        float mapRim = max(1.0-length(shadowPos.xy*2.0-1.0),0.0001);",
+   "        // Inverse radial derivative: p = a*q/(1-|q|), so dp/d|q| =",
+   "        // a/(1-|q|)^2. The squared rim is the widest texel axis, not a duplicate.",
+   "        float worldTexel = (2.0*shadowDistance*SHADOW_DISTORT_FACTOR)",
+   "                         / (float(shadowMapResolution)*mapRim*mapRim);",
+   "        float softRadius=max(0.22,0.75*sqrt(astraSurfaceShadowPixelWorldSquared));",
+   "        spread = clamp(softRadius/max(worldTexel,0.0001),0.5*spread,spread);"
+  ]
+ }
+]

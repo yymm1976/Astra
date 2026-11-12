@@ -1,0 +1,90 @@
+{
+	"targets": {
+		"edge_or_swap": {
+			"persistent": false,
+			"clear_color": [0.0, 0.0, 0.0, 0.0]
+		},
+		"blend_weight": {
+			"persistent": false,
+			"clear_color": [0.0, 0.0, 0.0, 0.0]
+		}
+	},
+	"passes": [
+		{
+			"vertex_shader": "grindstone:post/screen_tri",
+			"fragment_shader": "grindstone_smaa:post/0_edge_detect",
+			"inputs": [
+				{
+					"sampler_name": "Main",
+					"bilinear": false,
+					"target": "minecraft:main",
+					"use_depth_buffer": false
+				}
+			],
+			"output": "edge_or_swap",
+			"uniforms": {}
+		},
+		{
+			"vertex_shader": "grindstone:post/screen_tri",
+			"fragment_shader": "grindstone_smaa:post/1_bw_calc",
+			"inputs": [
+				{
+					"sampler_name": "Area",
+					"bilinear": true,
+					"location": "grindstone_smaa:area",
+					"width": 160,
+					"height": 560
+				},
+				{
+					"sampler_name": "Edge",
+					"bilinear": true,
+					"target": "edge_or_swap",
+					"use_depth_buffer": false
+				},
+				{
+					"sampler_name": "Search",
+					"bilinear": false,
+					"location": "grindstone_smaa:search",
+					"width": 64,
+					"height": 16
+				}
+			],
+			"output": "blend_weight",
+			"uniforms": {}
+		},
+		{
+			"vertex_shader": "grindstone:post/screen_tri",
+			"fragment_shader": "grindstone_smaa:post/2_blend",
+			"inputs": [
+				{
+					"sampler_name": "Main",
+					"bilinear": false,
+					"target": "minecraft:main",
+					"use_depth_buffer": false
+				},
+				{
+					"sampler_name": "BlendWeight",
+					"bilinear": false,
+					"target": "blend_weight",
+					"use_depth_buffer": false
+				}
+			],
+			"output": "edge_or_swap",
+			"uniforms": {}
+		},
+		{
+			"vertex_shader": "grindstone:post/screen_tri",
+			"fragment_shader": "grindstone_cas:post/3_cas",
+			"inputs": [
+				{
+					"sampler_name": "Swap",
+					"bilinear": false,
+					"target": "edge_or_swap",
+					"use_depth_buffer": false
+				}
+			],
+			"output": "minecraft:main",
+			"uniforms": {}
+		}
+	]
+}

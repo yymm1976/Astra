@@ -1,0 +1,7 @@
+{
+  "extra_extensions": {
+    ".vsh": "glsl",
+    ".fsh": "glsl",
+    ".csh": "glsl"
+  }
+}

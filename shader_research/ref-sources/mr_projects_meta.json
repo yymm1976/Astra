@@ -1,0 +1,258 @@
+{
+ "smaa-mc": {
+  "src": "https://github.com/Luracasmus/grindstone",
+  "issues": "https://github.com/Luracasmus/grindstone/issues",
+  "wiki": null,
+  "license": "MIT",
+  "updated": "2026-10-11T15:16:45.156497Z",
+  "title": "Grindstone"
+ },
+ "bliss-shader": {
+  "src": "https://github.com/X0nk/Bliss-Shader",
+  "issues": "https://github.com/X0nk/Bliss-Shader/issues?q=label%3Abug",
+  "wiki": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "updated": "2025-11-23T03:14:46.231498Z",
+  "title": "Bliss Shaders"
+ },
+ "bsl-shaders": {
+  "src": null,
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "updated": "2026-09-21T12:25:21.321877Z",
+  "title": "BSL Shaders"
+ },
+ "firmament-shaders": {
+  "src": null,
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-MDFL-1.0",
+  "updated": "2026-10-12T18:45:44.021777Z",
+  "title": "Firmament"
+ },
+ "rethinking-voxels": {
+  "src": "https://github.com/gri573/rethinking-voxels",
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-Complementary-Agreement",
+  "updated": "2025-06-19T23:16:17.455162Z",
+  "title": "Rethinking Voxels"
+ },
+ "lumenite-shaders": {
+  "src": null,
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "updated": "2026-10-14T20:52:43.184097Z",
+  "title": "Lumenite Shaders"
+ },
+ "taa": {
+  "src": null,
+  "issues": null,
+  "wiki": null,
+  "license": "MPL-2.0",
+  "updated": "2026-10-16T02:46:28.794299Z",
+  "title": "TAA Project"
+ },
+ "velocity-shaders": {
+  "src": null,
+  "issues": null,
+  "wiki": null,
+  "license": "MIT",
+  "updated": "2026-10-05T13:01:33.861107Z",
+  "title": "Velocity"
+ },
+ "escheridia": {
+  "src": "https://github.com/QuirkyPlague/Escheridia",
+  "issues": null,
+  "wiki": null,
+  "license": "GPL-3.0-only",
+  "updated": "2026-03-15T18:10:53.103824Z",
+  "title": "Escheridia"
+ },
+ "artshade": {
+  "src": null,
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "updated": "2026-09-07T17:30:34.732535Z",
+  "title": "ARTShade"
+ },
+ "fantasy-shaders": {
+  "src": null,
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-READM.md",
+  "updated": "2026-06-15T08:51:23.060751Z",
+  "title": "Fantasy Shaders Reimagined"
+ },
+ "ctrvcr": {
+  "src": "https://github.com/millennIumAMbiguity/ctrvcr",
+  "issues": "https://github.com/millennIumAMbiguity/ctrvcr/issues",
+  "wiki": null,
+  "license": "Apache-2.0",
+  "updated": "2026-05-29T15:43:00.037162Z",
+  "title": "CTR VCR"
+ },
+ "lumeau": {
+  "src": "https://github.com/Neoz30/Lumeau",
+  "issues": "https://github.com/Neoz30/Lumeau/issues",
+  "wiki": null,
+  "license": "MIT",
+  "updated": "2026-06-13T15:45:18.179461Z",
+  "title": "Lumeau"
+ },
+ "relumination": {
+  "src": "https://codeberg.org/sandmuel/Relumination",
+  "issues": "https://codeberg.org/sandmuel/Relumination/issues",
+  "wiki": "https://codeberg.org/sandmuel/Relumination/wiki",
+  "license": "GPL-3.0-only",
+  "updated": "2025-12-25T07:54:58.699361Z",
+  "title": "Relumination"
+ },
+ "hysteria-shaders": {
+  "src": "https://github.com/nvb-uy/Hysteria",
+  "issues": "https://github.com/nvb-uy/Hysteria/issues",
+  "wiki": null,
+  "license": "LicenseRef-AGNYA-License",
+  "updated": "2024-08-02T06:47:23.370982Z",
+  "title": "Hysteria Shaders"
+ },
+ "prismarine-shader": {
+  "src": "https://github.com/Septonious/Prismarine-Shader",
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "updated": "2025-04-01T06:19:18.541369Z",
+  "title": "Prismarine Shader"
+ },
+ "kute": {
+  "src": "https://github.com/NotJamesPlayz/Kute",
+  "issues": "https://github.com/NotJamesPlayz/Kute/issues",
+  "wiki": "https://github.com/NotJamesPlayz/Kute/wiki",
+  "license": "MIT",
+  "updated": "2025-08-11T13:59:13.842377Z",
+  "title": "Kute"
+ },
+ "makeup-ultra-fast-shaders": {
+  "src": "https://github.com/javiergcim/MakeUpUltraFast",
+  "issues": "https://github.com/javiergcim/MakeUpUltraFast/issues",
+  "wiki": null,
+  "license": "LGPL-3.0-or-later",
+  "updated": "2026-10-04T05:28:42.138680Z",
+  "title": "MakeUp - Ultra Fast"
+ },
+ "complementary-unbound": {
+  "src": "https://github.com/ComplementaryDevelopment/ComplementaryReimagined",
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-Custom",
+  "updated": "2026-09-15T06:36:17.528689Z",
+  "title": "Complementary Shaders - Unbound"
+ },
+ "complementary-reimagined": {
+  "src": "https://github.com/ComplementaryDevelopment/ComplementaryReimagined",
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-Custom",
+  "updated": "2026-09-15T06:35:41.918796Z",
+  "title": "Complementary Shaders - Reimagined"
+ },
+ "light-shadow": {
+  "src": null,
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "updated": "2026-10-13T10:51:00.048870Z",
+  "title": "Light-Shadow"
+ },
+ "crownlight-shader": {
+  "src": null,
+  "issues": "https://discord.gg/hq5FfH8p55",
+  "wiki": "https://crownlight-shaders.edgeone.dev/",
+  "license": "LicenseRef-All-Rights-Reserved",
+  "updated": "2026-10-12T08:30:21.692044Z",
+  "title": "Crownlight Shader"
+ },
+ "vanilla-extra-shaders": {
+  "src": null,
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-RVCL-1.0.md",
+  "updated": "2026-10-13T07:01:59.346818Z",
+  "title": "VanillaEX Shader"
+ },
+ "luster-shaders": {
+  "src": "https://github.com/FourthEcho/Luster/tree/main",
+  "issues": "https://github.com/FourthEcho/Luster/issues",
+  "wiki": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "updated": "2026-10-06T00:33:49.090516Z",
+  "title": "Luster Shaders"
+ },
+ "gleam-shaders": {
+  "src": null,
+  "issues": null,
+  "wiki": null,
+  "license": "LGPL-3.0-or-later",
+  "updated": "2026-10-15T20:36:04.666490Z",
+  "title": "Gleam"
+ },
+ "simple-shadows": {
+  "src": "https://github.com/Thesupereevee1/simple-shadows-shader/",
+  "issues": "https://github.com/Thesupereevee1/simple-shadows-shader/issues",
+  "wiki": "https://eevee-site.vercel.app/docs/",
+  "license": "LicenseRef-All-Rights-Reserved",
+  "updated": "2026-10-14T01:08:21.457037Z",
+  "title": "Simple Shadows"
+ },
+ "photon-shader": {
+  "src": "https://github.com/sixthsurge/photon",
+  "issues": "https://github.com/sixthsurge/photon/issues",
+  "wiki": null,
+  "license": "LicenseRef-",
+  "updated": "2026-04-14T20:47:01.327987Z",
+  "title": "Photon Shaders"
+ },
+ "foxyshader": {
+  "src": "https://github.com/userenxv/Foxy",
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "updated": "2026-10-14T06:19:48.413599Z",
+  "title": "Foxy shader"
+ },
+ "ray-tracing-potato": {
+  "src": null,
+  "issues": null,
+  "wiki": null,
+  "license": "LicenseRef-All-Rights-Reserved",
+  "updated": "2026-10-16T07:05:46.688130Z",
+  "title": "RAY TRACING POTATO"
+ },
+ "cloud-shaders": {
+  "src": null,
+  "issues": "https://github.com/NicecoldMC/Cloud-Shaders-Minecraft/issues",
+  "wiki": null,
+  "license": "CC-BY-NC-4.0",
+  "updated": "2026-10-11T18:49:26.936788Z",
+  "title": "Hollow Shaders"
+ },
+ "apexshader": {
+  "src": null,
+  "issues": "https://www.aether.ac.cn",
+  "wiki": null,
+  "license": "Apache-2.0",
+  "updated": "2026-10-16T15:37:56.763749Z",
+  "title": "ApexShader"
+ },
+ "neolux": {
+  "src": "https://codeberg.org/LucasTHCR/NeoLux",
+  "issues": "https://codeberg.org/LucasTHCR/NeoLux/issues",
+  "wiki": null,
+  "license": "GPL-3.0-or-later",
+  "updated": "2026-10-15T18:35:22.203010Z",
+  "title": "NeoLux"
+ }
+}

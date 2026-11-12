@@ -1,0 +1,978 @@
+{
+ "neolux": [
+  {
+   "ver": "1.3.0",
+   "name": "NeoLux 1.3.0",
+   "pub": "2026-10-15",
+   "changelog": "New water and wet weather: a sea without a visible pattern, puddles and\nraindrop rings when it rains, clouds you can fly into and over, and enchanted\nitems that shimmer instead of turning into a purple sheet.\n\n### Added\n\n- Puddles: while it rains, water gathers in patches on open ground that faces\n  the sky and mirrors its surroundings like a lake. They fill slowly as the\n  rain goes on and dry up after it. `PUDDLES` and `PUDDLE_AMOUNT` on the World\n  page.\n- Raindrops ring standing water and puddles while it rains, `RAIN_RIPPLES` on\n  the World page. Both are off in the Potato profile.\n- Clouds sit at a fixed height in the world now, from Y=192 by default, and\n  can be flown into and above. From inside they close in like fog, from above\n  they cover the ground below. `CLOUD_HEIGHT` is a world height now rather\n  than the distance above the player.\n- Enchanted items, armor and dropped items have a program of their own for\n  the glint and shimmer in the vanilla purple, by day and by night.\n- `WATER_ROUGHNESS` on the Water page sets how choppy the surface is.\n\n### Changed\n\n- The water surface is built from three layers of noise instead of sine\n  waves, so there is no regular pattern across a lake. The fine chop fades out\n  with distance, and the far sea turns into a calm mirror.\n- New water defaults: a calmer surface (roughness 0.25), higher waves, a\n  stronger sun glint, more refraction and caustics, less underwater blur. The\n  sliders reach further than these defaults in both directions.\n- Underwater the view stays clear up close and turns deep blue with distance\n  instead of grey. Red fades first, as it does in real water, and the blur\n  starts six blocks away instead of at arm's length.\n- Surfaces only get wet in biomes where it rains, not where it snows or\n  stays dry.\n- Cloud tops are brighter, so a cloud deck seen from above is white in the\n  sun rather than beige.\n\n### Fixed\n\n- Black holes in the troughs of the waves. A steep wave mirrored the ground\n  instead of the sky, and the screen space reflection followed that ray down\n  to the sea bed.\n- Speckled reflections on open water further than a few dozen blocks away,\n  where the finest waves are smaller than a pixel.\n- Enchanted items were covered by a flat purple sheet and lost their own\n  color and lighting.\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/WWnqhWeH/versions/NXW0aeGu/NeoLux-1.3.0.zip",
+     "name": "NeoLux-1.3.0.zip",
+     "size": 98885
+    }
+   ]
+  },
+  {
+   "ver": "1.2.1",
+   "name": "NeoLux 1.2.1",
+   "pub": "2026-10-14",
+   "changelog": "Text on signs and the cracks on a block being mined show again.\n\n### Fixed\n\n- Sign text was invisible. Iris draws it with `gbuffers_block_translucent`,\n  which the pack did not have, and the program it fell back to only fills the\n  geometry buffers, after the lighting had already run. The pack ships that\n  program now and lights the text itself.\n- The cracks on a block being mined did not show. They were multiplied into\n  the albedo after the deferred pass had lit the block, and go onto the\n  finished color as well now.\n- Dropped stained glass and translucent items in the hand found themselves in\n  the colored shadow map and took their own color a second time, in blotches.\n  They take shadow from opaque blocks only.\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/WWnqhWeH/versions/7lKbBNBd/NeoLux-1.2.1.zip",
+     "name": "NeoLux-1.2.1.zip",
+     "size": 92044
+    }
+   ]
+  },
+  {
+   "ver": "1.2.0",
+   "name": "NeoLux 1.2.0",
+   "pub": "2026-10-10",
+   "changelog": "Faster and cleaner: clouds at a quarter of their cost, cheaper shadows, FXAA,\nlight from a torch in the hand, and an end to the black rims that ran along\nevery edge against the sky.\n\n### Added\n\n- Light from the hand: a torch, lantern or any other light source held in\n  either hand lights the surroundings and falls off one level per block, like\n  the same block placed there. Faces turned away from the player get less of\n  it. `HAND_LIGHT` on the Lighting page; turn it off when a dynamic lights mod\n  does the same.\n- FXAA on the tonemapped image, `FXAA` on the Post Processing page. On in\n  every profile except Potato.\n- Lightning has a program of its own and glows. It used to fall back to the\n  entity program and was either never shaded or lit like a grey mob.\n- The darkness a warden spreads dims every light and closes the view in to\n  about fifteen blocks, as it does in vanilla.\n\n### Changed\n\n- Clouds read their value noise from the noise texture instead of hashing it,\n  about four times faster: on a GTX 1070 Ti a screen full of sky at 8 steps\n  takes 0.8 instead of 3.4 ms. The shapes are the same kind, in other places.\n- The shadow filter looks at the centre and the outermost ring first and stops\n  there when all of them agree, and reads the second shadow map and the tint\n  only where they can matter. With colored shadows that is 1.8 to 2.4 times\n  faster for filter 2 to 4. The light shafts skip the same lookups.\n- Shadows keep their full strength over most of the shadow distance and fade\n  out over the last part of the map. The fade used to start at the player,\n  which left a shadow 80 blocks away at half strength.\n- Water looks its shadow up once for the diffuse light and the sun glint.\n- Tonemapping and grading moved from `final` to `composite3`. `final`\n  sharpens the display ready image and keeps every pixel inside the range of\n  its neighbours.\n- Particles take the same block light falloff as the surfaces around them.\n- With shadows and light shafts both off, the shadow pass is not rendered.\n\n### Fixed\n\n- Sharpening put a black rim on the dark side of every edge against the\n  bright sky, and those rims crawled along leaves and fences as the camera\n  moved.\n- The star field was under twenty horizontal dashes near the horizon and\n  nothing overhead. Stars are points about a pixel across now, several hundred\n  of them, and they turn with the sky.\n- Sugar cane, kelp, vines and the other stacked or hanging plants tore apart\n  at every block seam in the wind. Each of their blocks moves as a whole now,\n  and vines on a wall sway along it instead of into it. The upper half of a\n  tall plant starts with the swing its lower half ends with.\n- The lens flare shone through clouds.\n- Powder snow fog was olive green.\n- Entity faces jumped from lit to dark as they turned past the light.\n- Banding in the dark night sky and in dusk gradients: the output is\n  dithered.\n- Twelve options showed their raw names in the menu: the whole cloud page,\n  lens flare, mo",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/WWnqhWeH/versions/AzXrkoCU/NeoLux-1.2.0.zip",
+     "name": "NeoLux-1.2.0.zip",
+     "size": 90259
+    }
+   ]
+  },
+  {
+   "ver": "1.1.0",
+   "name": "NeoLux 1.1.0",
+   "pub": "2026-09-24",
+   "changelog": "A new look for the overworld: strong, warm sunlight against quiet shade, a sky\nwith a palette of its own, soft volumetric clouds and dark, mirroring water.\n\n### Added\n\n- Procedural volumetric clouds in place of the vanilla ones: a layer above the\n  player, marched from base to top, lit towards the sun and shaded inside, so\n  the puffs have a bright rim and a darker core. They show in water\n  reflections too. `CLOUD_STYLE` switches between NeoLux, vanilla and none;\n  the new Clouds page has cover, height, thickness, quality, speed and\n  brightness.\n- A soft tonemap (`TONEMAP` 4, the new default): linear through the midtones\n  with a long shoulder, no toe, so shade keeps its detail.\n- Lens flare along the line from the sun through the middle of the screen.\n  `LENS_FLARE` on the Post Processing page.\n- `SHADE_DESATURATION`: surfaces lit only by the sky lose part of their color\n  and read grey next to the sunlit side.\n- `MOON_BRIGHTNESS`, separate from the sun.\n- Water gets fine ripples on top of the swell, which breaks up the reflection\n  the way a real surface does.\n\n### Changed\n\n- The overworld sky, sunlight and ambient light run on their own palette that\n  follows the height of the sun instead of the vanilla sky and fog colors. The\n  vanilla fog color turns with the direction the camera faces, which tinted the\n  whole sky differently whenever the player turned. The Nether and the End keep\n  the vanilla driven colors.\n- Sunlight is stronger and ambient light weaker, and block faces are shaded by\n  their orientation, so shade has contrast and depth again.\n- Fog is an aerial haze now: barely any on a clear day within the first hundred\n  blocks, thicker at night and in rain, and brightest towards a low sun.\n- Bloom trades part of each pixel for its blurred copy instead of being added\n  on top, and with the threshold at zero every pixel takes part. That is the\n  soft glow around bright surfaces; it no longer brightens the whole frame.\n- Water is darker, drops the vanilla texture pattern and takes only the biome\n  color, and reflects the full sky.\n- The sun is bright enough to burn out and feed the bloom, tinted warm when it\n  stands low.\n- Shadow lookups are compared and filtered in hardware, so shadow edges ramp\n  over the texels instead of stepping from one to the next.\n- Defaults: `EXPOSURE` 1.00, `SATURATION` 1.00, `CONTRAST` 1.00,\n  `VIGNETTE_STRENGTH` 0.35, `SKY_BRIGHTNESS` 1.00, `SUN_BRIGHTNESS` 8.00.\n\n### Fixed\n\n- The sun lit caves beyond the shadow distance: past the shadow map the lookup\n  reports \"lit\", so direct light now also needs sky light to reach a surface.\n- Half of every flower and grass tuft went black. A plant is two crossed quads\n  and one of them always faces away from the sun; the shadow lookup was pushed\n  along that back facing normal, away from the light and into the shade of the\n  plant itself. Plants are now lit as if they faced straight up, like the\n  ground they grow out of, take no normal offset in the shadow lookup but",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/WWnqhWeH/versions/CSp3pmGE/NeoLux-1.1.0.zip",
+     "name": "NeoLux-1.1.0.zip",
+     "size": 78113
+    }
+   ]
+  }
+ ],
+ "zarya": [
+  {
+   "ver": "1.2.0",
+   "name": "Zarya 1.2.0",
+   "pub": "2026-10-15",
+   "changelog": "### Weather\n- Ink Rain (雨 / 雪)\n- Glyph opacity, size, spacing, rain speed, snow speed\n\n### Clouds and fog\n- Half-resolution clouds\n- Temporal accumulation\n- Layer speed from cycle length\n- Ground haze fade by distance\n\n### Lighting\n- Sun ray march cutoff\n- Sun and moon crossfade at sunset\n- Opaque blockers for colored glass shadows\n- Nether and End block light\n\n### Glass\n- Clear-glass rim; stained-glass rim behind Opaque glass frame\n- Antialiased rim\n- SSR and clouds through colored glass\n\n### LoD\n- DH water reflections and fog\n- Voxy and DH ice\n- LoD contact shadows\n- DH shadows in the Nether and the End\n\n### LPV\n- Modded lights from Euphoria Patches lists\n- Mix by the brightest voxel\n- Brightness and saturation\n- LPV on the High profile\n\n### Events and materials\n- Color Splash\n- 3D cracks",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/ZMDDXGl0/versions/ywIfzHSW/Zarya-1.2.0.zip",
+     "name": "Zarya-1.2.0.zip",
+     "size": 2081987
+    }
+   ]
+  },
+  {
+   "ver": "1.1.0",
+   "name": "Zarya 1.1.0",
+   "pub": "2026-09-28",
+   "changelog": "- Procedural comets in the Overworld\n- Fix Water & Reflections",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/ZMDDXGl0/versions/AxIyCvN3/Zarya-1.1.0.zip",
+     "name": "Zarya-1.1.0.zip",
+     "size": 1941034
+    }
+   ]
+  },
+  {
+   "ver": "1.0.0",
+   "name": "Zarya 1.0.0",
+   "pub": "2026-09-19",
+   "changelog": "Clouds\n- Cirrus parameter for Low / Mid / High layers (from cumulus to wisps)\n- Coverage = 0 disables the layer\n- Per-layer noise offset and updated defaults\n\nGlass & Lighting\n- Opaque glass frame option — a frame like vanilla glass, while the pane remains a colored filter\n- Colored shadows from glass (COLORED_SHADOWS)\n- LoD fog now correctly passes through glass\n- Fixes for AO, shadows, and translucent/LoD rendering\n\nLoD / Voxy / Distant Horizons\n- Voxy support — LoD terrain and water with shared lighting, fog, and SSR\n- Fewer seams at vanilla <-> Voxy / DH boundaries (water and terrain)\n\nLPV / Mods\n- Copper lamp fixes",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/ZMDDXGl0/versions/gbArvAF9/Zarya-1.0.0.zip",
+     "name": "Zarya-1.0.0.zip",
+     "size": 1935549
+    }
+   ]
+  },
+  {
+   "ver": "0.1.1-lpv-fix",
+   "name": "Zarya 0.1.1-lpv-fix",
+   "pub": "2026-09-04",
+   "changelog": "*-fix LPV flicker from bad temporal smooth",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/ZMDDXGl0/versions/FtGQRYl8/Zarya-0.1.1-lpv-floodfill-fix.zip",
+     "name": "Zarya-0.1.1-lpv-floodfill-fix.zip",
+     "size": 1912953
+    }
+   ]
+  }
+ ],
+ "mello": [
+  {
+   "ver": "0.71",
+   "name": "Mello 0.71",
+   "pub": "2026-10-15",
+   "changelog": "Added profiles\n\nAdded handheld lighting\n\nAdded metalness to reflective blocks\n\nImproved subsurface scattering\n\nEmissive blocks inside item frames glow\n\nImproved shadow softness with a noise overlay\n\nEntities no longer get affected by puddles\n\nAdded more reflection and quality options\n\nmetallic copper chests",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/EJ1dyMxD/versions/wRyCu8zN/Mello%200.71.zip",
+     "name": "Mello 0.71.zip",
+     "size": 123451
+    }
+   ]
+  },
+  {
+   "ver": "0.703",
+   "name": "Mello 0.703",
+   "pub": "2026-10-13",
+   "changelog": "Bug fixes and improvements\n\nWater colors improved\n\nReflectivity reduced on some blocks and water\n\nBeacon whiter glow\n\nSun color change less dull\n\nHand shadow fix\nHand glass specular flickering fix\n\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/EJ1dyMxD/versions/OVHNnRL0/Mello%200.703.zip",
+     "name": "Mello 0.703.zip",
+     "size": 119526
+    }
+   ]
+  },
+  {
+   "ver": "0.702",
+   "name": "Mello 0.702",
+   "pub": "2026-10-10",
+   "changelog": "Fixed GPU flickering issues\n\nChanged shadows to work better\n\nDynamic usage of both depth and normal bias\n\nOther small changes",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/EJ1dyMxD/versions/70aQV1zW/Mello%200.702.zip",
+     "name": "Mello 0.702.zip",
+     "size": 119388
+    }
+   ]
+  },
+  {
+   "ver": "0.701",
+   "name": "Mello 0.701",
+   "pub": "2026-10-10",
+   "changelog": "Water Highlights added correctly\n\nNether not working fix\n\nEmission changes visibility fixes and more",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/EJ1dyMxD/versions/hK9yZejl/Mello%200.701.zip",
+     "name": "Mello 0.701.zip",
+     "size": 118107
+    }
+   ]
+  }
+ ],
+ "taa": [
+  {
+   "ver": "1.6",
+   "name": "Distance horizons support",
+   "pub": "2026-10-16",
+   "changelog": "Added distance horizons support.",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/aE6ouBYi/versions/BnzuDLr1/TAA%20Project.zip",
+     "name": "TAA Project.zip",
+     "size": 20970
+    }
+   ]
+  },
+  {
+   "ver": "1.5.1",
+   "name": "Update to new version of minecraft",
+   "pub": "2026-09-27",
+   "changelog": "Updated block.properties",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/aE6ouBYi/versions/dN3Ek7BZ/TAA%20Project.zip",
+     "name": "TAA Project.zip",
+     "size": 14374
+    }
+   ]
+  },
+  {
+   "ver": "1.5",
+   "name": "TAA Project Release 1.5",
+   "pub": "2025-10-19",
+   "changelog": "Added more blocks to flat lighting list and probably improved perfomance some time ago (i literally forgot i had a modrinth account)",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/aE6ouBYi/versions/YO3rfXJI/TAA%20Project.zip",
+     "name": "TAA Project.zip",
+     "size": 14828
+    }
+   ]
+  },
+  {
+   "ver": "1.4",
+   "name": "TAA Project Release 1.4",
+   "pub": "2024-10-19",
+   "changelog": "Fixed pitchers, torchflowers, seagrass, kelp rendering.",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/aE6ouBYi/versions/1oz2HEMR/TAA%20Project.zip",
+     "name": "TAA Project.zip",
+     "size": 14268
+    }
+   ]
+  }
+ ],
+ "yukeeshaders": [
+  {
+   "ver": "0.9.1",
+   "name": "Yukee Shaders 0.9.1",
+   "pub": "2026-10-16",
+   "changelog": "## Changes from 0.9.0 to 0.9.1\n\n- Added moonlight with shadows cast by blocks, trees, and structures.\n- Added a separate moonlight brightness setting.\n- Moonlight intensity follows the moon phase and fades during rain.\n- Added a **Cave Darkness** setting, defaulting to **0.0**.\n- Set the default **Night Darkness** value to **0.87**.\n- Darkness adjustments preserve torch, lantern, and held-item lighting, as well as the Night Vision effect.\n- Added English and Russian translations for the new settings.",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/v0ls167y/versions/aPlCPqos/Yukee%20Shaders%200.9.1%20Universal.zip",
+     "name": "Yukee Shaders 0.9.1 Universal.zip",
+     "size": 10620453
+    }
+   ]
+  },
+  {
+   "ver": "0.9.0",
+   "name": "Yukee Shaders 0.9.0",
+   "pub": "2026-10-16",
+   "changelog": "## Yukee Shaders 0.9.0\n\n-  Update for more versions.",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/v0ls167y/versions/AsvNbOj5/Yukee%20Shaders%200.9.0%20Universal.zip",
+     "name": "Yukee Shaders 0.9.0 Universal.zip",
+     "size": 10619039
+    }
+   ]
+  },
+  {
+   "ver": "0.8.2",
+   "name": "Yukee Shaders 0.8.2",
+   "pub": "2026-10-16",
+   "changelog": "## Yukee Shaders 0.8.2\n\nA visual update focused on softer sky colors, responsive lighting, and more customization.\n\n### Sky & Atmosphere\n- Refreshed sky gradients with subtle pearlescent colors and rare daytime sparkles.\n- Softer sunrise and sunset palettes featuring gold, peach, coral, and lilac tones.\n- Improved sun rays with softer edges and better visibility.\n\n### Lighting & Water\n- Per-frame held lighting for both hands, supporting first-person and third-person views.\n- Refined sun shadow stabilization.\n- Softer underwater caustics with adjustable intensity.\n- Water reflects the sky and sunlight without reflecting clouds.\n\n### Customization\n- Added midtone gamma and soft haze controls.\n- Disabled outlines on kelp, kelp plants, seagrass, and tall seagrass.\n- Updated the High quality preset.\n- Added a dedicated sky effects menu.\n- Updated English and Russian setting labels and tooltips.",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/v0ls167y/versions/77FntpRa/Yukee%20Shaders%200.8.2.zip",
+     "name": "Yukee Shaders 0.8.2.zip",
+     "size": 10626246
+    }
+   ]
+  },
+  {
+   "ver": "0.8.1",
+   "name": "Yukee Shaders 0.8.1",
+   "pub": "2026-10-14",
+   "changelog": "### Added\n- Gentle aerial haze that gives distant landscapes more depth while keeping nearby textures crisp.\n- New settings for sunset colors, aerial perspective, rainy atmosphere, night darkness, and warm lamp lighting.\n\n### Improved\n- Softer peach lighting and lavender shadows at sunrise and sunset.\n- Darker, denser clouds and cooler ambient lighting during rain.\n- Deeper nights with dimmer clouds and stronger contrast around light sources.\n- Warmer lantern and torch lighting, brighter flame cores, and soft glow.\n- More pronounced light near lamps, with gentler illumination farther away.\n- Cloud positioning now responds to changes in player altitude.",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/v0ls167y/versions/eJqAyg24/Yukee%20Shaders%200.8.1.zip",
+     "name": "Yukee Shaders 0.8.1.zip",
+     "size": 10610532
+    }
+   ]
+  }
+ ],
+ "solas-shader": [
+  {
+   "ver": "3.8",
+   "name": "Solas Shader V3.8",
+   "pub": "2026-10-14",
+   "changelog": "Some bug fixes and 26.3 compatibility",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/EpQFjzrQ/versions/XE9yh7pS/Solas%20Shader%20V3.8.zip",
+     "name": "Solas Shader V3.8.zip",
+     "size": 1242074
+    }
+   ]
+  },
+  {
+   "ver": "3.7b",
+   "name": "Solas Shader 3.7b",
+   "pub": "2026-08-23",
+   "changelog": "Some small fixes for Intel Arc",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/EpQFjzrQ/versions/KcfQaN5J/Solas%20Shader%20V3.7b.zip",
+     "name": "Solas Shader V3.7b.zip",
+     "size": 1252311
+    }
+   ]
+  },
+  {
+   "ver": "3.7",
+   "name": "Solas Shader V3.7",
+   "pub": "2026-07-01",
+   "changelog": "**Features added/changed:**\n```\n+ Reworked Aurora Borealis. Visually there shouldn't be many differences, however you can now actually fly through it. The default altitude is 50k blocks Y\n+ Improved volumetric clouds shaping and lighting\n+ Completely reworked the entire PBR system. It now works on entities and held objects and is closer to the LabPBR standart than the previous implementation.\n+ Greatly overhauled Overworld weather system. It now features strong crespuscular rays passing through dense clouds and fog, as well as improved color palette and lighting.\n```\n\n**Features fixed:**\n```\n- Fixed incorrect translucency blending with Voxy and Distant Horizons LODs\n- Fixed many errors with PBR\n- Fixed time being frozen on newest versions\n- Fixed Colorwheel compatibility\n- Fixed compilation errors when changing stars amount or disabling SSAO\n- Fixed exponential fog not getting denser in stormy weather\n```\n\n**Features removed:**\n```\n- Disabled voxelization on Intel ARC graphics + Windows\n```",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/EpQFjzrQ/versions/WcoEHPPx/Solas%20Shader%20V3.7.zip",
+     "name": "Solas Shader V3.7.zip",
+     "size": 1241525
+    }
+   ]
+  },
+  {
+   "ver": "3.6",
+   "name": "Solas Shader V3.6",
+   "pub": "2026-04-29",
+   "changelog": "**Features added/changed:**\n```\n+ Reworked the entire night sky. Greatly improved generated nebulae, improved the color palette and increased stars amount.\n+ Reworked Nether smoke. Improved its shaping, noise sampling and visibility.\n+ Added several new options in config menu, including constant aurora visibility and generated nebula config.\n+ \n+ Small adjustments to clouds. Their amount slightly decreases at night to provide better visibility of the night sky.\n+ Improved exponetial fog behaviour.\n```\n\n**Features fixed:**\n```\n+ Fixed Voxy water clipping through LODs\n+ Fixed exponential fog being almost invisible with Voxy\n+ Fixed broken reflections with Distant Horizons (PR by TillSilph)\n+ Fixed incorrect sky darkening when underground (PR by marktible)\n+ Fixed SSR breaking water normals in certain conditions (PR by marktible)\n```",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/EpQFjzrQ/versions/g0PhnMJ1/Solas%20Shader%20V3.6.zip",
+     "name": "Solas Shader V3.6.zip",
+     "size": 1229545
+    }
+   ]
+  }
+ ],
+ "brisa-lite": [
+  {
+   "ver": "2.2",
+   "name": "Brisa Lite 2.2",
+   "pub": "2026-10-16",
+   "changelog": "## Brisa Lite 2.2\n\n- Added **depth-based water color and transparency**, with clearer shallows and darker deep water while preserving biome colors.\n- Added **animated foam for currents and waterfalls**, separate from the existing shoreline foam.\n- Added independent toggles and strength controls for both effects under **Water settings**. Ultra Lite keeps them disabled by default.\n- Disabled **water refraction by default** in every preset. It can still be enabled manually.\n- Removed **heat distortion** around lava and fire to reduce GPU overhead.\n- Added richer **sunrise and sunset colors**, including orange and pink horizons, violet skies, and warmer clouds.\n- Optimized block lighting, held-item lighting, material calculations, and stationary-camera motion blur.\n- Preserved caustics, reflections, rain effects, shadows, bloom, and vegetation movement.\n- Rechecked shader compilation across **31 supported Minecraft versions**, with in-game verification on **Minecraft 26.3 using Iris**.\n\nThe new water effects use the existing water rendering pass. Performance varies depending on hardware, settings, and scene.",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/itGx8EqQ/versions/eeFkDVo1/Brisa-Lite-2.2.zip",
+     "name": "Brisa-Lite-2.2.zip",
+     "size": 340494
+    }
+   ]
+  },
+  {
+   "ver": "2.1",
+   "name": "Brisa Lite 2.1",
+   "pub": "2026-10-15",
+   "changelog": "# Brisa Lite 2.1\n\n- Expanded verified Minecraft coverage to all stable releases in the 1.20 and 1.21 series, plus 26.1, 26.1.1, 26.1.2, 26.2 and 26.3.\n- Added compatibility checks for Minecraft 1.16.5, 1.18.2 and the full 1.19 series through 1.19.4.\n- Added version-aware copper torch and copper lantern mappings for Minecraft 1.21.9 and later.\n- Fixed incorrect dark shadow bands on older Iris builds by using manual depth comparisons with the existing sampling count. Modern Iris keeps its original shadow path.\n- Preserved the effects, visibility improvements, controls and performance presets from Brisa Lite 2.0.\n- Included a detailed compatibility manifest with the Iris builds checked and the verification level for each Minecraft version.\n\nAll 31 listed versions passed official Iris compiler/transformer and native GPU\nchecks. Actual game sessions also passed on 1.20.1, 1.21.11 and all five listed\n26.x releases. These tests used OpenGL; Vulkan and OptiFine were not verified.\nUse Iris and Sodium builds that support your exact Minecraft version.\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/itGx8EqQ/versions/g8NQ1iDJ/Brisa-Lite-2.1.zip",
+     "name": "Brisa-Lite-2.1.zip",
+     "size": 332397
+    }
+   ]
+  },
+  {
+   "ver": "2.0",
+   "name": "Brisa Lite 2.0",
+   "pub": "2026-10-12",
+   "changelog": "# Brisa Lite 2.0\n\n- Added water refraction that follows the waves, with guards for shorelines and foreground objects.\n- Added distinct highlights for vanilla metals, polished stone, glass and ice.\n- Added animated rain rings inside exposed ground puddles.\n- Added view-dependent snow sparkle with distance filtering.\n- Added localized heat distortion around nearby visible lava, fire and lit campfires.\n- Added individual controls for every new effect, in English and Portuguese.\n- Kept refraction and heat distortion disabled in the lighter performance presets.\n- Improved effect visibility: stronger water refraction, preserved highlight contrast on bright materials, clearer puddle rings, larger snow glints and a taller heat plume.\n\nMaterial highlights use the existing textures. Refraction and heat are screen-space\napproximations and share one optional rendering pass. This revision keeps the same\n2.0 version and adjusts the appearance of its effects.",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/itGx8EqQ/versions/QxDvVN4K/Brisa-Lite-2.0.zip",
+     "name": "Brisa-Lite-2.0.zip",
+     "size": 331587
+    }
+   ]
+  },
+  {
+   "ver": "1.9.1",
+   "name": "Brisa Lite 1.9.1",
+   "pub": "2026-10-11",
+   "changelog": "# Brisa Lite 1.9.1\n\n- Fixed stretched caustic patterns on submerged walls and riverbanks when viewed from above.\n- Reduced excessive caustic brightness above the water surface.\n- Improved fading with water depth, distance and viewing angle for a more natural appearance.\n- Preserved the underwater caustic appearance.\n\nThis fix adds no extra rendering passes or texture lookups.",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/itGx8EqQ/versions/qc95likB/Brisa-Lite-1.9.1.zip",
+     "name": "Brisa-Lite-1.9.1.zip",
+     "size": 323492
+    }
+   ]
+  }
+ ],
+ "gleam-shaders": [
+  {
+   "ver": "v2",
+   "name": "Gleam v2",
+   "pub": "2026-10-15",
+   "changelog": "## What changed / improved?\n* Night sky is much darker and blacker, with denser, clumpier stars\n* Auroras now only appear in snowy biomes, and fade in and out smoothly as you enter or leave\n* Aurora has new curtain shapes and colours, plus a full set of aurora settings (palette, direction, speed, rays, custom colours)\n* Shooting stars are fully customisable (colour, speed, trail length, frequency, amount) and there’s an optional meteor shower\n* Fixed bloom artifacts: no more grain around glowstone and sea lanterns\n* New settings for bloom colour, wide bloom and daytime bloom reduction\n* Better fog that glows and warms toward the sun and cools away from it\n* Water has softer sun and moon glints at sunrise and sunset\n* New Fun Effects menu with a rainbow after rain, a meteor shower and a retro pixel filter\n* New Grading & Filters menu with gamma, shadow lift, highlight boost, matte fade and a colour filter\n* New cel shading option\n* Added the Natural style, and 5 new colour schemes (Tropical Lagoon, Violet Twilight, Misty Forest, Desert Gold, Midnight Blue)\n* Removed the Dreamy style\n* New emissive settings for colour richness, hot core and night boost\n* New End menu with void aurora, nebula, shooting stars and a palette choice, plus nicer Nether haze and embers\n* New moon settings for size, phase and colour\n* Better global illumination and coloured light, with new smoothing passes\n* New performance mode with separate detail sliders for ambient occlusion, clouds, godrays and reflections\n* Brighter nights, brighter caves and softer sharpening by default\n* Better tone mapping, and more blocks added to the supported lists (vines, glow lichen, hanging roots, blue candles)\n* Optimizations\n* POM/LabPBR Fix\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/HIReN4tM/versions/uUmsOEvs/Gleam%20v2.zip",
+     "name": "Gleam v2.zip",
+     "size": 431975
+    }
+   ]
+  },
+  {
+   "ver": "v1.9",
+   "name": "Gleam v1.9",
+   "pub": "2026-10-03",
+   "changelog": "## First update!\n\n\n**What's new/improved?**\n- Milky way removed\n- **2 new visual styles**, Anime, which is a cel-shaded cartoonish/anime themed style with outlines, and Dreamy, which is a foggy, more dreamy vibe.\n- Optimizations\n- Smooth fade when changing time using the /time set or /time add commands, still **very W.I.P**\n- Parallax Occlusion Mapping (POM)\n- Underwater Godrays\n- Improved cloud lighting\n- Improved Lens Flare\n- Animated Letterbox effect when shifting\n- Customizable enchant glints\n\n\n### EXPERIMENTAL FEATURES\n**These features are all work in progress, and will change with every update. Bugs are expected**\n\n- **Integrated PBR** support\n- **Colored lighting,** but for **OpenGL 4.1**\n- **Bounce Lighting (Global Illumination)**\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/HIReN4tM/versions/RVEflt9R/Gleam%20v1.9.zip",
+     "name": "Gleam v1.9.zip",
+     "size": 543657
+    }
+   ]
+  },
+  {
+   "ver": "1.8",
+   "name": "Gleam v1.8",
+   "pub": "2026-09-21",
+   "changelog": "First official release!",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/HIReN4tM/versions/SECfdiPR/GleamShaders-v1_8.zip",
+     "name": "GleamShaders-v1_8.zip",
+     "size": 364021
+    }
+   ]
+  }
+ ],
+ "od-horizon-shader": [
+  {
+   "ver": "r0.3",
+   "name": "OD-Horizon Shaders r0.3",
+   "pub": "2026-10-16",
+   "changelog": "Lighting adjustments were applied to caves and water, along with improvements to potion effect compatibility.\n\n- Correction for blinding effects ![This image shows the player's inventory, displaying the blindness effect.](https://cdn.modrinth.com/data/cached_images/bfe22fb476be34c5f5a28863720833c4b14e72ee.png)\n![This image shows the player with limited lighting in a small area of ​​fog.](https://cdn.modrinth.com/data/cached_images/071535455f7b2c20db81e29e8f94096a0d77f5f8_0.webp)\n\n-Cave lighting correction\n![Image comparing changes in cave lighting](https://cdn.modrinth.com/data/cached_images/745614fb0fdd23fed586e87c0e1dbc4a666a0719.png)",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/Y2J6yRI1/versions/NFF9jWMu/%C2%A7b%C2%A7lOD%C2%A7f%C2%A7l-%C2%A7d%C2%A7lHorizon%20%C2%A7e%C2%A7lBETA%20v0.3%C2%A7f%C2%A7l%20-%20%C2%A7b%C2%A7lOlvirkMC.zip",
+     "name": "§b§lOD§f§l-§d§lHorizon §e§lBETA v0.3§f§l - §b§lOlvirkMC.zip",
+     "size": 413138
+    }
+   ]
+  },
+  {
+   "ver": "0.2",
+   "name": "OD-Horizon Shaders 0.2",
+   "pub": "2026-09-26",
+   "changelog": "# OD-Horizon Beta v0.2\n\nThis is the first public version of OD-Horizon, as beta 0.2 :D\n\n![This is the shader banner, featuring a bluish sky with realistic clouds in the background.](https://cdn.modrinth.com/data/cached_images/96deffd35a7584608712d562ddb85906a25963b9.png)",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/Y2J6yRI1/versions/wfYeXB1K/%C2%A7b%C2%A7lOD%C2%A7f%C2%A7l-%C2%A7d%C2%A7lHorizon%20%C2%A7e%C2%A7lBETA%20v0.2%C2%A7f%C2%A7l%20-%20%C2%A7b%C2%A7lOlvirkMC.zip",
+     "name": "§b§lOD§f§l-§d§lHorizon §e§lBETA v0.2§f§l - §b§lOlvirkMC.zip",
+     "size": 410928
+    }
+   ]
+  }
+ ],
+ "smm-ultra-light-weight-shader": [
+  {
+   "ver": "1.6",
+   "name": "SMM - Ultra Light Weight Shader 1.6",
+   "pub": "2026-10-16",
+   "changelog": "# What's New\n- Better Water Visuals\n- Better Thunder Visuals\n- Bugfix\n- Optimizations",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/iK4iV8VO/versions/vOYypsLu/SMM%201.6.zip",
+     "name": "SMM 1.6.zip",
+     "size": 236320
+    }
+   ]
+  },
+  {
+   "ver": "1.5.8",
+   "name": "SMM - Ultra Light Weight Shader 1.5.8",
+   "pub": "2026-10-15",
+   "changelog": "# What's New?\n- Better Options\n- Rain Puddles\n- (Water) Sun Reflection\n- Rainbow\n- Optimizations",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/iK4iV8VO/versions/3FSgTuOZ/SMM%201.5.8.zip",
+     "name": "SMM 1.5.8.zip",
+     "size": 233193
+    }
+   ]
+  },
+  {
+   "ver": "1.5.3",
+   "name": "SMM - Ultra Light Weight Shader 1.5.3",
+   "pub": "2026-10-12",
+   "changelog": "# What's New?\n- Better Visuals\n- Screen-Space Effects\n- Death Screen\n- Optimisations",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/iK4iV8VO/versions/5FJF7MUt/SMM%201.5.3.zip",
+     "name": "SMM 1.5.3.zip",
+     "size": 680880
+    }
+   ]
+  },
+  {
+   "ver": "1.5",
+   "name": "Super Melted Matter - Ultra Light Weight Shader 1.5",
+   "pub": "2026-10-11",
+   "changelog": "# What's New?\n- Aurora\n- Night Details\n- Optimisations\n- Bug Fix\n- Easter Eggs\n- New Languges\n- Better Moon\n- Zeppelin\n- Better Visuals\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/iK4iV8VO/versions/fZtZaVSc/SMM%201.5.zip",
+     "name": "SMM 1.5.zip",
+     "size": 654740
+    }
+   ]
+  }
+ ],
+ "firmament-shaders": [
+  {
+   "ver": "0.3",
+   "name": "Firmament 0.3",
+   "pub": "2026-10-12",
+   "changelog": "# Firmament 0.3\n\n**Richer colour, calmer light.** Firmament no longer looks as if the brightness\nwere turned all the way up: colours stay saturated, daylight has contrast, and\nnights, caves, the Nether and the End keep their mood.\n\n- **New tone curve:** a hue-preserving filmic curve keeps mid-grey where it\n  belongs. Sunlit sand and blossoms keep their colour instead of fading to\n  white; only real highlights such as the sun roll off to white.\n- **Juicier colour, not neon:** vibrance lifts sky, sand, blossoms and grass,\n  while snow stays white and already vivid colours stay natural.\n- **Eye adaptation:** centre-weighted metering, and dark scenes are no longer\n  lifted to daylight brightness. Bloom only comes from truly bright light.\n- **Sky:** a deep blue sky with a blue horizon, warm twilight bands, a sun halo,\n  moon phases, twinkling stars and an optional Milky Way.\n- **Morning mist:** low fog in valleys and over water at sunrise (optional).\n- **Clouds:** white sunlit tops over grey bases.\n- **Light:** torches and lanterns fall off naturally from golden to amber, and\n  lava stays orange.\n- **Nether and End:** relit. The Nether is dark and deep instead of a glowing red\n  wall; the End island has shape instead of a flat white surface.\n- **Rain** falls as grey streaks.\n- **New settings:** Eye adaptation, Contrast, Vibrance, White balance, Vignette,\n  Sharpening, Morning mist and Milky Way, in English and Russian.\n\nThe same 29 Minecraft Java versions as 0.22: **1.18.2**; **1.19, 1.19.1,\n1.19.2 and 1.19.4**; **1.20–1.20.6**; **1.21–1.21.11**; **26.1, 26.1.1,\n26.1.2, 26.2 and 26.3**. The new gallery was rendered in Minecraft\n**1.21.1 / NeoForge 21.1.228 / Iris 1.8.12 / Sodium 0.6.13** on the High preset.\n\nKnown: after reloading chunks with F3+A, shadows of blocks outside your view\nappear once you look at them. Iris only builds chunks the camera sees.\n\nUse the Iris and Sodium builds matching your Minecraft version; 26.2 and 26.3\ntarget the OpenGL renderer. Keep the ZIP intact, place it in `shaderpacks`, and\nselect Firmament in Iris. Start with High and adjust the preset for your setup.\n\nFrom 0.3 Firmament is licensed under the MDFL 1.0; 0.10 to 0.22 stay MIT.\n\nA project by **PozziTiv4ik**.\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/TH4ZChbH/versions/3w804gYS/Firmament-0.3.zip",
+     "name": "Firmament-0.3.zip",
+     "size": 163610
+    }
+   ]
+  },
+  {
+   "ver": "0.22",
+   "name": "Firmament 0.22",
+   "pub": "2026-10-10",
+   "changelog": "# Firmament 0.22\n\n**Faster clouds in rain and tidier shader code, with exactly the same picture.**\n\n- **Clouds in rain:** about 1.05× faster. Cloud samples that are already fully\n  dense skip noise that cannot change them; higher Cloud Coverage settings\n  benefit too.\n- **Under the hood:** repeated shader code now uses shared helpers, the\n  reflection-snapshot pass decodes each pixel once, and unused declarations\n  are gone.\n- **Same image:** every automated comparison image is bit-identical to 0.21.\n- **Nothing slower:** every other pass costs the same as in 0.21. Four\n  further optimization ideas were measured and left out because they were not\n  faster.\n\nTimings are isolated GPU pass measurements against 0.21 on an RTX 4060 Laptop\nGPU at 2560 × 1440 with the High preset, not frame rates. The sky, fog and\nnight-sky speed-ups of 0.21 are kept.\n\nRendering, presets, options and the 29 supported Minecraft Java versions are\nunchanged from 0.21: **1.18.2**; **1.19, 1.19.1, 1.19.2 and 1.19.4**;\n**1.20–1.20.6**; **1.21–1.21.11**; **26.1, 26.1.1, 26.1.2, 26.2 and 26.3**.\nAutomated OpenGL comparisons match 0.21 exactly.\n\nKnown: after reloading chunks with F3+A, shadows of blocks outside your view\nappear once you look at them. Iris only builds chunks the camera sees.\n\nUse the Iris and Sodium builds matching your Minecraft version; 26.2 and 26.3\ntarget the OpenGL renderer. Recorded gameplay evidence remains\n**1.21.1 / NeoForge 21.1.228 / Iris 1.8.12 / Sodium 0.6.13** with 0.10-alpha.2.\n\nKeep the ZIP intact, place it in `shaderpacks`, and select Firmament in Iris.\nStart with High and adjust the preset for your setup.\n\nA project by **PozziTiv4ik**.\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/TH4ZChbH/versions/yvvZ2kDY/Firmament-0.22.zip",
+     "name": "Firmament-0.22.zip",
+     "size": 149701
+    }
+   ]
+  },
+  {
+   "ver": "0.21",
+   "name": "Firmament 0.21",
+   "pub": "2026-10-08",
+   "changelog": "# Firmament 0.21\n\n**A cleaner shader core and a faster sky, with the same look.**\n\n- **Sky:** the atmosphere pass computes the sun and moon once per frame instead\n  of once per pixel and is about 1.3× faster by day and night.\n- **Fog and light shafts:** 1.06–1.17× faster above and below water.\n- **Night sky:** stars and clouds over open sky about 1.06× faster; ambient\n  occlusion reconstruction about 1.03×.\n- **Under the hood:** shared shader code is reorganized, with named materials\n  and one implementation of each lighting helper. Every other pass costs the\n  same as in 0.2.\n\nThe figures are isolated GPU pass timings measured against 0.2 on an RTX 4060\nLaptop GPU at 2560 × 1440 with the High preset, not frame rates. In-game FPS\ndepends on the scene, render distance and hardware.\n\nRendering, presets, options and the 29 supported Minecraft Java versions are\nunchanged from 0.2: **1.18.2**; **1.19, 1.19.1, 1.19.2 and 1.19.4**;\n**1.20–1.20.6**; **1.21–1.21.11**; **26.1, 26.1.1, 26.1.2, 26.2 and 26.3**.\nAutomated OpenGL comparisons match 0.2 within the project's equivalence limits.\n\nKnown: after reloading chunks with F3+A, shadows of blocks outside your view\nappear once you look at them. Iris only builds chunks the camera sees.\n\nUse the Iris and Sodium builds matching your Minecraft version; 26.2 and 26.3\ntarget the OpenGL renderer. Recorded gameplay evidence remains\n**1.21.1 / NeoForge 21.1.228 / Iris 1.8.12 / Sodium 0.6.13** with 0.10-alpha.2.\n\nKeep the ZIP intact, place it in `shaderpacks`, and select Firmament in Iris.\nStart with High and adjust the preset for your setup.\n\nA project by **PozziTiv4ik**.\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/TH4ZChbH/versions/GPpfxjag/Firmament-0.21.zip",
+     "name": "Firmament-0.21.zip",
+     "size": 146246
+    }
+   ]
+  },
+  {
+   "ver": "0.2",
+   "name": "Firmament 0.2",
+   "pub": "2026-10-04",
+   "changelog": "# Firmament 0.2\n\n**Performance release: more frames, the same look.**\n\n- **Nether and End:** the unused sun shadow map is no longer rendered at all.\n- **Overworld shadows:** a depth-only shadow pass; water and clear glass no\n  longer reach the shadow rasterizer.\n- **Cloud shadows:** read from a small map computed once per frame instead of\n  several noise octaves per lit pixel. Sunlit surface lighting costs less than\n  half as much as in 0.11.\n- **Fog and light shafts:** cheaper shadow lookups along each ray (about 1.2×).\n- **Sky:** clouds and stars are rendered after the terrain. Stars are drawn only\n  where the sky is visible; in caves and sealed rooms, clouds hidden by terrain\n  cost much less (about 2.4× for a cave view with a strip of sky).\n- **Ambient occlusion:** open, unoccluded areas skip the reconstruction filter.\n\nThe figures are isolated GPU pass timings measured against 0.11 on an RTX 4060\nLaptop GPU at 2560 × 1440 with the High preset, not frame rates. In-game FPS\ndepends on the scene, render distance and hardware.\n\nRendering, presets, options and the 29 supported Minecraft Java versions are\nunchanged from 0.11: **1.18.2**; **1.19, 1.19.1, 1.19.2 and 1.19.4**;\n**1.20–1.20.6**; **1.21–1.21.11**; **26.1, 26.1.1, 26.1.2, 26.2 and 26.3**.\nAutomated OpenGL comparisons match 0.11 within the project's equivalence limits.\n\nKnown: after reloading chunks with F3+A, shadows of blocks outside your view\nappear once you look at them. Iris only builds chunks the camera sees.\n\nUse the Iris and Sodium builds matching your Minecraft version; 26.2 and 26.3\ntarget the OpenGL renderer. Recorded gameplay evidence remains\n**1.21.1 / NeoForge 21.1.228 / Iris 1.8.12 / Sodium 0.6.13** with 0.10-alpha.2.\n\nKeep the ZIP intact, place it in `shaderpacks`, and select Firmament in Iris.\nStart with High and adjust the preset for your setup.\n\nA project by **PozziTiv4ik**.\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/TH4ZChbH/versions/JQMNeEwO/Firmament-0.2.zip",
+     "name": "Firmament-0.2.zip",
+     "size": 140674
+    }
+   ]
+  }
+ ],
+ "revesperashader": [
+  {
+   "ver": "3",
+   "name": "ReVespera Shader VXPT 3",
+   "pub": "2026-10-16",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/8g4QdJbB/versions/6Xs7eWrI/ReVespera_VXPT_Alpha_v3_%28Chocapic13%20shader%20edit%29.zip",
+     "name": "ReVespera_VXPT_Alpha_v3_(Chocapic13 shader edit).zip",
+     "size": 6122650
+    }
+   ]
+  }
+ ],
+ "lumenite-shaders": [
+  {
+   "ver": "2.9.4",
+   "name": "Lumenite Shaders 2.9.4",
+   "pub": "2026-10-14",
+   "changelog": "2.9.4: sun rays without the wash, steady clouds, whole feathers, real veils\n- Sun Rays: the rays no longer add sun-coloured light over all open sky\n  between the pixel and the sun, which washed out the screen when facing\n  the sun. They now carve shadow beams where the path is blocked\n  (lmn_rayShade) and add only a sixth of the old glow. Underwater shafts\n  are unchanged. Shaft Glow's clear-sun baseline goes from 0.25 to 0.10.\n  The lens flare was measured at about 1% of screen brightness, so it is\n  not changed.\n- Cloud map LOD: foot is now two map texels (0.0104), not eight\n  (0.0406). The 128-block octave now holds to about 1350 blocks instead\n  of fading between 300 and 800, so clouds stop growing and shrinking\n  as you move.\n- Billow/wisp LOD distances now scale with cloud resolution (2x at 100%).\n- Slew limiter: the previous value is reprojected along the deck's wind,\n  so drifting edges are no longer dragged.\n- Cirrus feathers: existence and coverage are now taken at the feather's\n  head, with a soft margin, instead of at each pixel. The early return\n  is relaxed so feathers are not cut at the edge of a patch.\n- Cumulus aerial perspective: the thin far part of a cloud now fades its\n  opacity, so faded clouds no longer mask the sky detail behind them.\n- Sky Detail veils rebuilt as combed fibrous sheets that fray into\n  strands at their edges, replacing the Worley-torn patches.\n- Changelog and lang updated. OPTIONS.md and the zip regenerated.",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/ufTCN3P7/versions/zCzCShd3/Lumenite%20%5B2.9.4%5D.zip",
+     "name": "Lumenite [2.9.4].zip",
+     "size": 6337148
+    }
+   ]
+  },
+  {
+   "ver": "2.9.3",
+   "name": "Lumenite Shaders 2.9.3",
+   "pub": "2026-10-14",
+   "changelog": "A new sun and moon: the “Shader Sun and Moon” setting, now on by default. The sun has sunspots and turns red and flattens as it sets; the moon is a map of the real near side, with phases and earthshine. There are new Sun Size and Moon Size settings.\nBloom, rebuilt: the glow no longer races around when you move.\nFixes:\nTurning toward the sun in caves no longer brightens the screen.\nClouds look right through gaps in leaves.\nVines, cave vines and weeping vines sway with the leaves.\nClouds no longer cut sun rays off completely.\nTwo small effects in the End now work: armour gem glints and roughness on distant water.\nDefaults and settings: Cloud Resolution now offers 25% to 100%. “Clouds Break the Rays” is on in every preset except Potato.\nPerformance: bloom costs about the same as before, and the download is about 0.5 MB bigger for the moon map.",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/ufTCN3P7/versions/hDeiMSvl/Lumenite%20%5B2.9.3%5D.zip",
+     "name": "Lumenite [2.9.3].zip",
+     "size": 6316703
+    }
+   ]
+  },
+  {
+   "ver": "2.9.2",
+   "name": "Lumenite Shaders 2.9.2",
+   "pub": "2026-10-14",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/ufTCN3P7/versions/aEHCiuKW/Lumenite%20%5B2.9.2%5D.zip",
+     "name": "Lumenite [2.9.2].zip",
+     "size": 5767938
+    }
+   ]
+  },
+  {
+   "ver": "2.9.1",
+   "name": "Lumenite Shaders 2.9.1",
+   "pub": "2026-10-13",
+   "changelog": "Lumenite 2.9.1\nEverything new since 2.8.4.\nClouds, rebuilt\nNew cloud style: Volumetric (realistic). It is the new default and is used in every preset. The previous realistic clouds are still there, unchanged, as Volumetric (classic).\nClouds that look like clouds. The new style is built from scratch. The rows of same-size puffy balls with fluffy loose ends are gone. Now:\nClouds come in every size, from big towers to small scraps. They crowd together in places and leave wide stretches of open sky in others, and sometimes line up in rows along the wind.\nEach one has a flat grey base and a crisp, sunlit cauliflower top built of lobes on lobes, leaning downwind.\nEdges only fray into torn wisps where a cloud is dying, and along the base when it rains.\nSunlight, done properly.\nSunlit faces are bright and shaded sides are grey, with real contrast between them. The skylight on the clouds used to be as bright as the sky itself, which washed out every shadow.\nClouds in front of the sun stand dark, with brilliant silver rims, instead of glowing white all over.\nWith the sun behind you, sunlit faces are at their brightest.\nAt golden hour, sunlit faces turn warm cream and gold over mauve shadows.\nAt sunset, the tops burn gold and rose over bases already in shadow. Higher clouds catch the light longest, so the altocumulus glow pink after the cumulus below have dimmed.\nWhen the sun is low, clouds cast shadows on each other.\nClouds at different heights and sizes. Cloud bases are no longer one flat plane across the sky.\nBases are lower where the air is moister and higher on older, dying and spreading clouds, and they differ a little from cloud to cloud. From a hilltop you can see clouds at several levels at once.\nBases climb through the day as the ground heats up, and sink again at night.\nSizes vary: small, close-packed clouds in the morning, bigger and further apart by the afternoon, and some areas build big cloud masses while others stay a scatter of small ones.\nMost clouds stay shallow and a few tower far above the rest.\nThe mid-level clouds sit at a different height every day, and rise and dip across the sky.\nClouds can now grow taller: the cloud layer reaches higher than before.\nClouds live and die. They form, grow and fade away while you watch, and a dying cloud frays apart.\nThe second cloud deck is now the mid-level sky. It used to be the same clouds again, higher up. Now it is altocumulus, rows of small rounded cloudlets, or a smooth grey altostratus veil the sun shows through as a pale disc. It drifts faster than the clouds below, and in a different direction.\nCirrus no longer draws thin bright arcs and rings across the sky. Its strands run along the wind.\nCirrocumulus is a soft rippled sheet instead of a field of hard white dots.\nNo more bright column in the clouds opposite a low sun.\nClouds no longer jump once an hour, when the game's timer wraps around.\nDynamic weather\nThe sky follows the day.\nMornings start clear, or under a grey layer that breaks up b",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/ufTCN3P7/versions/nD9Pt0Ge/Lumenite%20%5B2.9.1%5D.zip",
+     "name": "Lumenite [2.9.1].zip",
+     "size": 5762136
+    }
+   ]
+  }
+ ],
+ "crownlight-shader": [
+  {
+   "ver": "1.2-rc.26.3.rc.3",
+   "name": "Crownlight Shaders 1.2 for 26.3 Release Candidate 3",
+   "pub": "2026-10-12",
+   "changelog": "## 👑 Crownlight Shaders 1.2 for 26.3 Release Candidate 3\n\nRequires **Iris**, **OptiFine**, or **Vanilla Shader** configuration profiles.\n\n✅ **Tested** and fully optimized for Minecraft 26.3 Release Candidate 3 with Iris and OptiFine.\n\n---\n\n### 📦 Version Profile:\n- 🚀 **Target Version:** Dedicated build for stability testing on **26.3-rc-3** 🌧️\n- ⚙️ **Loader Support:** 100% compatible with **Iris**, **OptiFine**, and **Vanilla Shader** loader formats.\n\n---\n\n### ✨ Features\n- 🌧️ Rain puddles with ripples, wind that shakes plants and leaves, wet shiny leaves and logs\n- 🏜️ Dust in deserts and savannas, ❄️ snow storms and glinting ice flakes\n- 🎛️ \"My Own Shader\" settings screen with 5 styles and 15 sliders\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/vG5QtNwT/versions/zDSGuhaV/Crownlight_Shaders_v1_2%20%2814%29.zip",
+     "name": "Crownlight_Shaders_v1_2 (14).zip",
+     "size": 103473
+    }
+   ]
+  },
+  {
+   "ver": "1.2-rc.26.3.rc.2",
+   "name": "Crownlight Shaders 1.2 for 26.3 Release Candidate 2",
+   "pub": "2026-10-12",
+   "changelog": "## 👑 Crownlight Shaders 1.2 for 26.3 Release Candidate 2\n\nRequires **Iris**, **OptiFine**, or **Vanilla Shader** configuration profiles.\n\n✅ **Tested** and fully optimized for Minecraft 26.3 Release Candidate 2 with Iris and OptiFine.\n\n---\n\n### 📦 Version Profile:\n- 🚀 **Target Version:** Dedicated build for stability testing on **26.3-rc-2** 🌧️\n- ⚙️ **Loader Support:** 100% compatible with **Iris**, **OptiFine**, and **Vanilla Shader** loader formats.\n\n---\n\n### ✨ Features\n- 🌧️ Rain puddles with ripples, wind that shakes plants and leaves, wet shiny leaves and logs\n- 🏜️ Dust in deserts and savannas, ❄️ snow storms and glinting ice flakes\n- 🎛️ \"My Own Shader\" settings screen with 5 styles and 15 sliders\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/vG5QtNwT/versions/acteLu40/Crownlight_Shaders_v1_2%20%2814%29.zip",
+     "name": "Crownlight_Shaders_v1_2 (14).zip",
+     "size": 103473
+    }
+   ]
+  },
+  {
+   "ver": "1.2-rc.26.3.rc.1",
+   "name": "Crownlight Shaders 1.2 for 26.3 Release Candidate 1",
+   "pub": "2026-10-12",
+   "changelog": "## 👑 Crownlight Shaders 1.2 for 26.3 Release Candidate 1\n\nRequires **Iris**, **OptiFine**, or **Vanilla Shader** configuration profiles.\n\n✅ **Tested** and fully optimized for Minecraft 26.3 Release Candidate 1 with Iris and OptiFine.\n\n---\n\n### 📦 Version Profile:\n- 🚀 **Target Version:** Dedicated build for stability testing on **26.3-rc-1** 🌧️\n- ⚙️ **Loader Support:** 100% compatible with **Iris**, **OptiFine**, and **Vanilla Shader** loader formats.\n\n---\n\n### ✨ Features\n- 🌧️ Rain puddles with ripples, wind that shakes plants and leaves, wet shiny leaves and logs\n- 🏜️ Dust in deserts and savannas, ❄️ snow storms and glinting ice flakes\n- 🎛️ \"My Own Shader\" settings screen with 5 styles and 15 sliders\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/vG5QtNwT/versions/BWEAn45x/Crownlight_Shaders_v1_2%20%2814%29.zip",
+     "name": "Crownlight_Shaders_v1_2 (14).zip",
+     "size": 103473
+    }
+   ]
+  },
+  {
+   "ver": "1.2-mc26.3.pre.3",
+   "name": "Crownlight Shaders 1.2 for 26.3 Pre-release 3",
+   "pub": "2026-10-12",
+   "changelog": "## 👑 Crownlight Shaders 1.2 for Minecraft 26.3 Pre-release 3\n\nRequires **Iris**, **OptiFine**, or **Vanilla Shader** configuration profiles.\n\n✅ **Tested** and fully optimized for experimental Minecraft 26.3 Pre-release builds.\n\n---\n\n### 📦 Version Profile:\n- 🧪 **Target Profile:** Optimized configuration build for modern 26.3 Pre-release structures.\n- ⚙️ **Loader Support:** 100% compatible with **Iris**, **OptiFine**, and **Vanilla Shader** loader formats.\n\n---\n\n### ✨ Features\n- 🌧️ Rain puddles with ripples, wind that shakes plants and leaves, wet shiny leaves and logs\n- 🏜️ Dust in deserts and savannas, ❄️ snow storms and glinting ice flakes\n- 🎛️ \"My Own Shader\" settings screen with 5 styles and 15 sliders\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/vG5QtNwT/versions/A1jyGwKP/Crownlight_Shaders_v1_2%20%2814%29.zip",
+     "name": "Crownlight_Shaders_v1_2 (14).zip",
+     "size": 103473
+    }
+   ]
+  }
+ ],
+ "light-shadow": [
+  {
+   "ver": "4.1",
+   "name": "4.1",
+   "pub": "2026-10-13",
+   "changelog": "GGX filter",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/pWeVnXDz/versions/IbzmaFlN/Light%20and%20Shadow.zip",
+     "name": "Light and Shadow.zip",
+     "size": 189133
+    }
+   ]
+  },
+  {
+   "ver": "4.0.2",
+   "name": "4.0.2",
+   "pub": "2026-10-10",
+   "changelog": "fix blue",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/pWeVnXDz/versions/FL0np64M/Light%20and%20Shadow.zip",
+     "name": "Light and Shadow.zip",
+     "size": 185786
+    }
+   ]
+  },
+  {
+   "ver": "4.0.1",
+   "name": "4.0.1",
+   "pub": "2026-10-09",
+   "changelog": "blur fix",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/pWeVnXDz/versions/xeMRS7FR/Light%20and%20Shadow.zip",
+     "name": "Light and Shadow.zip",
+     "size": 185708
+    }
+   ]
+  },
+  {
+   "ver": "4.0",
+   "name": "4.0",
+   "pub": "2026-10-08",
+   "changelog": "ReSTIR DI",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/pWeVnXDz/versions/xvIRluwa/Light%20and%20Shadow.zip",
+     "name": "Light and Shadow.zip",
+     "size": 185254
+    }
+   ]
+  }
+ ],
+ "cloud-shaders": [
+  {
+   "ver": "1.0.0",
+   "name": "Hollow Shaders 1.0.0",
+   "pub": "2026-10-11",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/JrocOsNB/versions/Fl7esh3D/HollowShaders-mc26.3-1.0.0-iris.zip",
+     "name": "HollowShaders-mc26.3-1.0.0-iris.zip",
+     "size": 48289
+    }
+   ]
+  },
+  {
+   "ver": "1.0.0",
+   "name": "Hollow Shaders 1.0.0",
+   "pub": "2026-10-11",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/JrocOsNB/versions/LUmI5WEq/HollowShaders-mc26.2-1.0.0-iris.zip",
+     "name": "HollowShaders-mc26.2-1.0.0-iris.zip",
+     "size": 48289
+    }
+   ]
+  },
+  {
+   "ver": "1.0.0",
+   "name": "Hollow Shaders 1.0.0",
+   "pub": "2026-10-11",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/JrocOsNB/versions/oKPTnX0s/HollowShaders-mc26.1.2-1.0.0-iris.zip",
+     "name": "HollowShaders-mc26.1.2-1.0.0-iris.zip",
+     "size": 48289
+    }
+   ]
+  },
+  {
+   "ver": "1.0.0",
+   "name": "Hollow Shaders 1.0.0",
+   "pub": "2026-10-11",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/JrocOsNB/versions/e1sDgKts/HollowShaders-mc26.1.1-1.0.0-iris.zip",
+     "name": "HollowShaders-mc26.1.1-1.0.0-iris.zip",
+     "size": 48289
+    }
+   ]
+  }
+ ],
+ "hazelle-shaders": [
+  {
+   "ver": "1.0.1",
+   "name": "Hazelle Shaders 1.0.1",
+   "pub": "2026-10-14",
+   "changelog": "# Hazelle Shaders - 1.0.1\n\n## Added\n- Add black hole to the End sky\n- Add animation for the black hole\n- Add glowing ores without a light source\n\n## Fixes\n- Fix pixelated clouds looking like powder\n- Fix excessive reflections in the End causing entities and blocks to look metallic\n- Fix lighting issues in the End causing incorrect shadows",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/g8XFxSeP/versions/GESnS17F/Hazelle%20Shaders%201.0.1.zip",
+     "name": "Hazelle Shaders 1.0.1.zip",
+     "size": 1136713
+    }
+   ]
+  },
+  {
+   "ver": "1.0.0",
+   "name": "1.0.0",
+   "pub": "2026-10-10",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/g8XFxSeP/versions/OFpWrU8S/Hazelle%20Shaders.zip",
+     "name": "Hazelle Shaders.zip",
+     "size": 1130080
+    }
+   ]
+  }
+ ],
+ "phero-visuals": [
+  {
+   "ver": "3",
+   "name": "Phero Visuals V3",
+   "pub": "2026-10-11",
+   "changelog": "# Phero Visuals V3 — Balanced Lighting & Visual Enhancement Update\n\n### ✨ What's New\n- **Enhanced Minecraft Graphics:** Refined colors, balanced exposure, and subtle atmospheric improvements for a more beautiful vanilla-inspired experience.\n- **Improved Sunlight Control:** Sun illuminance defaults to 92, with a shader-level limit of 99 to keep the configured value below 100.\n- **Softer Bloom Effects:** Reduced excessive glow and sun halo for a cleaner, more natural appearance.\n- **Refined Color Grading:** Slightly richer colors while preserving Minecraft's original visual identity.\n- **Balanced Fog & Brightness:** Adjusted visual settings for a softer, less aggressive atmosphere.\n- **Subtle Vignette:** Reduced screen-edge darkening for a cleaner overall image.\n\n### 🛠️ Improvements\n- Updated project version to **V3.0**.\n- Refined shader settings for a balanced visual experience.\n- Preserved the existing water shader source files.\n- Reviewed shader include references and ZIP archive integrity.\n\n### 🎮 Compatibility\n- Targets Minecraft Java Edition **1.21.x** and newer version families.\n- Requires a compatible shader loader, such as Iris Shaders or OptiFine.\n- Compatibility with individual Minecraft releases and graphics configurations may vary and should be tested.\n\n### 🌿 Design Philosophy\nPhero Visuals focuses on subtle Minecraft shader enhancements rather than extreme realism. This release aims to improve lighting, color balance, and atmosphere while keeping the familiar vanilla Minecraft look.\n\n**Discover a more beautiful Minecraft world with Phero Visuals V3 — balanced lighting, refined colors, and restrained visual effects.**",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/cdZAl3l6/versions/I5tCpcsU/Phero_Visuals_V3.zip",
+     "name": "Phero_Visuals_V3.zip",
+     "size": 44343
+    }
+   ]
+  },
+  {
+   "ver": "2",
+   "name": "Phero Visuals 2",
+   "pub": "2026-09-05",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/cdZAl3l6/versions/pno2cICf/Phero_Visuals%20V2.zip",
+     "name": "Phero_Visuals V2.zip",
+     "size": 46285
+    }
+   ]
+  },
+  {
+   "ver": "1.2",
+   "name": "Phero Visual V1.2",
+   "pub": "2026-07-26",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/cdZAl3l6/versions/cmzftSj6/Phero_Visuals_v1_1.zip",
+     "name": "Phero_Visuals_v1_1.zip",
+     "size": 43005
+    }
+   ]
+  },
+  {
+   "ver": "V1",
+   "name": "Phero Visuals V1",
+   "pub": "2026-06-06",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/cdZAl3l6/versions/pMvXG50X/Phero_Visuals.zip",
+     "name": "Phero_Visuals.zip",
+     "size": 42611
+    }
+   ]
+  }
+ ],
+ "sublime-visuals": [
+  {
+   "ver": "4",
+   "name": "Sublime Visuals V4",
+   "pub": "2026-10-11",
+   "changelog": "# Sublime Visuals V4 — Shader Update\n\n### ✨ Release Highlights\n- **V4.0.0 Release:** Updated the shader pack version and project documentation.\n- **Balanced Visual Experience:** Retains the existing vanilla-inspired colors, lighting, and atmospheric enhancements.\n- **Controlled Sun Illuminance:** Keeps the configured sun illuminance at 92 by default, with a shader-level limit of 99.\n- **Water Shader Preservation:** Existing water shader source files remain unchanged in this release.\n- **Organized Shader Package:** Retains the existing folder structure and shader file paths.\n\n### 🎨 Visual Style\nSublime Visuals continues to focus on moderate Minecraft graphics enhancement, aiming for a more beautiful world without excessive saturation, bloom, or unrealistic lighting effects.\n\n### 🎮 Compatibility\n- **Minecraft Java Edition:** Targets version 1.21.x and newer version families.\n- **Shader Loaders:** Intended for compatible Iris Shaders or OptiFine installations.\n- Compatibility may vary by Minecraft version, shader loader, and graphics configuration.\n\n### 📌 Update Notes\nThis is primarily a version and packaging update. The existing visual settings have been retained rather than introducing a major graphical overhaul.\n\n**Sublime Visuals V4 — balanced lighting, refined atmosphere, and a vanilla-inspired Minecraft experience.**",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/WTBaGxsU/versions/cxIgiuvr/Sublime_Visuals_V4.zip",
+     "name": "Sublime_Visuals_V4.zip",
+     "size": 110250
+    }
+   ]
+  },
+  {
+   "ver": "3",
+   "name": "Sublime Visuals 3",
+   "pub": "2026-09-05",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/WTBaGxsU/versions/CMTUuUzB/Sublime_Visuals_V3.zip",
+     "name": "Sublime_Visuals_V3.zip",
+     "size": 110424
+    }
+   ]
+  },
+  {
+   "ver": "2",
+   "name": "Sublime Visuals V1.2",
+   "pub": "2026-07-26",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/WTBaGxsU/versions/kDFrW1xo/Sublime_Visuals_V1_2.zip",
+     "name": "Sublime_Visuals_V1_2.zip",
+     "size": 116317
+    }
+   ]
+  },
+  {
+   "ver": "V1",
+   "name": "Sublime Visuals ",
+   "pub": "2026-06-06",
+   "changelog": "\n```\n<div style=\"max-width: 850px; margin: auto; background: #0d1117; border: 1px solid #30363d; border-radius: 18px; padding: 28px; font-family: Segoe UI,Arial,sans-serif; color: #e6edf3; line-height: 1.8;\">\n<h1 style=\"text-align: center; color: #58a6ff; font-size: 42px; margin-bottom: 5px;\">🌌 Sublime Visuals</h1>\n<p style=\"text-align: center; font-size: 18px; color: #8b949e; margin-top: 0;\"><strong><img src=\"https://media.forgecdn.net/attachments/906/318/0.jpg\" alt=\"👻 Hysteria Shaders - Minecraft Shaders - CurseForge\"></strong></p>\n<div style=\"background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 18px; margin-top: 25px;\">\n<h2 style=\"color: #79c0ff; margin-top: 0;\">✨ About</h2>\n<p>Sublime Visuals is designed to give Minecraft a fresh, immersive, and cinematic appearance while keeping gameplay smooth and enjoyable. From vibrant lighting to realistic reflections, every effect is carefully balanced for beauty and performance.</p>\n</div>\n<div style=\"display: flex; gap: 15px; flex-wrap: wrap; margin-top: 20px;\">\n<div style=\"flex: 1; min-width: 240px; background: #161b22; padding: 18px; border-radius: 12px; border-left: 4px solid #58a6ff;\">\n<h3 style=\"margin-top: 0;\">🌟 Features</h3>\n✔ Dynamic Lighting<br>✔ Cinematic Sky<br>✔ Beautiful Water<br>✔ Soft Shadows<br>✔ Atmospheric Fog<br>✔ Vibrant Colors<br>✔ Bloom Effects</div>\n<div style=\"flex: 1; min-width: 240px; background: #161b22; padding: 18px; border-radius: 12px; border-left: 4px solid #3fb950;\">\n<h3 style=\"margin-top: 0;\">⚡ Performance</h3>\nOptimized rendering with multiple quality presets, allowing both low-end and high-end PCs to enjoy beautiful visuals with stable FPS.</div>\n</div>\n<div style=\"background: #161b22; border-radius: 12px; padding: 18px; margin-top: 20px; border-left: 4px solid #d29922;\">\n<h3 style=\"margin-top: 0;\">🎮 Compatibility</h3>\nMinecraft Java Edition<br>✔ Iris Shaders<br>✔ OptiFine<br>✔ Latest Minecraft Versions 1.17+</div>\n<div style=\"margin-top: 25px; padding: 18px; background: linear-gradient(90deg,#1f2937,#111827); border-radius: 12px; text-align: center;\">\n<h2 style=\"color: #79c0ff; margin: 0;\">💙 Crafted with Passion by Dark_PixelForge</h2>\n<p style=\"color: #c9d1d9; margin-bottom: 0;\">Experience Minecraft from a whole new perspective.</p>\n</div>\n</div>\n```\n",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/WTBaGxsU/versions/BwgCI40O/SublimeVisuals.zip",
+     "name": "SublimeVisuals.zip",
+     "size": 115329
+    }
+   ]
+  }
+ ],
+ "simple-shadows": [
+  {
+   "ver": "1.0.3",
+   "name": "1.0.3",
+   "pub": "2026-10-14",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/cOY8vlyQ/versions/xfAWrLRU/Simple-Shaders.zip",
+     "name": "Simple-Shaders.zip",
+     "size": 19771
+    }
+   ]
+  },
+  {
+   "ver": "1.0.2",
+   "name": "26.1.x",
+   "pub": "2026-06-01",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/cOY8vlyQ/versions/RjRoChzA/basic-shadows.zip",
+     "name": "basic-shadows.zip",
+     "size": 19602
+    }
+   ]
+  },
+  {
+   "ver": "1.0.1",
+   "name": "1.20.x",
+   "pub": "2026-04-29",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/cOY8vlyQ/versions/2rwmWYJF/Basic-Shadows.zip",
+     "name": "Basic-Shadows.zip",
+     "size": 21671
+    }
+   ]
+  },
+  {
+   "ver": "1.0.0",
+   "name": "Start of shaders",
+   "pub": "2026-02-14",
+   "changelog": "",
+   "files": [
+    {
+     "url": "https://cdn.modrinth.com/data/cOY8vlyQ/versions/fp27Eznp/Basic-Shadows.zip",
+     "name": "Basic-Shadows.zip",
+     "size": 21671
+    }
+   ]
+  }
+ ]
+}

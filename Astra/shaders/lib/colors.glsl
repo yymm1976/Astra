@@ -1,0 +1,57 @@
+#ifndef ASTRA_LIB_COLORS_GLSL
+#define ASTRA_LIB_COLORS_GLSL
+#include "/lib/color_controls.glsl"
+
+// Astra v1 — lib/colors.glsl
+// Light-source palette (design.md 3.1: 调色板 / 光色常量). C1 owns the *lighting*
+// section populated here; the atmosphere/sky palette (sunlight, moonlight, skyAmbient
+// colour curves) is D2's and is NOT baked into constants — it arrives per-frame as the
+// LightParams fields documented in global/lighting/diffuse.glsl.
+//
+// Provenance (dual source — see THIRD-PARTY.md):
+//   - BLOCKLIGHT_COLOR, MIN_AMBIENT_TINT: From Steadfast 0.8.0 (GPLv3 + Section 7
+//     additional terms) by coderbot, source: _analysis/Steadfast-0.8.0/shaders/
+//     shaders.properties (blocklightColor ORANGER_BLOCKLIGHT default; minAmbientMinishita).
+//     This file is a derivative of Steadfast and is licensed under the GNU General Public
+//     License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+//     _analysis/Steadfast-0.8.0/LICENSE.md. Redistribution is permitted only under that
+//     license including Steadfast's Section 7 additional terms.
+//   - LIGHTNING_TINT: adapted from Refrax v1.3.1 (proprietary), source:
+//     _analysis/Refrax_v1.3.1/shaders/lib/thunder.glsl (THUNDER_TINT).
+//     PROVENANCE: adapted from Refrax v1.3.1 (proprietary) - REWRITE REQUIRED before distribution
+//   Publish gate: design.md 9.3 + escalations.md SC-14 (⏸ pending user decision).
+//
+// Uniforms: none. Requires lib/settings.glsl included first (MIN_AMBIENT) — program/*
+//           guarantees the order (design.md 3.2 layer 2).
+// Consts:   BLOCKLIGHT_COLOR, MIN_AMBIENT_TINT, MIN_AMBIENT_COLOR, LIGHTNING_TINT.
+// Owner: C1. Consumers: global/lighting/blocklight.glsl, global/lighting/diffuse.glsl.
+
+// Block-light emission colour (torch / glowstone / fire). HDR-bright on purpose: the
+// value exceeds 1.0 and is folded back by the tonemap operator (lib/tonemap.glsl) in the
+// final pass chain (program/final.fsh); global/post/grading.glsl (C6) owns the exposure and
+// display-space grading wrapped around it.
+// BLOCKLIGHT_STRENGTH scales intensity. The SC-34 palette replaces the previously
+// selected Steadfast ORANGER_BLOCKLIGHT (8, 2, 0.2), which overwhelmed grey stone.
+// SC-34: warm white, with approximately the same luminance as the old orange
+// source. Correct the emitter spectrum instead of desaturating all cave materials.
+// 2026-09-07 visual round: small red/yellow nudge toward a slightly warmer torch glow.
+//   Direction matches Steadfast's ORANGER_BLOCKLIGHT lean without its overwhelming
+//   magnitude: gain (R) and back off (B) by the same fraction so the average luminance
+//   stays within ~5% of the prior value (cave materials keep their current tonemap fold).
+const vec3 BLOCKLIGHT_COLOR = vec3(4.4, 2.9, 1.7) * ASTRA_TINT_BLOCK * ASTRA_STYLE_BLOCK;
+
+// Cave-floor minimum ambient. Two parts:
+//   MIN_AMBIENT_TINT  — the cool blue-ish direction of "darkness that is not pure black"
+//                       (Steadfast minAmbientMinishita = 0.005 * vec3(0.33, 0.8, 1.0)).
+//   MIN_AMBIENT       — the user option (settings.glsl, default 8 = 0.008; the
+//                       referenced Steadfast value 5 = 0.005).
+// The product reproduces Steadfast's minAmbientMinishita exactly at MIN_AMBIENT = 5:
+//   (5 * 0.001) * vec3(0.33, 0.8, 1.0) = vec3(0.00165, 0.004, 0.005).
+const vec3 MIN_AMBIENT_TINT  = vec3(0.33, 0.8, 1.0) * ASTRA_TINT_CAVE;
+const vec3 MIN_AMBIENT_COLOR = (MIN_AMBIENT * 0.001) * MIN_AMBIENT_TINT;
+
+// Lightning flash tint — cool blue-white (Refrax THUNDER_TINT). Applied by
+// blocklight.glsl:lightning_point_light(); LIGHTNING_FLASH gates it in diffuse.glsl.
+const vec3 LIGHTNING_TINT = vec3(0.80, 0.87, 1.00);
+
+#endif

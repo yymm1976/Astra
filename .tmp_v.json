@@ -1,0 +1,955 @@
+[
+ {
+  "noteLine": 22,
+  "file": "photon-main/shaders/settings.glsl",
+  "from": 120,
+  "to": 125,
+  "status": "OK",
+  "occ": [
+   120
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/settings.glsl",
+  "quoted0": "  #define SHADOW"
+ },
+ {
+  "noteLine": 33,
+  "file": "settings.glsl",
+  "from": 133,
+  "to": 136,
+  "status": "MISSING",
+  "path": null,
+  "quoted0": "  #define SHADOW_PCF_STEPS_MIN           6 // [4 6 8 12 16 18 20 22 24 26 28 30 32]"
+ },
+ {
+  "noteLine": 42,
+  "file": "settings.glsl",
+  "from": 138,
+  "to": 139,
+  "status": "MISSING",
+  "path": null,
+  "quoted0": "  #define SHADOW_DEPTH_SCALE 0.2"
+ },
+ {
+  "noteLine": 49,
+  "file": "shaders.properties",
+  "from": 1,
+  "to": 4,
+  "status": "MISSING",
+  "path": null,
+  "quoted0": "profile.low    = INFO=0 shadowMapResolution=1024  SHADOW_PCF !SHADOW_COLOR !SHADOW_VPS !ENTITY_SHADOWS ..."
+ },
+ {
+  "noteLine": 56,
+  "file": "cr/shaders/lib/common.glsl",
+  "from": 18,
+  "to": 18,
+  "status": "NOTFOUND",
+  "occ": [],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/cr/ComplementaryReimagined-main/shaders/lib/common.glsl",
+  "quoted0": "    #define SHADOW_QUALITY 2 //[-1 0 1 2 3 4 5]"
+ },
+ {
+  "noteLine": 64,
+  "file": "common.glsl",
+  "from": 242,
+  "to": 242,
+  "status": "MISSING",
+  "path": null,
+  "quoted0": "#define SUN_ANGLE -1 //[-1 0 -20 -30 -40 -50 -60 60 50 40 30 20]"
+ },
+ {
+  "noteLine": 74,
+  "file": "bliss/shaders/lib/settings.glsl",
+  "from": 143,
+  "to": 151,
+  "status": "NOTFOUND",
+  "occ": [],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/bliss/Bliss-Shader-Stable/shaders/lib/settings.glsl",
+  "quoted0": "#define SCREENSPACE_CONTACT_SHADOWS"
+ },
+ {
+  "noteLine": 87,
+  "file": "settings.glsl",
+  "from": 156,
+  "to": 156,
+  "status": "MISSING",
+  "path": null,
+  "quoted0": "// #define TRANSLUCENT_COLORED_SHADOWS"
+ },
+ {
+  "noteLine": 93,
+  "file": "shaders/lib/light/pcss.glsl",
+  "from": 78,
+  "to": 82,
+  "status": "MISSING",
+  "path": null,
+  "quoted0": "    float blockerDepth = weightSum == 0.0 ? 0.0 : depthSum / weightSum;"
+ },
+ {
+  "noteLine": 108,
+  "file": "photon-main/shaders/include/lighting/shadows/distortion.glsl",
+  "from": 6,
+  "to": 9,
+  "status": "OK",
+  "occ": [
+   6
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/distortion.glsl",
+  "quoted0": "// Euclidian distance is defined as sqrt(a^2 + b^2 + ...). This function instead"
+ },
+ {
+  "noteLine": 117,
+  "file": "photon-main/shaders/include/lighting/shadows/distortion.glsl",
+  "from": 11,
+  "to": 14,
+  "status": "OK",
+  "occ": [
+   11
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/distortion.glsl",
+  "quoted0": "float get_distortion_factor(vec2 shadow_clip_pos) {"
+ },
+ {
+  "noteLine": 126,
+  "file": "photon-main/shaders/include/lighting/shadows/distortion.glsl",
+  "from": 27,
+  "to": 29,
+  "status": "OK",
+  "occ": [
+   27
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/distortion.glsl",
+  "quoted0": "    shadow_clip_pos.xy *= (1.0 - SHADOW_DISTORTION)"
+ },
+ {
+  "noteLine": 134,
+  "file": "photon-main/shaders/program/shadow.vsh",
+  "from": 123,
+  "to": 124,
+  "status": "OK",
+  "occ": [
+   123
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/program/shadow.vsh",
+  "quoted0": "    vec3 shadow_clip_pos = project_ortho(gl_ProjectionMatrix, pos);"
+ },
+ {
+  "noteLine": 145,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 123,
+  "to": 125,
+  "status": "OK",
+  "occ": [
+   45,
+   123,
+   167
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "quoted0": "        vec2 uv = shadow_clip_pos.xy + offset;"
+ },
+ {
+  "noteLine": 155,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "from": 1,
+  "to": 8,
+  "status": "OK",
+  "occ": [
+   1
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/cr/ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "quoted0": "vec3 GetShadowPos(vec3 playerPos) {"
+ },
+ {
+  "noteLine": 168,
+  "file": "ComplementaryReimagined-main/shaders/lib/common.glsl",
+  "from": 740,
+  "to": 740,
+  "status": "OK",
+  "occ": [
+   740
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/cr/ComplementaryReimagined-main/shaders/lib/common.glsl",
+  "quoted0": "    const float shadowMapBias = 1.0 - 25.6 / shadowDistance;"
+ },
+ {
+  "noteLine": 176,
+  "file": "Astra/shaders/lib/distort.glsl",
+  "from": 25,
+  "to": 27,
+  "status": "OK",
+  "occ": [
+   25
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/lib/distort.glsl",
+  "quoted0": "float get_distort_factor(vec2 pos) {"
+ },
+ {
+  "noteLine": 186,
+  "file": "Astra/shaders/lib/distort.glsl",
+  "from": 9,
+  "to": 15,
+  "status": "OK",
+  "occ": [
+   9
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/lib/distort.glsl",
+  "quoted0": "// k = this constant * the effective shadowDistance is the block radius at half"
+ },
+ {
+  "noteLine": 212,
+  "file": "photon-main/shaders/include/lighting/shadows/distortion.glsl",
+  "from": 33,
+  "to": 44,
+  "status": "OK",
+  "occ": [
+   33
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/distortion.glsl",
+  "quoted0": "// Shadow bias method from Complementary Reimagined by Emin"
+ },
+ {
+  "noteLine": 239,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/mainLighting.glsl",
+  "from": 215,
+  "to": 216,
+  "status": "OK",
+  "occ": [
+   215
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/cr/ComplementaryReimagined-main/shaders/lib/lighting/mainLighting.glsl",
+  "quoted0": "                                float distanceBias = pow(dot(playerPos, playerPos), 0.75);"
+ },
+ {
+  "noteLine": 250,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/mainLighting.glsl",
+  "from": 219,
+  "to": 220,
+  "status": "OK",
+  "occ": [
+   219
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/cr/ComplementaryReimagined-main/shaders/lib/lighting/mainLighting.glsl",
+  "quoted0": "                                    // WS752GH42G: \"Water shadow outside water\" fix. This calculation needs to be similar (but not the exact same) as water up-bias"
+ },
+ {
+  "noteLine": 261,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 408,
+  "to": 412,
+  "status": "OK",
+  "occ": [
+   408
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/lighting/shadowmap.glsl",
+  "quoted0": "    float bias = 1.5 * length(raw.xy)"
+ },
+ {
+  "noteLine": 271,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 359,
+  "to": 362,
+  "status": "OK",
+  "occ": [
+   359
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/lighting/shadowmap.glsl",
+  "quoted0": "// Normal offset where light grazes the surface, in world blocks. Deliberately"
+ },
+ {
+  "noteLine": 282,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 398,
+  "to": 401,
+  "status": "OK",
+  "occ": [
+   398
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/lighting/shadowmap.glsl",
+  "quoted0": "    #ifdef ASTRA_SURFACE_SHADOW_PLANE"
+ },
+ {
+  "noteLine": 291,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 218,
+  "to": 223,
+  "status": "OK",
+  "occ": [
+   218
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/lighting/shadowmap.glsl",
+  "quoted0": "    // A filter corner can lie outside this finite face (e.g. below a step)."
+ },
+ {
+  "noteLine": 306,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 381,
+  "to": 384,
+  "status": "OK",
+  "occ": [
+   381
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/lighting/shadowmap.glsl",
+  "quoted0": "    float ndotlClamped = max(ndotl, 0.05);"
+ },
+ {
+  "noteLine": 323,
+  "file": "photon-main/shaders/include/utility/sampling.glsl",
+  "from": 4,
+  "to": 11,
+  "status": "OK",
+  "occ": [
+   4
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/utility/sampling.glsl",
+  "quoted0": "vec2 vogel_disc_sample(int step_index, int step_count, float rotation) {"
+ },
+ {
+  "noteLine": 338,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 229,
+  "to": 230,
+  "status": "OK",
+  "occ": [
+   229
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "quoted0": "    float dither = texelFetch(noisetex, ivec2(gl_FragCoord.xy) & 511, 0).b;"
+ },
+ {
+  "noteLine": 345,
+  "file": "photon-main/shaders/include/utility/random.glsl",
+  "from": 10,
+  "to": 13,
+  "status": "OK",
+  "occ": [
+   10
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/utility/random.glsl",
+  "quoted0": "float r1(int n, float seed) {"
+ },
+ {
+  "noteLine": 358,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "from": 30,
+  "to": 42,
+  "status": "OK",
+  "occ": [
+   30
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/cr/ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "quoted0": "    float InterleavedGradientNoiseForShadows() {"
+ },
+ {
+  "noteLine": 382,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "from": 56,
+  "to": 61,
+  "status": "OK",
+  "occ": [
+   56
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/cr/ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "quoted0": "        for (int i = 0; i < shadowSamples; i++) {"
+ },
+ {
+  "noteLine": 395,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "from": 48,
+  "to": 53,
+  "status": "OK",
+  "occ": [
+   48
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/cr/ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "quoted0": "        #if !defined GBUFFERS_ENTITIES && !defined GBUFFERS_HAND && !defined GBUFFERS_TEXTURED"
+ },
+ {
+  "noteLine": 410,
+  "file": "Astra/shaders/global/lighting/diffuse.glsl",
+  "from": 341,
+  "to": 354,
+  "status": "OK",
+  "occ": [
+   341
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/lighting/diffuse.glsl",
+  "quoted0": "        for (int lobe=0;lobe<lobeCount;++lobe) {"
+ },
+ {
+  "noteLine": 433,
+  "file": "Astra/shaders/global/lighting/diffuse.glsl",
+  "from": 343,
+  "to": 344,
+  "status": "OK",
+  "occ": [
+   343
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/lighting/diffuse.glsl",
+  "quoted0": "            // Fixed radius/weights across texel boundaries. Gating extra lobes"
+ },
+ {
+  "noteLine": 453,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 101,
+  "to": 107,
+  "status": "OK",
+  "occ": [
+   101
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "quoted0": "    // penumbra_size > max_filter_radius: blur"
+ },
+ {
+  "noteLine": 465,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 176,
+  "to": 183,
+  "status": "OK",
+  "occ": [
+   176
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "quoted0": "    // sharpening for small penumbra sizes"
+ },
+ {
+  "noteLine": 481,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 27,
+  "to": 27,
+  "status": "OK",
+  "occ": [
+   27
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "quoted0": "const float shadow_map_pixel_size = rcp(float(shadow_map_res));"
+ },
+ {
+  "noteLine": 518,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 254,
+  "to": 258,
+  "status": "OK",
+  "occ": [
+   254
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "quoted0": "    float penumbra_size"
+ },
+ {
+  "noteLine": 532,
+  "file": "Astra/shaders/global/lighting/diffuse.glsl",
+  "from": 327,
+  "to": 327,
+  "status": "OK",
+  "occ": [
+   327
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/lighting/diffuse.glsl",
+  "quoted0": "        spread = clamp(softRadius/max(worldTexel,0.0001),0.5*spread,spread);"
+ },
+ {
+  "noteLine": 553,
+  "file": "ComplementaryReimagined-main/shaders/program/shadow.glsl",
+  "from": 315,
+  "to": 323,
+  "status": "OK",
+  "occ": [
+   315
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/cr/ComplementaryReimagined-main/shaders/program/shadow.glsl",
+  "quoted0": "    #ifdef PERPENDICULAR_TWEAKS"
+ },
+ {
+  "noteLine": 574,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/mainLighting.glsl",
+  "from": 183,
+  "to": 196,
+  "status": "OK",
+  "occ": [
+   183
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/cr/ComplementaryReimagined-main/shaders/lib/lighting/mainLighting.glsl",
+  "quoted0": "                                #if defined PERPENDICULAR_TWEAKS && SHADOW_QUALITY >= 2"
+ },
+ {
+  "noteLine": 597,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/mainLighting.glsl",
+  "from": 250,
+  "to": 254,
+  "status": "OK",
+  "occ": [
+   250
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/cr/ComplementaryReimagined-main/shaders/lib/lighting/mainLighting.glsl",
+  "quoted0": "                                } else if (subsurfaceMode == 2) {"
+ },
+ {
+  "noteLine": 609,
+  "file": "ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "from": 58,
+  "to": 58,
+  "status": "OK",
+  "occ": [
+   58
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/cr/ComplementaryReimagined-main/shaders/lib/lighting/shadowSampling.glsl",
+  "quoted0": "            if (leaves) shadowPosZM = shadowPos.z - 0.12 * offset * (gradientNoise + i) / shadowSamples;"
+ },
+ {
+  "noteLine": 619,
+  "file": "photon-main/shaders/include/lighting/diffuse_lighting.glsl",
+  "from": 76,
+  "to": 98,
+  "status": "OK",
+  "occ": [
+   76
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/diffuse_lighting.glsl",
+  "quoted0": "#ifdef SHADOW_VPS"
+ },
+ {
+  "noteLine": 647,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 54,
+  "to": 54,
+  "status": "OK",
+  "occ": [
+   54
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "quoted0": "        depth_sum_sss += max0(ref_z - depth);"
+ },
+ {
+  "noteLine": 653,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 58,
+  "to": 59,
+  "status": "OK",
+  "occ": [
+   58
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "quoted0": "    float sss_depth = -shadowProjectionInverse[2].z * depth_sum_sss"
+ },
+ {
+  "noteLine": 662,
+  "file": "photon-main/shaders/include/lighting/shadows/ssrt.glsl",
+  "from": 103,
+  "to": 104,
+  "status": "OK",
+  "occ": [
+   103
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/ssrt.glsl",
+  "quoted0": "    sss_depth = hit_after_sss ? -1.0"
+ },
+ {
+  "noteLine": 669,
+  "file": "photon-main/shaders/include/lighting/diffuse_lighting.glsl",
+  "from": 232,
+  "to": 234,
+  "status": "OK",
+  "occ": [
+   232
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/diffuse_lighting.glsl",
+  "quoted0": "    // Negative SSS depth => SSS blocked by occluder (SSRT SSS)"
+ },
+ {
+  "noteLine": 695,
+  "file": "Astra/shaders/program/shadow.vsh",
+  "from": 206,
+  "to": 211,
+  "status": "OK",
+  "occ": [
+   206
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/program/shadow.vsh",
+  "quoted0": "#ifdef WAVING_FOLIAGE"
+ },
+ {
+  "noteLine": 717,
+  "file": "Astra/shaders/lib/settings.glsl",
+  "from": 72,
+  "to": 88,
+  "status": "OFFSET",
+  "occ": [
+   73
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/lib/settings.glsl",
+  "quoted0": "#define SHADOW_FILTER_QUALITY 1 // [0 1 2]"
+ },
+ {
+  "noteLine": 741,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 186,
+  "to": 188,
+  "status": "OK",
+  "occ": [
+   186
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/lighting/shadowmap.glsl",
+  "quoted0": "vec4 shadow_gather_visibility(sampler2D depths, vec2 uv, float referenceDepth) {"
+ },
+ {
+  "noteLine": 765,
+  "file": "Astra/shaders/global/lighting/shadowmap.glsl",
+  "from": 266,
+  "to": 274,
+  "status": "OK",
+  "occ": [
+   266
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/lighting/shadowmap.glsl",
+  "quoted0": "    vec4 referenceDepths=shadow_surface_reference_depths(uv,referenceDepth,size);"
+ },
+ {
+  "noteLine": 791,
+  "file": "Astra/shaders/global/lighting/diffuse.glsl",
+  "from": 321,
+  "to": 327,
+  "status": "OK",
+  "occ": [
+   321
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/lighting/diffuse.glsl",
+  "quoted0": "        float mapRim = max(1.0-length(shadowPos.xy*2.0-1.0),0.0001);"
+ },
+ {
+  "noteLine": 820,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 43,
+  "to": 55,
+  "status": "OK",
+  "occ": [
+   43
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "quoted0": "    for (int i = 0; i < step_count; ++i) {"
+ },
+ {
+  "noteLine": 840,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 36,
+  "to": 37,
+  "status": "OK",
+  "occ": [
+   36
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "quoted0": "    float radius = SHADOW_BLOCKER_SEARCH_RADIUS * shadowProjection[0].x"
+ },
+ {
+  "noteLine": 853,
+  "file": "Bliss-Shader-Stable/shaders/dimensions/composite.fsh",
+  "from": 504,
+  "to": 539,
+  "status": "MISSING",
+  "path": null,
+  "quoted0": "\t\t\t\t\tfloat mult = maxshadowfilt;"
+ },
+ {
+  "noteLine": 886,
+  "file": "Bliss-Shader-Stable/shaders/dimensions/composite.fsh",
+  "from": 532,
+  "to": 538,
+  "status": "MISSING",
+  "path": null,
+  "quoted0": "\t\t\t\t\tgl_FragData[0].g = avgDepth / VPS_Search_Samples;"
+ },
+ {
+  "noteLine": 919,
+  "file": "Astra/shaders/block.properties",
+  "from": 112,
+  "to": 112,
+  "status": "NOTFOUND",
+  "occ": [],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/block.properties",
+  "quoted0": "#define SHADOW_SOFTNESS 2 // [1 2 4]"
+ },
+ {
+  "noteLine": 921,
+  "file": "Astra/shaders/lib/settings.glsl",
+  "from": 88,
+  "to": 88,
+  "status": "OK",
+  "occ": [
+   88
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/lib/settings.glsl",
+  "quoted0": "#define SHADOW_SOFTNESS 2 // [1 2 4]"
+ },
+ {
+  "noteLine": 936,
+  "file": "photon-main/shaders/include/lighting/colors/light_color.glsl",
+  "from": 62,
+  "to": 77,
+  "status": "OK",
+  "occ": [
+   62
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/colors/light_color.glsl",
+  "quoted0": "vec3 get_light_color() {"
+ },
+ {
+  "noteLine": 963,
+  "file": "photon-main/shaders/include/lighting/colors/light_color.glsl",
+  "from": 10,
+  "to": 20,
+  "status": "OK",
+  "occ": [
+   10
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/colors/light_color.glsl",
+  "quoted0": "float get_sun_exposure() {"
+ },
+ {
+  "noteLine": 981,
+  "file": "photon-main/shaders/include/lighting/colors/light_color.glsl",
+  "from": 26,
+  "to": 45,
+  "status": "OK",
+  "occ": [
+   26
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/colors/light_color.glsl",
+  "quoted0": "    vec3 morning_evening_tint = vec3(1.05, 0.84, 0.93) * 1.2;"
+ },
+ {
+  "noteLine": 1001,
+  "file": "photon-main/shaders/shaders.properties",
+  "from": 530,
+  "to": 535,
+  "status": "OK",
+  "occ": [
+   530
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/shaders.properties",
+  "quoted0": "uniform.float.me_fade      = if(sun_dir_y < 0.18, 0.37 + 1.2 * max(0.0, -sun_dir_y), 1.7)"
+ },
+ {
+  "noteLine": 1016,
+  "file": "Solas-Shader-main/shaders/lib/color/lightColor.glsl",
+  "from": 2,
+  "to": 15,
+  "status": "OK",
+  "occ": [
+   2
+  ],
+  "path": "C:\\Users\\杨铭\\AppData\\Local\\Temp\\dsh-ptc-plus-Walbj7\\spr\\solas\\Solas-Shader-main\\shaders\\lib\\color\\lightColor.glsl",
+  "quoted0": "float timeBrightnessSqrt = sqrt(timeBrightness);"
+ },
+ {
+  "noteLine": 1033,
+  "file": "Solas-Shader-main/shaders/shaders.properties",
+  "from": 162,
+  "to": 162,
+  "status": "MISSING",
+  "path": null,
+  "quoted0": "uniform.float.timeBrightness=max(sin(timeAngle * 6.28318530718), 0.0)"
+ },
+ {
+  "noteLine": 1050,
+  "file": "Astra/shaders/lib/colors.glsl",
+  "from": 6,
+  "to": 9,
+  "status": "OFFSET",
+  "occ": [
+   5
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/lib/colors.glsl",
+  "quoted0": "// Astra v1 — lib/colors.glsl"
+ },
+ {
+  "noteLine": 1066,
+  "file": "photon-main/shaders/program/c19_color_grading.fsh",
+  "from": 147,
+  "to": 186,
+  "status": "OK",
+  "occ": [
+   147
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/program/c19_color_grading.fsh",
+  "quoted0": "void main() {"
+ },
+ {
+  "noteLine": 1102,
+  "file": "photon-main/shaders/program/c19_color_grading.fsh",
+  "from": 63,
+  "to": 65,
+  "status": "OK",
+  "occ": [
+   63
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/program/c19_color_grading.fsh",
+  "quoted0": "// Color grading applied before tone mapping"
+ },
+ {
+  "noteLine": 1113,
+  "file": "photon-main/shaders/program/c19_color_grading.fsh",
+  "from": 70,
+  "to": 88,
+  "status": "OK",
+  "occ": [
+   70
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/program/c19_color_grading.fsh",
+  "quoted0": "    // Brightness"
+ },
+ {
+  "noteLine": 1136,
+  "file": "photon-main/shaders/program/c19_color_grading.fsh",
+  "from": 97,
+  "to": 127,
+  "status": "OFFSET",
+  "occ": [
+   95
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/program/c19_color_grading.fsh",
+  "quoted0": "// Color grading applied after tone mapping"
+ },
+ {
+  "noteLine": 1160,
+  "file": "photon-main/shaders/include/post_processing/aces/aces.glsl",
+  "from": 198,
+  "to": 207,
+  "status": "OK",
+  "occ": [
+   198
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/post_processing/aces/aces.glsl",
+  "quoted0": "/*"
+ },
+ {
+  "noteLine": 1177,
+  "file": "Astra/shaders/global/post/grading.glsl",
+  "from": 54,
+  "to": 58,
+  "status": "OK",
+  "occ": [
+   54
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/post/grading.glsl",
+  "quoted0": "// Full §2.2 final-chain order, therefore:"
+ },
+ {
+  "noteLine": 1199,
+  "file": "photon-main/shaders/shaders.properties",
+  "from": 408,
+  "to": 408,
+  "status": "OFFSET",
+  "occ": [
+   407
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/shaders.properties",
+  "quoted0": "# atmospheric scattering LUT"
+ },
+ {
+  "noteLine": 1208,
+  "file": "photon-main/shaders/include/sky/atmosphere.glsl",
+  "from": 304,
+  "to": 314,
+  "status": "OK",
+  "occ": [
+   304
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/sky/atmosphere.glsl",
+  "quoted0": "vec3 atmosphere_scattering("
+ },
+ {
+  "noteLine": 1240,
+  "file": "photon-main/shaders/program/d0_sky_map.vsh",
+  "from": 108,
+  "to": 128,
+  "status": "OK",
+  "occ": [
+   108
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/program/d0_sky_map.vsh",
+  "quoted0": "vec3 get_ambient_color() {"
+ },
+ {
+  "noteLine": 1269,
+  "file": "photon-main/shaders/include/lighting/colors/weather_color.glsl",
+  "from": 8,
+  "to": 11,
+  "status": "OK",
+  "occ": [
+   8
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/colors/weather_color.glsl",
+  "quoted0": "vec3 get_rain_color() {"
+ },
+ {
+  "noteLine": 1282,
+  "file": "photon-main/shaders/program/d0_sky_map.fsh",
+  "from": 138,
+  "to": 148,
+  "status": "OK",
+  "occ": [
+   138
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/program/d0_sky_map.fsh",
+  "quoted0": "    if (texel.x == sky_map_res.x) { // Store lighting colors"
+ },
+ {
+  "noteLine": 1302,
+  "file": "photon-main/shaders/include/sky/projection.glsl",
+  "from": 8,
+  "to": 8,
+  "status": "OK",
+  "occ": [
+   8
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/sky/projection.glsl",
+  "quoted0": "const ivec2 sky_map_res = ivec2(191, 108);"
+ },
+ {
+  "noteLine": 1310,
+  "file": "photon-main/shaders/program/c0_vl.vsh",
+  "from": 69,
+  "to": 74,
+  "status": "OK",
+  "occ": [
+   69
+  ],
+  "path": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/program/c0_vl.vsh",
+  "quoted0": "    light_color = texelFetch(colortex4, ivec2(191, 0), 0).rgb;"
+ },
+ {
+  "noteLine": 1325,
+  "file": "Astra/shaders/global/atmosphere/sky_minishita.glsl",
+  "from": 4,
+  "to": 7,
+  "status": "OK",
+  "occ": [
+   4
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/atmosphere/sky_minishita.glsl",
+  "quoted0": "// Astra v1 - two-view-sample mini atmosphere."
+ },
+ {
+  "noteLine": 1336,
+  "file": "Astra/shaders/global/atmosphere/sky_gradient.glsl",
+  "from": 6,
+  "to": 9,
+  "status": "OK",
+  "occ": [
+   6
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/atmosphere/sky_gradient.glsl",
+  "quoted0": "//  Astra v1 - overworld sky, ported from Complementary r5.9 (Reimagined)."
+ },
+ {
+  "noteLine": 1348,
+  "file": "Astra/shaders/global/lighting/diffuse.glsl",
+  "from": 106,
+  "to": 111,
+  "status": "OK",
+  "occ": [
+   106
+  ],
+  "path": "C:/Users/杨铭/Desktop/MC模组开发/Astra光影开发/Astra/shaders/global/lighting/diffuse.glsl",
+  "quoted0": "vec3 ambient_sky_lighting(float skyLightStrength, float ambientStrength, vec3 skyAmbient) {"
+ }
+]

@@ -1,0 +1,50 @@
+[
+ {
+  "noteLine": 49,
+  "file": "shaders.properties",
+  "from": 1,
+  "to": 4,
+  "found": null,
+  "foundAt": -1
+ },
+ {
+  "noteLine": 56,
+  "file": "cr/shaders/lib/common.glsl",
+  "from": 18,
+  "to": null,
+  "found": null,
+  "foundAt": -1
+ },
+ {
+  "noteLine": 64,
+  "file": "common.glsl",
+  "from": 242,
+  "to": null,
+  "found": null,
+  "foundAt": -1
+ },
+ {
+  "noteLine": 74,
+  "file": "bliss/shaders/lib/settings.glsl",
+  "from": 143,
+  "to": 151,
+  "found": null,
+  "foundAt": -1
+ },
+ {
+  "noteLine": 145,
+  "file": "photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "from": 123,
+  "to": 125,
+  "found": "C:/Users/杨铭/AppData/Local/Temp/dsh-ptc-plus-Walbj7/spr/photon/photon-main/shaders/include/lighting/shadows/pcss.glsl",
+  "foundAt": 45
+ },
+ {
+  "noteLine": 741,
+  "file": "Astra/shaders/lib/settings.glsl",
+  "from": 72,
+  "to": null,
+  "found": null,
+  "foundAt": -1
+ }
+]

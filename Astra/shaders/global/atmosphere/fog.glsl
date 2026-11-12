@@ -1,0 +1,245 @@
+#ifndef ASTRA_GLOBAL_ATMOSPHERE_FOG_GLSL
+#define ASTRA_GLOBAL_ATMOSPHERE_FOG_GLSL
+
+// Astra v1 — global/atmosphere/fog.glsl
+// From Steadfast 0.8.0 (GPLv3 + Section 7 additional terms) by coderbot
+//   source: _analysis/Steadfast-0.8.0/shaders/environment/fog.glsl (FogV2)
+// This file is a derivative of Steadfast and is licensed under the GNU General Public
+// License v3 or later (GPL-3.0-or-later); see Astra/LICENSE and
+// _analysis/Steadfast-0.8.0/LICENSE.md, including Steadfast's Section 7 additional terms.
+// Publish gate: design.md 9.3 + escalations.md SC-14 (⏸ pending user decision).
+//
+// Astra changes:
+//   - the fog COLOURS are parameters, not uniforms. Steadfast precomputes
+//     caveFogColor / underwaterFogColor as custom uniforms; Astra's Z3 uniform set is
+//     frozen (escalations.md SC-14 gate) and its fog colours belong to the atmosphere
+//     chain D2 owns, so this module owns only the curves and the switches.
+//   - the legacy Fog() wrapper is dropped: Steadfast kept it only while migrating, and
+//     Astra builds the sky-colour add at the call site from skyFogStrength.
+//   - FOG_DENSITY / UNDERWATER_FOG_DENSITY / SKY_FOG_STRENGTH are wired in here; they
+//     are percentages, so every use site scales by 0.01.
+//   - air perspective and biome tint are Astra additions on top of FogV2
+//     (design.md 4.2; Refrax is the stated inspiration, the implementation is ours).
+//
+// Uniforms: atmosphereFogCoefficient, borderFogDistance, isEyeInWater, blindness,
+//           worldSunVector (lib/uniforms.glsl)
+// Consts:   FOG_DENSITY, SKY_FOG_STRENGTH, UNDERWATER_FOG_DENSITY, BORDER_FOG,
+//           CAVE_FOG, AIR_PERSPECTIVE, BIOME_TINT, BIOME_TINT_STRENGTH (lib/settings.glsl)
+// Owner: B2. Consumers: program/lit.fsh (E1), program/sky.fsh (D2), program/deferred.fsh (E2).
+
+// Everything this module needs to know about colour, supplied by the atmosphere /
+// lighting owners. Keeping it out of the uniform block is deliberate: fog colour is
+// palette data, and palette data is C1/D2's job (design.md 4.2).
+struct FogParams {
+	vec3  caveColor;        // colour of fog where skylight ~= 0 (caves, deep night)
+	vec3  underwaterColor;  // underwater fog colour (C2 picks it from WATER_CHARACTER)
+	float eyeSkylight;      // smoothed skylight at the camera, 0..1
+};
+
+// ---------------------------------------------------------------------------
+// Valley mist: the density of the air as a function of ALTITUDE.
+//
+// The study's item D asks for fog with a height relationship - valleys and low
+// ground hold more haze, high ground less - and Photon gets it by integrating an
+// altitude density along the ray (include/fog/overworld/analytic.glsl). Astra
+// already had the integral form in program/scene.glsl's twilight haze
+// (`1.0 - smoothstep(96.0, 176.0, cameraPosition.y + playerPos.y)`), but it was
+// written twice: once there for the twilight window and once in mainFog, and it
+// produced a hard-edged band rather than a graded mist. This is that same term,
+// unresolved and shared, so the two call sites cannot drift apart.
+//
+// The coordinate is the ABSOLUTE world height of the fragment, taken from
+// cameraPosition.y + playerPos.y. That is what keeps the layer in the world: a
+// camera-relative term would slide the mist up and down with the player and read
+// as a screen overlay. Nothing here samples noise or marches a ray; it is two
+// smoothsteps and a mix, which is the cheap expression of what the references
+// spend a density integral on.
+//
+// Reference levels (world Y, sea level = 62/63). The boost is deliberately a quarter,
+// not a multiple: this multiplies a pow(d,3) fog curve that already reaches a fog
+// factor of ~0.5 at 200 blocks, so a large valley factor would put a wall of mist in
+// front of exactly the distant terrain the fog is supposed to give depth to.
+//   1.28 at and below Y=48   - valley floors and ravines, where mist collects
+//   1.11 at Y=100            - low ground
+//   0.96 from Y=150 to Y=200 - open ground at normal build height
+//   0.68 at Y=230            - hills
+//   0.40 at and above Y=260  - high mountains and the build limit
+float fog_valley_mist(float worldY) {
+	float below = smoothstep(48.0, 150.0, worldY);
+	float above = smoothstep(200.0, 260.0, worldY);
+	return mix(1.28, 0.96, below) * mix(1.0, 0.42, above);
+}
+// Complementary's mainFog weight for the low-altitude air, as a function of the same
+// height: 0.62 for dense low air, 0.22 for thin high air. Folding the valley mist into
+// this remap keeps the original end points exactly - at the valley floor it is still
+// 0.62, and above Y=150 it is still 0.22 - while the ground in between (where players
+// actually build) is graded rather than switched at a threshold. The previous form
+// had the two endpoints swapped: valleys came out 0.22 and hilltops 0.62, so morning
+// fog stacked on ridges and drained from valleys (consolidated review D2 / Qoder F-09).
+float fog_morning_air_weight_from_mist(float valleyMist) {
+	return mix(0.22, 0.62, clamp((valleyMist - 0.96) / 0.32, 0.0, 1.0));
+}
+float fog_morning_air_weight(float worldY) {
+    return fog_morning_air_weight_from_mist(fog_valley_mist(worldY));
+}
+
+// FogV2 (Steadfast): atmospheric pow(d,3) fog + render-distance border fog + a
+// skylight-driven switch into cave fog, with blindness / water / lava overrides.
+//
+// Returns vec4(fogColor, fogFactor). The caller does
+//   mix(sceneColor, fogColor + skyColor * skyFogStrength, fogFactor)
+// — returning the sky contribution separately is what lets the caller skip the
+// expensive sky evaluation entirely when skyFogStrength is ~0 (design.md 5 early-out).
+//
+// Six covered situations (regression checklist item 8): clear air, render-distance
+// border, cave, blindness, lava, underwater.
+//
+//   fragDistance        distance used for the atmospheric pow(d,3) term
+//   borderFragDistance  distance used for the border ramp; differs from fragDistance
+//                       only for Voxy terrain (C5)
+//   skyLightStrength    fragment skylight, 0..1 where 1 is light level 15
+//   fragWorldY          ABSOLUTE world height of the fragment, for the valley mist.
+//                       Absolute, not camera-relative: a relative height would move
+//                       the mist layer with the camera (see fog_valley_mist).
+vec4 fog_v2(
+	out float skyFogStrength,
+    out float fogValleyMist,
+	FogParams params,
+	float fragDistance,
+	float borderFragDistance,
+	float skyLightStrength,
+	float fragWorldY,
+    bool airLeg
+) {
+	#ifdef BORDER_FOG
+		float borderFog = smoothstep(
+			borderFogDistance - 8.0,
+			borderFogDistance,
+			borderFragDistance);
+	#else
+		float borderFog = 0.0;
+	#endif
+
+	// These media replace every ordinary atmosphere term. Keep border fog and
+	// the original priority, but do not evaluate valley/cave/rain terms first.
+	skyFogStrength = 0.0;
+    fogValleyMist = 1.0;
+    // scene.glsl blends blindness after the ordinary fog colour is assembled.
+	if (!airLeg && isEyeInWater == 1 && !water_is_thin_sheet()) {
+		// Solas getWaterFog: retain the linear exponent and underwater palette.
+		float opacity = 1.0 - exp(-fragDistance * 0.06 * (UNDERWATER_FOG_DENSITY * 0.01));
+		return vec4(params.underwaterColor, min(borderFog + opacity, 1.0));
+	}
+	if (!airLeg && isEyeInWater == 2) {
+		float opacity = max(0.85, 1.0 - exp(-square(fragDistance * 0.5)));
+		return vec4(1.0, 0.05, 0.0, min(borderFog + opacity, 1.0));
+	}
+
+	// The pow(d,3) coefficient is precomputed on the CPU including the render-distance
+	// normalisation (design.md 5); FOG_DENSITY is the user's percentage on top.
+	//
+	// The altitude factor is the valley mist above. It multiplies the existing curve
+	// rather than adding a second fog layer, so nothing new is composited and the
+	// near field cannot go grey: the pow(d,3) curve is still ~0 at short range, and
+	// the C-FOG_DENSITY default is unchanged. It is evaluated for the fragment's own
+	// world height, so two points at the same distance but different altitude get
+	// different haze - which is the whole point of the term.
+	fogValleyMist = fog_valley_mist(fragWorldY);
+	float atmosphereFog = cube(fragDistance)
+		* atmosphereFogCoefficient
+		* (FOG_DENSITY * 0.01)
+		* fogValleyMist;
+
+	// Caves (and unlit interiors) switch to a dedicated colour. Taking the max of the
+	// fragment and camera skylight means a lit pocket inside a cave does not flip fog
+	// colour as the camera moves through it.
+	#ifdef CAVE_FOG
+		float caveFogTransition = smoothstep(
+			0.0,
+			0.25,
+			max(skyLightStrength, params.eyeSkylight));
+	#else
+		float caveFogTransition = 1.0;
+	#endif
+
+	// Rain thickens outdoor air; cave and underwater fog keep their own medium.
+	if (airLeg || isEyeInWater == 0 || water_is_thin_sheet()) {
+        atmosphereFog *= 1.10 + 2.2 * astraRainFactor * caveFogTransition;
+        // Clear weather and fully sheltered receivers add exactly zero here.
+        if (astraRainFactor > 0.0 && caveFogTransition > 0.0)
+            atmosphereFog += (1.0-exp(-fragDistance*0.0055*astraRainFactor))*caveFogTransition;
+    }
+	skyFogStrength = caveFogTransition * mix(SKY_FOG_STRENGTH * 0.01, 0.65, astraRainFactor);
+	vec3 fogColor = (1.0 - caveFogTransition) * params.caveColor;
+
+	float fogFactor = min(borderFog + atmosphereFog, 1.0);
+
+	if (skyFogStrength > 0.0) {
+		// Zero out very weak fog so the caller's sky-colour path (and its cost)
+		// disappears for nearby terrain. Skipped for the dense special cases above,
+		// where a low value is real fog rather than numerical noise.
+		fogFactor *= smoothstep(0.01, 0.015, fogFactor);
+	}
+
+	return vec4(fogColor, fogFactor);
+}
+
+// Air perspective (design.md 4.2): the fog picks up the light colour as the view
+// direction swings towards the sun, which is what gives the horizon its dawn/dusk
+// gradient. pow 4 keeps the effect around the sun instead of tinting the whole sky.
+//
+// 2026-09-16 visual-experience round: the warm lobe alone was not enough. BSL's fog
+// colour is a function of view direction, altitude angle AND the sun direction
+// (lib/atmospherics/fog.glsl fogColorM), so a haze layer reads as air rather than as
+// a coloured spotlight: the bank facing the sun is warm, the sides are neutral, and
+// the shaded side of the same valley is slightly cooler. That is the study's item D
+// ("朝阳方向偏暖，侧向较中性，背光方向稍冷"), and it is the difference between the fog
+// belonging to the same lighting as everything else and the fog being a separate
+// overlay with its own palette.
+//
+// `viewDir` is a NORMALISED world-space direction; sunGlowColor comes from the
+// atmosphere owner (D2) and is expected to already carry the sunrise intensity.
+#ifdef AIR_PERSPECTIVE
+vec3 fog_air_perspective(vec3 fogColor, vec3 viewDir, vec3 sunGlowColor) {
+	float horizon = astra_twilight_strength();
+	if (horizon <= 0.0) return fogColor;
+	float sunAmount = max(dot(viewDir, worldSunVector), 0.0);
+	vec3 result = fogColor + sunGlowColor * (pow4(sunAmount) * horizon);
+	// Direction asymmetry. The reference derives its cool side from the same sky
+	// colour it uses for everything else; here the existing horizon sky tint
+	// (astra_twilight_sky - the atmosphere's own away-from-sun term) supplies the
+	// tint, so no second twilight palette is introduced. It is scaled down because
+	// the term is already calibrated for the sky's own brightness.
+	// Same horizontal facing term as before; the 1e-5 offset and normalization
+	// now run once per frame in shaders.properties instead of per fragment.
+	float away = clamp(-dot(viewDir.xz, astraSunHorizontalDirection), 0.0, 1.0);
+	// `away` is the horizontal facing weight. Rays on the sun's side and exactly
+	// vertical rays have zero blend weight; near-vertical rays may still contribute.
+	// astra_twilight_sky is the expensive part here (two high-exponent pow() calls
+	// plus its own horizon exp), so evaluate it only on the side that consumes it.
+	// The mix is the identity at weight zero, so the skipped case is unchanged.
+	if (away > 0.0) {
+		float level = 1.0 - min(abs(viewDir.y) * 2.2, 1.0);   // strongest along the horizon
+		// level == 0 for every ray with abs(viewDir.y) >= 1/2.2, so that whole
+		// high-elevation band contributes nothing through the mix; skip the two
+		// high powers and exp inside astra_twilight_sky there.
+		if (level > 0.0) {
+			vec3 cool = astra_twilight_sky(viewDir) * 0.35;
+			result = mix(result, result + cool * level, away * horizon * 0.50);
+		}
+	}
+	return result;
+}
+#endif
+
+// Biome tint (design.md 4.2): a gentle pull of the fog colour towards the biome's
+// palette. The colour comes straight from the engine's fogColor at the call site; the
+// CPU-smoothed temperature/humidity uniforms were removed - they never had a shader
+// consumer (consolidated review E2 / Qoder F-28).
+#ifdef BIOME_TINT
+vec3 fog_biome_tint(vec3 fogColor, vec3 biomeFogColor) {
+	return mix(fogColor, biomeFogColor, BIOME_TINT_STRENGTH * 0.01);
+}
+#endif
+
+#endif

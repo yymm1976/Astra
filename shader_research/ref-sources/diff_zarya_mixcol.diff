@@ -1,0 +1,74 @@
+diff --git a/shaders/common/lpvCommon.glsl b/shaders/common/lpvCommon.glsl
+index a32a42d..0841b55 100644
+--- a/shaders/common/lpvCommon.glsl
++++ b/shaders/common/lpvCommon.glsl
+@@ -148,9 +148,5 @@ vec3 lpvLimitPeak(vec3 c, float limit) {
+    return peak > limit ? c * (limit / peak) : c;
+ }
+ 
+-vec3 lpvPickStronger(vec3 a, vec3 b) {
+-   return dot(a, a) >= dot(b, b) ? a : b;
+-}
+-
+ #endif
+ #endif
+diff --git a/shaders/program/lpvFloodfill.csh b/shaders/program/lpvFloodfill.csh
+index 68729f5..dd624fc 100644
+--- a/shaders/program/lpvFloodfill.csh
++++ b/shaders/program/lpvFloodfill.csh
+@@ -207,20 +207,7 @@ vec3 lpvFaceFlow(sampler3D lightSampler, ivec3 pos) {
+    vec3 n4 = lpvLoadPrev(lightSampler, pos + ivec3( 0,  0,  1));
+    vec3 n5 = lpvLoadPrev(lightSampler, pos + ivec3( 0,  0, -1));
+ 
+-   float e0 = dot(n0, n0);
+-   float e1 = dot(n1, n1);
+-   float e2 = dot(n2, n2);
+-   float e3 = dot(n3, n3);
+-   float e4 = dot(n4, n4);
+-   float e5 = dot(n5, n5);
+-
+-   vec3 mean = (n0 + n1 + n2 + n3 + n4 + n5) * (1.0 / 6.0);
+-   float energyW = e0 + e1 + e2 + e3 + e4 + e5;
+-   vec3 energy = energyW > 1.0e-8
+-      ? (n0 * e0 + n1 * e1 + n2 * e2 + n3 * e3 + n4 * e4 + n5 * e5) / energyW
+-      : mean;
+-
+-   return mix(mean, energy, 0.6);
++   return max(max(max(n0, n1), max(n2, n3)), max(n4, n5));
+ }
+ 
+ void main() {
+@@ -241,7 +228,7 @@ void main() {
+    vec3 trans;
+    lpvDecodeCell(id, porous, pos, inject, trans);
+ 
+-   float decay = mix(0.70, 0.88, clamp((LPV_FALLOFF - 0.88) / 0.11, 0.0, 1.0));
++   float decay = mix(0.58, 0.92, clamp((LPV_FALLOFF - 0.88) / 0.11, 0.0, 1.0));
+    vec3 light = inject;
+ 
+    if (frameCounter > 0 && lpvPeak(trans) > 1.0e-5) {
+@@ -249,7 +236,7 @@ void main() {
+          ? lpvFaceFlow(lpvLightSamplerB, prevPos)
+          : lpvFaceFlow(lpvLightSamplerA, prevPos);
+ 
+-      light = lpvPickStronger(inject, incoming * trans * decay);
++      light = max(inject, incoming * trans * decay);
+    }
+ 
+    light = lpvLimitPeak(light, 14.0);
+diff --git a/shaders/shader.h b/shaders/shader.h
+index 486253e..5c05015 100644
+--- a/shaders/shader.h
++++ b/shaders/shader.h
+@@ -248,9 +248,9 @@ const float sunPathRotation = -40.0; //[-90.0 -85.0 -80.0 -75.0 -70.0 -65.0 -60.
+ #define LPV_SIZE_XZ 128 //[64 96 128 192 256 384 512 1024]
+ #define LPV_SIZE_Y 64 //[32 64 96 128 192 256 384 512]
+ #define LPV_DEBUG_BOUNDS 0 //[0 1]
+-#define LPV_BRIGHTNESS 1.0 //[0.25 0.5 0.75 1.0 1.25 1.5 1.75 2.0 2.5 3.0]
++#define LPV_BRIGHTNESS 0.75 //[0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 1.0 1.05 1.1 1.15 1.2 1.25 1.3 1.35 1.4 1.45 1.5 1.55 1.6 1.65 1.7 1.75 1.8 1.85 1.9 1.95 2.0 2.05 2.1 2.15 2.2 2.25 2.3 2.35 2.4 2.45 2.5 2.55 2.6 2.65 2.7 2.75 2.8 2.85 2.9 2.95 3.0]
+ #define LPV_FALLOFF 0.96 //[0.88 0.90 0.92 0.94 0.95 0.96 0.97 0.98 0.99]
+-#define LPV_SATURATION 1.0 //[0.0 0.25 0.5 0.75 1.0 1.25 1.5 1.75 2.0]
++#define LPV_SATURATION 0.75 //[0.0 0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 1.0 1.05 1.1 1.15 1.2 1.25 1.3 1.35 1.4 1.45 1.5 1.55 1.6 1.65 1.7 1.75 1.8 1.85 1.9 1.95 2.0]
+ #define LPV_TINT_SATURATION 0.5 //[0.0 0.25 0.5 0.75 1.0 1.25 1.5 1.75 2.0]
+ #define LPV_DAY_LEAK 0.25 //[0.0 0.05 0.1 0.15 0.2 0.25 0.3 0.4 0.5 0.75 1.0]
+ 

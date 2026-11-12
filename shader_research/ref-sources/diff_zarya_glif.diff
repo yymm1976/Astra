@@ -1,0 +1,280 @@
+diff --git a/shaders/common/weatherGlyphs.glsl b/shaders/common/weatherGlyphs.glsl
+index b760169..a1ffa96 100644
+--- a/shaders/common/weatherGlyphs.glsl
++++ b/shaders/common/weatherGlyphs.glsl
+@@ -71,35 +71,92 @@ float rfSheetU(vec3 pos, vec2 uv) {
+    return uv.x;
+ }
+ 
+-bool rfGlyphHit(vec2 block, float span, float worldY, vec2 uv, out vec2 local) {
++const float RF_RAIN_GLYPH_SCALE = 3.0;
++const float RF_RAIN_GLYPH_GAP = 4.0;
++const float RF_RAIN_SDF_SPREAD = 48.0;
++const float RF_RAIN_SDF_TEX = 1024.0;
++
++float rfRainGlyphBase() {
++   return max(float(GLYPH_WEATHER_BLOCK), 0.01) * RF_RAIN_GLYPH_SCALE;
++}
++
++float rfSnowGlyphBase() {
++   return max(float(GLYPH_WEATHER_BLOCK), 0.01) * 2.15;
++}
++
++vec3 rfWidenWeatherSheet(vec3 feet, float base) {
++   float need = clamp(base * 2.4, 0.40, 0.46);
++   vec3 world = feet + cameraPosition;
++   vec2 center = floor(world.xz) + 0.5;
++   vec2 offset = world.xz - center;
++   float halfW = length(offset);
++   if (halfW > 1.0e-4 && halfW < need) {
++      world.xz = center + offset * (need / halfW);
++   }
++   return world - cameraPosition;
++}
++
++bool rfScatterGlyphHit(vec2 block, float span, float worldY, float sheet, float base, float gap, float speedScale, out vec2 local) {
+    local = vec2(0.0);
+ 
++   float laneCount = 1.0;
++   if (span > base * 2.2) {
++      laneCount = 2.0;
++   }
++   if (span > base * 3.6) {
++      laneCount = 3.0;
++   }
++
+    for (int lane = 0; lane < 3; lane++) {
+       float laneF = float(lane);
+-      vec2 laneId = block + vec2(laneF * 5.3, laneF * 2.7);
+-      float size = max(float(GLYPH_WEATHER_BLOCK), 0.04);
+-      size *= mix(0.86, 1.14, random(laneId + vec2(4.1, 1.7)));
+-      float center = mix(0.08, 0.92, random(laneId + vec2(9.2, 2.6)));
+-      float across = (uv.x - center) * span;
+-      if (abs(across) > size * 0.5) {
++      if (laneF >= laneCount) {
+          continue;
+       }
+ 
+-      float gap = size * max(float(GLYPH_WEATHER_GAP), 2.0);
+-      float speed = float(GLYPH_WEATHER_SPEED) * mix(0.82, 1.18, random(laneId + vec2(1.3, 8.4)));
+-      float travel = worldY + frameTimeCounter * speed + random(laneId + vec2(6.6, 3.3)) * gap;
++      vec2 laneId = block + vec2(laneF * 5.3, laneF * 2.7);
++      float speed = speedScale * mix(0.45, 1.7, random(laneId + vec2(1.3, 8.4)));
++      float travel = worldY + frameTimeCounter * speed + random(laneId + vec2(6.6, 3.3)) * gap + laneF * gap * 0.41;
+       float idx = floor(travel / gap);
+ 
+       for (int k = -1; k <= 1; k++) {
+          float n = idx + float(k);
+-         float wobble = (random(vec3(laneId + vec2(2.2, 5.5), n)) - 0.5) * gap * 0.85;
++         vec3 id = vec3(laneId + vec2(2.2, 5.5), n);
++         if (random(id + vec3(11.0, 4.0, 1.0)) < 0.36) {
++            continue;
++         }
++
++         float size = base * mix(0.55, 1.45, random(id + vec3(4.1, 1.7, 3.0)));
++         float ang = (random(id + vec3(3.3, 7.7, 2.0)) - 0.5) * 0.7;
++         float c = cos(ang);
++         float s = sin(ang);
++         float box = size * (abs(c) + abs(s));
++         float halfUv = box / max(span, 1.0e-4) * 0.5;
++         if (halfUv > 0.46) {
++            float fit = 0.46 / halfUv;
++            size *= fit;
++            box *= fit;
++            halfUv = 0.46;
++         }
++
++         float wobble = (random(id) - 0.5) * gap * 0.58;
+          float glyphBase = n * gap + wobble;
+          float drop = travel - glyphBase;
+-         if (drop < 0.0 || drop >= size) {
++         if (drop < 0.0 || drop >= box) {
+             continue;
+          }
+ 
+-         local = vec2(across / size + 0.5, 1.0 - drop / size);
++         float center = mix(halfUv, 1.0 - halfUv, random(id + vec3(9.2, 2.6, 8.0)));
++         float across = (sheet - center) * span;
++         if (abs(across) > box * 0.5) {
++            continue;
++         }
++
++         float x = across;
++         float y = box * 0.5 - drop;
++         local = vec2(c * x + s * y, -s * x + c * y) / size + 0.5;
++         if (local.x < 0.0 || local.y < 0.0 || local.x > 1.0 || local.y > 1.0) {
++            continue;
++         }
+          return true;
+       }
+    }
+@@ -107,32 +164,30 @@ bool rfGlyphHit(vec2 block, float span, float worldY, vec2 uv, out vec2 local) {
+    return false;
+ }
+ 
+-bool rfRainTextureGlyph(vec2 uv, vec2 span, float worldY, vec2 block, out vec2 local) {
+-   local = vec2(0.0);
+-
+-   float size = max(float(GLYPH_WEATHER_BLOCK), 0.04);
+-   float spanX = max(span.x, 1.0e-4);
+-   float spanY = max(span.y, 1.0e-4);
+-   vec2 cell = vec2(size / spanX, size / spanY);
+-   float rainV = (worldY + frameTimeCounter * float(GLYPH_WEATHER_SPEED)) / spanY + random(block);
+-   vec2 rainUV = vec2(uv.x, rainV);
+-   vec2 origin = floor(rainUV / cell) * cell;
+-
+-   float ink = 0.0;
+-   for (int y = 0; y < 3; y++) {
+-      for (int x = 0; x < 3; x++) {
+-         vec2 tap = origin + cell * (vec2(float(x), float(y)) + 0.5) / 3.0;
+-         ink = max(ink, texture2D(gtexture, tap).a);
+-      }
+-   }
++bool rfRainGlyphHit(vec2 block, float span, float worldY, vec2 uv, out vec2 local) {
++   float base = rfRainGlyphBase();
++   return rfScatterGlyphHit(block, span, worldY, uv.x, base, base * RF_RAIN_GLYPH_GAP, float(GLYPH_WEATHER_SPEED), local);
++}
+ 
+-   if (ink < 0.04) {
+-      return false;
+-   }
++#ifdef RF_WEATHER_FRAG
++float rfRainSdfCover(vec2 uv, float pixel) {
++   float dist = (texture2D(rainGlyphs, uv, -16.0).a - 0.5) * (RF_RAIN_SDF_SPREAD * 2.0);
++   return smoothstep(-pixel, pixel, dist);
++}
+ 
+-   local = clamp((rainUV - origin) / cell, 0.0, 1.0);
+-   return true;
++float rfRainGlyphCover(vec2 uv) {
++   vec2 dx = vec2(dFdx(uv.x), dFdy(uv.x));
++   vec2 dy = vec2(dFdx(uv.y), dFdy(uv.y));
++   float pixel = max(length(dx), length(dy)) * RF_RAIN_SDF_TEX;
++   pixel = clamp(pixel, 0.75, 6.0);
++   float cover = rfRainSdfCover(uv, pixel);
++   cover += rfRainSdfCover(uv + dx * 0.25, pixel);
++   cover += rfRainSdfCover(uv - dx * 0.25, pixel);
++   cover += rfRainSdfCover(uv + dy * 0.25, pixel);
++   cover += rfRainSdfCover(uv - dy * 0.25, pixel);
++   return cover * 0.2;
+ }
++#endif
+ 
+ float rfIsSnow(float textureKind, float sheetU, float uvX) {
+    if (textureKind > 0.5) {
+@@ -145,40 +200,9 @@ float rfIsSnow(float textureKind, float sheetU, float uvX) {
+ }
+ 
+ bool rfSnowGlyphHit(vec2 block, float span, float worldY, float sheetU, out vec2 local) {
+-   local = vec2(0.0);
+-
+-   for (int lane = 0; lane < 2; lane++) {
+-      float laneF = float(lane);
+-      vec2 laneId = block + vec2(laneF * 8.1, laneF * 4.7);
+-      float size = max(float(GLYPH_WEATHER_BLOCK), 0.04) * 2.15;
+-      size *= mix(0.8, 1.35, random(laneId + vec2(2.4, 6.8)));
+-      float sway = sin(frameTimeCounter * (0.45 + laneF * 0.17) + random(laneId) * 6.28318) * 0.22;
+-      float center = clamp(mix(0.28, 0.72, random(laneId + vec2(5.5, 1.9))) + sway, 0.12, 0.88);
+-      float across = (sheetU - center) * span;
+-      if (abs(across) > size * 0.5) {
+-         continue;
+-      }
+-
+-      float gap = size * max(float(GLYPH_WEATHER_GAP), 2.0) * 1.8;
+-      float speed = float(GLYPH_WEATHER_SNOW_SPEED) * mix(0.7, 1.2, random(laneId + vec2(3.3, 9.4)));
+-      float travel = worldY + frameTimeCounter * speed + random(laneId + vec2(7.1, 2.2)) * gap;
+-      float idx = floor(travel / gap);
+-
+-      for (int k = -1; k <= 1; k++) {
+-         float n = idx + float(k);
+-         float wobble = (random(vec3(laneId + vec2(1.7, 4.4), n)) - 0.5) * gap * 0.55;
+-         float glyphBase = n * gap + wobble;
+-         float drop = travel - glyphBase;
+-         if (drop < 0.0 || drop >= size) {
+-            continue;
+-         }
+-
+-         local = vec2(across / size + 0.5, 1.0 - drop / size);
+-         return true;
+-      }
+-   }
+-
+-   return false;
++   float base = rfSnowGlyphBase();
++   float gap = base * RF_RAIN_GLYPH_GAP * max(float(GLYPH_WEATHER_GAP), 2.0) / 10.0;
++   return rfScatterGlyphHit(block, span, worldY, sheetU, base, gap, float(GLYPH_WEATHER_SNOW_SPEED), local);
+ }
+ 
+ #endif
+diff --git a/shaders/program/weather.fsh b/shaders/program/weather.fsh
+index c8a5a7e..7e7f0d5 100644
+--- a/shaders/program/weather.fsh
++++ b/shaders/program/weather.fsh
+@@ -13,6 +13,7 @@ varying vec3 feetPos;
+ varying float weatherKind;
+ 
+ #include "/common/transformations.glsl"
++#define RF_WEATHER_FRAG
+ #include "/common/weatherGlyphs.glsl"
+ #endif
+ 
+@@ -26,15 +27,20 @@ void main() {
+    float snow = rfIsSnow(weatherKind, sheetU, texUV.x);
+    bool hit = snow > 0.5
+       ? rfSnowGlyphHit(block, span.x, worldY, sheetU, local)
+-      : rfRainTextureGlyph(texUV, span, worldY, block, local);
++      : rfRainGlyphHit(block, span.x, worldY, texUV, local);
+    if (!hit) {
+       discard;
+    }
+ 
+    vec2 uv = mix(vec2(0.06), vec2(0.94), local);
+-   float cover = snow > 0.5 ? texture2D(snowGlyphs, uv).a : texture2D(rainGlyphs, uv).a;
+-   float edge = fwidth(cover);
+-   cover = smoothstep(0.35 - edge, 0.6 + edge, cover);
++   float cover;
++   if (snow > 0.5) {
++      cover = texture2D(snowGlyphs, uv).a;
++      float edge = fwidth(cover);
++      cover = smoothstep(0.35 - edge, 0.6 + edge, cover);
++   } else {
++      cover = rfRainGlyphCover(uv);
++   }
+ 
+    float alpha = cover * color.a * GLYPH_WEATHER_OPACITY;
+    if (alpha < 0.03) {
+diff --git a/shaders/program/weather.vsh b/shaders/program/weather.vsh
+index bd43c55..5d1e84e 100644
+--- a/shaders/program/weather.vsh
++++ b/shaders/program/weather.vsh
+@@ -22,5 +22,11 @@ void main() {
+ #ifdef GLYPH_WEATHER
+    feetPos = view2feet((gl_ModelViewMatrix * gl_Vertex).xyz);
+    weatherKind = rfWeatherKind();
++   float sheetBase = weatherKind < 0.5 ? rfRainGlyphBase() : rfSnowGlyphBase();
++   vec3 widened = rfWidenWeatherSheet(feetPos, sheetBase);
++   if (distance(widened.xz, feetPos.xz) > 1.0e-4) {
++      feetPos = widened;
++      gl_Position = view2clip(feet2view(feetPos));
++   }
+ #endif
+ }
+diff --git a/shaders/shader.h b/shaders/shader.h
+index b3a3ed3..c0aae5e 100644
+--- a/shaders/shader.h
++++ b/shaders/shader.h
+@@ -244,9 +244,9 @@ const float sunPathRotation = -40.0; //[-90.0 -85.0 -80.0 -75.0 -70.0 -65.0 -60.
+ //----------------------------------------------------------------------------//
+ //#define GLYPH_WEATHER
+ #define GLYPH_WEATHER_OPACITY 0.2 //[0.0 0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 1.0]
+-#define GLYPH_WEATHER_BLOCK 0.04 //[0.04 0.05 0.06 0.08 0.1 0.12]
++#define GLYPH_WEATHER_BLOCK 0.04 //[0.01 0.015 0.02 0.025 0.03 0.04 0.05 0.06 0.08 0.1 0.12]
+ #define GLYPH_WEATHER_GAP 10.0 //[3.0 4.0 5.0 6.0 8.0 10.0 12.0 16.0]
+-#define GLYPH_WEATHER_SPEED 0.5 //[0.0 0.25 0.5 0.75 1.0 1.5 2.0 3.0 4.0 5.0 6.0 7.0 8.0]
++#define GLYPH_WEATHER_SPEED 6.0 //[0.0 0.25 0.5 0.75 1.0 1.5 2.0 3.0 4.0 5.0 6.0 7.0 8.0]
+ #define GLYPH_WEATHER_SNOW_SPEED 1.5 //[0.4 0.6 0.8 1.0 1.25 1.5 2.0 2.5 3.0 4.0]
+ 
+ //----------------------------------------------------------------------------//
+diff --git a/shaders/tex/rain_glyphs.png b/shaders/tex/rain_glyphs.png
+index 3c5c6ce..1995972 100644
+Binary files a/shaders/tex/rain_glyphs.png and b/shaders/tex/rain_glyphs.png differ
