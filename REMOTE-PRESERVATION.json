@@ -1,0 +1,696 @@
+{
+  "schema": "dsh112.desktop-minecraft-remote-recovery.v1",
+  "repository": "yymm1976/Astra",
+  "snapshotBranch": "codex-preservation/2026-11-13/astra",
+  "snapshotCommit": "25860c4f99559618d3b9a72e74a2ed921b3d8b01",
+  "sourceGroups": [
+    "Astra光影开发"
+  ],
+  "release": {
+    "tag": "preservation-2026-11-13-astra",
+    "url": "https://github.com/yymm1976/Astra/releases/tag/preservation-2026-11-13-astra",
+    "assets": [
+      {
+        "kind": "workspace-asset",
+        "unit": ".dshtest",
+        "archive": {
+          "path": "C:\\Users\\杨铭\\Documents\\Codex\\DSH-1.1.2-Temporary\\desktop-minecraft-upload-1\\astra\\astra-dshtest-2026-11-13.tar.gz",
+          "bytes": 18934639,
+          "sha256": "4aea9ca76bbce2e45de55a38e68d9a197e8726f4aa15889ecf7ceeedb7201632",
+          "fileCount": 403,
+          "uncompressedFileBytes": 50031453
+        },
+        "part": 1,
+        "parts": 1,
+        "name": "astra-dshtest-2026-11-13.tar.gz",
+        "bytes": 18934639,
+        "sha256": "4aea9ca76bbce2e45de55a38e68d9a197e8726f4aa15889ecf7ceeedb7201632",
+        "githubId": 740838952,
+        "apiUrl": "https://api.github.com/repos/yymm1976/Astra/releases/assets/740838952",
+        "browserDownloadUrl": "https://github.com/yymm1976/Astra/releases/download/preservation-2026-11-13-astra/astra-dshtest-2026-11-13.tar.gz"
+      },
+      {
+        "kind": "workspace-asset",
+        "unit": "_analysis",
+        "archive": {
+          "path": "C:\\Users\\杨铭\\Documents\\Codex\\DSH-1.1.2-Temporary\\desktop-minecraft-upload-1\\astra\\astra-analysis-2026-11-13.tar.gz",
+          "bytes": 778456461,
+          "sha256": "3f7edcfc72401c24b2e0b307403a8597c61c761b3d1687cbbf17ecc50eae032f",
+          "fileCount": 37668,
+          "uncompressedFileBytes": 983881192
+        },
+        "part": 1,
+        "parts": 2,
+        "name": "astra-analysis-2026-11-13.tar.gz.part-001-of-002",
+        "bytes": 512000000,
+        "sha256": "d54c71101eaed12db7850995f3b432dc9962f4f2cf5d1846fd6e9a913074ed56",
+        "githubId": 740856666,
+        "apiUrl": "https://api.github.com/repos/yymm1976/Astra/releases/assets/740856666",
+        "browserDownloadUrl": "https://github.com/yymm1976/Astra/releases/download/preservation-2026-11-13-astra/astra-analysis-2026-11-13.tar.gz.part-001-of-002"
+      },
+      {
+        "kind": "workspace-asset",
+        "unit": "_analysis",
+        "archive": {
+          "path": "C:\\Users\\杨铭\\Documents\\Codex\\DSH-1.1.2-Temporary\\desktop-minecraft-upload-1\\astra\\astra-analysis-2026-11-13.tar.gz",
+          "bytes": 778456461,
+          "sha256": "3f7edcfc72401c24b2e0b307403a8597c61c761b3d1687cbbf17ecc50eae032f",
+          "fileCount": 37668,
+          "uncompressedFileBytes": 983881192
+        },
+        "part": 2,
+        "parts": 2,
+        "name": "astra-analysis-2026-11-13.tar.gz.part-002-of-002",
+        "bytes": 266456461,
+        "sha256": "a6bc8ce154af71569a55e6d7a96f4ae11e2b2849fa6fa2892c6fb6162760b7a0",
+        "githubId": 740864238,
+        "apiUrl": "https://api.github.com/repos/yymm1976/Astra/releases/assets/740864238",
+        "browserDownloadUrl": "https://github.com/yymm1976/Astra/releases/download/preservation-2026-11-13-astra/astra-analysis-2026-11-13.tar.gz.part-002-of-002"
+      },
+      {
+        "kind": "workspace-asset",
+        "unit": "qa",
+        "archive": {
+          "path": "C:\\Users\\杨铭\\Documents\\Codex\\DSH-1.1.2-Temporary\\desktop-minecraft-upload-1\\astra\\astra-qa-2026-11-13.tar.gz",
+          "bytes": 1274642312,
+          "sha256": "7da1cc43f6dbf21a7605fc7477eb52dc7f0eea56f7eef20826e5d1b8cb986e1a",
+          "fileCount": 859,
+          "uncompressedFileBytes": 2258087928
+        },
+        "part": 1,
+        "parts": 3,
+        "name": "astra-qa-2026-11-13.tar.gz.part-001-of-003",
+        "bytes": 512000000,
+        "sha256": "e39a9caf7c293a8f58854e3ae14b26923d65e4ceec8eb9cc90e3cee29b5d17e3",
+        "githubId": 740875758,
+        "apiUrl": "https://api.github.com/repos/yymm1976/Astra/releases/assets/740875758",
+        "browserDownloadUrl": "https://github.com/yymm1976/Astra/releases/download/preservation-2026-11-13-astra/astra-qa-2026-11-13.tar.gz.part-001-of-003"
+      },
+      {
+        "kind": "workspace-asset",
+        "unit": "qa",
+        "archive": {
+          "path": "C:\\Users\\杨铭\\Documents\\Codex\\DSH-1.1.2-Temporary\\desktop-minecraft-upload-1\\astra\\astra-qa-2026-11-13.tar.gz",
+          "bytes": 1274642312,
+          "sha256": "7da1cc43f6dbf21a7605fc7477eb52dc7f0eea56f7eef20826e5d1b8cb986e1a",
+          "fileCount": 859,
+          "uncompressedFileBytes": 2258087928
+        },
+        "part": 2,
+        "parts": 3,
+        "name": "astra-qa-2026-11-13.tar.gz.part-002-of-003",
+        "bytes": 512000000,
+        "sha256": "8648143eb442b12d3c20c505118d897a85886ca5603a483b953afb542f002ec3",
+        "githubId": 740879737,
+        "apiUrl": "https://api.github.com/repos/yymm1976/Astra/releases/assets/740879737",
+        "browserDownloadUrl": "https://github.com/yymm1976/Astra/releases/download/preservation-2026-11-13-astra/astra-qa-2026-11-13.tar.gz.part-002-of-003"
+      },
+      {
+        "kind": "workspace-asset",
+        "unit": "qa",
+        "archive": {
+          "path": "C:\\Users\\杨铭\\Documents\\Codex\\DSH-1.1.2-Temporary\\desktop-minecraft-upload-1\\astra\\astra-qa-2026-11-13.tar.gz",
+          "bytes": 1274642312,
+          "sha256": "7da1cc43f6dbf21a7605fc7477eb52dc7f0eea56f7eef20826e5d1b8cb986e1a",
+          "fileCount": 859,
+          "uncompressedFileBytes": 2258087928
+        },
+        "part": 3,
+        "parts": 3,
+        "name": "astra-qa-2026-11-13.tar.gz.part-003-of-003",
+        "bytes": 250642312,
+        "sha256": "dbb764d652920dd2665007ed843cae173aad1f3fe41c55a79b84aa478b1829e1",
+        "githubId": 740883575,
+        "apiUrl": "https://api.github.com/repos/yymm1976/Astra/releases/assets/740883575",
+        "browserDownloadUrl": "https://github.com/yymm1976/Astra/releases/download/preservation-2026-11-13-astra/astra-qa-2026-11-13.tar.gz.part-003-of-003"
+      },
+      {
+        "kind": "workspace-asset",
+        "unit": "reference_shaderpacks",
+        "archive": {
+          "path": "C:\\Users\\杨铭\\Documents\\Codex\\DSH-1.1.2-Temporary\\desktop-minecraft-upload-1\\astra\\astra-reference-shaderpacks-2026-11-13.tar.gz",
+          "bytes": 29201186,
+          "sha256": "45ab659c2a1bb85183c9acc13fd862155b2f407a4aeb893d922937501803e609",
+          "fileCount": 2895,
+          "uncompressedFileBytes": 46045747
+        },
+        "part": 1,
+        "parts": 1,
+        "name": "astra-reference-shaderpacks-2026-11-13.tar.gz",
+        "bytes": 29201186,
+        "sha256": "45ab659c2a1bb85183c9acc13fd862155b2f407a4aeb893d922937501803e609",
+        "githubId": 740887123,
+        "apiUrl": "https://api.github.com/repos/yymm1976/Astra/releases/assets/740887123",
+        "browserDownloadUrl": "https://github.com/yymm1976/Astra/releases/download/preservation-2026-11-13-astra/astra-reference-shaderpacks-2026-11-13.tar.gz"
+      },
+      {
+        "kind": "workspace-asset",
+        "unit": "root",
+        "archive": {
+          "path": "C:\\Users\\杨铭\\Documents\\Codex\\DSH-1.1.2-Temporary\\desktop-minecraft-upload-1\\astra\\astra-root-2026-11-13.tar.gz",
+          "bytes": 597,
+          "sha256": "f7155975f2a8687f2f8bd1731aefba570d40ca21c52c7b1c634b30fef83aaf52",
+          "fileCount": 1,
+          "uncompressedFileBytes": 0
+        },
+        "part": 1,
+        "parts": 1,
+        "name": "astra-root-2026-11-13.tar.gz",
+        "bytes": 597,
+        "sha256": "f7155975f2a8687f2f8bd1731aefba570d40ca21c52c7b1c634b30fef83aaf52",
+        "githubId": 740887597,
+        "apiUrl": "https://api.github.com/repos/yymm1976/Astra/releases/assets/740887597",
+        "browserDownloadUrl": "https://github.com/yymm1976/Astra/releases/download/preservation-2026-11-13-astra/astra-root-2026-11-13.tar.gz"
+      }
+    ]
+  },
+  "privateCrossRepositoryAssets": [
+    {
+      "kind": "dpapi-private-config",
+      "sourceFiles": [
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": ".codex/config.toml",
+          "bytes": 231
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": ".dshtest/.anonymous-user-id",
+          "bytes": 37
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": ".dshtest/gh.json",
+          "bytes": 2956
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/AUDIT.md",
+          "bytes": 2905
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/FINDINGS.md",
+          "bytes": 3113
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/README.md",
+          "bytes": 4221
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/VERIFICATION.md",
+          "bytes": 3752
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/cordis.patch.yml",
+          "bytes": 564
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/index.js",
+          "bytes": 21766
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/package.json",
+          "bytes": 310
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-arg.mjs",
+          "bytes": 1738
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-behavior.mjs",
+          "bytes": 3136
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-cap-real.mjs",
+          "bytes": 2136
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-ceiling.mjs",
+          "bytes": 3050
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-effort.mjs",
+          "bytes": 2666
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-freeze-real.mjs",
+          "bytes": 1452
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-freeze.mjs",
+          "bytes": 298
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-mount.mjs",
+          "bytes": 1272
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-rent.mjs",
+          "bytes": 2276
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-trim-assemble.mjs",
+          "bytes": 1580
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-trim-real.mjs",
+          "bytes": 1461
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-trim-rent.mjs",
+          "bytes": 616
+        },
+        {
+          "target": "Astra",
+          "group": "Astra光影开发",
+          "path": "dsh-token-lab/test-trim-unit.mjs",
+          "bytes": 969
+        }
+      ],
+      "archiveMetadata": {
+        "path": "C:\\Users\\杨铭\\Documents\\Codex\\DSH-1.1.2-Temporary\\desktop-minecraft-upload-1\\minecraft-development-archive\\private-config-2026-11-13.tar.gz",
+        "bytes": 23886,
+        "sha256": "5ed9ade0f45450d70ce6f8a93ff444cb9599f5f5ac7208230209300dca32a722",
+        "fileCount": 23,
+        "uncompressedFileBytes": 62505
+      },
+      "name": "private-config-2026-11-13.tar.gz.dpapi",
+      "bytes": 24102,
+      "sha256": "7176f14b5625beefbb35b060812fd999d742e7fd508e13a7420105033869265f",
+      "githubId": 740838329,
+      "apiUrl": "https://api.github.com/repos/yymm1976/Minecraft-Development-Archive/releases/assets/740838329",
+      "browserDownloadUrl": "https://github.com/yymm1976/Minecraft-Development-Archive/releases/download/preservation-2026-11-13-minecraft-development-archive/private-config-2026-11-13.tar.gz.dpapi"
+    }
+  ],
+  "nestedGitBundleAssets": [
+    {
+      "kind": "nested-git-bundles",
+      "bundleManifest": {
+        "schema": "dsh112.desktop-minecraft-nested-git-bundles.v1",
+        "bundles": [
+          {
+            "relativeSource": "Astra光影开发/_analysis/batch5_unpack/lantern-shader",
+            "bundleName": "astra-analysis-batch5-unpack-lantern-shader.bundle",
+            "bytes": 46441,
+            "sha256": "5b941fba41c323f2fca0ce2fa084bcd0da845d8feb43bf8c38eb322f422d3c9e",
+            "heads": [
+              "e48abf8d69cca1c4147cbec6950543fda2ae16d0 refs/heads/main",
+              "b2f6d7c375b6684ba6c95911eec15788560bd982 refs/remotes/origin/HEAD",
+              "b2f6d7c375b6684ba6c95911eec15788560bd982 refs/remotes/origin/main",
+              "b869c3982107328870a3dac8171f5197c3ce38f5 refs/tags/1.1.6",
+              "bf72144a059d0dfaff37685c26098a815002d98e refs/tags/v1.0.0",
+              "04a2aec56b583f6d2b3dd6e75d0a10a7a174a7c4 refs/tags/v1.1.0",
+              "583965c52861ed6b45cfc6676067b3c594a7f16e refs/tags/v1.1.2",
+              "acbe9aa82e23516d06062f84145dcf5011840634 refs/tags/v1.1.3",
+              "4e8bdbfd94709a007f6620343b432865510e6184 refs/tags/v1.1.5",
+              "e48abf8d69cca1c4147cbec6950543fda2ae16d0 HEAD"
+            ]
+          },
+          {
+            "relativeSource": "Astra光影开发/_analysis/batch5_unpack/raincore",
+            "bundleName": "astra-analysis-batch5-unpack-raincore.bundle",
+            "bytes": 62928,
+            "sha256": "371ada65139832e8d5d7c77314b0c6f6d4e70da023bb4da3117cb24950a178ac",
+            "heads": [
+              "31a2dd9d2f01007d2ff491aaae09b2d0bcb7d71b refs/heads/main",
+              "31a2dd9d2f01007d2ff491aaae09b2d0bcb7d71b refs/remotes/origin/HEAD",
+              "31a2dd9d2f01007d2ff491aaae09b2d0bcb7d71b refs/remotes/origin/main",
+              "d41b49df499c57f795d4f3ee790f0c5d3cfe7b71 refs/tags/Alpha_0.100.rain",
+              "a8b6e8eba1323f335923e247e04c0186b0c5b26c refs/tags/Alpha_0.101.rain",
+              "004d18c742ddd663255960881dea6b9bf2aba563 refs/tags/Alpha_0.98.rain",
+              "6bd62deab965eed0961a88a1f0c65be74fd196c8 refs/tags/Alpha_0.99.rain",
+              "31a2dd9d2f01007d2ff491aaae09b2d0bcb7d71b HEAD"
+            ]
+          },
+          {
+            "relativeSource": "Astra光影开发/_analysis/batch5_unpack/realisticallyoptimized",
+            "bundleName": "astra-analysis-batch5-unpack-realisticallyoptimized.bundle",
+            "bytes": 14758,
+            "sha256": "0bbc48f67a968f465b37e513a5c7abdbfa59a8eb256f082414085cad4edfba7d",
+            "heads": [
+              "fd58b5005bf23cc62b7e9232941dbaa9a797a290 refs/heads/main",
+              "fd58b5005bf23cc62b7e9232941dbaa9a797a290 refs/remotes/origin/HEAD",
+              "fd58b5005bf23cc62b7e9232941dbaa9a797a290 refs/remotes/origin/main",
+              "fd58b5005bf23cc62b7e9232941dbaa9a797a290 HEAD"
+            ]
+          },
+          {
+            "relativeSource": "光影/mellow-sf",
+            "bundleName": "mellow-sf.bundle",
+            "bytes": 1695831,
+            "sha256": "93660338ca889a7df90d0d70644dbcf2e53af0aa26f80be63b96d6ce41b25c45",
+            "heads": [
+              "f53d24c9d03ee717bbe51506bfc4871cf2b8f6c6 refs/heads/master",
+              "f53d24c9d03ee717bbe51506bfc4871cf2b8f6c6 refs/tags/v1.0",
+              "f53d24c9d03ee717bbe51506bfc4871cf2b8f6c6 HEAD"
+            ]
+          },
+          {
+            "relativeSource": "cuiros/MDK-1.21.1-ModDevGradle",
+            "bundleName": "cuiros-mdk-1-21-1-moddevgradle.bundle",
+            "bytes": 480635,
+            "sha256": "c21d59898c423c67a44c86a315b872691f4208eac77fd6f35efbb2636fbcadaa",
+            "heads": [
+              "2fd0c210186047a8912fcdf2ac31b2975d693127 refs/heads/main",
+              "2fd0c210186047a8912fcdf2ac31b2975d693127 refs/remotes/origin/HEAD",
+              "2fd0c210186047a8912fcdf2ac31b2975d693127 refs/remotes/origin/main",
+              "e362255886bd8e12915b52a505071c04d7d0aab6 refs/remotes/origin/update",
+              "2fd0c210186047a8912fcdf2ac31b2975d693127 HEAD"
+            ]
+          }
+        ],
+        "sourceRefsNotPushedToTheirOrigins": true
+      },
+      "name": "nested-git-bundles-2026-11-13.tar.gz",
+      "bytes": 2267884,
+      "sha256": "e3128f515a947207c8af73bc708efcfd245f521e92f2088eed75451462786feb",
+      "githubId": 740839352,
+      "apiUrl": "https://api.github.com/repos/yymm1976/Minecraft-Development-Archive/releases/assets/740839352",
+      "browserDownloadUrl": "https://github.com/yymm1976/Minecraft-Development-Archive/releases/download/preservation-2026-11-13-minecraft-development-archive/nested-git-bundles-2026-11-13.tar.gz"
+    }
+  ],
+  "cachesExcludedAsRegenerable": [
+    {
+      "group": "Astra光影开发",
+      "path": ".lwjgl/3.3.3+5/x64/glfw.dll",
+      "bytes": 496128,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": ".lwjgl/3.3.3+5/x64/lwjgl.dll",
+      "bytes": 479232,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": ".lwjgl/3.3.3+5/x64/lwjgl_opengl.dll",
+      "bytes": 364032,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "_analysis/__pycache__/four_report_decisions.cpython-310.pyc",
+      "bytes": 86925,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "_analysis/__pycache__/four_report_groups.cpython-310.pyc",
+      "bytes": 11389,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "_analysis/__pycache__/four_report_work.cpython-310.pyc",
+      "bytes": 3906,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "_analysis/video-2026-10-01/__pycache__/download_refs.cpython-310.pyc",
+      "bytes": 4229,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/runtime-feedback-2026-09-29/__pycache__/mc_control.cpython-310.pyc",
+      "bytes": 1894,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/_audit_uniform_types.cpython-310.pyc",
+      "bytes": 10639,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/block_reflect_probe.cpython-310.pyc",
+      "bytes": 24064,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/check_pack.cpython-310.pyc",
+      "bytes": 68685,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/check_pack.cpython-313.pyc",
+      "bytes": 123247,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/compile_glsl.cpython-310.pyc",
+      "bytes": 22586,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/compile_glsl.cpython-312.pyc",
+      "bytes": 31529,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/compile_glsl.cpython-313.pyc",
+      "bytes": 31669,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/compile_glsl.cpython-314.pyc",
+      "bytes": 35347,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/cost_census.cpython-310.pyc",
+      "bytes": 4010,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/end_march_count.cpython-310.pyc",
+      "bytes": 9227,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/gen_rain_ripple.cpython-310.pyc",
+      "bytes": 3312,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/inspect_iris_properties.cpython-310.pyc",
+      "bytes": 17344,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/live_glsl_probe.cpython-310.pyc",
+      "bytes": 7354,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/minecraft_paths.cpython-310.pyc",
+      "bytes": 3173,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/minecraft_paths.cpython-312.pyc",
+      "bytes": 5315,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/minecraft_paths.cpython-313.pyc",
+      "bytes": 5514,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/minecraft_paths.cpython-314.pyc",
+      "bytes": 6431,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/nether_voxel_model.cpython-310.pyc",
+      "bytes": 9068,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/option_matrix.cpython-310.pyc",
+      "bytes": 12952,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/option_matrix.cpython-312.pyc",
+      "bytes": 17372,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/option_matrix.cpython-313.pyc",
+      "bytes": 17687,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/provenance_steadfast.cpython-310.pyc",
+      "bytes": 5514,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/provenance_steadfast.cpython-312.pyc",
+      "bytes": 8223,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/provenance_steadfast.cpython-313.pyc",
+      "bytes": 8259,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/render_end_design.cpython-310.pyc",
+      "bytes": 14864,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/shader_options.cpython-310.pyc",
+      "bytes": 2144,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/shader_options.cpython-312.pyc",
+      "bytes": 5483,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/shader_options.cpython-313.pyc",
+      "bytes": 5650,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/shader_options.cpython-314.pyc",
+      "bytes": 4130,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/source_stamp.cpython-312.pyc",
+      "bytes": 5305,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/source_stamp.cpython-313.pyc",
+      "bytes": 5281,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/underwater_light_probe.cpython-310.pyc",
+      "bytes": 5735,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/underwater_shaft_gate_probe.cpython-310.pyc",
+      "bytes": 14290,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/verify_tonemap_chain.cpython-310.pyc",
+      "bytes": 12718,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/water_path_probe.cpython-310.pyc",
+      "bytes": 19591,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/water_path_probe.cpython-312.pyc",
+      "bytes": 23759,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/water_path_probe.cpython-313.pyc",
+      "bytes": 23720,
+      "matchesSecretName": false
+    },
+    {
+      "group": "Astra光影开发",
+      "path": "qa/tools/__pycache__/water_ssr_cost.cpython-310.pyc",
+      "bytes": 10830,
+      "matchesSecretName": false
+    }
+  ],
+  "recovery": {
+    "git": "git clone --branch codex-preservation/2026-11-13/astra https://github.com/yymm1976/Astra.git",
+    "releaseAssets": "Download every asset in release.assets. For split parts, concatenate part-001 through the declared final part in numeric order, then verify SHA-256 and extract with tar -xzf.",
+    "externalContent": "Ignored QA, research, build-output, and asset files listed in the preservation manifest are stored in the matching release assets.",
+    "dpapi": "The private tool-configuration asset is DPAPI-protected for the current Windows user. Recovery requires the same user profile and the documented fixed entropy."
+  }
+}
